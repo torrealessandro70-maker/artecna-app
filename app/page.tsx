@@ -4,10 +4,14 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import jsPDF from 'jspdf'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Configurazione Supabase mancante')
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 type Cantiere = {
   id?: string
