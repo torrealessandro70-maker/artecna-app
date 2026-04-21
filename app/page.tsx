@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import jsPDF from 'jspdf'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
-
-if (!supabaseUrl || !supabaseKey) {
+const supabase = createClient(
+  'https://axuiaiglbahygsmeoypy.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4dWlhaWdsYmFoeWdzbWVveXB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTY5ODYsImV4cCI6MjA5MjE3Mjk4Nn0.UU0rZN-8utUUXiuQHfkh-Z9sbhNmfpnJBsGMBqhzSIg'
+) {
   throw new Error('Configurazione Supabase mancante')
 }
 
