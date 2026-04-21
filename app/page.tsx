@@ -4,14 +4,19 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import jsPDF from 'jspdf'
 
-const supabaseUrl = 'https://axuiaiglbahygsmeoypy.supabase.co'.replace(/\s/g, '')
-const supabaseKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4dWlhaWdsYmFoeWdzbWVveXB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTY5ODYsImV4cCI6MjA5MjE3Mjk4Nn0.UU0rZN-8utUUXiuQHfkh-Z9sbhNmfpnJBsGMBqhzSIg'.replace(/\s/g, '')
+const supabase = createClient(
+  'https://axuiaiglbahygsmeoypy.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4dWlhaWdsYmFoeWdzbWVveXB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTY5ODYsImV4cCI6MjA5MjE3Mjk4Nn0.UU0rZN-8utUUXiuQHfkh-Z9sbhNmfpnJBsGMBqhzSIg',
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  }
+)
 
-const supabase = createClient(supabaseUrl, supabaseKey)
-
-console.log('SUPABASE URL:', supabaseUrl)
-console.log('SUPABASE KEY LENGTH:', supabaseKey.length)type Cantiere = {
+type Cantiere = {
   id?: string
   nome: string
 }
@@ -41,6 +46,8 @@ type FotoCantiere = {
 }
 
 export default function Home() {
+
+
   const [cantieri, setCantieri] = useState<Cantiere[]>([])
   const [rapportini, setRapportini] = useState<Rapportino[]>([])
   const [fotoCantiere, setFotoCantiere] = useState<FotoCantiere[]>([])
@@ -73,11 +80,16 @@ export default function Home() {
   const [filtroCantiere, setFiltroCantiere] = useState('')
   const [cantiereScheda, setCantiereScheda] = useState('')
 
-  useEffect(() => {
-    caricaCantieri()
-    caricaRapportini()
-    caricaFotoCantiere()
-  }, [])
+ useEffect(() => {
+  try {
+    localStorage.removeItem('sb-axuiaiglbahygsmeoypy-auth-token')
+    sessionStorage.removeItem('sb-axuiaiglbahygsmeoypy-auth-token')
+  } catch {}
+
+  caricaCantieri()
+  caricaRapportini()
+  caricaFotoCantiere()
+}, [])
 
   const caricaCantieri = async () => {
     const { data, error } = await supabase
