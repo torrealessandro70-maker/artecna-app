@@ -4,6 +4,12 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import jsPDF from 'jspdf'
 
+const emptyStorage = {
+  getItem: (_key: string) => null,
+  setItem: (_key: string, _value: string) => {},
+  removeItem: (_key: string) => {},
+}
+
 const supabase = createClient(
   'https://axuiaiglbahygsmeoypy.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4dWlhaWdsYmFoeWdzbWVveXB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTY5ODYsImV4cCI6MjA5MjE3Mjk4Nn0.UU0rZN-8utUUXiuQHfkh-Z9sbhNmfpnJBsGMBqhzSIg',
@@ -12,6 +18,7 @@ const supabase = createClient(
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
+      storage: emptyStorage,
     },
   }
 )
@@ -80,16 +87,16 @@ export default function Home() {
   const [filtroCantiere, setFiltroCantiere] = useState('')
   const [cantiereScheda, setCantiereScheda] = useState('')
 
- useEffect(() => {
-  try {
-    localStorage.removeItem('sb-axuiaiglbahygsmeoypy-auth-token')
-    sessionStorage.removeItem('sb-axuiaiglbahygsmeoypy-auth-token')
-  } catch {}
+   useEffect(() => {
+    try {
+      localStorage.clear()
+      sessionStorage.clear()
+    } catch {}
 
-  caricaCantieri()
-  caricaRapportini()
-  caricaFotoCantiere()
-}, [])
+    caricaCantieri()
+    caricaRapportini()
+    caricaFotoCantiere()
+  }, [])
 
   const caricaCantieri = async () => {
     const { data, error } = await supabase
