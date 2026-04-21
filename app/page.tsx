@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import jsPDF from 'jspdf'
 
@@ -53,8 +53,6 @@ type FotoCantiere = {
 }
 
 export default function Home() {
-
-
   const [cantieri, setCantieri] = useState<Cantiere[]>([])
   const [rapportini, setRapportini] = useState<Rapportino[]>([])
   const [fotoCantiere, setFotoCantiere] = useState<FotoCantiere[]>([])
@@ -87,7 +85,7 @@ export default function Home() {
   const [filtroCantiere, setFiltroCantiere] = useState('')
   const [cantiereScheda, setCantiereScheda] = useState('')
 
-   useEffect(() => {
+  useEffect(() => {
     try {
       localStorage.clear()
       sessionStorage.clear()
@@ -676,24 +674,226 @@ export default function Home() {
   const totaleRapportini = rapportini.length
   const totaleFoto = fotoCantiere.length
 
+  const oggi = new Date().toISOString().slice(0, 10)
+
+  const rapportiniOggi = rapportini.filter((r) => r.data === oggi)
+  const totaleRapportiniOggi = rapportiniOggi.length
+
+  const oreTotaliOggi = rapportiniOggi.reduce((tot, r) => {
+    const valore = parseFloat(String(r.ore).replace(',', '.'))
+    return tot + (isNaN(valore) ? 0 : valore)
+  }, 0)
+
+  const ultimiCantieri = cantieri.slice(0, 5)
+  const ultimiRapportini = rapportini.slice(0, 5)
+  const ultimeFoto = fotoCantiere.slice(0, 4)
+
+  const cardStyle: CSSProperties = {
+    padding: 16,
+    border: '1px solid #d9d9d9',
+    borderRadius: 12,
+    background: '#ffffff',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+  }
+
+  const buttonPrimary: CSSProperties = {
+    padding: '10px 14px',
+    backgroundColor: '#0f172a',
+    color: 'white',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 600,
+  }
+
+  const buttonSecondary: CSSProperties = {
+    padding: '10px 14px',
+    backgroundColor: '#f3f4f6',
+    color: '#111827',
+    border: '1px solid #d1d5db',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 600,
+  }
+
   return (
     <div style={{ padding: 20, fontFamily: 'Arial, sans-serif', maxWidth: 1000 }}>
-      <h1>ARTECNA - Gestione Cantieri</h1>
-
-      <div style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ padding: 15, border: '1px solid #ccc', borderRadius: 8, minWidth: 180 }}>
-          <h3>Totale cantieri</h3>
-          <p style={{ fontSize: 24, margin: 0 }}>{totaleCantieri}</p>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 16,
+          flexWrap: 'wrap',
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <h1 style={{ margin: 0, fontSize: 32 }}>ARTECNA Dashboard</h1>
+          <p style={{ margin: '6px 0 0 0', color: '#555' }}>
+            Controllo cantieri, rapportini e foto in un’unica schermata
+          </p>
         </div>
 
-        <div style={{ padding: 15, border: '1px solid #ccc', borderRadius: 8, minWidth: 180 }}>
-          <h3>Totale rapportini</h3>
-          <p style={{ fontSize: 24, margin: 0 }}>{totaleRapportini}</p>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 14, color: '#666' }}>Data di oggi</div>
+          <div style={{ fontWeight: 700, fontSize: 18 }}>{oggi}</div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 20,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 12,
+        }}
+      >
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, color: '#666' }}>Cantieri attivi</div>
+          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{totaleCantieri}</div>
         </div>
 
-        <div style={{ padding: 15, border: '1px solid #ccc', borderRadius: 8, minWidth: 180 }}>
-          <h3>Totale foto</h3>
-          <p style={{ fontSize: 24, margin: 0 }}>{totaleFoto}</p>
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, color: '#666' }}>Rapportini totali</div>
+          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{totaleRapportini}</div>
+        </div>
+
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, color: '#666' }}>Rapportini di oggi</div>
+          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{totaleRapportiniOggi}</div>
+        </div>
+
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, color: '#666' }}>Ore totali oggi</div>
+          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{oreTotaliOggi}</div>
+        </div>
+      </div>
+
+      <div style={{ ...cardStyle, marginTop: 20 }}>
+        <h2 style={{ marginTop: 0 }}>Azioni rapide</h2>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            flexWrap: 'wrap',
+          }}
+        >
+          <button
+            onClick={() => window.scrollTo({ top: 1100, behavior: 'smooth' })}
+            style={buttonPrimary}
+          >
+            Nuovo rapportino
+          </button>
+
+          <button
+            onClick={() => window.scrollTo({ top: 1700, behavior: 'smooth' })}
+            style={buttonSecondary}
+          >
+            Nuova foto
+          </button>
+
+          <button
+            onClick={() => window.scrollTo({ top: 700, behavior: 'smooth' })}
+            style={buttonSecondary}
+          >
+            Nuovo cantiere
+          </button>
+
+          <button onClick={generaPDF} style={buttonSecondary}>
+            Genera PDF
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 20,
+          display: 'grid',
+          gridTemplateColumns: '1.2fr 1.2fr 1fr',
+          gap: 16,
+        }}
+      >
+        <div style={cardStyle}>
+          <h2 style={{ marginTop: 0 }}>Ultimi cantieri</h2>
+          {ultimiCantieri.length === 0 ? (
+            <p>Nessun cantiere presente</p>
+          ) : (
+            <div>
+              {ultimiCantieri.map((c, i) => (
+                <div
+                  key={c.id || i}
+                  style={{
+                    padding: '10px 0',
+                    borderBottom: i < ultimiCantieri.length - 1 ? '1px solid #eee' : 'none',
+                  }}
+                >
+                  <div style={{ fontWeight: 600 }}>{c.nome}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={cardStyle}>
+          <h2 style={{ marginTop: 0 }}>Ultimi rapportini</h2>
+          {ultimiRapportini.length === 0 ? (
+            <p>Nessun rapportino presente</p>
+          ) : (
+            <div>
+              {ultimiRapportini.map((r, i) => (
+                <div
+                  key={r.id || i}
+                  style={{
+                    padding: '10px 0',
+                    borderBottom: i < ultimiRapportini.length - 1 ? '1px solid #eee' : 'none',
+                  }}
+                >
+                  <div style={{ fontWeight: 600 }}>{r.cantiere}</div>
+                  <div style={{ fontSize: 14, color: '#666' }}>
+                    {r.data} · {r.ore} ore
+                  </div>
+                  <div style={{ fontSize: 14, marginTop: 4 }}>
+                    {String(r.note || '').slice(0, 60)}
+                    {String(r.note || '').length > 60 ? '...' : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={cardStyle}>
+          <h2 style={{ marginTop: 0 }}>Ultime foto</h2>
+          {ultimeFoto.length === 0 ? (
+            <p>Nessuna foto presente</p>
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 8,
+              }}
+            >
+              {ultimeFoto.map((f, i) => (
+                <div key={f.id || i}>
+                  <img
+                    src={f.immagine_base64}
+                    alt="Foto cantiere"
+                    style={{
+                      width: '100%',
+                      height: 100,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                      border: '1px solid #ddd',
+                    }}
+                  />
+                  <div style={{ fontSize: 12, marginTop: 4 }}>{f.cantiere}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
