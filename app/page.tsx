@@ -60,6 +60,7 @@ type Operaio = {
   pin?: string
   nota?: string
   stato?: string
+  costo_orario?: number
   created_at?: string
 }
 
@@ -110,6 +111,7 @@ export default function Home() {
   const [pinOperaio, setPinOperaio] = useState('')
   const [notaOperaio, setNotaOperaio] = useState('')
   const [statoOperaio, setStatoOperaio] = useState('attivo')
+  const [costoOrarioOperaio, setCostoOrarioOperaio] = useState('')
   const [ricercaOperaio, setRicercaOperaio] = useState('')
 
   const [operaioInModifica, setOperaioInModifica] = useState<string | null>(null)
@@ -119,6 +121,7 @@ export default function Home() {
   const [pinOperaioModifica, setPinOperaioModifica] = useState('')
   const [notaOperaioModifica, setNotaOperaioModifica] = useState('')
   const [statoOperaioModifica, setStatoOperaioModifica] = useState('attivo')
+  const [costoOrarioOperaioModifica, setCostoOrarioOperaioModifica] = useState('')
 
   const [operaioTimbratura, setOperaioTimbratura] = useState('')
   const [cantiereTimbratura, setCantiereTimbratura] = useState('')
@@ -163,6 +166,8 @@ export default function Home() {
     if (isNaN(h) || isNaN(m)) return null
     return h * 60 + m
   }
+
+  const formatMoney = (value: number) => `€ ${value.toFixed(2)}`
 
   const caricaCantieri = async () => {
     const { data, error } = await supabase
@@ -301,6 +306,9 @@ export default function Home() {
       return
     }
 
+    const costo = parseFloat(String(costoOrarioOperaio).replace(',', '.'))
+    const costoPulito = isNaN(costo) ? 0 : costo
+
     const { error } = await supabase
       .from('operai')
       .insert([
@@ -311,6 +319,7 @@ export default function Home() {
           pin: pinOperaio.trim(),
           nota: notaOperaio.trim(),
           stato: statoOperaio,
+          costo_orario: costoPulito,
         },
       ])
 
@@ -325,6 +334,7 @@ export default function Home() {
     setPinOperaio('')
     setNotaOperaio('')
     setStatoOperaio('attivo')
+    setCostoOrarioOperaio('')
     await caricaOperai()
     alert('Operaio salvato')
   }
@@ -337,6 +347,11 @@ export default function Home() {
     setPinOperaioModifica(operaio.pin || '')
     setNotaOperaioModifica(operaio.nota || '')
     setStatoOperaioModifica(operaio.stato || 'attivo')
+    setCostoOrarioOperaioModifica(
+      operaio.costo_orario !== undefined && operaio.costo_orario !== null
+        ? String(operaio.costo_orario)
+        : ''
+    )
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -348,6 +363,7 @@ export default function Home() {
     setPinOperaioModifica('')
     setNotaOperaioModifica('')
     setStatoOperaioModifica('attivo')
+    setCostoOrarioOperaioModifica('')
   }
 
   const salvaModificaOperaio = async () => {
@@ -385,6 +401,9 @@ export default function Home() {
       return
     }
 
+    const costo = parseFloat(String(costoOrarioOperaioModifica).replace(',', '.'))
+    const costoPulito = isNaN(costo) ? 0 : costo
+
     const { error } = await supabase
       .from('operai')
       .update({
@@ -394,6 +413,7 @@ export default function Home() {
         pin: pinOperaioModifica.trim(),
         nota: notaOperaioModifica.trim(),
         stato: statoOperaioModifica,
+        costo_orario: costoPulito,
       })
       .eq('id', operaioInModifica)
 
@@ -1109,6 +1129,21 @@ export default function Home() {
     alert('Foto eliminata')
   }
 
+  const calcolaCostoTimbratura = (timbratura: Timbratura) => {
+    const entrata = parseOra(timbratura.ora_entrata)
+    const uscita = parseOra(timbratura.ora_uscita)
+
+    if (entrata === null || uscita === null || uscita < entrata) return 0
+
+    const minuti = uscita - entrata
+    const ore = minuti / 60
+
+    const operaio = operaiAnagrafica.find((o) => o.nome === timbratura.operaio_nome)
+    const costoOrario = Number(operaio?.costo_orario || 0)
+
+    return ore * costoOrario
+  }
+
   const generaPDF = () => {
     const r = ultimoRapportino || {
       cantiere: cantiereRapporto,
@@ -1283,6 +1318,18 @@ export default function Home() {
     return tot + (isNaN(valore) ? 0 : valore)
   }, 0)
 
+  const costoTotaleTimbratureOggi = timbratureOggi.reduce((tot, t) => {
+    return tot + calcolaCostoTimbratura(t)
+  }, 0)
+
+  const costoGiornalieroCantiereSelezionato = timbrature
+    .filter((t) => t.cantiere === cantiereScheda && t.data === oggi)
+    .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+
+  const costoGiornalieroRapportino = timbrature
+    .filter((t) => t.cantiere === cantiereRapporto && t.data === oggi)
+    .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+
   const ultimiCantieri = cantieri.slice(0, 5)
   const ultimiRapportini = rapportini.slice(0, 5)
   const ultimeFoto = fotoCantiere.slice(0, 4)
@@ -1389,6 +1436,13 @@ export default function Home() {
           <div style={{ fontSize: 14, color: '#666' }}>Timbrature oggi</div>
           <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{timbratureOggi.length}</div>
         </div>
+
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, color: '#666' }}>Manodopera oggi</div>
+          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>
+            {formatMoney(costoTotaleTimbratureOggi)}
+          </div>
+        </div>
       </div>
 
       <div style={{ ...cardStyle, marginTop: 20 }}>
@@ -1399,7 +1453,7 @@ export default function Home() {
             Nuovo rapportino
           </button>
 
-          <button onClick={() => window.scrollTo({ top: 2600, behavior: 'smooth' })} style={buttonSecondary}>
+          <button onClick={() => window.scrollTo({ top: 2850, behavior: 'smooth' })} style={buttonSecondary}>
             Nuova foto
           </button>
 
@@ -1411,7 +1465,7 @@ export default function Home() {
             Anagrafica operai
           </button>
 
-          <button onClick={() => window.scrollTo({ top: 1950, behavior: 'smooth' })} style={buttonSecondary}>
+          <button onClick={() => window.scrollTo({ top: 2150, behavior: 'smooth' })} style={buttonSecondary}>
             Timbratura operai
           </button>
 
@@ -1555,6 +1609,7 @@ export default function Home() {
             <h3>{cantiereScheda}</h3>
             <p><strong>Rapportini collegati:</strong> {rapportiniScheda.length}</p>
             <p><strong>Foto collegate:</strong> {fotoScheda.length}</p>
+            <p><strong>Costo giornaliero manodopera oggi:</strong> {formatMoney(costoGiornalieroCantiereSelezionato)}</p>
 
             <div style={{ marginTop: 15 }}>
               <h4>Rapportini del cantiere</h4>
@@ -1695,6 +1750,13 @@ export default function Home() {
             onChange={(e) => setPinOperaio(e.target.value)}
             style={{ padding: 8, width: 140 }}
           />
+
+          <input
+            placeholder="Costo orario €"
+            value={costoOrarioOperaio}
+            onChange={(e) => setCostoOrarioOperaio(e.target.value)}
+            style={{ padding: 8, width: 140 }}
+          />
         </div>
 
         <div style={{ marginBottom: 10 }}>
@@ -1740,6 +1802,13 @@ export default function Home() {
                 placeholder="PIN operaio"
                 value={pinOperaioModifica}
                 onChange={(e) => setPinOperaioModifica(e.target.value)}
+                style={{ padding: 8, width: 140 }}
+              />
+
+              <input
+                placeholder="Costo orario €"
+                value={costoOrarioOperaioModifica}
+                onChange={(e) => setCostoOrarioOperaioModifica(e.target.value)}
                 style={{ padding: 8, width: 140 }}
               />
 
@@ -1802,6 +1871,9 @@ export default function Home() {
                       </div>
                       <div style={{ marginTop: 4, fontSize: 14, color: '#374151' }}>
                         {o.pin ? `PIN: ${o.pin}` : 'PIN: -'}
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: 14, color: '#374151' }}>
+                        Costo orario: {formatMoney(Number(o.costo_orario || 0))}
                       </div>
                       <div style={{ marginTop: 4, fontSize: 14, color: '#374151' }}>
                         Nota: {o.nota || '-'}
@@ -1948,6 +2020,8 @@ export default function Home() {
                   <br />
                   Entrata: {t.ora_entrata || '-'} | Uscita: {t.ora_uscita || '-'} | Stato:{' '}
                   {t.stato || '-'}
+                  <br />
+                  Costo: {formatMoney(calcolaCostoTimbratura(t))}
                   <br />
                   <button
                     onClick={() => eliminaTimbratura(t.id)}
@@ -2099,6 +2173,10 @@ export default function Home() {
             onChange={(e) => setOrePerOperaio(e.target.value)}
             style={{ padding: 8, width: 180 }}
           />
+        </div>
+
+        <div style={{ marginTop: 12, fontWeight: 700 }}>
+          Costo manodopera da timbrature oggi: {formatMoney(costoGiornalieroRapportino)}
         </div>
 
         <h3>Materiali usati</h3>
