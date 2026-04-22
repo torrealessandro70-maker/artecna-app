@@ -407,6 +407,23 @@ export default function Home() {
     alert('Operaio modificato correttamente')
   }
 
+  const cambiaStatoOperaio = async (operaio: Operaio, nuovoStato: 'attivo' | 'sospeso') => {
+    if (!operaio.id) return
+
+    const { error } = await supabase
+      .from('operai')
+      .update({ stato: nuovoStato })
+      .eq('id', operaio.id)
+
+    if (error) {
+      alert('Errore aggiornamento stato operaio: ' + error.message)
+      return
+    }
+
+    await caricaOperai()
+    alert(`Operaio ${nuovoStato === 'attivo' ? 'riattivato' : 'sospeso'}`)
+  }
+
   const eliminaOperaio = async (id?: string) => {
     if (!id) return
 
@@ -538,6 +555,11 @@ export default function Home() {
     }
 
     const operaio = operaiTrovati[0]
+
+    if (operaio.stato === 'sospeso') {
+      alert(`L'operaio ${operaio.nome} è sospeso`)
+      return
+    }
 
     const { data: aperte, error: errCheck } = await supabase
       .from('timbrature')
@@ -1246,6 +1268,8 @@ export default function Home() {
     return testo.includes(ricercaOperaio.toLowerCase())
   })
 
+  const operaiAttivi = operaiAnagrafica.filter((o) => o.stato !== 'sospeso')
+
   const totaleCantieri = cantieri.length
   const totaleRapportini = rapportini.length
   const totaleFoto = fotoCantiere.length
@@ -1290,6 +1314,18 @@ export default function Home() {
     cursor: 'pointer',
     fontWeight: 600,
   }
+
+  const badgeStyle = (stato?: string): CSSProperties => ({
+    display: 'inline-block',
+    padding: '4px 8px',
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 700,
+    marginLeft: 8,
+    backgroundColor: stato === 'sospeso' ? '#fee2e2' : '#dcfce7',
+    color: stato === 'sospeso' ? '#991b1b' : '#166534',
+    border: stato === 'sospeso' ? '1px solid #fecaca' : '1px solid #bbf7d0',
+  })
 
   return (
     <div style={{ padding: 20, fontFamily: 'Arial, sans-serif', maxWidth: 1100 }}>
@@ -1359,38 +1395,23 @@ export default function Home() {
         <h2 style={{ marginTop: 0 }}>Azioni rapide</h2>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            onClick={() => window.scrollTo({ top: 1600, behavior: 'smooth' })}
-            style={buttonPrimary}
-          >
+          <button onClick={() => window.scrollTo({ top: 1600, behavior: 'smooth' })} style={buttonPrimary}>
             Nuovo rapportino
           </button>
 
-          <button
-            onClick={() => window.scrollTo({ top: 2600, behavior: 'smooth' })}
-            style={buttonSecondary}
-          >
+          <button onClick={() => window.scrollTo({ top: 2600, behavior: 'smooth' })} style={buttonSecondary}>
             Nuova foto
           </button>
 
-          <button
-            onClick={() => window.scrollTo({ top: 1100, behavior: 'smooth' })}
-            style={buttonSecondary}
-          >
+          <button onClick={() => window.scrollTo({ top: 1100, behavior: 'smooth' })} style={buttonSecondary}>
             Nuovo cantiere
           </button>
 
-          <button
-            onClick={() => window.scrollTo({ top: 1350, behavior: 'smooth' })}
-            style={buttonSecondary}
-          >
+          <button onClick={() => window.scrollTo({ top: 1350, behavior: 'smooth' })} style={buttonSecondary}>
             Anagrafica operai
           </button>
 
-          <button
-            onClick={() => window.scrollTo({ top: 1900, behavior: 'smooth' })}
-            style={buttonSecondary}
-          >
+          <button onClick={() => window.scrollTo({ top: 1950, behavior: 'smooth' })} style={buttonSecondary}>
             Timbratura operai
           </button>
 
@@ -1758,51 +1779,98 @@ export default function Home() {
           {operaiFiltrati.length === 0 ? (
             <p>Nessun operaio presente</p>
           ) : (
-            <ul>
+            <div style={{ display: 'grid', gap: 12 }}>
               {operaiFiltrati.map((o, i) => (
-                <li key={o.id || i} style={{ marginBottom: 14 }}>
-                  <strong>{o.nome}</strong>
-                  {o.qualifica ? ` - ${o.qualifica}` : ''}
-                  {o.telefono ? ` - ${o.telefono}` : ''}
-                  {o.pin ? ` - PIN: ${o.pin}` : ''}
-                  {o.stato ? ` - Stato: ${o.stato}` : ''}
-                  <br />
-                  <em>Nota:</em> {o.nota || '-'}
-                  <br />
+                <div
+                  key={o.id || i}
+                  style={{
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 10,
+                    padding: 12,
+                    background: '#fafafa',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <strong>{o.nome}</strong>
+                      <span style={badgeStyle(o.stato)}>{o.stato || 'attivo'}</span>
+                      <div style={{ marginTop: 6, fontSize: 14, color: '#374151' }}>
+                        {o.qualifica ? `Qualifica: ${o.qualifica}` : 'Qualifica: -'}
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: 14, color: '#374151' }}>
+                        {o.telefono ? `Telefono: ${o.telefono}` : 'Telefono: -'}
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: 14, color: '#374151' }}>
+                        {o.pin ? `PIN: ${o.pin}` : 'PIN: -'}
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: 14, color: '#374151' }}>
+                        Nota: {o.nota || '-'}
+                      </div>
+                    </div>
 
-                  <button
-                    onClick={() => preparaModificaOperaio(o)}
-                    style={{
-                      marginTop: 6,
-                      marginRight: 8,
-                      padding: 5,
-                      backgroundColor: '#0275d8',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Modifica operaio
-                  </button>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                      <button
+                        onClick={() => preparaModificaOperaio(o)}
+                        style={{
+                          padding: 8,
+                          backgroundColor: '#0275d8',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Modifica
+                      </button>
 
-                  <button
-                    onClick={() => eliminaOperaio(o.id)}
-                    style={{
-                      marginTop: 6,
-                      padding: 5,
-                      backgroundColor: '#d9534f',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Elimina operaio
-                  </button>
-                </li>
+                      {o.stato === 'sospeso' ? (
+                        <button
+                          onClick={() => cambiaStatoOperaio(o, 'attivo')}
+                          style={{
+                            padding: 8,
+                            backgroundColor: '#16a34a',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Riattiva
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => cambiaStatoOperaio(o, 'sospeso')}
+                          style={{
+                            padding: 8,
+                            backgroundColor: '#f59e0b',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Sospendi
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => eliminaOperaio(o.id)}
+                        style={{
+                          padding: 8,
+                          backgroundColor: '#d9534f',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Elimina
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
       </div>
@@ -1816,8 +1884,8 @@ export default function Home() {
             onChange={(e) => setOperaioTimbratura(e.target.value)}
             style={{ padding: 8, width: 220 }}
           >
-            <option value="">Seleziona operaio</option>
-            {operaiAnagrafica.map((o, i) => (
+            <option value="">Seleziona operaio attivo</option>
+            {operaiAttivi.map((o, i) => (
               <option key={o.id || i} value={o.nome}>
                 {o.nome}
               </option>
