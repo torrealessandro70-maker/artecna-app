@@ -75,12 +75,53 @@ type Timbratura = {
   created_at?: string
 }
 
+type PreventivoCantiere = {
+  id?: string
+  cantiere: string
+  importo_totale?: number
+  nome_file?: string
+  note?: string
+  created_at?: string
+}
+
+type MaterialeCantiere = {
+  id?: string
+  cantiere: string
+  descrizione?: string
+  quantita?: number
+  prezzo_unitario?: number
+  totale?: number
+  fornitore?: string
+  data_documento?: string
+  nome_file?: string
+  created_at?: string
+}
+
+type AttrezzoCantiere = {
+  id?: string
+  cantiere: string
+  descrizione?: string
+  categoria?: string
+  quantita?: number
+  prezzo_unitario?: number
+  totale?: number
+  fornitore?: string
+  data_documento?: string
+  nome_file?: string
+  nota?: string
+  created_at?: string
+}
+
 export default function Home() {
   const [cantieri, setCantieri] = useState<Cantiere[]>([])
   const [rapportini, setRapportini] = useState<Rapportino[]>([])
   const [fotoCantiere, setFotoCantiere] = useState<FotoCantiere[]>([])
   const [operaiAnagrafica, setOperaiAnagrafica] = useState<Operaio[]>([])
   const [timbrature, setTimbrature] = useState<Timbratura[]>([])
+
+  const [preventivi, setPreventivi] = useState<PreventivoCantiere[]>([])
+  const [materialiCantiere, setMaterialiCantiere] = useState<MaterialeCantiere[]>([])
+  const [attrezziCantiere, setAttrezziCantiere] = useState<AttrezzoCantiere[]>([])
 
   const [nomeCantiere, setNomeCantiere] = useState('')
   const [cantiereDaModificare, setCantiereDaModificare] = useState('')
@@ -132,6 +173,15 @@ export default function Home() {
   const [filtroCantiere, setFiltroCantiere] = useState('')
   const [cantiereScheda, setCantiereScheda] = useState('')
 
+  const [importoPreventivo, setImportoPreventivo] = useState('')
+  const [descrizioneMateriale, setDescrizioneMateriale] = useState('')
+  const [quantitaMaterialeEconomia, setQuantitaMaterialeEconomia] = useState('')
+  const [prezzoMaterialeEconomia, setPrezzoMaterialeEconomia] = useState('')
+
+  const [descrizioneAttrezzo, setDescrizioneAttrezzo] = useState('')
+  const [quantitaAttrezzo, setQuantitaAttrezzo] = useState('')
+  const [prezzoAttrezzo, setPrezzoAttrezzo] = useState('')
+
   const oggi = new Date().toISOString().slice(0, 10)
 
   useEffect(() => {
@@ -145,6 +195,7 @@ export default function Home() {
     caricaFotoCantiere()
     caricaOperai()
     caricaTimbrature()
+    caricaEconomia()
   }, [])
 
   const oraAttuale = () => {
@@ -239,6 +290,42 @@ export default function Home() {
     }
 
     setTimbrature((data || []) as Timbratura[])
+  }
+
+  const caricaEconomia = async () => {
+    const { data: p, error: errP } = await supabase
+      .from('preventivi_cantiere')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    const { data: m, error: errM } = await supabase
+      .from('materiali_cantiere')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    const { data: a, error: errA } = await supabase
+      .from('attrezzi_cantiere')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (errP) {
+      alert('Errore caricamento preventivi: ' + errP.message)
+      return
+    }
+
+    if (errM) {
+      alert('Errore caricamento materiali: ' + errM.message)
+      return
+    }
+
+    if (errA) {
+      alert('Errore caricamento attrezzi: ' + errA.message)
+      return
+    }
+
+    setPreventivi((p || []) as PreventivoCantiere[])
+    setMaterialiCantiere((m || []) as MaterialeCantiere[])
+    setAttrezziCantiere((a || []) as AttrezzoCantiere[])
   }
 
   const resetFormRapportino = () => {
@@ -824,6 +911,36 @@ export default function Home() {
       return
     }
 
+    const { error: errorPreventivi } = await supabase
+      .from('preventivi_cantiere')
+      .update({ cantiere: nuovoNome })
+      .eq('cantiere', cantiereDaModificare)
+
+    if (errorPreventivi) {
+      alert('Errore aggiornamento preventivi: ' + errorPreventivi.message)
+      return
+    }
+
+    const { error: errorMateriali } = await supabase
+      .from('materiali_cantiere')
+      .update({ cantiere: nuovoNome })
+      .eq('cantiere', cantiereDaModificare)
+
+    if (errorMateriali) {
+      alert('Errore aggiornamento materiali: ' + errorMateriali.message)
+      return
+    }
+
+    const { error: errorAttrezzi } = await supabase
+      .from('attrezzi_cantiere')
+      .update({ cantiere: nuovoNome })
+      .eq('cantiere', cantiereDaModificare)
+
+    if (errorAttrezzi) {
+      alert('Errore aggiornamento attrezzi: ' + errorAttrezzi.message)
+      return
+    }
+
     if (cantiereRapporto === cantiereDaModificare) setCantiereRapporto(nuovoNome)
     if (cantiereFoto === cantiereDaModificare) setCantiereFoto(nuovoNome)
     if (cantiereTimbratura === cantiereDaModificare) setCantiereTimbratura(nuovoNome)
@@ -837,13 +954,14 @@ export default function Home() {
     await caricaRapportini()
     await caricaFotoCantiere()
     await caricaTimbrature()
+    await caricaEconomia()
 
     alert('Cantiere modificato correttamente')
   }
 
   const eliminaCantiere = async (nome: string) => {
     const conferma = confirm(
-      `Vuoi eliminare il cantiere "${nome}"?\n\nVerranno eliminati anche rapportini, foto e timbrature collegate.`
+      `Vuoi eliminare il cantiere "${nome}"?\n\nVerranno eliminati anche rapportini, foto, timbrature, preventivi, materiali e attrezzi collegati.`
     )
     if (!conferma) return
 
@@ -877,6 +995,36 @@ export default function Home() {
       return
     }
 
+    const { error: errorPreventivi } = await supabase
+      .from('preventivi_cantiere')
+      .delete()
+      .eq('cantiere', nome)
+
+    if (errorPreventivi) {
+      alert('Errore eliminazione preventivi collegati: ' + errorPreventivi.message)
+      return
+    }
+
+    const { error: errorMateriali } = await supabase
+      .from('materiali_cantiere')
+      .delete()
+      .eq('cantiere', nome)
+
+    if (errorMateriali) {
+      alert('Errore eliminazione materiali collegati: ' + errorMateriali.message)
+      return
+    }
+
+    const { error: errorAttrezzi } = await supabase
+      .from('attrezzi_cantiere')
+      .delete()
+      .eq('cantiere', nome)
+
+    if (errorAttrezzi) {
+      alert('Errore eliminazione attrezzi collegati: ' + errorAttrezzi.message)
+      return
+    }
+
     const { error: errorCantiere } = await supabase
       .from('cantieri')
       .delete()
@@ -897,6 +1045,7 @@ export default function Home() {
     await caricaRapportini()
     await caricaFotoCantiere()
     await caricaTimbrature()
+    await caricaEconomia()
 
     alert('Cantiere eliminato con tutti i dati collegati')
   }
@@ -1129,6 +1278,111 @@ export default function Home() {
     alert('Foto eliminata')
   }
 
+  const salvaPreventivo = async () => {
+    if (!cantiereScheda || !importoPreventivo.trim()) {
+      alert('Seleziona il cantiere nella scheda e inserisci l’importo del preventivo')
+      return
+    }
+
+    const importo = parseFloat(importoPreventivo.replace(',', '.'))
+    if (isNaN(importo)) {
+      alert('Importo preventivo non valido')
+      return
+    }
+
+    const { error } = await supabase
+      .from('preventivi_cantiere')
+      .insert([
+        {
+          cantiere: cantiereScheda,
+          importo_totale: importo,
+        },
+      ])
+
+    if (error) {
+      alert('Errore salvataggio preventivo: ' + error.message)
+      return
+    }
+
+    setImportoPreventivo('')
+    await caricaEconomia()
+    alert('Preventivo salvato')
+  }
+
+  const aggiungiMaterialeEconomia = async () => {
+    if (!cantiereScheda || !descrizioneMateriale.trim()) {
+      alert('Seleziona il cantiere nella scheda e inserisci la descrizione del materiale')
+      return
+    }
+
+    const qta = parseFloat((quantitaMaterialeEconomia || '0').replace(',', '.'))
+    const prezzo = parseFloat((prezzoMaterialeEconomia || '0').replace(',', '.'))
+
+    const quantitaPulita = isNaN(qta) ? 0 : qta
+    const prezzoPulito = isNaN(prezzo) ? 0 : prezzo
+    const totale = quantitaPulita * prezzoPulito
+
+    const { error } = await supabase
+      .from('materiali_cantiere')
+      .insert([
+        {
+          cantiere: cantiereScheda,
+          descrizione: descrizioneMateriale.trim(),
+          quantita: quantitaPulita,
+          prezzo_unitario: prezzoPulito,
+          totale,
+        },
+      ])
+
+    if (error) {
+      alert('Errore salvataggio materiale: ' + error.message)
+      return
+    }
+
+    setDescrizioneMateriale('')
+    setQuantitaMaterialeEconomia('')
+    setPrezzoMaterialeEconomia('')
+    await caricaEconomia()
+    alert('Materiale aggiunto')
+  }
+
+  const aggiungiAttrezzo = async () => {
+    if (!cantiereScheda || !descrizioneAttrezzo.trim()) {
+      alert('Seleziona il cantiere nella scheda e inserisci la descrizione dell’attrezzo')
+      return
+    }
+
+    const qta = parseFloat((quantitaAttrezzo || '0').replace(',', '.'))
+    const prezzo = parseFloat((prezzoAttrezzo || '0').replace(',', '.'))
+
+    const quantitaPulita = isNaN(qta) ? 0 : qta
+    const prezzoPulito = isNaN(prezzo) ? 0 : prezzo
+    const totale = quantitaPulita * prezzoPulito
+
+    const { error } = await supabase
+      .from('attrezzi_cantiere')
+      .insert([
+        {
+          cantiere: cantiereScheda,
+          descrizione: descrizioneAttrezzo.trim(),
+          quantita: quantitaPulita,
+          prezzo_unitario: prezzoPulito,
+          totale,
+        },
+      ])
+
+    if (error) {
+      alert('Errore salvataggio attrezzo: ' + error.message)
+      return
+    }
+
+    setDescrizioneAttrezzo('')
+    setQuantitaAttrezzo('')
+    setPrezzoAttrezzo('')
+    await caricaEconomia()
+    alert('Attrezzo aggiunto')
+  }
+
   const calcolaCostoTimbratura = (timbratura: Timbratura) => {
     const entrata = parseOra(timbratura.ora_entrata)
     const uscita = parseOra(timbratura.ora_uscita)
@@ -1334,6 +1588,32 @@ export default function Home() {
   const ultimiRapportini = rapportini.slice(0, 5)
   const ultimeFoto = fotoCantiere.slice(0, 4)
 
+  const preventivoCantiere = preventivi
+    .filter((p) => p.cantiere === cantiereScheda)
+    .reduce((tot, p) => tot + Number(p.importo_totale || 0), 0)
+
+  const totaleMaterialiEconomia = materialiCantiere
+    .filter((m) => m.cantiere === cantiereScheda)
+    .reduce((tot, m) => tot + Number(m.totale || 0), 0)
+
+  const totaleAttrezziEconomia = attrezziCantiere
+    .filter((a) => a.cantiere === cantiereScheda)
+    .reduce((tot, a) => tot + Number(a.totale || 0), 0)
+
+  const totaleManodoperaCantiere = timbrature
+    .filter((t) => t.cantiere === cantiereScheda)
+    .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+
+  const totaleCostiCantiere =
+    totaleManodoperaCantiere + totaleMaterialiEconomia + totaleAttrezziEconomia
+
+  const utileCantiere = preventivoCantiere - totaleCostiCantiere
+
+  const margineCantiere =
+    preventivoCantiere > 0
+      ? ((utileCantiere / preventivoCantiere) * 100).toFixed(2)
+      : '0.00'
+
   const cardStyle: CSSProperties = {
     padding: 16,
     border: '1px solid #d9d9d9',
@@ -1453,7 +1733,7 @@ export default function Home() {
             Nuovo rapportino
           </button>
 
-          <button onClick={() => window.scrollTo({ top: 2850, behavior: 'smooth' })} style={buttonSecondary}>
+          <button onClick={() => window.scrollTo({ top: 3100, behavior: 'smooth' })} style={buttonSecondary}>
             Nuova foto
           </button>
 
@@ -1461,11 +1741,11 @@ export default function Home() {
             Nuovo cantiere
           </button>
 
-          <button onClick={() => window.scrollTo({ top: 1350, behavior: 'smooth' })} style={buttonSecondary}>
+          <button onClick={() => window.scrollTo({ top: 1400, behavior: 'smooth' })} style={buttonSecondary}>
             Anagrafica operai
           </button>
 
-          <button onClick={() => window.scrollTo({ top: 2150, behavior: 'smooth' })} style={buttonSecondary}>
+          <button onClick={() => window.scrollTo({ top: 2350, behavior: 'smooth' })} style={buttonSecondary}>
             Timbratura operai
           </button>
 
@@ -1610,6 +1890,86 @@ export default function Home() {
             <p><strong>Rapportini collegati:</strong> {rapportiniScheda.length}</p>
             <p><strong>Foto collegate:</strong> {fotoScheda.length}</p>
             <p><strong>Costo giornaliero manodopera oggi:</strong> {formatMoney(costoGiornalieroCantiereSelezionato)}</p>
+
+            <div style={{ marginTop: 20, padding: 15, border: '2px solid #000', borderRadius: 10 }}>
+              <h3 style={{ marginTop: 0 }}>Controllo economico cantiere</h3>
+
+              <p><strong>Preventivo:</strong> € {preventivoCantiere.toFixed(2)}</p>
+              <p><strong>Manodopera:</strong> € {totaleManodoperaCantiere.toFixed(2)}</p>
+              <p><strong>Materiali:</strong> € {totaleMaterialiEconomia.toFixed(2)}</p>
+              <p><strong>Attrezzi:</strong> € {totaleAttrezziEconomia.toFixed(2)}</p>
+
+              <hr />
+
+              <p><strong>Totale costi:</strong> € {totaleCostiCantiere.toFixed(2)}</p>
+              <p><strong>Utile:</strong> € {utileCantiere.toFixed(2)}</p>
+              <p><strong>Margine:</strong> {margineCantiere}%</p>
+
+              <hr />
+
+              <h4>Inserisci preventivo</h4>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
+                <input
+                  placeholder="Importo preventivo €"
+                  value={importoPreventivo}
+                  onChange={(e) => setImportoPreventivo(e.target.value)}
+                  style={{ padding: 8, width: 180 }}
+                />
+                <button onClick={salvaPreventivo} style={{ padding: 8 }}>
+                  Salva preventivo
+                </button>
+              </div>
+
+              <h4>Materiali</h4>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
+                <input
+                  placeholder="Descrizione materiale"
+                  value={descrizioneMateriale}
+                  onChange={(e) => setDescrizioneMateriale(e.target.value)}
+                  style={{ padding: 8, width: 220 }}
+                />
+                <input
+                  placeholder="Qta"
+                  value={quantitaMaterialeEconomia}
+                  onChange={(e) => setQuantitaMaterialeEconomia(e.target.value)}
+                  style={{ padding: 8, width: 100 }}
+                />
+                <input
+                  placeholder="Prezzo €"
+                  value={prezzoMaterialeEconomia}
+                  onChange={(e) => setPrezzoMaterialeEconomia(e.target.value)}
+                  style={{ padding: 8, width: 120 }}
+                />
+                <button onClick={aggiungiMaterialeEconomia} style={{ padding: 8 }}>
+                  Aggiungi materiale
+                </button>
+              </div>
+
+              <h4>Attrezzi / Noli</h4>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  placeholder="Descrizione attrezzo"
+                  value={descrizioneAttrezzo}
+                  onChange={(e) => setDescrizioneAttrezzo(e.target.value)}
+                  style={{ padding: 8, width: 220 }}
+                />
+                <input
+                  placeholder="Qta"
+                  value={quantitaAttrezzo}
+                  onChange={(e) => setQuantitaAttrezzo(e.target.value)}
+                  style={{ padding: 8, width: 100 }}
+                />
+                <input
+                  placeholder="Prezzo €"
+                  value={prezzoAttrezzo}
+                  onChange={(e) => setPrezzoAttrezzo(e.target.value)}
+                  style={{ padding: 8, width: 120 }}
+                />
+                <button onClick={aggiungiAttrezzo} style={{ padding: 8 }}>
+                  Aggiungi attrezzo
+                </button>
+              </div>
+            </div>
 
             <div style={{ marginTop: 15 }}>
               <h4>Rapportini del cantiere</h4>
