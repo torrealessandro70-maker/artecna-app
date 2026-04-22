@@ -52,10 +52,31 @@ type FotoCantiere = {
   created_at?: string
 }
 
+type Operaio = {
+  id?: string
+  nome: string
+  telefono?: string
+  qualifica?: string
+  created_at?: string
+}
+
+type Timbratura = {
+  id?: string
+  operaio_nome: string
+  cantiere: string
+  data: string
+  ora_entrata?: string
+  ora_uscita?: string
+  stato?: string
+  created_at?: string
+}
+
 export default function Home() {
   const [cantieri, setCantieri] = useState<Cantiere[]>([])
   const [rapportini, setRapportini] = useState<Rapportino[]>([])
   const [fotoCantiere, setFotoCantiere] = useState<FotoCantiere[]>([])
+  const [operaiAnagrafica, setOperaiAnagrafica] = useState<Operaio[]>([])
+  const [timbrature, setTimbrature] = useState<Timbratura[]>([])
 
   const [nomeCantiere, setNomeCantiere] = useState('')
   const [cantiereDaModificare, setCantiereDaModificare] = useState('')
@@ -80,6 +101,13 @@ export default function Home() {
   const [dataFoto, setDataFoto] = useState('')
   const [geolocalizzazione, setGeolocalizzazione] = useState('')
 
+  const [nomeOperaio, setNomeOperaio] = useState('')
+  const [telefonoOperaio, setTelefonoOperaio] = useState('')
+  const [qualificaOperaio, setQualificaOperaio] = useState('')
+
+  const [operaioTimbratura, setOperaioTimbratura] = useState('')
+  const [cantiereTimbratura, setCantiereTimbratura] = useState('')
+
   const [ultimoRapportino, setUltimoRapportino] = useState<Rapportino | null>(null)
 
   const [filtroCantiere, setFiltroCantiere] = useState('')
@@ -94,7 +122,19 @@ export default function Home() {
     caricaCantieri()
     caricaRapportini()
     caricaFotoCantiere()
+    caricaOperai()
+    caricaTimbrature()
   }, [])
+
+  const oggi = new Date().toISOString().slice(0, 10)
+
+  const oraAttuale = () => {
+    const now = new Date()
+    return now.toLocaleTimeString('it-IT', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
 
   const caricaCantieri = async () => {
     const { data, error } = await supabase
@@ -140,6 +180,34 @@ export default function Home() {
     setFotoCantiere((data || []) as FotoCantiere[])
   }
 
+  const caricaOperai = async () => {
+    const { data, error } = await supabase
+      .from('operai')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      alert('Errore caricamento operai: ' + error.message)
+      return
+    }
+
+    setOperaiAnagrafica((data || []) as Operaio[])
+  }
+
+  const caricaTimbrature = async () => {
+    const { data, error } = await supabase
+      .from('timbrature')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      alert('Errore caricamento timbrature: ' + error.message)
+      return
+    }
+
+    setTimbrature((data || []) as Timbratura[])
+  }
+
   const resetFormRapportino = () => {
     setRapportinoInModifica(null)
     setCantiereRapporto('')
@@ -177,6 +245,163 @@ export default function Home() {
 
     setNomeCantiere('')
     await caricaCantieri()
+  }
+
+  const aggiungiOperaio = async () => {
+    if (!nomeOperaio.trim()) {
+      alert('Inserisci il nome dell’operaio')
+      return
+    }
+
+    const { error } = await supabase
+      .from('operai')
+      .insert([
+        {
+          nome: nomeOperaio.trim(),
+          telefono: telefonoOperaio.trim(),
+          qualifica: qualificaOperaio.trim(),
+        },
+      ])
+
+    if (error) {
+      alert('Errore salvataggio operaio: ' + error.message)
+      return
+    }
+
+    setNomeOperaio('')
+    setTelefonoOperaio('')
+    setQualificaOperaio('')
+    await caricaOperai()
+    alert('Operaio salvato')
+  }
+
+  const eliminaOperaio = async (id?: string) => {
+    if (!id) return
+
+    const conferma = confirm('Vuoi eliminare questo operaio?')
+    if (!conferma) return
+
+    const { error } = await supabase
+      .from('operai')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      alert('Errore eliminazione operaio: ' + error.message)
+      return
+    }
+
+    await caricaOperai()
+    alert('Operaio eliminato')
+  }
+
+  const timbraEntrata = async () => {
+    if (!operaioTimbratura || !cantiereTimbratura) {
+      alert('Seleziona operaio e cantiere')
+      return
+    }
+
+    const { data: aperte, error: errCheck } = await supabase
+      .from('timbrature')
+      .select('*')
+      .eq('operaio_nome', operaioTimbratura)
+      .eq('cantiere', cantiereTimbratura)
+      .eq('data', oggi)
+      .eq('stato', 'aperto')
+
+    if (errCheck) {
+      alert('Errore controllo timbratura: ' + errCheck.message)
+      return
+    }
+
+    if (aperte && aperte.length > 0) {
+      alert('Esiste già una timbratura aperta per questo operaio')
+      return
+    }
+
+    const { error } = await supabase
+      .from('timbrature')
+      .insert([
+        {
+          operaio_nome: operaioTimbratura,
+          cantiere: cantiereTimbratura,
+          data: oggi,
+          ora_entrata: oraAttuale(),
+          stato: 'aperto',
+        },
+      ])
+
+    if (error) {
+      alert('Errore timbratura entrata: ' + error.message)
+      return
+    }
+
+    await caricaTimbrature()
+    alert('Entrata registrata')
+  }
+
+  const timbraUscita = async () => {
+    if (!operaioTimbratura || !cantiereTimbratura) {
+      alert('Seleziona operaio e cantiere')
+      return
+    }
+
+    const { data: aperte, error: errFind } = await supabase
+      .from('timbrature')
+      .select('*')
+      .eq('operaio_nome', operaioTimbratura)
+      .eq('cantiere', cantiereTimbratura)
+      .eq('data', oggi)
+      .eq('stato', 'aperto')
+      .order('created_at', { ascending: false })
+
+    if (errFind) {
+      alert('Errore ricerca timbratura aperta: ' + errFind.message)
+      return
+    }
+
+    if (!aperte || aperte.length === 0) {
+      alert('Nessuna entrata aperta trovata')
+      return
+    }
+
+    const timbraturaAperta = aperte[0]
+
+    const { error } = await supabase
+      .from('timbrature')
+      .update({
+        ora_uscita: oraAttuale(),
+        stato: 'chiuso',
+      })
+      .eq('id', timbraturaAperta.id)
+
+    if (error) {
+      alert('Errore timbratura uscita: ' + error.message)
+      return
+    }
+
+    await caricaTimbrature()
+    alert('Uscita registrata')
+  }
+
+  const eliminaTimbratura = async (id?: string) => {
+    if (!id) return
+
+    const conferma = confirm('Vuoi eliminare questa timbratura?')
+    if (!conferma) return
+
+    const { error } = await supabase
+      .from('timbrature')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      alert('Errore eliminazione timbratura: ' + error.message)
+      return
+    }
+
+    await caricaTimbrature()
+    alert('Timbratura eliminata')
   }
 
   const preparaModificaCantiere = (nome: string) => {
@@ -228,8 +453,19 @@ export default function Home() {
       return
     }
 
+    const { error: errorTimbrature } = await supabase
+      .from('timbrature')
+      .update({ cantiere: nuovoNome })
+      .eq('cantiere', cantiereDaModificare)
+
+    if (errorTimbrature) {
+      alert('Errore aggiornamento timbrature: ' + errorTimbrature.message)
+      return
+    }
+
     if (cantiereRapporto === cantiereDaModificare) setCantiereRapporto(nuovoNome)
     if (cantiereFoto === cantiereDaModificare) setCantiereFoto(nuovoNome)
+    if (cantiereTimbratura === cantiereDaModificare) setCantiereTimbratura(nuovoNome)
     if (filtroCantiere === cantiereDaModificare) setFiltroCantiere(nuovoNome)
     if (cantiereScheda === cantiereDaModificare) setCantiereScheda(nuovoNome)
 
@@ -239,13 +475,14 @@ export default function Home() {
     await caricaCantieri()
     await caricaRapportini()
     await caricaFotoCantiere()
+    await caricaTimbrature()
 
     alert('Cantiere modificato correttamente')
   }
 
   const eliminaCantiere = async (nome: string) => {
     const conferma = confirm(
-      `Vuoi eliminare il cantiere "${nome}"?\n\nVerranno eliminati anche rapportini e foto collegati.`
+      `Vuoi eliminare il cantiere "${nome}"?\n\nVerranno eliminati anche rapportini, foto e timbrature collegate.`
     )
     if (!conferma) return
 
@@ -269,6 +506,16 @@ export default function Home() {
       return
     }
 
+    const { error: errorTimbrature } = await supabase
+      .from('timbrature')
+      .delete()
+      .eq('cantiere', nome)
+
+    if (errorTimbrature) {
+      alert('Errore eliminazione timbrature collegate: ' + errorTimbrature.message)
+      return
+    }
+
     const { error: errorCantiere } = await supabase
       .from('cantieri')
       .delete()
@@ -281,12 +528,14 @@ export default function Home() {
 
     if (cantiereRapporto === nome) setCantiereRapporto('')
     if (cantiereFoto === nome) setCantiereFoto('')
+    if (cantiereTimbratura === nome) setCantiereTimbratura('')
     if (filtroCantiere === nome) setFiltroCantiere('')
     if (cantiereScheda === nome) setCantiereScheda('')
 
     await caricaCantieri()
     await caricaRapportini()
     await caricaFotoCantiere()
+    await caricaTimbrature()
 
     alert('Cantiere eliminato con tutti i dati collegati')
   }
@@ -670,11 +919,12 @@ export default function Home() {
     ? fotoCantiere.filter((f) => f.cantiere === cantiereScheda)
     : []
 
+  const timbratureOggi = timbrature.filter((t) => t.data === oggi)
+
   const totaleCantieri = cantieri.length
   const totaleRapportini = rapportini.length
   const totaleFoto = fotoCantiere.length
-
-  const oggi = new Date().toISOString().slice(0, 10)
+  const totaleOperai = operaiAnagrafica.length
 
   const rapportiniOggi = rapportini.filter((r) => r.data === oggi)
   const totaleRapportiniOggi = rapportiniOggi.length
@@ -717,7 +967,7 @@ export default function Home() {
   }
 
   return (
-    <div style={{ padding: 20, fontFamily: 'Arial, sans-serif', maxWidth: 1000 }}>
+    <div style={{ padding: 20, fontFamily: 'Arial, sans-serif', maxWidth: 1100 }}>
       <div
         style={{
           display: 'flex',
@@ -731,7 +981,7 @@ export default function Home() {
         <div>
           <h1 style={{ margin: 0, fontSize: 32 }}>ARTECNA Dashboard</h1>
           <p style={{ margin: '6px 0 0 0', color: '#555' }}>
-            Controllo cantieri, rapportini e foto in un’unica schermata
+            Controllo cantieri, rapportini, foto, operai e timbrature
           </p>
         </div>
 
@@ -745,7 +995,7 @@ export default function Home() {
         style={{
           marginTop: 20,
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: 12,
         }}
       >
@@ -768,37 +1018,50 @@ export default function Home() {
           <div style={{ fontSize: 14, color: '#666' }}>Ore totali oggi</div>
           <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{oreTotaliOggi}</div>
         </div>
+
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, color: '#666' }}>Operai registrati</div>
+          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{totaleOperai}</div>
+        </div>
       </div>
 
       <div style={{ ...cardStyle, marginTop: 20 }}>
         <h2 style={{ marginTop: 0 }}>Azioni rapide</h2>
 
-        <div
-          style={{
-            display: 'flex',
-            gap: 10,
-            flexWrap: 'wrap',
-          }}
-        >
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button
-            onClick={() => window.scrollTo({ top: 1100, behavior: 'smooth' })}
+            onClick={() => window.scrollTo({ top: 1600, behavior: 'smooth' })}
             style={buttonPrimary}
           >
             Nuovo rapportino
           </button>
 
           <button
-            onClick={() => window.scrollTo({ top: 1700, behavior: 'smooth' })}
+            onClick={() => window.scrollTo({ top: 2450, behavior: 'smooth' })}
             style={buttonSecondary}
           >
             Nuova foto
           </button>
 
           <button
-            onClick={() => window.scrollTo({ top: 700, behavior: 'smooth' })}
+            onClick={() => window.scrollTo({ top: 1100, behavior: 'smooth' })}
             style={buttonSecondary}
           >
             Nuovo cantiere
+          </button>
+
+          <button
+            onClick={() => window.scrollTo({ top: 1350, behavior: 'smooth' })}
+            style={buttonSecondary}
+          >
+            Anagrafica operai
+          </button>
+
+          <button
+            onClick={() => window.scrollTo({ top: 1850, behavior: 'smooth' })}
+            style={buttonSecondary}
+          >
+            Timbratura operai
           </button>
 
           <button onClick={generaPDF} style={buttonSecondary}>
@@ -1030,6 +1293,144 @@ export default function Home() {
         <button onClick={salvaModificaCantiere} style={{ padding: 8 }}>
           Salva modifica cantiere
         </button>
+      </div>
+
+      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
+        <h2>Anagrafica operai</h2>
+
+        <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            placeholder="Nome operaio"
+            value={nomeOperaio}
+            onChange={(e) => setNomeOperaio(e.target.value)}
+            style={{ padding: 8, width: 220 }}
+          />
+
+          <input
+            placeholder="Telefono"
+            value={telefonoOperaio}
+            onChange={(e) => setTelefonoOperaio(e.target.value)}
+            style={{ padding: 8, width: 180 }}
+          />
+
+          <input
+            placeholder="Qualifica"
+            value={qualificaOperaio}
+            onChange={(e) => setQualificaOperaio(e.target.value)}
+            style={{ padding: 8, width: 180 }}
+          />
+        </div>
+
+        <button onClick={aggiungiOperaio} style={{ padding: 8 }}>
+          Aggiungi operaio
+        </button>
+
+        <div style={{ marginTop: 20 }}>
+          {operaiAnagrafica.length === 0 ? (
+            <p>Nessun operaio presente</p>
+          ) : (
+            <ul>
+              {operaiAnagrafica.map((o, i) => (
+                <li key={o.id || i} style={{ marginBottom: 10 }}>
+                  <strong>{o.nome}</strong>
+                  {o.qualifica ? ` - ${o.qualifica}` : ''}
+                  {o.telefono ? ` - ${o.telefono}` : ''}
+                  <br />
+                  <button
+                    onClick={() => eliminaOperaio(o.id)}
+                    style={{
+                      marginTop: 6,
+                      padding: 5,
+                      backgroundColor: '#d9534f',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Elimina operaio
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
+        <h2>Timbratura operai per cantiere</h2>
+
+        <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <select
+            value={operaioTimbratura}
+            onChange={(e) => setOperaioTimbratura(e.target.value)}
+            style={{ padding: 8, width: 220 }}
+          >
+            <option value="">Seleziona operaio</option>
+            {operaiAnagrafica.map((o, i) => (
+              <option key={o.id || i} value={o.nome}>
+                {o.nome}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={cantiereTimbratura}
+            onChange={(e) => setCantiereTimbratura(e.target.value)}
+            style={{ padding: 8, width: 240 }}
+          >
+            <option value="">Seleziona cantiere</option>
+            {cantieri.map((c, i) => (
+              <option key={c.id || i} value={c.nome}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={timbraEntrata} style={buttonPrimary}>
+            Timbra entrata
+          </button>
+
+          <button onClick={timbraUscita} style={buttonSecondary}>
+            Timbra uscita
+          </button>
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <h3>Timbrature di oggi</h3>
+
+          {timbratureOggi.length === 0 ? (
+            <p>Nessuna timbratura presente oggi</p>
+          ) : (
+            <ul>
+              {timbratureOggi.map((t, i) => (
+                <li key={t.id || i} style={{ marginBottom: 12 }}>
+                  <strong>{t.operaio_nome}</strong> - {t.cantiere}
+                  <br />
+                  Entrata: {t.ora_entrata || '-'} | Uscita: {t.ora_uscita || '-'} | Stato:{' '}
+                  {t.stato || '-'}
+                  <br />
+                  <button
+                    onClick={() => eliminaTimbratura(t.id)}
+                    style={{
+                      marginTop: 6,
+                      padding: 5,
+                      backgroundColor: '#d9534f',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Elimina timbratura
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
