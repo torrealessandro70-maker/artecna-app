@@ -59,6 +59,7 @@ type Operaio = {
   qualifica?: string
   pin?: string
   nota?: string
+  stato?: string
   created_at?: string
 }
 
@@ -96,14 +97,6 @@ export default function Home() {
   const [quantitaMateriali, setQuantitaMateriali] = useState('')
   const [costoMateriali, setCostoMateriali] = useState('')
 
-  const [notaOperaio, setNotaOperaio] = useState('')
-  const [operaioInModifica, setOperaioInModifica] = useState<string | null>(null)
-  const [nomeOperaioModifica, setNomeOperaioModifica] = useState('')
-  const [telefonoOperaioModifica, setTelefonoOperaioModifica] = useState('')
-  const [qualificaOperaioModifica, setQualificaOperaioModifica] = useState('')
-  const [pinOperaioModifica, setPinOperaioModifica] = useState('')
-  const [notaOperaioModifica, setNotaOperaioModifica] = useState('')
-
   const [fotoInModifica, setFotoInModifica] = useState<string | null>(null)
   const [cantiereFoto, setCantiereFoto] = useState('')
   const [notaFoto, setNotaFoto] = useState('')
@@ -115,6 +108,17 @@ export default function Home() {
   const [telefonoOperaio, setTelefonoOperaio] = useState('')
   const [qualificaOperaio, setQualificaOperaio] = useState('')
   const [pinOperaio, setPinOperaio] = useState('')
+  const [notaOperaio, setNotaOperaio] = useState('')
+  const [statoOperaio, setStatoOperaio] = useState('attivo')
+  const [ricercaOperaio, setRicercaOperaio] = useState('')
+
+  const [operaioInModifica, setOperaioInModifica] = useState<string | null>(null)
+  const [nomeOperaioModifica, setNomeOperaioModifica] = useState('')
+  const [telefonoOperaioModifica, setTelefonoOperaioModifica] = useState('')
+  const [qualificaOperaioModifica, setQualificaOperaioModifica] = useState('')
+  const [pinOperaioModifica, setPinOperaioModifica] = useState('')
+  const [notaOperaioModifica, setNotaOperaioModifica] = useState('')
+  const [statoOperaioModifica, setStatoOperaioModifica] = useState('attivo')
 
   const [operaioTimbratura, setOperaioTimbratura] = useState('')
   const [cantiereTimbratura, setCantiereTimbratura] = useState('')
@@ -161,14 +165,29 @@ export default function Home() {
   }
 
   const caricaCantieri = async () => {
-    const { data, error } = await supabase.from('cantieri').select('*').order('created_at', { ascending: false })
-    if (error) return alert('Errore caricamento cantieri: ' + error.message)
+    const { data, error } = await supabase
+      .from('cantieri')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      alert('Errore caricamento cantieri: ' + error.message)
+      return
+    }
+
     setCantieri((data || []) as Cantiere[])
   }
 
   const caricaRapportini = async () => {
-    const { data, error } = await supabase.from('rapportini').select('*').order('created_at', { ascending: false })
-    if (error) return alert('Errore caricamento rapportini: ' + error.message)
+    const { data, error } = await supabase
+      .from('rapportini')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      alert('Errore caricamento rapportini: ' + error.message)
+      return
+    }
 
     const lista = (data || []) as Rapportino[]
     setRapportini(lista)
@@ -176,20 +195,44 @@ export default function Home() {
   }
 
   const caricaFotoCantiere = async () => {
-    const { data, error } = await supabase.from('foto_cantiere').select('*').order('created_at', { ascending: false })
-    if (error) return alert('Errore caricamento foto: ' + error.message)
+    const { data, error } = await supabase
+      .from('foto_cantiere')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      alert('Errore caricamento foto: ' + error.message)
+      return
+    }
+
     setFotoCantiere((data || []) as FotoCantiere[])
   }
 
   const caricaOperai = async () => {
-    const { data, error } = await supabase.from('operai').select('*').order('created_at', { ascending: false })
-    if (error) return alert('Errore caricamento operai: ' + error.message)
+    const { data, error } = await supabase
+      .from('operai')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      alert('Errore caricamento operai: ' + error.message)
+      return
+    }
+
     setOperaiAnagrafica((data || []) as Operaio[])
   }
 
   const caricaTimbrature = async () => {
-    const { data, error } = await supabase.from('timbrature').select('*').order('created_at', { ascending: false })
-    if (error) return alert('Errore caricamento timbrature: ' + error.message)
+    const { data, error } = await supabase
+      .from('timbrature')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      alert('Errore caricamento timbrature: ' + error.message)
+      return
+    }
+
     setTimbrature((data || []) as Timbratura[])
   }
 
@@ -219,42 +262,69 @@ export default function Home() {
   const aggiungiCantiere = async () => {
     if (!nomeCantiere.trim()) return
 
-    const { error } = await supabase.from('cantieri').insert([{ nome: nomeCantiere.trim() }])
-    if (error) return alert('Errore salvataggio cantiere: ' + error.message)
+    const { error } = await supabase
+      .from('cantieri')
+      .insert([{ nome: nomeCantiere.trim() }])
+
+    if (error) {
+      alert('Errore salvataggio cantiere: ' + error.message)
+      return
+    }
 
     setNomeCantiere('')
     await caricaCantieri()
   }
 
   const aggiungiOperaio = async () => {
-    if (!nomeOperaio.trim()) return alert('Inserisci il nome dell’operaio')
-    if (!pinOperaio.trim()) return alert('Inserisci un PIN per l’operaio')
+    if (!nomeOperaio.trim()) {
+      alert('Inserisci il nome dell’operaio')
+      return
+    }
+
+    if (!pinOperaio.trim()) {
+      alert('Inserisci un PIN per l’operaio')
+      return
+    }
 
     const { data: esistente, error: erroreCheck } = await supabase
       .from('operai')
       .select('*')
       .eq('pin', pinOperaio.trim())
 
-    if (erroreCheck) return alert('Errore controllo PIN: ' + erroreCheck.message)
-    if (esistente && esistente.length > 0) return alert('Questo PIN è già usato da un altro operaio')
+    if (erroreCheck) {
+      alert('Errore controllo PIN: ' + erroreCheck.message)
+      return
+    }
 
-    const { error } = await supabase.from('operai').insert([
-      {
-        nome: nomeOperaio.trim(),
-        telefono: telefonoOperaio.trim(),
-        qualifica: qualificaOperaio.trim(),
-        pin: pinOperaio.trim(),
-        nota: notaOperaio.trim(),
-      },
-    ])
+    if (esistente && esistente.length > 0) {
+      alert('Questo PIN è già usato da un altro operaio')
+      return
+    }
 
-    if (error) return alert('Errore salvataggio operaio: ' + error.message)
+    const { error } = await supabase
+      .from('operai')
+      .insert([
+        {
+          nome: nomeOperaio.trim(),
+          telefono: telefonoOperaio.trim(),
+          qualifica: qualificaOperaio.trim(),
+          pin: pinOperaio.trim(),
+          nota: notaOperaio.trim(),
+          stato: statoOperaio,
+        },
+      ])
+
+    if (error) {
+      alert('Errore salvataggio operaio: ' + error.message)
+      return
+    }
 
     setNomeOperaio('')
     setTelefonoOperaio('')
     setQualificaOperaio('')
     setPinOperaio('')
     setNotaOperaio('')
+    setStatoOperaio('attivo')
     await caricaOperai()
     alert('Operaio salvato')
   }
@@ -266,6 +336,7 @@ export default function Home() {
     setQualificaOperaioModifica(operaio.qualifica || '')
     setPinOperaioModifica(operaio.pin || '')
     setNotaOperaioModifica(operaio.nota || '')
+    setStatoOperaioModifica(operaio.stato || 'attivo')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -276,22 +347,43 @@ export default function Home() {
     setQualificaOperaioModifica('')
     setPinOperaioModifica('')
     setNotaOperaioModifica('')
+    setStatoOperaioModifica('attivo')
   }
 
   const salvaModificaOperaio = async () => {
-    if (!operaioInModifica) return alert('Nessun operaio selezionato')
-    if (!nomeOperaioModifica.trim()) return alert('Inserisci il nome dell’operaio')
-    if (!pinOperaioModifica.trim()) return alert('Inserisci il PIN dell’operaio')
+    if (!operaioInModifica) {
+      alert('Nessun operaio selezionato')
+      return
+    }
+
+    if (!nomeOperaioModifica.trim()) {
+      alert('Inserisci il nome dell’operaio')
+      return
+    }
+
+    if (!pinOperaioModifica.trim()) {
+      alert('Inserisci il PIN dell’operaio')
+      return
+    }
 
     const { data: duplicati, error: erroreCheck } = await supabase
       .from('operai')
       .select('*')
       .eq('pin', pinOperaioModifica.trim())
 
-    if (erroreCheck) return alert('Errore controllo PIN: ' + erroreCheck.message)
+    if (erroreCheck) {
+      alert('Errore controllo PIN: ' + erroreCheck.message)
+      return
+    }
 
-    const pinUsatoDaAltro = duplicati && duplicati.some((o) => o.id !== operaioInModifica)
-    if (pinUsatoDaAltro) return alert('Questo PIN è già usato da un altro operaio')
+    const pinUsatoDaAltro =
+      duplicati &&
+      duplicati.some((o) => o.id !== operaioInModifica)
+
+    if (pinUsatoDaAltro) {
+      alert('Questo PIN è già usato da un altro operaio')
+      return
+    }
 
     const { error } = await supabase
       .from('operai')
@@ -301,10 +393,14 @@ export default function Home() {
         qualifica: qualificaOperaioModifica.trim(),
         pin: pinOperaioModifica.trim(),
         nota: notaOperaioModifica.trim(),
+        stato: statoOperaioModifica,
       })
       .eq('id', operaioInModifica)
 
-    if (error) return alert('Errore modifica operaio: ' + error.message)
+    if (error) {
+      alert('Errore modifica operaio: ' + error.message)
+      return
+    }
 
     annullaModificaOperaio()
     await caricaOperai()
@@ -313,18 +409,29 @@ export default function Home() {
 
   const eliminaOperaio = async (id?: string) => {
     if (!id) return
+
     const conferma = confirm('Vuoi eliminare questo operaio?')
     if (!conferma) return
 
-    const { error } = await supabase.from('operai').delete().eq('id', id)
-    if (error) return alert('Errore eliminazione operaio: ' + error.message)
+    const { error } = await supabase
+      .from('operai')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      alert('Errore eliminazione operaio: ' + error.message)
+      return
+    }
 
     await caricaOperai()
     alert('Operaio eliminato')
   }
 
   const timbraEntrata = async () => {
-    if (!operaioTimbratura || !cantiereTimbratura) return alert('Seleziona operaio e cantiere')
+    if (!operaioTimbratura || !cantiereTimbratura) {
+      alert('Seleziona operaio e cantiere')
+      return
+    }
 
     const { data: aperte, error: errCheck } = await supabase
       .from('timbrature')
@@ -334,27 +441,42 @@ export default function Home() {
       .eq('data', oggi)
       .eq('stato', 'aperto')
 
-    if (errCheck) return alert('Errore controllo timbratura: ' + errCheck.message)
-    if (aperte && aperte.length > 0) return alert('Esiste già una timbratura aperta per questo operaio')
+    if (errCheck) {
+      alert('Errore controllo timbratura: ' + errCheck.message)
+      return
+    }
 
-    const { error } = await supabase.from('timbrature').insert([
-      {
-        operaio_nome: operaioTimbratura,
-        cantiere: cantiereTimbratura,
-        data: oggi,
-        ora_entrata: oraAttuale(),
-        stato: 'aperto',
-      },
-    ])
+    if (aperte && aperte.length > 0) {
+      alert('Esiste già una timbratura aperta per questo operaio')
+      return
+    }
 
-    if (error) return alert('Errore timbratura entrata: ' + error.message)
+    const { error } = await supabase
+      .from('timbrature')
+      .insert([
+        {
+          operaio_nome: operaioTimbratura,
+          cantiere: cantiereTimbratura,
+          data: oggi,
+          ora_entrata: oraAttuale(),
+          stato: 'aperto',
+        },
+      ])
+
+    if (error) {
+      alert('Errore timbratura entrata: ' + error.message)
+      return
+    }
 
     await caricaTimbrature()
     alert('Entrata registrata')
   }
 
   const timbraUscita = async () => {
-    if (!operaioTimbratura || !cantiereTimbratura) return alert('Seleziona operaio e cantiere')
+    if (!operaioTimbratura || !cantiereTimbratura) {
+      alert('Seleziona operaio e cantiere')
+      return
+    }
 
     const { data: aperte, error: errFind } = await supabase
       .from('timbrature')
@@ -365,8 +487,15 @@ export default function Home() {
       .eq('stato', 'aperto')
       .order('created_at', { ascending: false })
 
-    if (errFind) return alert('Errore ricerca timbratura aperta: ' + errFind.message)
-    if (!aperte || aperte.length === 0) return alert('Nessuna entrata aperta trovata')
+    if (errFind) {
+      alert('Errore ricerca timbratura aperta: ' + errFind.message)
+      return
+    }
+
+    if (!aperte || aperte.length === 0) {
+      alert('Nessuna entrata aperta trovata')
+      return
+    }
 
     const timbraturaAperta = aperte[0]
 
@@ -378,22 +507,35 @@ export default function Home() {
       })
       .eq('id', timbraturaAperta.id)
 
-    if (error) return alert('Errore timbratura uscita: ' + error.message)
+    if (error) {
+      alert('Errore timbratura uscita: ' + error.message)
+      return
+    }
 
     await caricaTimbrature()
     alert('Uscita registrata')
   }
 
   const timbraEntrataConPin = async () => {
-    if (!pinTimbratura.trim() || !cantiereTimbratura) return alert('Inserisci PIN e seleziona il cantiere')
+    if (!pinTimbratura.trim() || !cantiereTimbratura) {
+      alert('Inserisci PIN e seleziona il cantiere')
+      return
+    }
 
     const { data: operaiTrovati, error: erroreOperaio } = await supabase
       .from('operai')
       .select('*')
       .eq('pin', pinTimbratura.trim())
 
-    if (erroreOperaio) return alert('Errore ricerca operaio: ' + erroreOperaio.message)
-    if (!operaiTrovati || operaiTrovati.length === 0) return alert('PIN non valido')
+    if (erroreOperaio) {
+      alert('Errore ricerca operaio: ' + erroreOperaio.message)
+      return
+    }
+
+    if (!operaiTrovati || operaiTrovati.length === 0) {
+      alert('PIN non valido')
+      return
+    }
 
     const operaio = operaiTrovati[0]
 
@@ -405,20 +547,32 @@ export default function Home() {
       .eq('data', oggi)
       .eq('stato', 'aperto')
 
-    if (errCheck) return alert('Errore controllo timbratura: ' + errCheck.message)
-    if (aperte && aperte.length > 0) return alert(`Esiste già una timbratura aperta per ${operaio.nome}`)
+    if (errCheck) {
+      alert('Errore controllo timbratura: ' + errCheck.message)
+      return
+    }
 
-    const { error } = await supabase.from('timbrature').insert([
-      {
-        operaio_nome: operaio.nome,
-        cantiere: cantiereTimbratura,
-        data: oggi,
-        ora_entrata: oraAttuale(),
-        stato: 'aperto',
-      },
-    ])
+    if (aperte && aperte.length > 0) {
+      alert(`Esiste già una timbratura aperta per ${operaio.nome}`)
+      return
+    }
 
-    if (error) return alert('Errore timbratura entrata: ' + error.message)
+    const { error } = await supabase
+      .from('timbrature')
+      .insert([
+        {
+          operaio_nome: operaio.nome,
+          cantiere: cantiereTimbratura,
+          data: oggi,
+          ora_entrata: oraAttuale(),
+          stato: 'aperto',
+        },
+      ])
+
+    if (error) {
+      alert('Errore timbratura entrata: ' + error.message)
+      return
+    }
 
     setPinTimbratura('')
     await caricaTimbrature()
@@ -426,15 +580,25 @@ export default function Home() {
   }
 
   const timbraUscitaConPin = async () => {
-    if (!pinTimbratura.trim() || !cantiereTimbratura) return alert('Inserisci PIN e seleziona il cantiere')
+    if (!pinTimbratura.trim() || !cantiereTimbratura) {
+      alert('Inserisci PIN e seleziona il cantiere')
+      return
+    }
 
     const { data: operaiTrovati, error: erroreOperaio } = await supabase
       .from('operai')
       .select('*')
       .eq('pin', pinTimbratura.trim())
 
-    if (erroreOperaio) return alert('Errore ricerca operaio: ' + erroreOperaio.message)
-    if (!operaiTrovati || operaiTrovati.length === 0) return alert('PIN non valido')
+    if (erroreOperaio) {
+      alert('Errore ricerca operaio: ' + erroreOperaio.message)
+      return
+    }
+
+    if (!operaiTrovati || operaiTrovati.length === 0) {
+      alert('PIN non valido')
+      return
+    }
 
     const operaio = operaiTrovati[0]
 
@@ -447,8 +611,15 @@ export default function Home() {
       .eq('stato', 'aperto')
       .order('created_at', { ascending: false })
 
-    if (errFind) return alert('Errore ricerca timbratura aperta: ' + errFind.message)
-    if (!aperte || aperte.length === 0) return alert(`Nessuna entrata aperta trovata per ${operaio.nome}`)
+    if (errFind) {
+      alert('Errore ricerca timbratura aperta: ' + errFind.message)
+      return
+    }
+
+    if (!aperte || aperte.length === 0) {
+      alert(`Nessuna entrata aperta trovata per ${operaio.nome}`)
+      return
+    }
 
     const timbraturaAperta = aperte[0]
 
@@ -460,7 +631,10 @@ export default function Home() {
       })
       .eq('id', timbraturaAperta.id)
 
-    if (error) return alert('Errore timbratura uscita: ' + error.message)
+    if (error) {
+      alert('Errore timbratura uscita: ' + error.message)
+      return
+    }
 
     setPinTimbratura('')
     await caricaTimbrature()
@@ -469,21 +643,38 @@ export default function Home() {
 
   const eliminaTimbratura = async (id?: string) => {
     if (!id) return
+
     const conferma = confirm('Vuoi eliminare questa timbratura?')
     if (!conferma) return
 
-    const { error } = await supabase.from('timbrature').delete().eq('id', id)
-    if (error) return alert('Errore eliminazione timbratura: ' + error.message)
+    const { error } = await supabase
+      .from('timbrature')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      alert('Errore eliminazione timbratura: ' + error.message)
+      return
+    }
 
     await caricaTimbrature()
     alert('Timbratura eliminata')
   }
 
   const compilaRapportinoDaTimbrature = () => {
-    if (!cantiereRapporto) return alert('Seleziona prima un cantiere nel rapportino')
+    if (!cantiereRapporto) {
+      alert('Seleziona prima un cantiere nel rapportino')
+      return
+    }
 
-    const timbratureDelCantiere = timbrature.filter((t) => t.cantiere === cantiereRapporto && t.data === oggi)
-    if (timbratureDelCantiere.length === 0) return alert('Nessuna timbratura trovata oggi per questo cantiere')
+    const timbratureDelCantiere = timbrature.filter(
+      (t) => t.cantiere === cantiereRapporto && t.data === oggi
+    )
+
+    if (timbratureDelCantiere.length === 0) {
+      alert('Nessuna timbratura trovata oggi per questo cantiere')
+      return
+    }
 
     const mappaOperai = new Map<string, number>()
 
@@ -493,23 +684,34 @@ export default function Home() {
 
       const entrata = parseOra(t.ora_entrata)
       const uscita = parseOra(t.ora_uscita)
+
       if (entrata === null) return
 
       let minutiLavorati = 0
-      if (uscita !== null && uscita >= entrata) minutiLavorati = uscita - entrata
+
+      if (uscita !== null && uscita >= entrata) {
+        minutiLavorati = uscita - entrata
+      }
 
       const attuale = mappaOperai.get(nome) || 0
       mappaOperai.set(nome, attuale + minutiLavorati)
     })
 
     const nomiOperai = Array.from(mappaOperai.keys())
-    if (nomiOperai.length === 0) return alert('Nessun operaio valido trovato nelle timbrature di oggi')
+
+    if (nomiOperai.length === 0) {
+      alert('Nessun operaio valido trovato nelle timbrature di oggi')
+      return
+    }
 
     const totaleMinuti = Array.from(mappaOperai.values()).reduce((a, b) => a + b, 0)
     const totaleOreNumero = totaleMinuti / 60
 
     const dettaglioOre = Array.from(mappaOperai.entries())
-      .map(([nome, minuti]) => `${nome}: ${(minuti / 60).toFixed(2)} h`)
+      .map(([nome, minuti]) => {
+        const oreDecimali = (minuti / 60).toFixed(2)
+        return `${nome}: ${oreDecimali} h`
+      })
       .join(' | ')
 
     setOperai(nomiOperai.join(', '))
@@ -528,22 +730,57 @@ export default function Home() {
   }
 
   const salvaModificaCantiere = async () => {
-    if (!cantiereDaModificare || !nuovoNomeCantiere.trim()) return alert('Seleziona un cantiere e scrivi il nuovo nome')
+    if (!cantiereDaModificare || !nuovoNomeCantiere.trim()) {
+      alert('Seleziona un cantiere e scrivi il nuovo nome')
+      return
+    }
 
     const nuovoNome = nuovoNomeCantiere.trim()
-    if (cantiereDaModificare === nuovoNome) return alert('Il nuovo nome è uguale a quello attuale')
 
-    const { error: errorCantieri } = await supabase.from('cantieri').update({ nome: nuovoNome }).eq('nome', cantiereDaModificare)
-    if (errorCantieri) return alert('Errore modifica cantiere: ' + errorCantieri.message)
+    if (cantiereDaModificare === nuovoNome) {
+      alert('Il nuovo nome è uguale a quello attuale')
+      return
+    }
 
-    const { error: errorRapportini } = await supabase.from('rapportini').update({ cantiere: nuovoNome }).eq('cantiere', cantiereDaModificare)
-    if (errorRapportini) return alert('Errore aggiornamento rapportini: ' + errorRapportini.message)
+    const { error: errorCantieri } = await supabase
+      .from('cantieri')
+      .update({ nome: nuovoNome })
+      .eq('nome', cantiereDaModificare)
 
-    const { error: errorFoto } = await supabase.from('foto_cantiere').update({ cantiere: nuovoNome }).eq('cantiere', cantiereDaModificare)
-    if (errorFoto) return alert('Errore aggiornamento foto: ' + errorFoto.message)
+    if (errorCantieri) {
+      alert('Errore modifica cantiere: ' + errorCantieri.message)
+      return
+    }
 
-    const { error: errorTimbrature } = await supabase.from('timbrature').update({ cantiere: nuovoNome }).eq('cantiere', cantiereDaModificare)
-    if (errorTimbrature) return alert('Errore aggiornamento timbrature: ' + errorTimbrature.message)
+    const { error: errorRapportini } = await supabase
+      .from('rapportini')
+      .update({ cantiere: nuovoNome })
+      .eq('cantiere', cantiereDaModificare)
+
+    if (errorRapportini) {
+      alert('Errore aggiornamento rapportini: ' + errorRapportini.message)
+      return
+    }
+
+    const { error: errorFoto } = await supabase
+      .from('foto_cantiere')
+      .update({ cantiere: nuovoNome })
+      .eq('cantiere', cantiereDaModificare)
+
+    if (errorFoto) {
+      alert('Errore aggiornamento foto: ' + errorFoto.message)
+      return
+    }
+
+    const { error: errorTimbrature } = await supabase
+      .from('timbrature')
+      .update({ cantiere: nuovoNome })
+      .eq('cantiere', cantiereDaModificare)
+
+    if (errorTimbrature) {
+      alert('Errore aggiornamento timbrature: ' + errorTimbrature.message)
+      return
+    }
 
     if (cantiereRapporto === cantiereDaModificare) setCantiereRapporto(nuovoNome)
     if (cantiereFoto === cantiereDaModificare) setCantiereFoto(nuovoNome)
@@ -563,20 +800,50 @@ export default function Home() {
   }
 
   const eliminaCantiere = async (nome: string) => {
-    const conferma = confirm(`Vuoi eliminare il cantiere "${nome}"?\n\nVerranno eliminati anche rapportini, foto e timbrature collegate.`)
+    const conferma = confirm(
+      `Vuoi eliminare il cantiere "${nome}"?\n\nVerranno eliminati anche rapportini, foto e timbrature collegate.`
+    )
     if (!conferma) return
 
-    const { error: errorRapportini } = await supabase.from('rapportini').delete().eq('cantiere', nome)
-    if (errorRapportini) return alert('Errore eliminazione rapportini collegati: ' + errorRapportini.message)
+    const { error: errorRapportini } = await supabase
+      .from('rapportini')
+      .delete()
+      .eq('cantiere', nome)
 
-    const { error: errorFoto } = await supabase.from('foto_cantiere').delete().eq('cantiere', nome)
-    if (errorFoto) return alert('Errore eliminazione foto collegate: ' + errorFoto.message)
+    if (errorRapportini) {
+      alert('Errore eliminazione rapportini collegati: ' + errorRapportini.message)
+      return
+    }
 
-    const { error: errorTimbrature } = await supabase.from('timbrature').delete().eq('cantiere', nome)
-    if (errorTimbrature) return alert('Errore eliminazione timbrature collegate: ' + errorTimbrature.message)
+    const { error: errorFoto } = await supabase
+      .from('foto_cantiere')
+      .delete()
+      .eq('cantiere', nome)
 
-    const { error: errorCantiere } = await supabase.from('cantieri').delete().eq('nome', nome)
-    if (errorCantiere) return alert('Errore eliminazione cantiere: ' + errorCantiere.message)
+    if (errorFoto) {
+      alert('Errore eliminazione foto collegate: ' + errorFoto.message)
+      return
+    }
+
+    const { error: errorTimbrature } = await supabase
+      .from('timbrature')
+      .delete()
+      .eq('cantiere', nome)
+
+    if (errorTimbrature) {
+      alert('Errore eliminazione timbrature collegate: ' + errorTimbrature.message)
+      return
+    }
+
+    const { error: errorCantiere } = await supabase
+      .from('cantieri')
+      .delete()
+      .eq('nome', nome)
+
+    if (errorCantiere) {
+      alert('Errore eliminazione cantiere: ' + errorCantiere.message)
+      return
+    }
 
     if (cantiereRapporto === nome) setCantiereRapporto('')
     if (cantiereFoto === nome) setCantiereFoto('')
@@ -593,7 +860,10 @@ export default function Home() {
   }
 
   const salvaRapportino = async () => {
-    if (!cantiereRapporto || !data || !ore || !note.trim()) return alert('Compila almeno cantiere, data, ore e note')
+    if (!cantiereRapporto || !data || !ore || !note.trim()) {
+      alert('Compila almeno cantiere, data, ore e note')
+      return
+    }
 
     const nuovoRapportino: Rapportino = {
       cantiere: cantiereRapporto,
@@ -608,8 +878,14 @@ export default function Home() {
       costo_materiali: costoMateriali,
     }
 
-    const { error } = await supabase.from('rapportini').insert([nuovoRapportino])
-    if (error) return alert('Errore salvataggio rapportino: ' + error.message)
+    const { error } = await supabase
+      .from('rapportini')
+      .insert([nuovoRapportino])
+
+    if (error) {
+      alert('Errore salvataggio rapportino: ' + error.message)
+      return
+    }
 
     setUltimoRapportino(nuovoRapportino)
     resetFormRapportino()
@@ -633,8 +909,15 @@ export default function Home() {
   }
 
   const aggiornaRapportino = async () => {
-    if (!rapportinoInModifica) return alert('Nessun rapportino selezionato')
-    if (!cantiereRapporto || !data || !ore || !note.trim()) return alert('Compila almeno cantiere, data, ore e note')
+    if (!rapportinoInModifica) {
+      alert('Nessun rapportino selezionato')
+      return
+    }
+
+    if (!cantiereRapporto || !data || !ore || !note.trim()) {
+      alert('Compila almeno cantiere, data, ore e note')
+      return
+    }
 
     const { error } = await supabase
       .from('rapportini')
@@ -652,7 +935,10 @@ export default function Home() {
       })
       .eq('id', rapportinoInModifica)
 
-    if (error) return alert('Errore aggiornamento rapportino: ' + error.message)
+    if (error) {
+      alert('Errore aggiornamento rapportino: ' + error.message)
+      return
+    }
 
     resetFormRapportino()
     await caricaRapportini()
@@ -661,11 +947,19 @@ export default function Home() {
 
   const eliminaRapportino = async (id?: string) => {
     if (!id) return
+
     const conferma = confirm('Vuoi eliminare questo rapportino?')
     if (!conferma) return
 
-    const { error } = await supabase.from('rapportini').delete().eq('id', id)
-    if (error) return alert('Errore eliminazione rapportino: ' + error.message)
+    const { error } = await supabase
+      .from('rapportini')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      alert('Errore eliminazione rapportino: ' + error.message)
+      return
+    }
 
     await caricaRapportini()
     alert('Rapportino eliminato')
@@ -678,13 +972,18 @@ export default function Home() {
     const reader = new FileReader()
     reader.onloadend = () => {
       const risultato = reader.result
-      if (typeof risultato === 'string') setImmagineBase64(risultato)
+      if (typeof risultato === 'string') {
+        setImmagineBase64(risultato)
+      }
     }
     reader.readAsDataURL(file)
   }
 
   const usaPosizioneAttuale = () => {
-    if (!navigator.geolocation) return alert('Geolocalizzazione non supportata dal browser')
+    if (!navigator.geolocation) {
+      alert('Geolocalizzazione non supportata dal browser')
+      return
+    }
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -692,12 +991,17 @@ export default function Home() {
         const lng = position.coords.longitude.toFixed(6)
         setGeolocalizzazione(`${lat}, ${lng}`)
       },
-      () => alert('Impossibile ottenere la posizione')
+      () => {
+        alert('Impossibile ottenere la posizione')
+      }
     )
   }
 
   const salvaFotoCantiere = async () => {
-    if (!cantiereFoto || !immagineBase64) return alert('Seleziona cantiere e foto')
+    if (!cantiereFoto || !immagineBase64) {
+      alert('Seleziona cantiere e foto')
+      return
+    }
 
     const nuovaFoto: FotoCantiere = {
       cantiere: cantiereFoto,
@@ -707,8 +1011,14 @@ export default function Home() {
       geolocalizzazione,
     }
 
-    const { error } = await supabase.from('foto_cantiere').insert([nuovaFoto])
-    if (error) return alert('Errore salvataggio foto: ' + error.message)
+    const { error } = await supabase
+      .from('foto_cantiere')
+      .insert([nuovaFoto])
+
+    if (error) {
+      alert('Errore salvataggio foto: ' + error.message)
+      return
+    }
 
     resetFormFoto()
     await caricaFotoCantiere()
@@ -726,8 +1036,15 @@ export default function Home() {
   }
 
   const aggiornaFoto = async () => {
-    if (!fotoInModifica) return alert('Nessuna foto selezionata')
-    if (!cantiereFoto || !immagineBase64) return alert('Seleziona cantiere e foto')
+    if (!fotoInModifica) {
+      alert('Nessuna foto selezionata')
+      return
+    }
+
+    if (!cantiereFoto || !immagineBase64) {
+      alert('Seleziona cantiere e foto')
+      return
+    }
 
     const { error } = await supabase
       .from('foto_cantiere')
@@ -740,7 +1057,10 @@ export default function Home() {
       })
       .eq('id', fotoInModifica)
 
-    if (error) return alert('Errore aggiornamento foto: ' + error.message)
+    if (error) {
+      alert('Errore aggiornamento foto: ' + error.message)
+      return
+    }
 
     resetFormFoto()
     await caricaFotoCantiere()
@@ -749,11 +1069,19 @@ export default function Home() {
 
   const eliminaFoto = async (id?: string) => {
     if (!id) return
+
     const conferma = confirm('Vuoi eliminare questa foto?')
     if (!conferma) return
 
-    const { error } = await supabase.from('foto_cantiere').delete().eq('id', id)
-    if (error) return alert('Errore eliminazione foto: ' + error.message)
+    const { error } = await supabase
+      .from('foto_cantiere')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      alert('Errore eliminazione foto: ' + error.message)
+      return
+    }
 
     await caricaFotoCantiere()
     alert('Foto eliminata')
@@ -773,7 +1101,10 @@ export default function Home() {
       costo_materiali: costoMateriali,
     }
 
-    if (!r.cantiere) return alert('Non ci sono dati da esportare')
+    if (!r.cantiere) {
+      alert('Non ci sono dati da esportare')
+      return
+    }
 
     const doc = new jsPDF()
     let y = 20
@@ -891,16 +1222,35 @@ export default function Home() {
     doc.save(`rapportino-${String(r.cantiere || 'artecna')}.pdf`)
   }
 
-  const rapportiniFiltrati = filtroCantiere ? rapportini.filter((r) => r.cantiere === filtroCantiere) : rapportini
-  const fotoFiltrate = filtroCantiere ? fotoCantiere.filter((f) => f.cantiere === filtroCantiere) : fotoCantiere
-  const rapportiniScheda = cantiereScheda ? rapportini.filter((r) => r.cantiere === cantiereScheda) : []
-  const fotoScheda = cantiereScheda ? fotoCantiere.filter((f) => f.cantiere === cantiereScheda) : []
+  const rapportiniFiltrati = filtroCantiere
+    ? rapportini.filter((r) => r.cantiere === filtroCantiere)
+    : rapportini
+
+  const fotoFiltrate = filtroCantiere
+    ? fotoCantiere.filter((f) => f.cantiere === filtroCantiere)
+    : fotoCantiere
+
+  const rapportiniScheda = cantiereScheda
+    ? rapportini.filter((r) => r.cantiere === cantiereScheda)
+    : []
+
+  const fotoScheda = cantiereScheda
+    ? fotoCantiere.filter((f) => f.cantiere === cantiereScheda)
+    : []
+
   const timbratureOggi = timbrature.filter((t) => t.data === oggi)
+
+  const operaiFiltrati = operaiAnagrafica.filter((o) => {
+    const testo =
+      `${o.nome || ''} ${o.telefono || ''} ${o.qualifica || ''} ${o.nota || ''} ${o.stato || ''}`.toLowerCase()
+    return testo.includes(ricercaOperaio.toLowerCase())
+  })
 
   const totaleCantieri = cantieri.length
   const totaleRapportini = rapportini.length
   const totaleFoto = fotoCantiere.length
   const totaleOperai = operaiAnagrafica.length
+
   const rapportiniOggi = rapportini.filter((r) => r.data === oggi)
   const totaleRapportiniOggi = rapportiniOggi.length
 
@@ -1009,23 +1359,38 @@ export default function Home() {
         <h2 style={{ marginTop: 0 }}>Azioni rapide</h2>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button onClick={() => window.scrollTo({ top: 1600, behavior: 'smooth' })} style={buttonPrimary}>
+          <button
+            onClick={() => window.scrollTo({ top: 1600, behavior: 'smooth' })}
+            style={buttonPrimary}
+          >
             Nuovo rapportino
           </button>
 
-          <button onClick={() => window.scrollTo({ top: 2600, behavior: 'smooth' })} style={buttonSecondary}>
+          <button
+            onClick={() => window.scrollTo({ top: 2600, behavior: 'smooth' })}
+            style={buttonSecondary}
+          >
             Nuova foto
           </button>
 
-          <button onClick={() => window.scrollTo({ top: 1100, behavior: 'smooth' })} style={buttonSecondary}>
+          <button
+            onClick={() => window.scrollTo({ top: 1100, behavior: 'smooth' })}
+            style={buttonSecondary}
+          >
             Nuovo cantiere
           </button>
 
-          <button onClick={() => window.scrollTo({ top: 1350, behavior: 'smooth' })} style={buttonSecondary}>
+          <button
+            onClick={() => window.scrollTo({ top: 1350, behavior: 'smooth' })}
+            style={buttonSecondary}
+          >
             Anagrafica operai
           </button>
 
-          <button onClick={() => window.scrollTo({ top: 1900, behavior: 'smooth' })} style={buttonSecondary}>
+          <button
+            onClick={() => window.scrollTo({ top: 1900, behavior: 'smooth' })}
+            style={buttonSecondary}
+          >
             Timbratura operai
           </button>
 
@@ -1097,7 +1462,13 @@ export default function Home() {
           {ultimeFoto.length === 0 ? (
             <p>Nessuna foto presente</p>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 8,
+              }}
+            >
               {ultimeFoto.map((f, i) => (
                 <div key={f.id || i}>
                   <img
@@ -1259,6 +1630,24 @@ export default function Home() {
 
         <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input
+            placeholder="Cerca operaio"
+            value={ricercaOperaio}
+            onChange={(e) => setRicercaOperaio(e.target.value)}
+            style={{ padding: 8, width: 220 }}
+          />
+
+          <select
+            value={statoOperaio}
+            onChange={(e) => setStatoOperaio(e.target.value)}
+            style={{ padding: 8, width: 160 }}
+          >
+            <option value="attivo">Attivo</option>
+            <option value="sospeso">Sospeso</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
             placeholder="Nome operaio"
             value={nomeOperaio}
             onChange={(e) => setNomeOperaio(e.target.value)}
@@ -1332,6 +1721,15 @@ export default function Home() {
                 onChange={(e) => setPinOperaioModifica(e.target.value)}
                 style={{ padding: 8, width: 140 }}
               />
+
+              <select
+                value={statoOperaioModifica}
+                onChange={(e) => setStatoOperaioModifica(e.target.value)}
+                style={{ padding: 8, width: 160 }}
+              >
+                <option value="attivo">Attivo</option>
+                <option value="sospeso">Sospeso</option>
+              </select>
             </div>
 
             <div style={{ marginBottom: 10 }}>
@@ -1347,23 +1745,27 @@ export default function Home() {
               Salva modifica operaio
             </button>
 
-            <button onClick={annullaModificaOperaio} style={{ padding: 8, marginLeft: 10 }}>
+            <button
+              onClick={annullaModificaOperaio}
+              style={{ padding: 8, marginLeft: 10 }}
+            >
               Annulla modifica
             </button>
           </div>
         )}
 
         <div style={{ marginTop: 20 }}>
-          {operaiAnagrafica.length === 0 ? (
+          {operaiFiltrati.length === 0 ? (
             <p>Nessun operaio presente</p>
           ) : (
             <ul>
-              {operaiAnagrafica.map((o, i) => (
+              {operaiFiltrati.map((o, i) => (
                 <li key={o.id || i} style={{ marginBottom: 14 }}>
                   <strong>{o.nome}</strong>
                   {o.qualifica ? ` - ${o.qualifica}` : ''}
                   {o.telefono ? ` - ${o.telefono}` : ''}
                   {o.pin ? ` - PIN: ${o.pin}` : ''}
+                  {o.stato ? ` - Stato: ${o.stato}` : ''}
                   <br />
                   <em>Nota:</em> {o.nota || '-'}
                   <br />
@@ -1476,7 +1878,8 @@ export default function Home() {
                 <li key={t.id || i} style={{ marginBottom: 12 }}>
                   <strong>{t.operaio_nome}</strong> - {t.cantiere}
                   <br />
-                  Entrata: {t.ora_entrata || '-'} | Uscita: {t.ora_uscita || '-'} | Stato: {t.stato || '-'}
+                  Entrata: {t.ora_entrata || '-'} | Uscita: {t.ora_uscita || '-'} | Stato:{' '}
+                  {t.stato || '-'}
                   <br />
                   <button
                     onClick={() => eliminaTimbratura(t.id)}
@@ -1671,7 +2074,10 @@ export default function Home() {
           </button>
         )}
 
-        <button onClick={compilaRapportinoDaTimbrature} style={{ padding: 8, marginLeft: 10 }}>
+        <button
+          onClick={compilaRapportinoDaTimbrature}
+          style={{ padding: 8, marginLeft: 10 }}
+        >
           Compila da timbrature
         </button>
 
