@@ -57,6 +57,7 @@ type Operaio = {
   nome: string
   telefono?: string
   qualifica?: string
+  pin?: string
   created_at?: string
 }
 
@@ -104,14 +105,18 @@ export default function Home() {
   const [nomeOperaio, setNomeOperaio] = useState('')
   const [telefonoOperaio, setTelefonoOperaio] = useState('')
   const [qualificaOperaio, setQualificaOperaio] = useState('')
+  const [pinOperaio, setPinOperaio] = useState('')
 
   const [operaioTimbratura, setOperaioTimbratura] = useState('')
   const [cantiereTimbratura, setCantiereTimbratura] = useState('')
+  const [pinTimbratura, setPinTimbratura] = useState('')
 
   const [ultimoRapportino, setUltimoRapportino] = useState<Rapportino | null>(null)
 
   const [filtroCantiere, setFiltroCantiere] = useState('')
   const [cantiereScheda, setCantiereScheda] = useState('')
+
+  const oggi = new Date().toISOString().slice(0, 10)
 
   useEffect(() => {
     try {
@@ -126,14 +131,24 @@ export default function Home() {
     caricaTimbrature()
   }, [])
 
-  const oggi = new Date().toISOString().slice(0, 10)
-
   const oraAttuale = () => {
     const now = new Date()
     return now.toLocaleTimeString('it-IT', {
       hour: '2-digit',
       minute: '2-digit',
     })
+  }
+
+  const parseOra = (ora?: string) => {
+    if (!ora) return null
+    const parti = ora.split(':')
+    if (parti.length < 2) return null
+
+    const h = Number(parti[0])
+    const m = Number(parti[1])
+
+    if (isNaN(h) || isNaN(m)) return null
+    return h * 60 + m
   }
 
   const caricaCantieri = async () => {
@@ -253,6 +268,26 @@ export default function Home() {
       return
     }
 
+    if (!pinOperaio.trim()) {
+      alert('Inserisci un PIN per l’operaio')
+      return
+    }
+
+    const { data: esistente, error: erroreCheck } = await supabase
+      .from('operai')
+      .select('*')
+      .eq('pin', pinOperaio.trim())
+
+    if (erroreCheck) {
+      alert('Errore controllo PIN: ' + erroreCheck.message)
+      return
+    }
+
+    if (esistente && esistente.length > 0) {
+      alert('Questo PIN è già usato da un altro operaio')
+      return
+    }
+
     const { error } = await supabase
       .from('operai')
       .insert([
@@ -260,6 +295,7 @@ export default function Home() {
           nome: nomeOperaio.trim(),
           telefono: telefonoOperaio.trim(),
           qualifica: qualificaOperaio.trim(),
+          pin: pinOperaio.trim(),
         },
       ])
 
@@ -271,6 +307,7 @@ export default function Home() {
     setNomeOperaio('')
     setTelefonoOperaio('')
     setQualificaOperaio('')
+    setPinOperaio('')
     await caricaOperai()
     alert('Operaio salvato')
   }
@@ -384,6 +421,131 @@ export default function Home() {
     alert('Uscita registrata')
   }
 
+  const timbraEntrataConPin = async () => {
+    if (!pinTimbratura.trim() || !cantiereTimbratura) {
+      alert('Inserisci PIN e seleziona il cantiere')
+      return
+    }
+
+    const { data: operaiTrovati, error: erroreOperaio } = await supabase
+      .from('operai')
+      .select('*')
+      .eq('pin', pinTimbratura.trim())
+
+    if (erroreOperaio) {
+      alert('Errore ricerca operaio: ' + erroreOperaio.message)
+      return
+    }
+
+    if (!operaiTrovati || operaiTrovati.length === 0) {
+      alert('PIN non valido')
+      return
+    }
+
+    const operaio = operaiTrovati[0]
+
+    const { data: aperte, error: errCheck } = await supabase
+      .from('timbrature')
+      .select('*')
+      .eq('operaio_nome', operaio.nome)
+      .eq('cantiere', cantiereTimbratura)
+      .eq('data', oggi)
+      .eq('stato', 'aperto')
+
+    if (errCheck) {
+      alert('Errore controllo timbratura: ' + errCheck.message)
+      return
+    }
+
+    if (aperte && aperte.length > 0) {
+      alert(`Esiste già una timbratura aperta per ${operaio.nome}`)
+      return
+    }
+
+    const { error } = await supabase
+      .from('timbrature')
+      .insert([
+        {
+          operaio_nome: operaio.nome,
+          cantiere: cantiereTimbratura,
+          data: oggi,
+          ora_entrata: oraAttuale(),
+          stato: 'aperto',
+        },
+      ])
+
+    if (error) {
+      alert('Errore timbratura entrata: ' + error.message)
+      return
+    }
+
+    setPinTimbratura('')
+    await caricaTimbrature()
+    alert(`Entrata registrata per ${operaio.nome}`)
+  }
+
+  const timbraUscitaConPin = async () => {
+    if (!pinTimbratura.trim() || !cantiereTimbratura) {
+      alert('Inserisci PIN e seleziona il cantiere')
+      return
+    }
+
+    const { data: operaiTrovati, error: erroreOperaio } = await supabase
+      .from('operai')
+      .select('*')
+      .eq('pin', pinTimbratura.trim())
+
+    if (erroreOperaio) {
+      alert('Errore ricerca operaio: ' + erroreOperaio.message)
+      return
+    }
+
+    if (!operaiTrovati || operaiTrovati.length === 0) {
+      alert('PIN non valido')
+      return
+    }
+
+    const operaio = operaiTrovati[0]
+
+    const { data: aperte, error: errFind } = await supabase
+      .from('timbrature')
+      .select('*')
+      .eq('operaio_nome', operaio.nome)
+      .eq('cantiere', cantiereTimbratura)
+      .eq('data', oggi)
+      .eq('stato', 'aperto')
+      .order('created_at', { ascending: false })
+
+    if (errFind) {
+      alert('Errore ricerca timbratura aperta: ' + errFind.message)
+      return
+    }
+
+    if (!aperte || aperte.length === 0) {
+      alert(`Nessuna entrata aperta trovata per ${operaio.nome}`)
+      return
+    }
+
+    const timbraturaAperta = aperte[0]
+
+    const { error } = await supabase
+      .from('timbrature')
+      .update({
+        ora_uscita: oraAttuale(),
+        stato: 'chiuso',
+      })
+      .eq('id', timbraturaAperta.id)
+
+    if (error) {
+      alert('Errore timbratura uscita: ' + error.message)
+      return
+    }
+
+    setPinTimbratura('')
+    await caricaTimbrature()
+    alert(`Uscita registrata per ${operaio.nome}`)
+  }
+
   const eliminaTimbratura = async (id?: string) => {
     if (!id) return
 
@@ -402,6 +564,68 @@ export default function Home() {
 
     await caricaTimbrature()
     alert('Timbratura eliminata')
+  }
+
+  const compilaRapportinoDaTimbrature = () => {
+    if (!cantiereRapporto) {
+      alert('Seleziona prima un cantiere nel rapportino')
+      return
+    }
+
+    const timbratureDelCantiere = timbrature.filter(
+      (t) => t.cantiere === cantiereRapporto && t.data === oggi
+    )
+
+    if (timbratureDelCantiere.length === 0) {
+      alert('Nessuna timbratura trovata oggi per questo cantiere')
+      return
+    }
+
+    const mappaOperai = new Map<string, number>()
+
+    timbratureDelCantiere.forEach((t) => {
+      const nome = t.operaio_nome?.trim()
+      if (!nome) return
+
+      const entrata = parseOra(t.ora_entrata)
+      const uscita = parseOra(t.ora_uscita)
+
+      if (entrata === null) return
+
+      let minutiLavorati = 0
+
+      if (uscita !== null && uscita >= entrata) {
+        minutiLavorati = uscita - entrata
+      }
+
+      const attuale = mappaOperai.get(nome) || 0
+      mappaOperai.set(nome, attuale + minutiLavorati)
+    })
+
+    const nomiOperai = Array.from(mappaOperai.keys())
+
+    if (nomiOperai.length === 0) {
+      alert('Nessun operaio valido trovato nelle timbrature di oggi')
+      return
+    }
+
+    const totaleMinuti = Array.from(mappaOperai.values()).reduce((a, b) => a + b, 0)
+    const totaleOreNumero = totaleMinuti / 60
+
+    const dettaglioOre = Array.from(mappaOperai.entries())
+      .map(([nome, minuti]) => {
+        const oreDecimali = (minuti / 60).toFixed(2)
+        return `${nome}: ${oreDecimali} h`
+      })
+      .join(' | ')
+
+    setOperai(nomiOperai.join(', '))
+    setNumeroPresenti(String(nomiOperai.length))
+    setOre(totaleOreNumero.toFixed(2))
+    setOrePerOperaio(dettaglioOre)
+    setData(oggi)
+
+    alert('Rapportino compilato automaticamente dalle timbrature')
   }
 
   const preparaModificaCantiere = (nome: string) => {
@@ -1023,6 +1247,11 @@ export default function Home() {
           <div style={{ fontSize: 14, color: '#666' }}>Operai registrati</div>
           <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{totaleOperai}</div>
         </div>
+
+        <div style={cardStyle}>
+          <div style={{ fontSize: 14, color: '#666' }}>Timbrature oggi</div>
+          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{timbratureOggi.length}</div>
+        </div>
       </div>
 
       <div style={{ ...cardStyle, marginTop: 20 }}>
@@ -1037,7 +1266,7 @@ export default function Home() {
           </button>
 
           <button
-            onClick={() => window.scrollTo({ top: 2450, behavior: 'smooth' })}
+            onClick={() => window.scrollTo({ top: 2600, behavior: 'smooth' })}
             style={buttonSecondary}
           >
             Nuova foto
@@ -1058,7 +1287,7 @@ export default function Home() {
           </button>
 
           <button
-            onClick={() => window.scrollTo({ top: 1850, behavior: 'smooth' })}
+            onClick={() => window.scrollTo({ top: 1900, behavior: 'smooth' })}
             style={buttonSecondary}
           >
             Timbratura operai
@@ -1319,6 +1548,13 @@ export default function Home() {
             onChange={(e) => setQualificaOperaio(e.target.value)}
             style={{ padding: 8, width: 180 }}
           />
+
+          <input
+            placeholder="PIN operaio"
+            value={pinOperaio}
+            onChange={(e) => setPinOperaio(e.target.value)}
+            style={{ padding: 8, width: 140 }}
+          />
         </div>
 
         <button onClick={aggiungiOperaio} style={{ padding: 8 }}>
@@ -1335,6 +1571,7 @@ export default function Home() {
                   <strong>{o.nome}</strong>
                   {o.qualifica ? ` - ${o.qualifica}` : ''}
                   {o.telefono ? ` - ${o.telefono}` : ''}
+                  {o.pin ? ` - PIN: ${o.pin}` : ''}
                   <br />
                   <button
                     onClick={() => eliminaOperaio(o.id)}
@@ -1388,6 +1625,15 @@ export default function Home() {
           </select>
         </div>
 
+        <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            placeholder="PIN operaio"
+            value={pinTimbratura}
+            onChange={(e) => setPinTimbratura(e.target.value)}
+            style={{ padding: 8, width: 180 }}
+          />
+        </div>
+
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={timbraEntrata} style={buttonPrimary}>
             Timbra entrata
@@ -1395,6 +1641,16 @@ export default function Home() {
 
           <button onClick={timbraUscita} style={buttonSecondary}>
             Timbra uscita
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+          <button onClick={timbraEntrataConPin} style={buttonPrimary}>
+            Entrata con PIN
+          </button>
+
+          <button onClick={timbraUscitaConPin} style={buttonSecondary}>
+            Uscita con PIN
           </button>
         </div>
 
@@ -1604,6 +1860,13 @@ export default function Home() {
             Salva rapportino
           </button>
         )}
+
+        <button
+          onClick={compilaRapportinoDaTimbrature}
+          style={{ padding: 8, marginLeft: 10 }}
+        >
+          Compila da timbrature
+        </button>
 
         <button onClick={generaPDF} style={{ padding: 8, marginLeft: 10 }}>
           Scarica PDF
