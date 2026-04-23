@@ -4,10 +4,10 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import jsPDF from 'jspdf'
 import * as XLSX from 'xlsx'
-import * as pdfjsLib from 'pdfjs-dist'
 import Tesseract from 'tesseract.js'
+let pdfjsLib: any = null
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+
 
 const emptyStorage = {
   getItem: (_key: string) => null,
@@ -1338,6 +1338,11 @@ const leggiExcelMateriale = async (file: File) => {
 }
 
 const leggiPdfTesto = async (file: File) => {
+  if (!pdfjsLib) {
+    pdfjsLib = await import('pdfjs-dist')
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+  }
+
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
   let testoCompleto = ''
@@ -1353,7 +1358,6 @@ const leggiPdfTesto = async (file: File) => {
 
   return testoCompleto
 }
-
 const leggiTestoDaImmagine = async (file: File) => {
   const result = await Tesseract.recognize(file, 'ita+eng', {
     logger: (m) => {
