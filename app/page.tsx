@@ -3,6 +3,11 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import jsPDF from 'jspdf'
+import * as XLSX from 'xlsx'
+import * as pdfjsLib from 'pdfjs-dist'
+import Tesseract from 'tesseract.js'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
 const emptyStorage = {
   getItem: (_key: string) => null,
@@ -182,6 +187,44 @@ export default function Home() {
   const [quantitaAttrezzo, setQuantitaAttrezzo] = useState('')
   const [prezzoAttrezzo, setPrezzoAttrezzo] = useState('')
 
+  const [notePreventivo, setNotePreventivo] = useState('')
+  const [nomeFilePreventivo, setNomeFilePreventivo] = useState('')
+
+  const [fornitoreMateriale, setFornitoreMateriale] = useState('')
+  const [dataDocumentoMateriale, setDataDocumentoMateriale] = useState('')
+  const [nomeFileMateriale, setNomeFileMateriale] = useState('')
+
+  const [fornitoreAttrezzo, setFornitoreAttrezzo] = useState('')
+  const [dataDocumentoAttrezzo, setDataDocumentoAttrezzo] = useState('')
+  const [nomeFileAttrezzo, setNomeFileAttrezzo] = useState('')
+  const [notaAttrezzo, setNotaAttrezzo] = useState('')
+
+  const [preventivoInModifica, setPreventivoInModifica] = useState<string | null>(null)
+  const [importoPreventivoModifica, setImportoPreventivoModifica] = useState('')
+  const [notePreventivoModifica, setNotePreventivoModifica] = useState('')
+  const [nomeFilePreventivoModifica, setNomeFilePreventivoModifica] = useState('')
+
+  const [materialeInModifica, setMaterialeInModifica] = useState<string | null>(null)
+  const [descrizioneMaterialeModifica, setDescrizioneMaterialeModifica] = useState('')
+  const [quantitaMaterialeModifica, setQuantitaMaterialeModifica] = useState('')
+  const [prezzoMaterialeModifica, setPrezzoMaterialeModifica] = useState('')
+  const [fornitoreMaterialeModifica, setFornitoreMaterialeModifica] = useState('')
+  const [dataDocumentoMaterialeModifica, setDataDocumentoMaterialeModifica] = useState('')
+  const [nomeFileMaterialeModifica, setNomeFileMaterialeModifica] = useState('')
+
+  const [attrezzoInModifica, setAttrezzoInModifica] = useState<string | null>(null)
+  const [descrizioneAttrezzoModifica, setDescrizioneAttrezzoModifica] = useState('')
+  const [quantitaAttrezzoModifica, setQuantitaAttrezzoModifica] = useState('')
+  const [prezzoAttrezzoModifica, setPrezzoAttrezzoModifica] = useState('')
+  const [fornitoreAttrezzoModifica, setFornitoreAttrezzoModifica] = useState('')
+  const [dataDocumentoAttrezzoModifica, setDataDocumentoAttrezzoModifica] = useState('')
+  const [nomeFileAttrezzoModifica, setNomeFileAttrezzoModifica] = useState('')
+  const [notaAttrezzoModifica, setNotaAttrezzoModifica] = useState('')
+
+  const [filePreventivo, setFilePreventivo] = useState<File | null>(null)
+  const [fileMateriale, setFileMateriale] = useState<File | null>(null)
+  const [fileAttrezzo, setFileAttrezzo] = useState<File | null>(null)
+
   const oggi = new Date().toISOString().slice(0, 10)
 
   useEffect(() => {
@@ -210,10 +253,8 @@ export default function Home() {
     if (!ora) return null
     const parti = ora.split(':')
     if (parti.length < 2) return null
-
     const h = Number(parti[0])
     const m = Number(parti[1])
-
     if (isNaN(h) || isNaN(m)) return null
     return h * 60 + m
   }
@@ -479,9 +520,7 @@ export default function Home() {
       return
     }
 
-    const pinUsatoDaAltro =
-      duplicati &&
-      duplicati.some((o) => o.id !== operaioInModifica)
+    const pinUsatoDaAltro = duplicati && duplicati.some((o) => o.id !== operaioInModifica)
 
     if (pinUsatoDaAltro) {
       alert('Questo PIN è già usato da un altro operaio')
@@ -537,10 +576,7 @@ export default function Home() {
     const conferma = confirm('Vuoi eliminare questo operaio?')
     if (!conferma) return
 
-    const { error } = await supabase
-      .from('operai')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabase.from('operai').delete().eq('id', id)
 
     if (error) {
       alert('Errore eliminazione operaio: ' + error.message)
@@ -575,17 +611,15 @@ export default function Home() {
       return
     }
 
-    const { error } = await supabase
-      .from('timbrature')
-      .insert([
-        {
-          operaio_nome: operaioTimbratura,
-          cantiere: cantiereTimbratura,
-          data: oggi,
-          ora_entrata: oraAttuale(),
-          stato: 'aperto',
-        },
-      ])
+    const { error } = await supabase.from('timbrature').insert([
+      {
+        operaio_nome: operaioTimbratura,
+        cantiere: cantiereTimbratura,
+        data: oggi,
+        ora_entrata: oraAttuale(),
+        stato: 'aperto',
+      },
+    ])
 
     if (error) {
       alert('Errore timbratura entrata: ' + error.message)
@@ -686,17 +720,15 @@ export default function Home() {
       return
     }
 
-    const { error } = await supabase
-      .from('timbrature')
-      .insert([
-        {
-          operaio_nome: operaio.nome,
-          cantiere: cantiereTimbratura,
-          data: oggi,
-          ora_entrata: oraAttuale(),
-          stato: 'aperto',
-        },
-      ])
+    const { error } = await supabase.from('timbrature').insert([
+      {
+        operaio_nome: operaio.nome,
+        cantiere: cantiereTimbratura,
+        data: oggi,
+        ora_entrata: oraAttuale(),
+        stato: 'aperto',
+      },
+    ])
 
     if (error) {
       alert('Errore timbratura entrata: ' + error.message)
@@ -776,10 +808,7 @@ export default function Home() {
     const conferma = confirm('Vuoi eliminare questa timbratura?')
     if (!conferma) return
 
-    const { error } = await supabase
-      .from('timbrature')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabase.from('timbrature').delete().eq('id', id)
 
     if (error) {
       alert('Errore eliminazione timbratura: ' + error.message)
@@ -817,7 +846,6 @@ export default function Home() {
       if (entrata === null) return
 
       let minutiLavorati = 0
-
       if (uscita !== null && uscita >= entrata) {
         minutiLavorati = uscita - entrata
       }
@@ -837,10 +865,7 @@ export default function Home() {
     const totaleOreNumero = totaleMinuti / 60
 
     const dettaglioOre = Array.from(mappaOperai.entries())
-      .map(([nome, minuti]) => {
-        const oreDecimali = (minuti / 60).toFixed(2)
-        return `${nome}: ${oreDecimali} h`
-      })
+      .map(([nome, minuti]) => `${nome}: ${(minuti / 60).toFixed(2)} h`)
       .join(' | ')
 
     setOperai(nomiOperai.join(', '))
@@ -965,71 +990,43 @@ export default function Home() {
     )
     if (!conferma) return
 
-    const { error: errorRapportini } = await supabase
-      .from('rapportini')
-      .delete()
-      .eq('cantiere', nome)
-
+    const { error: errorRapportini } = await supabase.from('rapportini').delete().eq('cantiere', nome)
     if (errorRapportini) {
       alert('Errore eliminazione rapportini collegati: ' + errorRapportini.message)
       return
     }
 
-    const { error: errorFoto } = await supabase
-      .from('foto_cantiere')
-      .delete()
-      .eq('cantiere', nome)
-
+    const { error: errorFoto } = await supabase.from('foto_cantiere').delete().eq('cantiere', nome)
     if (errorFoto) {
       alert('Errore eliminazione foto collegate: ' + errorFoto.message)
       return
     }
 
-    const { error: errorTimbrature } = await supabase
-      .from('timbrature')
-      .delete()
-      .eq('cantiere', nome)
-
+    const { error: errorTimbrature } = await supabase.from('timbrature').delete().eq('cantiere', nome)
     if (errorTimbrature) {
       alert('Errore eliminazione timbrature collegate: ' + errorTimbrature.message)
       return
     }
 
-    const { error: errorPreventivi } = await supabase
-      .from('preventivi_cantiere')
-      .delete()
-      .eq('cantiere', nome)
-
+    const { error: errorPreventivi } = await supabase.from('preventivi_cantiere').delete().eq('cantiere', nome)
     if (errorPreventivi) {
       alert('Errore eliminazione preventivi collegati: ' + errorPreventivi.message)
       return
     }
 
-    const { error: errorMateriali } = await supabase
-      .from('materiali_cantiere')
-      .delete()
-      .eq('cantiere', nome)
-
+    const { error: errorMateriali } = await supabase.from('materiali_cantiere').delete().eq('cantiere', nome)
     if (errorMateriali) {
       alert('Errore eliminazione materiali collegati: ' + errorMateriali.message)
       return
     }
 
-    const { error: errorAttrezzi } = await supabase
-      .from('attrezzi_cantiere')
-      .delete()
-      .eq('cantiere', nome)
-
+    const { error: errorAttrezzi } = await supabase.from('attrezzi_cantiere').delete().eq('cantiere', nome)
     if (errorAttrezzi) {
       alert('Errore eliminazione attrezzi collegati: ' + errorAttrezzi.message)
       return
     }
 
-    const { error: errorCantiere } = await supabase
-      .from('cantieri')
-      .delete()
-      .eq('nome', nome)
-
+    const { error: errorCantiere } = await supabase.from('cantieri').delete().eq('nome', nome)
     if (errorCantiere) {
       alert('Errore eliminazione cantiere: ' + errorCantiere.message)
       return
@@ -1069,9 +1066,7 @@ export default function Home() {
       costo_materiali: costoMateriali,
     }
 
-    const { error } = await supabase
-      .from('rapportini')
-      .insert([nuovoRapportino])
+    const { error } = await supabase.from('rapportini').insert([nuovoRapportino])
 
     if (error) {
       alert('Errore salvataggio rapportino: ' + error.message)
@@ -1142,10 +1137,7 @@ export default function Home() {
     const conferma = confirm('Vuoi eliminare questo rapportino?')
     if (!conferma) return
 
-    const { error } = await supabase
-      .from('rapportini')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabase.from('rapportini').delete().eq('id', id)
 
     if (error) {
       alert('Errore eliminazione rapportino: ' + error.message)
@@ -1188,6 +1180,497 @@ export default function Home() {
     )
   }
 
+const gestisciFilePreventivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0] || null
+  setFilePreventivo(file)
+  setNomeFilePreventivo(file ? file.name : '')
+
+  if (!file) {
+    alert('Nessun file selezionato')
+    return
+  }
+
+  const nome = file.name.toLowerCase()
+
+  alert(`File selezionato: ${file.name}`)
+
+  try {
+    if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) {
+      alert('Sto leggendo un file Excel')
+      await leggiExcelPreventivo(file)
+      alert('Lettura Excel completata')
+    } else if (nome.endsWith('.pdf')) {
+      alert('Sto leggendo un file PDF')
+      await provaImportoDaPdf(file)
+      alert('Lettura PDF completata')
+    } else if (
+      nome.endsWith('.jpg') ||
+      nome.endsWith('.jpeg') ||
+      nome.endsWith('.png') ||
+      nome.endsWith('.webp')
+    ) {
+      alert('Sto leggendo un’immagine')
+      await provaImportoDaImmagine(file)
+      alert('Lettura immagine completata')
+    } else {
+      alert('Formato file non supportato')
+    }
+  } catch (error) {
+    console.error('ERRORE PREVENTIVO:', error)
+    alert('Errore durante la lettura del file preventivo')
+  }
+} 
+const gestisciFileMateriale = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0] || null
+  setFileMateriale(file)
+  setNomeFileMateriale(file ? file.name : '')
+
+  if (!file) return
+
+  const nome = file.name.toLowerCase()
+
+  try {
+    if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) {
+      await leggiExcelMateriale(file)
+    } else if (nome.endsWith('.pdf')) {
+      await provaMaterialeDaPdf(file)
+    } else if (
+      nome.endsWith('.jpg') ||
+      nome.endsWith('.jpeg') ||
+      nome.endsWith('.png') ||
+      nome.endsWith('.webp')
+    ) {
+      await provaMaterialeDaImmagine(file)
+    }
+  } catch (error) {
+    console.error(error)
+    alert('Errore durante la lettura del file materiale')
+  }
+}
+
+const gestisciFileAttrezzo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0] || null
+  setFileAttrezzo(file)
+  setNomeFileAttrezzo(file ? file.name : '')
+
+  if (!file) return
+
+  const nome = file.name.toLowerCase()
+
+  try {
+    if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) {
+      await leggiExcelAttrezzo(file)
+    } else if (nome.endsWith('.pdf')) {
+      await provaAttrezzoDaPdf(file)
+    } else if (
+      nome.endsWith('.jpg') ||
+      nome.endsWith('.jpeg') ||
+      nome.endsWith('.png') ||
+      nome.endsWith('.webp')
+    ) {
+      await provaAttrezzoDaImmagine(file)
+    }
+  } catch (error) {
+    console.error(error)
+    alert('Errore durante la lettura del file attrezzo')
+  }
+}
+
+const leggiExcelPreventivo = async (file: File) => {
+  const arrayBuffer = await file.arrayBuffer()
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+  const firstSheetName = workbook.SheetNames[0]
+  const worksheet = workbook.Sheets[firstSheetName]
+  const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+  let importoTrovato: number | null = null
+
+  for (const row of rows) {
+    if (!Array.isArray(row)) continue
+
+    for (const cell of row) {
+      if (typeof cell === 'number' && cell > 0) {
+        if (importoTrovato === null || cell > importoTrovato) {
+          importoTrovato = cell
+        }
+      }
+
+      if (typeof cell === 'string') {
+        const match = cell.replace(/\./g, '').replace(',', '.').match(/\d+(\.\d+)?/)
+        if (match) {
+          const valore = parseFloat(match[0])
+          if (!isNaN(valore) && valore > 0) {
+            if (importoTrovato === null || valore > importoTrovato) {
+              importoTrovato = valore
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (importoTrovato !== null) {
+    setImportoPreventivo(String(importoTrovato.toFixed(2)))
+  }
+}
+
+const leggiExcelMateriale = async (file: File) => {
+  const arrayBuffer = await file.arrayBuffer()
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+  const firstSheetName = workbook.SheetNames[0]
+  const worksheet = workbook.Sheets[firstSheetName]
+  const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 2) continue
+
+    const descrizione = row[0] ? String(row[0]) : ''
+    const quantita = row[1] ? String(row[1]) : ''
+    const prezzo = row[2] ? String(row[2]) : ''
+
+    if (descrizione && !descrizioneMateriale) {
+      setDescrizioneMateriale(descrizione)
+      setQuantitaMaterialeEconomia(quantita)
+      setPrezzoMaterialeEconomia(prezzo)
+      break
+    }
+  }
+}
+
+const leggiPdfTesto = async (file: File) => {
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  let testoCompleto = ''
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum)
+    const textContent = await page.getTextContent()
+    const pageText = textContent.items
+      .map((item: any) => ('str' in item ? item.str : ''))
+      .join(' ')
+    testoCompleto += ' ' + pageText
+  }
+
+  return testoCompleto
+}
+
+const leggiTestoDaImmagine = async (file: File) => {
+  const result = await Tesseract.recognize(file, 'ita+eng', {
+    logger: (m) => {
+      if (m.status === 'recognizing text') {
+        console.log(`OCR: ${Math.round(m.progress * 100)}%`)
+      }
+    },
+  })
+
+  return result.data.text || ''
+}
+
+
+const provaImportoDaPdf = async (file: File) => {
+  const testo = await leggiPdfTesto(file)
+  const righe = testo
+    .split(/\n|\r| {2,}/)
+    .map((r) => r.trim())
+    .filter(Boolean)
+
+  let importoTrovato: number | null = null
+
+  const priorita = [
+    'totale preventivo',
+    'totale documento',
+    'totale complessivo',
+    'totale da pagare',
+    'importo totale',
+    'totale',
+  ]
+
+  for (const chiave of priorita) {
+    const riga = righe.find((r) => r.toLowerCase().includes(chiave))
+    if (riga) {
+      const numero = estraiNumeroEuro(riga)
+      if (numero && numero > 0) {
+        importoTrovato = numero
+        break
+      }
+    }
+  }
+
+  if (importoTrovato === null) {
+    const matches = testo.match(/\d{1,3}(?:\.\d{3})*(?:,\d{2})/g) || []
+    let importoMaggiore = 0
+
+    matches.forEach((m) => {
+      const valore = parseFloat(m.replace(/\./g, '').replace(',', '.'))
+      if (!isNaN(valore) && valore > importoMaggiore) {
+        importoMaggiore = valore
+      }
+    })
+
+    if (importoMaggiore > 0) {
+      importoTrovato = importoMaggiore
+    }
+  }
+
+  if (importoTrovato !== null) {
+    setImportoPreventivo(importoTrovato.toFixed(2))
+  }
+}
+
+const provaImportoDaImmagine = async (file: File) => {
+  const testo = await leggiTestoDaImmagine(file)
+  const righe = testo
+    .split(/\n|\r/)
+    .map((r) => r.trim())
+    .filter(Boolean)
+
+  let importoTrovato: number | null = null
+
+  const priorita = [
+    'totale preventivo',
+    'totale documento',
+    'totale complessivo',
+    'totale da pagare',
+    'importo totale',
+    'totale',
+  ]
+
+  for (const chiave of priorita) {
+    const riga = righe.find((r) => r.toLowerCase().includes(chiave))
+    if (riga) {
+      const numero = estraiNumeroEuro(riga)
+      if (numero && numero > 0) {
+        importoTrovato = numero
+        break
+      }
+    }
+  }
+
+  if (importoTrovato === null) {
+    const matches = testo.match(/\d{1,3}(?:\.\d{3})*(?:,\d{2})/g) || []
+    let importoMaggiore = 0
+
+    matches.forEach((m) => {
+      const valore = parseFloat(m.replace(/\./g, '').replace(',', '.'))
+      if (!isNaN(valore) && valore > importoMaggiore) {
+        importoMaggiore = valore
+      }
+    })
+
+    if (importoMaggiore > 0) {
+      importoTrovato = importoMaggiore
+    }
+  }
+
+  if (importoTrovato !== null) {
+    setImportoPreventivo(importoTrovato.toFixed(2))
+  }
+}
+const provaMaterialeDaImmagine = async (file: File) => {
+  const testo = await leggiTestoDaImmagine(file)
+
+  const righe = testo
+    .split(/\n|\r/)
+    .map((r) => r.trim())
+    .filter(Boolean)
+
+  const escluse = [
+    'totale',
+    'iva',
+    'imponibile',
+    'documento',
+    'fattura',
+    'data',
+    'pagamento',
+    'banca',
+    'iban',
+    'cliente',
+    'fornitore',
+  ]
+
+  for (const riga of righe) {
+    const rigaBassa = riga.toLowerCase()
+    const daEscludere = escluse.some((parola) => rigaBassa.includes(parola))
+    const matchNumero = riga.match(/\d+(?:[.,]\d+)?/)
+
+    if (riga.length > 5 && matchNumero && !daEscludere) {
+      setDescrizioneMateriale(riga.slice(0, 80))
+
+      const numero = estraiNumeroEuro(riga)
+      if (numero !== null) {
+        setPrezzoMaterialeEconomia(numero.toFixed(2))
+      }
+
+      const qtaMatch = riga.match(/\b\d+(?:[.,]\d+)?\b/)
+      if (qtaMatch) {
+        setQuantitaMaterialeEconomia(qtaMatch[0].replace(',', '.'))
+      }
+
+      break
+    }
+  }
+}
+const provaMaterialeDaPdf = async (file: File) => {
+  const testo = await leggiPdfTesto(file)
+
+  const righe = testo
+    .split(/[\n\r]+| {2,}/)
+    .map((r) => r.trim())
+    .filter(Boolean)
+
+  const escluse = [
+    'totale',
+    'iva',
+    'imponibile',
+    'documento',
+    'fattura',
+    'data',
+    'pagamento',
+    'banca',
+    'iban',
+    'cliente',
+    'fornitore',
+  ]
+
+  for (const riga of righe) {
+    const rigaBassa = riga.toLowerCase()
+    const daEscludere = escluse.some((parola) => rigaBassa.includes(parola))
+    const matchNumero = riga.match(/\d+(?:[.,]\d+)?/)
+
+    if (riga.length > 5 && matchNumero && !daEscludere) {
+      setDescrizioneMateriale(riga.slice(0, 80))
+
+      const numero = estraiNumeroEuro(riga)
+      if (numero !== null) {
+        setPrezzoMaterialeEconomia(numero.toFixed(2))
+      }
+
+      const qtaMatch = riga.match(/\b\d+(?:[.,]\d+)?\b/)
+      if (qtaMatch) {
+        setQuantitaMaterialeEconomia(qtaMatch[0].replace(',', '.'))
+      }
+
+      break
+    }
+  }
+}
+
+const estraiNumeroEuro = (testo: string): number | null => {
+  if (!testo) return null
+
+  // cerca numeri tipo: 1.234,56 oppure 1234,56 oppure 1234
+  const matches = testo.match(/\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2})?/g)
+
+  if (!matches || matches.length === 0) return null
+
+  let valoreMaggiore = 0
+
+  matches.forEach((m) => {
+    const numero = parseFloat(m.replace(/\./g, '').replace(',', '.'))
+    if (!isNaN(numero) && numero > valoreMaggiore) {
+      valoreMaggiore = numero
+    }
+  })
+
+  return valoreMaggiore > 0 ? valoreMaggiore : null
+}
+const leggiExcelAttrezzo = async (file: File) => {
+  const arrayBuffer = await file.arrayBuffer()
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+  const firstSheetName = workbook.SheetNames[0]
+  const worksheet = workbook.Sheets[firstSheetName]
+  const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 2) continue
+
+    const descrizione = row[0] ? String(row[0]) : ''
+    const quantita = row[1] ? String(row[1]) : ''
+    const prezzo = row[2] ? String(row[2]) : ''
+
+    if (descrizione && !descrizioneAttrezzo) {
+      setDescrizioneAttrezzo(descrizione)
+      setQuantitaAttrezzo(quantita)
+      setPrezzoAttrezzo(prezzo)
+      break
+    }
+  }
+} 
+
+const provaAttrezzoDaPdf = async (file: File) => {
+  const testo = await leggiPdfTesto(file)
+
+  const righe = testo
+    .split(/[\n\r]+| {2,}/)
+    .map((r) => r.trim())
+    .filter(Boolean)
+
+  const escluse = [
+    'totale',
+    'iva',
+    'imponibile',
+    'documento',
+    'fattura',
+    'data',
+    'pagamento',
+    'banca',
+    'iban',
+    'cliente',
+    'fornitore',
+  ]
+
+  for (const riga of righe) {
+    const rigaBassa = riga.toLowerCase()
+    const daEscludere = escluse.some((parola) => rigaBassa.includes(parola))
+    const matchNumero = riga.match(/\d+(?:[.,]\d+)?/)
+
+    if (
+      riga.length > 5 &&
+      matchNumero &&
+      !daEscludere
+    ) {
+      setDescrizioneAttrezzo(riga.slice(0, 80))
+      break
+    }
+  }
+}
+const provaAttrezzoDaImmagine = async (file: File) => {
+  const testo = await leggiTestoDaImmagine(file)
+
+  const righe = testo
+    .split(/\n|\r/)
+    .map((r) => r.trim())
+    .filter(Boolean)
+
+  const escluse = [
+    'totale',
+    'iva',
+    'imponibile',
+    'documento',
+    'fattura',
+    'data',
+    'pagamento',
+    'banca',
+    'iban',
+    'cliente',
+    'fornitore',
+  ]
+
+  for (const riga of righe) {
+    const rigaBassa = riga.toLowerCase()
+    const daEscludere = escluse.some((parola) => rigaBassa.includes(parola))
+    const matchNumero = riga.match(/\d+(?:[.,]\d+)?/)
+
+    if (
+      riga.length > 5 &&
+      matchNumero &&
+      !daEscludere
+    ) {
+      setDescrizioneAttrezzo(riga.slice(0, 80))
+      break
+    }
+  }
+}
   const salvaFotoCantiere = async () => {
     if (!cantiereFoto || !immagineBase64) {
       alert('Seleziona cantiere e foto')
@@ -1202,9 +1685,7 @@ export default function Home() {
       geolocalizzazione,
     }
 
-    const { error } = await supabase
-      .from('foto_cantiere')
-      .insert([nuovaFoto])
+    const { error } = await supabase.from('foto_cantiere').insert([nuovaFoto])
 
     if (error) {
       alert('Errore salvataggio foto: ' + error.message)
@@ -1264,10 +1745,7 @@ export default function Home() {
     const conferma = confirm('Vuoi eliminare questa foto?')
     if (!conferma) return
 
-    const { error } = await supabase
-      .from('foto_cantiere')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabase.from('foto_cantiere').delete().eq('id', id)
 
     if (error) {
       alert('Errore eliminazione foto: ' + error.message)
@@ -1280,24 +1758,25 @@ export default function Home() {
 
   const salvaPreventivo = async () => {
     if (!cantiereScheda || !importoPreventivo.trim()) {
-      alert('Seleziona il cantiere nella scheda e inserisci l’importo del preventivo')
+      alert('Seleziona cantiere e inserisci importo')
       return
     }
 
     const importo = parseFloat(importoPreventivo.replace(',', '.'))
+
     if (isNaN(importo)) {
-      alert('Importo preventivo non valido')
+      alert('Importo non valido')
       return
     }
 
-    const { error } = await supabase
-      .from('preventivi_cantiere')
-      .insert([
-        {
-          cantiere: cantiereScheda,
-          importo_totale: importo,
-        },
-      ])
+    const { error } = await supabase.from('preventivi_cantiere').insert([
+      {
+        cantiere: cantiereScheda,
+        importo_totale: importo,
+        note: notePreventivo.trim(),
+        nome_file: nomeFilePreventivo.trim(),
+      },
+    ])
 
     if (error) {
       alert('Errore salvataggio preventivo: ' + error.message)
@@ -1305,6 +1784,9 @@ export default function Home() {
     }
 
     setImportoPreventivo('')
+    setNotePreventivo('')
+    setNomeFilePreventivo('')
+
     await caricaEconomia()
     alert('Preventivo salvato')
   }
@@ -1322,17 +1804,18 @@ export default function Home() {
     const prezzoPulito = isNaN(prezzo) ? 0 : prezzo
     const totale = quantitaPulita * prezzoPulito
 
-    const { error } = await supabase
-      .from('materiali_cantiere')
-      .insert([
-        {
-          cantiere: cantiereScheda,
-          descrizione: descrizioneMateriale.trim(),
-          quantita: quantitaPulita,
-          prezzo_unitario: prezzoPulito,
-          totale,
-        },
-      ])
+    const { error } = await supabase.from('materiali_cantiere').insert([
+      {
+        cantiere: cantiereScheda,
+        descrizione: descrizioneMateriale.trim(),
+        quantita: quantitaPulita,
+        prezzo_unitario: prezzoPulito,
+        totale,
+        fornitore: fornitoreMateriale.trim(),
+        data_documento: dataDocumentoMateriale || null,
+        nome_file: nomeFileMateriale.trim(),
+      },
+    ])
 
     if (error) {
       alert('Errore salvataggio materiale: ' + error.message)
@@ -1342,6 +1825,10 @@ export default function Home() {
     setDescrizioneMateriale('')
     setQuantitaMaterialeEconomia('')
     setPrezzoMaterialeEconomia('')
+    setFornitoreMateriale('')
+    setDataDocumentoMateriale('')
+    setNomeFileMateriale('')
+
     await caricaEconomia()
     alert('Materiale aggiunto')
   }
@@ -1359,17 +1846,19 @@ export default function Home() {
     const prezzoPulito = isNaN(prezzo) ? 0 : prezzo
     const totale = quantitaPulita * prezzoPulito
 
-    const { error } = await supabase
-      .from('attrezzi_cantiere')
-      .insert([
-        {
-          cantiere: cantiereScheda,
-          descrizione: descrizioneAttrezzo.trim(),
-          quantita: quantitaPulita,
-          prezzo_unitario: prezzoPulito,
-          totale,
-        },
-      ])
+    const { error } = await supabase.from('attrezzi_cantiere').insert([
+      {
+        cantiere: cantiereScheda,
+        descrizione: descrizioneAttrezzo.trim(),
+        quantita: quantitaPulita,
+        prezzo_unitario: prezzoPulito,
+        totale,
+        fornitore: fornitoreAttrezzo.trim(),
+        data_documento: dataDocumentoAttrezzo || null,
+        nome_file: nomeFileAttrezzo.trim(),
+        nota: notaAttrezzo.trim(),
+      },
+    ])
 
     if (error) {
       alert('Errore salvataggio attrezzo: ' + error.message)
@@ -1379,6 +1868,11 @@ export default function Home() {
     setDescrizioneAttrezzo('')
     setQuantitaAttrezzo('')
     setPrezzoAttrezzo('')
+    setFornitoreAttrezzo('')
+    setDataDocumentoAttrezzo('')
+    setNomeFileAttrezzo('')
+    setNotaAttrezzo('')
+
     await caricaEconomia()
     alert('Attrezzo aggiunto')
   }
@@ -1396,6 +1890,173 @@ export default function Home() {
     const costoOrario = Number(operaio?.costo_orario || 0)
 
     return ore * costoOrario
+  }
+
+  const preparaModificaPreventivo = (p: PreventivoCantiere) => {
+    setPreventivoInModifica(p.id || null)
+    setImportoPreventivoModifica(
+      p.importo_totale !== undefined && p.importo_totale !== null
+        ? String(p.importo_totale)
+        : ''
+    )
+    setNotePreventivoModifica(p.note || '')
+    setNomeFilePreventivoModifica(p.nome_file || '')
+  }
+
+  const annullaModificaPreventivo = () => {
+    setPreventivoInModifica(null)
+    setImportoPreventivoModifica('')
+    setNotePreventivoModifica('')
+    setNomeFilePreventivoModifica('')
+  }
+
+  const salvaModificaPreventivo = async () => {
+    if (!preventivoInModifica) return
+
+    const importo = parseFloat(importoPreventivoModifica.replace(',', '.'))
+    if (isNaN(importo)) {
+      alert('Importo preventivo non valido')
+      return
+    }
+
+    const { error } = await supabase
+      .from('preventivi_cantiere')
+      .update({
+        importo_totale: importo,
+        note: notePreventivoModifica.trim(),
+        nome_file: nomeFilePreventivoModifica.trim(),
+      })
+      .eq('id', preventivoInModifica)
+
+    if (error) {
+      alert('Errore modifica preventivo: ' + error.message)
+      return
+    }
+
+    annullaModificaPreventivo()
+    await caricaEconomia()
+    alert('Preventivo modificato')
+  }
+
+  const preparaModificaMateriale = (m: MaterialeCantiere) => {
+    setMaterialeInModifica(m.id || null)
+    setDescrizioneMaterialeModifica(m.descrizione || '')
+    setQuantitaMaterialeModifica(
+      m.quantita !== undefined && m.quantita !== null ? String(m.quantita) : ''
+    )
+    setPrezzoMaterialeModifica(
+      m.prezzo_unitario !== undefined && m.prezzo_unitario !== null
+        ? String(m.prezzo_unitario)
+        : ''
+    )
+    setFornitoreMaterialeModifica(m.fornitore || '')
+    setDataDocumentoMaterialeModifica(m.data_documento || '')
+    setNomeFileMaterialeModifica(m.nome_file || '')
+  }
+
+  const annullaModificaMateriale = () => {
+    setMaterialeInModifica(null)
+    setDescrizioneMaterialeModifica('')
+    setQuantitaMaterialeModifica('')
+    setPrezzoMaterialeModifica('')
+    setFornitoreMaterialeModifica('')
+    setDataDocumentoMaterialeModifica('')
+    setNomeFileMaterialeModifica('')
+  }
+
+  const salvaModificaMateriale = async () => {
+    if (!materialeInModifica) return
+
+    const qta = parseFloat((quantitaMaterialeModifica || '0').replace(',', '.'))
+    const prezzo = parseFloat((prezzoMaterialeModifica || '0').replace(',', '.'))
+
+    const quantitaPulita = isNaN(qta) ? 0 : qta
+    const prezzoPulito = isNaN(prezzo) ? 0 : prezzo
+    const totale = quantitaPulita * prezzoPulito
+
+    const { error } = await supabase
+      .from('materiali_cantiere')
+      .update({
+        descrizione: descrizioneMaterialeModifica.trim(),
+        quantita: quantitaPulita,
+        prezzo_unitario: prezzoPulito,
+        totale,
+        fornitore: fornitoreMaterialeModifica.trim(),
+        data_documento: dataDocumentoMaterialeModifica || null,
+        nome_file: nomeFileMaterialeModifica.trim(),
+      })
+      .eq('id', materialeInModifica)
+
+    if (error) {
+      alert('Errore modifica materiale: ' + error.message)
+      return
+    }
+
+    annullaModificaMateriale()
+    await caricaEconomia()
+    alert('Materiale modificato')
+  }
+
+  const preparaModificaAttrezzo = (a: AttrezzoCantiere) => {
+    setAttrezzoInModifica(a.id || null)
+    setDescrizioneAttrezzoModifica(a.descrizione || '')
+    setQuantitaAttrezzoModifica(
+      a.quantita !== undefined && a.quantita !== null ? String(a.quantita) : ''
+    )
+    setPrezzoAttrezzoModifica(
+      a.prezzo_unitario !== undefined && a.prezzo_unitario !== null
+        ? String(a.prezzo_unitario)
+        : ''
+    )
+    setFornitoreAttrezzoModifica(a.fornitore || '')
+    setDataDocumentoAttrezzoModifica(a.data_documento || '')
+    setNomeFileAttrezzoModifica(a.nome_file || '')
+    setNotaAttrezzoModifica(a.nota || '')
+  }
+
+  const annullaModificaAttrezzo = () => {
+    setAttrezzoInModifica(null)
+    setDescrizioneAttrezzoModifica('')
+    setQuantitaAttrezzoModifica('')
+    setPrezzoAttrezzoModifica('')
+    setFornitoreAttrezzoModifica('')
+    setDataDocumentoAttrezzoModifica('')
+    setNomeFileAttrezzoModifica('')
+    setNotaAttrezzoModifica('')
+  }
+
+  const salvaModificaAttrezzo = async () => {
+    if (!attrezzoInModifica) return
+
+    const qta = parseFloat((quantitaAttrezzoModifica || '0').replace(',', '.'))
+    const prezzo = parseFloat((prezzoAttrezzoModifica || '0').replace(',', '.'))
+
+    const quantitaPulita = isNaN(qta) ? 0 : qta
+    const prezzoPulito = isNaN(prezzo) ? 0 : prezzo
+    const totale = quantitaPulita * prezzoPulito
+
+    const { error } = await supabase
+      .from('attrezzi_cantiere')
+      .update({
+        descrizione: descrizioneAttrezzoModifica.trim(),
+        quantita: quantitaPulita,
+        prezzo_unitario: prezzoPulito,
+        totale,
+        fornitore: fornitoreAttrezzoModifica.trim(),
+        data_documento: dataDocumentoAttrezzoModifica || null,
+        nome_file: nomeFileAttrezzoModifica.trim(),
+        nota: notaAttrezzoModifica.trim(),
+      })
+      .eq('id', attrezzoInModifica)
+
+    if (error) {
+      alert('Errore modifica attrezzo: ' + error.message)
+      return
+    }
+
+    annullaModificaAttrezzo()
+    await caricaEconomia()
+    alert('Attrezzo modificato')
   }
 
   const generaPDF = () => {
@@ -1907,71 +2568,587 @@ export default function Home() {
 
               <hr />
 
-              <h4>Inserisci preventivo</h4>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
-                <input
-                  placeholder="Importo preventivo €"
-                  value={importoPreventivo}
-                  onChange={(e) => setImportoPreventivo(e.target.value)}
-                  style={{ padding: 8, width: 180 }}
-                />
-                <button onClick={salvaPreventivo} style={{ padding: 8 }}>
-                  Salva preventivo
-                </button>
-              </div>
+             <h4>Inserisci preventivo</h4>
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+  <input
+    placeholder="Importo preventivo €"
+    value={importoPreventivo}
+    onChange={(e) => setImportoPreventivo(e.target.value)}
+    style={{ padding: 8, width: 180 }}
+  />
 
-              <h4>Materiali</h4>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
-                <input
-                  placeholder="Descrizione materiale"
-                  value={descrizioneMateriale}
-                  onChange={(e) => setDescrizioneMateriale(e.target.value)}
-                  style={{ padding: 8, width: 220 }}
-                />
-                <input
-                  placeholder="Qta"
-                  value={quantitaMaterialeEconomia}
-                  onChange={(e) => setQuantitaMaterialeEconomia(e.target.value)}
-                  style={{ padding: 8, width: 100 }}
-                />
-                <input
-                  placeholder="Prezzo €"
-                  value={prezzoMaterialeEconomia}
-                  onChange={(e) => setPrezzoMaterialeEconomia(e.target.value)}
-                  style={{ padding: 8, width: 120 }}
-                />
-                <button onClick={aggiungiMaterialeEconomia} style={{ padding: 8 }}>
-                  Aggiungi materiale
-                </button>
-              </div>
+  <input
+    placeholder="Note preventivo"
+    value={notePreventivo}
+    onChange={(e) => setNotePreventivo(e.target.value)}
+    style={{ padding: 8, width: 220 }}
+  />
+</div>
 
-              <h4>Attrezzi / Noli</h4>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <input
-                  placeholder="Descrizione attrezzo"
-                  value={descrizioneAttrezzo}
-                  onChange={(e) => setDescrizioneAttrezzo(e.target.value)}
-                  style={{ padding: 8, width: 220 }}
-                />
-                <input
-                  placeholder="Qta"
-                  value={quantitaAttrezzo}
-                  onChange={(e) => setQuantitaAttrezzo(e.target.value)}
-                  style={{ padding: 8, width: 100 }}
-                />
-                <input
-                  placeholder="Prezzo €"
-                  value={prezzoAttrezzo}
-                  onChange={(e) => setPrezzoAttrezzo(e.target.value)}
-                  style={{ padding: 8, width: 120 }}
-                />
-                <button onClick={aggiungiAttrezzo} style={{ padding: 8 }}>
-                  Aggiungi attrezzo
-                </button>
-              </div>
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15, alignItems: 'center' }}>
+ <label
+  style={{
+    padding: '8px 12px',
+    backgroundColor: '#f3f4f6',
+    border: '1px solid #d1d5db',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 600,
+  }}
+>
+  Scegli file preventivo
+  <input
+    type="file"
+    accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png,.webp"
+    onChange={gestisciFilePreventivo}
+    style={{ display: 'none' }}
+  />
+</label>
+  <input
+    placeholder="Nome file"
+    value={nomeFilePreventivo}
+    onChange={(e) => setNomeFilePreventivo(e.target.value)}
+    style={{ padding: 8, width: 220 }}
+  />
+
+  <button onClick={salvaPreventivo} style={{ padding: 8 }}>
+    Salva preventivo
+  </button>
+</div>
+
+{filePreventivo && (
+  <p style={{ fontSize: 13, color: '#444', marginTop: -8 }}>
+    File selezionato: <strong>{filePreventivo.name}</strong>
+  </p>
+)}
+
+<h4>Materiali</h4>
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+  <input
+    placeholder="Descrizione materiale"
+    value={descrizioneMateriale}
+    onChange={(e) => setDescrizioneMateriale(e.target.value)}
+    style={{ padding: 8, width: 220 }}
+  />
+  <input
+    placeholder="Qta"
+    value={quantitaMaterialeEconomia}
+    onChange={(e) => setQuantitaMaterialeEconomia(e.target.value)}
+    style={{ padding: 8, width: 100 }}
+  />
+  <input
+    placeholder="Prezzo €"
+    value={prezzoMaterialeEconomia}
+    onChange={(e) => setPrezzoMaterialeEconomia(e.target.value)}
+    style={{ padding: 8, width: 120 }}
+  />
+</div>
+
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
+  <input
+    placeholder="Fornitore"
+    value={fornitoreMateriale}
+    onChange={(e) => setFornitoreMateriale(e.target.value)}
+    style={{ padding: 8, width: 180 }}
+  />
+
+  <input
+    type="date"
+    value={dataDocumentoMateriale}
+    onChange={(e) => setDataDocumentoMateriale(e.target.value)}
+    style={{ padding: 8, width: 160 }}
+  />
+
+  <input
+  type="file"
+  accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp"
+  onChange={gestisciFileMateriale}
+  style={{ padding: 8, width: 240 }}
+  />
+
+  <button onClick={aggiungiMaterialeEconomia} style={{ padding: 8 }}>
+    Aggiungi materiale
+  </button>
+</div>
+
+{fileMateriale && (
+  <p style={{ fontSize: 13, color: '#444', marginTop: -8 }}>
+    File selezionato: <strong>{fileMateriale.name}</strong>
+  </p>
+)}
+
+<h4>Attrezzi / Noli</h4>
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+  <input
+    placeholder="Descrizione attrezzo"
+    value={descrizioneAttrezzo}
+    onChange={(e) => setDescrizioneAttrezzo(e.target.value)}
+    style={{ padding: 8, width: 220 }}
+  />
+  <input
+    placeholder="Qta"
+    value={quantitaAttrezzo}
+    onChange={(e) => setQuantitaAttrezzo(e.target.value)}
+    style={{ padding: 8, width: 100 }}
+  />
+  <input
+    placeholder="Prezzo €"
+    value={prezzoAttrezzo}
+    onChange={(e) => setPrezzoAttrezzo(e.target.value)}
+    style={{ padding: 8, width: 120 }}
+  />
+</div>
+
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+  <input
+    placeholder="Fornitore"
+    value={fornitoreAttrezzo}
+    onChange={(e) => setFornitoreAttrezzo(e.target.value)}
+    style={{ padding: 8, width: 180 }}
+  />
+
+  <input
+    type="date"
+    value={dataDocumentoAttrezzo}
+    onChange={(e) => setDataDocumentoAttrezzo(e.target.value)}
+    style={{ padding: 8, width: 160 }}
+  />
+
+ <input
+  type="file"
+  accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp"
+  onChange={gestisciFileAttrezzo}
+  style={{ padding: 8, width: 240 }}
+  />
+</div>
+
+<div style={{ marginBottom: 10 }}>
+  <textarea
+    placeholder="Nota attrezzo / nolo"
+    value={notaAttrezzo}
+    onChange={(e) => setNotaAttrezzo(e.target.value)}
+    style={{ padding: 8, width: '100%', minHeight: 70 }}
+  />
+</div>
+
+<button onClick={aggiungiAttrezzo} style={{ padding: 8 }}>
+  Aggiungi attrezzo
+</button>
+
+{fileAttrezzo && (
+  <p style={{ fontSize: 13, color: '#444', marginTop: 8 }}>
+    File selezionato: <strong>{fileAttrezzo.name}</strong>
+  </p>
+)} 
+
+<div style={{ marginTop: 20 }}>
+  <h4>Preventivi salvati</h4>
+
+  {preventivi.filter((p) => p.cantiere === cantiereScheda).length === 0 ? (
+    <p>Nessun preventivo salvato</p>
+  ) : (
+    <div style={{ display: 'grid', gap: 10 }}>
+      {preventivi
+        .filter((p) => p.cantiere === cantiereScheda)
+        .map((p, i) => (
+          <div
+            key={p.id || i}
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 12,
+              background: '#fafafa',
+            }}
+          >
+            <div><strong>Importo:</strong> {formatMoney(Number(p.importo_totale || 0))}</div>
+            <div><strong>Note:</strong> {p.note || '-'}</div>
+            <div><strong>File:</strong> {p.nome_file || '-'}</div>
+
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => preparaModificaPreventivo(p)}
+                style={{
+                  padding: 8,
+                  backgroundColor: '#0275d8',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                Modifica
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (!p.id) return
+                  const conferma = confirm('Vuoi eliminare questo preventivo?')
+                  if (!conferma) return
+
+                  const { error } = await supabase
+                    .from('preventivi_cantiere')
+                    .delete()
+                    .eq('id', p.id)
+
+                  if (error) {
+                    alert('Errore eliminazione preventivo: ' + error.message)
+                    return
+                  }
+
+                  await caricaEconomia()
+                  alert('Preventivo eliminato')
+                }}
+                style={{
+                  padding: 8,
+                  backgroundColor: '#d9534f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                Elimina
+              </button>
             </div>
+          </div>
+        ))}
+    </div>
+  )}
 
-            <div style={{ marginTop: 15 }}>
+  {preventivoInModifica && (
+    <div style={{ marginTop: 15, padding: 12, border: '1px solid #ccc', borderRadius: 8 }}>
+      <h4>Modifica preventivo</h4>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <input
+          placeholder="Importo preventivo €"
+          value={importoPreventivoModifica}
+          onChange={(e) => setImportoPreventivoModifica(e.target.value)}
+          style={{ padding: 8, width: 180 }}
+        />
+
+        <input
+          placeholder="Nome file"
+          value={nomeFilePreventivoModifica}
+          onChange={(e) => setNomeFilePreventivoModifica(e.target.value)}
+          style={{ padding: 8, width: 220 }}
+        />
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <textarea
+          placeholder="Note preventivo"
+          value={notePreventivoModifica}
+          onChange={(e) => setNotePreventivoModifica(e.target.value)}
+          style={{ padding: 8, width: '100%', minHeight: 70 }}
+        />
+      </div>
+
+      <button onClick={salvaModificaPreventivo} style={{ padding: 8 }}>
+        Salva modifica preventivo
+      </button>
+
+      <button
+        onClick={annullaModificaPreventivo}
+        style={{ padding: 8, marginLeft: 10 }}
+      >
+        Annulla
+      </button>
+    </div>
+  )}
+</div>
+
+<div style={{ marginTop: 20 }}>
+  <h4>Materiali salvati</h4>
+
+  {materialiCantiere.filter((m) => m.cantiere === cantiereScheda).length === 0 ? (
+    <p>Nessun materiale salvato</p>
+  ) : (
+    <div style={{ display: 'grid', gap: 10 }}>
+      {materialiCantiere
+        .filter((m) => m.cantiere === cantiereScheda)
+        .map((m, i) => (
+          <div
+            key={m.id || i}
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 12,
+              background: '#fafafa',
+            }}
+          >
+            <div><strong>Descrizione:</strong> {m.descrizione || '-'}</div>
+            <div><strong>Quantità:</strong> {m.quantita ?? 0}</div>
+            <div><strong>Prezzo unitario:</strong> {formatMoney(Number(m.prezzo_unitario || 0))}</div>
+            <div><strong>Totale:</strong> {formatMoney(Number(m.totale || 0))}</div>
+            <div><strong>Fornitore:</strong> {m.fornitore || '-'}</div>
+            <div><strong>Data documento:</strong> {m.data_documento || '-'}</div>
+            <div><strong>File:</strong> {m.nome_file || '-'}</div>
+
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => preparaModificaMateriale(m)}
+                style={{
+                  padding: 8,
+                  backgroundColor: '#0275d8',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                Modifica
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (!m.id) return
+                  const conferma = confirm('Vuoi eliminare questo materiale?')
+                  if (!conferma) return
+
+                  const { error } = await supabase
+                    .from('materiali_cantiere')
+                    .delete()
+                    .eq('id', m.id)
+
+                  if (error) {
+                    alert('Errore eliminazione materiale: ' + error.message)
+                    return
+                  }
+
+                  await caricaEconomia()
+                  alert('Materiale eliminato')
+                }}
+                style={{
+                  padding: 8,
+                  backgroundColor: '#d9534f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                Elimina
+              </button>
+            </div>
+          </div>
+        ))}
+    </div>
+  )}
+
+  {materialeInModifica && (
+    <div style={{ marginTop: 15, padding: 12, border: '1px solid #ccc', borderRadius: 8 }}>
+      <h4>Modifica materiale</h4>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <input
+          placeholder="Descrizione materiale"
+          value={descrizioneMaterialeModifica}
+          onChange={(e) => setDescrizioneMaterialeModifica(e.target.value)}
+          style={{ padding: 8, width: 220 }}
+        />
+        <input
+          placeholder="Qta"
+          value={quantitaMaterialeModifica}
+          onChange={(e) => setQuantitaMaterialeModifica(e.target.value)}
+          style={{ padding: 8, width: 100 }}
+        />
+        <input
+          placeholder="Prezzo €"
+          value={prezzoMaterialeModifica}
+          onChange={(e) => setPrezzoMaterialeModifica(e.target.value)}
+          style={{ padding: 8, width: 120 }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <input
+          placeholder="Fornitore"
+          value={fornitoreMaterialeModifica}
+          onChange={(e) => setFornitoreMaterialeModifica(e.target.value)}
+          style={{ padding: 8, width: 180 }}
+        />
+
+        <input
+          type="date"
+          value={dataDocumentoMaterialeModifica}
+          onChange={(e) => setDataDocumentoMaterialeModifica(e.target.value)}
+          style={{ padding: 8, width: 160 }}
+        />
+
+        <input
+          placeholder="Nome file"
+          value={nomeFileMaterialeModifica}
+          onChange={(e) => setNomeFileMaterialeModifica(e.target.value)}
+          style={{ padding: 8, width: 220 }}
+        />
+      </div>
+
+      <button onClick={salvaModificaMateriale} style={{ padding: 8 }}>
+        Salva modifica materiale
+      </button>
+
+      <button
+        onClick={annullaModificaMateriale}
+        style={{ padding: 8, marginLeft: 10 }}
+      >
+        Annulla
+      </button>
+    </div>
+  )}
+</div>
+
+<div style={{ marginTop: 20 }}>
+  <h4>Attrezzi / noli salvati</h4>
+
+  {attrezziCantiere.filter((a) => a.cantiere === cantiereScheda).length === 0 ? (
+    <p>Nessun attrezzo salvato</p>
+  ) : (
+    <div style={{ display: 'grid', gap: 10 }}>
+      {attrezziCantiere
+        .filter((a) => a.cantiere === cantiereScheda)
+        .map((a, i) => (
+          <div
+            key={a.id || i}
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 12,
+              background: '#fafafa',
+            }}
+          >
+            <div><strong>Descrizione:</strong> {a.descrizione || '-'}</div>
+            <div><strong>Quantità:</strong> {a.quantita ?? 0}</div>
+            <div><strong>Prezzo unitario:</strong> {formatMoney(Number(a.prezzo_unitario || 0))}</div>
+            <div><strong>Totale:</strong> {formatMoney(Number(a.totale || 0))}</div>
+            <div><strong>Fornitore:</strong> {a.fornitore || '-'}</div>
+            <div><strong>Data documento:</strong> {a.data_documento || '-'}</div>
+            <div><strong>File:</strong> {a.nome_file || '-'}</div>
+            <div><strong>Nota:</strong> {a.nota || '-'}</div>
+
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => preparaModificaAttrezzo(a)}
+                style={{
+                  padding: 8,
+                  backgroundColor: '#0275d8',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                Modifica
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (!a.id) return
+                  const conferma = confirm('Vuoi eliminare questo attrezzo?')
+                  if (!conferma) return
+
+                  const { error } = await supabase
+                    .from('attrezzi_cantiere')
+                    .delete()
+                    .eq('id', a.id)
+
+                  if (error) {
+                    alert('Errore eliminazione attrezzo: ' + error.message)
+                    return
+                  }
+
+                  await caricaEconomia()
+                  alert('Attrezzo eliminato')
+                }}
+                style={{
+                  padding: 8,
+                  backgroundColor: '#d9534f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                Elimina
+              </button>
+            </div>
+          </div>
+        ))}
+    </div>
+  )}
+
+  {attrezzoInModifica && (
+    <div style={{ marginTop: 15, padding: 12, border: '1px solid #ccc', borderRadius: 8 }}>
+      <h4>Modifica attrezzo / nolo</h4>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <input
+          placeholder="Descrizione attrezzo"
+          value={descrizioneAttrezzoModifica}
+          onChange={(e) => setDescrizioneAttrezzoModifica(e.target.value)}
+          style={{ padding: 8, width: 220 }}
+        />
+        <input
+          placeholder="Qta"
+          value={quantitaAttrezzoModifica}
+          onChange={(e) => setQuantitaAttrezzoModifica(e.target.value)}
+          style={{ padding: 8, width: 100 }}
+        />
+        <input
+          placeholder="Prezzo €"
+          value={prezzoAttrezzoModifica}
+          onChange={(e) => setPrezzoAttrezzoModifica(e.target.value)}
+          style={{ padding: 8, width: 120 }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <input
+          placeholder="Fornitore"
+          value={fornitoreAttrezzoModifica}
+          onChange={(e) => setFornitoreAttrezzoModifica(e.target.value)}
+          style={{ padding: 8, width: 180 }}
+        />
+
+        <input
+          type="date"
+          value={dataDocumentoAttrezzoModifica}
+          onChange={(e) => setDataDocumentoAttrezzoModifica(e.target.value)}
+          style={{ padding: 8, width: 160 }}
+        />
+
+        <input
+          placeholder="Nome file"
+          value={nomeFileAttrezzoModifica}
+          onChange={(e) => setNomeFileAttrezzoModifica(e.target.value)}
+          style={{ padding: 8, width: 220 }}
+        />
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <textarea
+          placeholder="Nota attrezzo"
+          value={notaAttrezzoModifica}
+          onChange={(e) => setNotaAttrezzoModifica(e.target.value)}
+          style={{ padding: 8, width: '100%', minHeight: 70 }}
+        />
+      </div>
+
+      <button onClick={salvaModificaAttrezzo} style={{ padding: 8 }}>
+        Salva modifica attrezzo
+      </button>
+
+      <button
+        onClick={annullaModificaAttrezzo}
+        style={{ padding: 8, marginLeft: 10 }}
+      >
+        Annulla
+      </button>
+    </div>
+  )}
+</div>
+</div>
+            <div style={{ marginTop: 15 }}> 
               <h4>Rapportini del cantiere</h4>
               {rapportiniScheda.length === 0 ? (
                 <p>Nessun rapportino collegato.</p>
