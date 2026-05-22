@@ -1,36 +1,108 @@
 'use client'
 
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
+import Webcam from 'react-webcam'
+import SignatureCanvas from 'react-signature-canvas'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import { createClient } from '@supabase/supabase-js'
 import jsPDF from 'jspdf'
 import * as XLSX from 'xlsx'
 import Tesseract from 'tesseract.js'
+import JSZip from 'jszip'
+import 'leaflet/dist/leaflet.css'
+import dynamic from 'next/dynamic'
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+PieChart,
+Pie,
+ Legend,
+} from 'recharts'
 let pdfjsLib: any = null
 
+const MappaSopralluogo = dynamic(
+  () => import('./MappaSopralluogo'),
+  { ssr: false }
+)
 
 
-const emptyStorage = {
-  getItem: (_key: string) => null,
-  setItem: (_key: string, _value: string) => {},
-  removeItem: (_key: string) => {},
-}
 
 const supabase = createClient(
   'https://axuiaiglbahygsmeoypy.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4dWlhaWdsYmFoeWdzbWVveXB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTY5ODYsImV4cCI6MjA5MjE3Mjk4Nn0.UU0rZN-8utUUXiuQHfkh-Z9sbhNmfpnJBsGMBqhzSIg',
   {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      storage: emptyStorage,
-    },
+  auth: {
+  persistSession: true,
+  autoRefreshToken: true,
+  detectSessionInUrl: true,
+},
   }
 )
+
+
+type Sopralluogo = {
+  id?: string
+  cliente: string
+  telefono?: string
+  indirizzo?: string
+  geolocalizzazione?: string
+  data_sopralluogo?: string
+  tipo_lavoro?: string
+  note?: string
+  stato?: string
+  firma_cliente?: string
+  preventivo_accettato?: boolean
+  data_inizio_lavori?: string
+  created_at?: string
+ora_appuntamento?: string
+promemoria?: string
+}
+
+
+type FotoSopralluogo = {
+  id?: string
+  sopralluogo_id?: string
+  nota?: string
+  immagine_base64: string
+  tag?: string
+  includi_preventivo?: boolean
+  created_at?: string
+}
+
+type VoceAnalizzata = {
+  descrizione: string
+  quantita?: number
+  unita?: string
+  prezzo?: number
+}
 
 type Cantiere = {
   id?: string
   nome: string
+  preventivo?: number
+  data_inizio_lavori?: string | null
+  data_fine_lavori?: string | null
+  lavori_conclusi?: boolean | null
+}
+
+type PagamentoFornitore = {
+  id?: string
+  fornitore_nome?: string
+  cantiere?: string
+  descrizione?: string
+  importo_totale?: number
+  importo_pagato?: number
+  data_documento?: string
+  data_scadenza?: string
+  metodo?: string
+  nota?: string
+  created_at?: string
 }
 
 type Rapportino = {
@@ -45,8 +117,17 @@ type Rapportino = {
   materiali?: string
   quantita_materiali?: string
   costo_materiali?: string
+  costo_manodopera?: number
 }
-
+type PagamentoOperaio = {
+  id?: string
+  operaio_nome: string
+  importo?: number
+  data_pagamento?: string
+  metodo?: string
+  nota?: string
+  created_at?: string
+}
 type FotoCantiere = {
   id?: string
   cantiere: string
@@ -87,8 +168,12 @@ type PreventivoCantiere = {
   nome_file?: string
   note?: string
   created_at?: string
-}
 
+  file_url?: string | null
+  file_tipo?: string | null
+  anteprima_testo?: string | null
+  file_path?: string | null
+}
 type MaterialeCantiere = {
   id?: string
   cantiere: string
@@ -100,7 +185,57 @@ type MaterialeCantiere = {
   data_documento?: string
   nome_file?: string
   created_at?: string
+
+file_url?: string | null
+  file_path?: string | null
+  file_tipo?: string | null
+  anteprima_testo?: string | null
 }
+
+type FatturaFornitore = {
+  id?: string
+  fornitore?: string
+  partita_iva?: string
+  numero_fattura?: string
+  data_fattura?: string
+  data_ricezione?: string
+  tipo_documento?: string
+  importo_totale?: number
+  nome_file?: string
+  tipo_file?: string
+  xml_testo?: string
+  pdf_testo?: string
+  stato?: string
+  note?: string
+  created_at?: string
+}
+
+type RigaFatturaFornitore = {
+  id?: string
+  fattura_id?: string
+  numero_riga?: number
+  descrizione: string
+  quantita?: number
+  prezzo_unitario?: number
+  totale_riga?: number
+  cantiere?: string
+  stato?: string
+  created_at?: string
+categoria_economica?: string
+}
+
+type RigaFatturaDaAssegnare = {
+  numero_riga: number
+  descrizione: string
+  quantita: number
+  prezzo_unitario: number
+  unita_misura?: string
+  aliquota_iva?: number
+  totale_riga: number
+  cantiere: string
+categoria_economica?: string
+}
+
 
 type AttrezzoCantiere = {
   id?: string
@@ -115,22 +250,2959 @@ type AttrezzoCantiere = {
   nome_file?: string
   nota?: string
   created_at?: string
+
+file_url?: string | null
+  file_path?: string | null
+  file_tipo?: string | null
+  anteprima_testo?: string | null
 }
 
 export default function Home() {
-  const [cantieri, setCantieri] = useState<Cantiere[]>([])
+const coloreUtile = (utile: number, preventivo: number) => {
+  if (preventivo === 0) return '#111827'
+
+  const margine = (utile / preventivo) * 100
+
+  if (utile < 0) return 'red'            // perdita
+  if (margine < 10) return '#f59e0b'     // basso margine
+  return 'green'                         // buono
+}
+
+
+
+ 
+
+
+
+const formatEuro = (valore: string) => {
+  if (!valore) return ''
+
+  const pulito = valore
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .replace(/[^\d.]/g, '')
+
+  const numero = parseFloat(pulito)
+
+  if (isNaN(numero)) return ''
+
+  return numero.toLocaleString('it-IT', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }) + ' €'
+}
+const calcoloEconomiaCantiere = (nomeCantiere: string) => {
+  const cantiere = cantieri.find((c) => c.nome === nomeCantiere)
+
+  const totalePreventiviCaricati = preventivi
+    .filter((p) => p.cantiere === nomeCantiere)
+    .reduce((tot, p) => {
+      const valoreDaUsare =
+        (p as any).importo_corretto &&
+        String((p as any).importo_corretto).trim() !== ''
+          ? (p as any).importo_corretto
+          : p.importo_totale
+
+      return tot + parseImporto(valoreDaUsare)
+    }, 0)
+
+  const preventivo =
+    totalePreventiviCaricati > 0
+      ? totalePreventiviCaricati
+      : parseImporto(cantiere?.preventivo)
+
+  const costoTimbrature = timbrature
+  .filter((t) => t.cantiere === nomeCantiere)
+  .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+
+const costoRapportini = rapportini
+  .filter((r) => r.cantiere === nomeCantiere)
+  .reduce(
+    (tot, r) => tot + Number(r.costo_manodopera || 0),
+    0
+  )
+
+const costoManodopera = costoTimbrature + costoRapportini
+
+  const costoMateriali = materialiCantiere
+    .filter((m) => m.cantiere === nomeCantiere)
+    .reduce((tot, m) => tot + Number(m.totale || 0), 0)
+
+
+
+  const costoAttrezzi = attrezziCantiere
+    .filter((a) => a.cantiere === nomeCantiere)
+    .reduce((tot, a) => tot + Number(a.totale || 0), 0)
+
+  const costoTotale =
+    costoManodopera + costoMateriali + costoAttrezzi
+
+  const utileReale = preventivo - costoTotale
+
+  return {
+    preventivo,
+    costoManodopera,
+    costoFornitori: costoMateriali + costoAttrezzi,
+    costoMateriali,
+    costoAttrezzi,
+    costoTotale,
+    utileReale,
+  }
+}
+
+
+
+
+
+const ordinaBilancioCantiere = (campo: string) => {
+  if (ordineBilancioCampo === campo) {
+    setOrdineBilancioDirezione(
+      ordineBilancioDirezione === 'asc' ? 'desc' : 'asc'
+    )
+  } else {
+    setOrdineBilancioCampo(campo)
+    setOrdineBilancioDirezione('asc')
+  }
+}
+
+
+ 
+const ordinaSpeseImpresa = (campo: string) => {
+  if (ordineSpeseCampo === campo) {
+    setOrdineSpeseDirezione(
+      ordineSpeseDirezione === 'asc'
+        ? 'desc'
+        : 'asc'
+    )
+  } else {
+    setOrdineSpeseCampo(campo)
+    setOrdineSpeseDirezione('asc')
+  }
+}
+
+const ordinaFatture = (campo: string) => {
+  if (ordineFattureCampo === campo) {
+    setOrdineFattureDirezione(
+      ordineFattureDirezione === 'asc'
+        ? 'desc'
+        : 'asc'
+    )
+  } else {
+    setOrdineFattureCampo(campo)
+    setOrdineFattureDirezione('asc')
+  }
+}
+
+const ordinaMateriali = (campo: string) => {
+  if (ordineMaterialiCampo === campo) {
+    setOrdineMaterialiDirezione(
+      ordineMaterialiDirezione === 'asc' ? 'desc' : 'asc'
+    )
+  } else {
+    setOrdineMaterialiCampo(campo)
+    setOrdineMaterialiDirezione('asc')
+  }
+}
+
+
+const ordinaFattureEmesse = (campo: string) => {
+  if (ordineFattureEmesseCampo === campo) {
+    setOrdineFattureEmesseDirezione(
+      ordineFattureEmesseDirezione === 'asc' ? 'desc' : 'asc'
+    )
+  } else {
+    setOrdineFattureEmesseCampo(campo)
+    setOrdineFattureEmesseDirezione('asc')
+  }
+}
+
+
+const statoFornitore = (p: PagamentoFornitore) => {
+  const totale = Number(p.importo_totale || 0)
+  const pagato = Number(p.importo_pagato || 0)
+  const residuo = totale - pagato
+
+  if (residuo <= 0) return 'pagato'
+  if (p.data_scadenza && p.data_scadenza < oggi) return 'scaduto'
+  if (pagato > 0 && residuo > 0) return 'parziale'
+
+  return 'da pagare'
+}
+
+
+const coloreStatoFornitore = (stato: string) => {
+  if (stato === 'pagato') return 'green'
+  if (stato === 'parziale') return '#f59e0b'
+  if (stato === 'scaduto') return 'red'
+  return '#111827'
+}
+
+
+const dettaNoteLavoro = () => {
+  avviaDettatura((testo) => {
+    setNote((prev) => prev ? prev + ' ' + testo : testo)
+  })
+}
+
+const dettaNoteFoto = () => {
+  avviaDettatura((testo) => {
+    setNotaFotoRapportino((prev) => prev ? prev + ' ' + testo : testo)
+  })
+}
+
+const dettaMateriali = () => {
+  avviaDettatura((testo) => {
+    setMateriali((prev) => prev ? prev + ' ' + testo : testo)
+  })
+}
+
+const firmaRef = useRef<any>(null)
+
+const [oraSopralluogo, setOraSopralluogo] =
+  useState('')
+
+const [promemoriaSopralluogo, setPromemoriaSopralluogo] =
+  useState('')
+
+const [firmaCliente, setFirmaCliente] =
+  useState<string>('')
+
+
+const [sopralluogoAperto, setSopralluogoAperto] =
+  useState<Sopralluogo | null>(null)
+
+const [preventivoGeneratoId, setPreventivoGeneratoId] =
+  useState<string | null>(null)
+
+const [popupMappaSopralluogo, setPopupMappaSopralluogo] = useState(false)
+const [puntoMappaSopralluogo, setPuntoMappaSopralluogo] =
+  useState<{ lat: number; lng: number } | null>(null)
+
+
+const [sopralluoghi, setSopralluoghi] = useState<Sopralluogo[]>([])
+const [fotoSopralluoghi, setFotoSopralluoghi] = useState<FotoSopralluogo[]>([])
+const [geolocalizzazioneSopralluogo, setGeolocalizzazioneSopralluogo] =
+  useState('')
+const [clienteSopralluogo, setClienteSopralluogo] = useState('')
+const [telefonoSopralluogo, setTelefonoSopralluogo] = useState('')
+const [indirizzoSopralluogo, setIndirizzoSopralluogo] = useState('')
+const [dataSopralluogo, setDataSopralluogo] = useState(
+  new Date().toISOString().slice(0, 10)
+)
+const [tipoLavoroSopralluogo, setTipoLavoroSopralluogo] = useState('')
+const [noteSopralluogo, setNoteSopralluogo] = useState('')
+
+const [menuMobileAperto, setMenuMobileAperto] = useState(false)
+const [isMobile, setIsMobile] = useState(false)
+
+
+
+const [sidebarAperta, setSidebarAperta] = useState(true)
+
+const [cameraRapportinoAttiva, setCameraRapportinoAttiva] = useState(false)
+const webcamRapportinoRef = useRef<Webcam>(null)
+
+const [mostraDettaglioManodopera, setMostraDettaglioManodopera] = useState(false)
+const [mostraCantieriConclusi, setMostraCantieriConclusi] = useState(false)
+const [mostraDettaglioMateriali, setMostraDettaglioMateriali] = useState(false)
+const [mostraDettaglioAttrezzi, setMostraDettaglioAttrezzi] = useState(false)
+const [mostraCostiPresenze, setMostraCostiPresenze] = useState(false)
+const [mostraRiepilogoOperai, setMostraRiepilogoOperai] = useState(true)
+   const [cantieri, setCantieri] = useState<Cantiere[]>([])
   const [rapportini, setRapportini] = useState<Rapportino[]>([])
+const [preventivoLavorazioni, setPreventivoLavorazioni] = useState<any[]>([])
+
+const [ascoltoRapportino, setAscoltoRapportino] = useState(false)
+const [testoVoceRapportino, setTestoVoceRapportino] = useState('')
+const [recognitionRapportino, setRecognitionRapportino] = useState<any>(null)
+
+const [ascoltoNoteFoto, setAscoltoNoteFoto] = useState(false)
+const [recognitionNoteFoto, setRecognitionNoteFoto] =
+  useState<any>(null)
+
+const [ascoltoMateriali, setAscoltoMateriali] = useState(false)
+const [recognitionMateriali, setRecognitionMateriali] = useState<any>(null)
+
+
   const [fotoCantiere, setFotoCantiere] = useState<FotoCantiere[]>([])
+const [fotoDaCaricare, setFotoDaCaricare] = useState<string[]>([])
+const [notaFotoCantiere, setNotaFotoCantiere] = useState('')
+const [fotoFullscreen, setFotoFullscreen] = useState<FotoCantiere | null>(null)
+const [geolocalizzazioneFoto, setGeolocalizzazioneFoto] = useState('')
+
+
   const [operaiAnagrafica, setOperaiAnagrafica] = useState<Operaio[]>([])
   const [timbrature, setTimbrature] = useState<Timbratura[]>([])
+const [accontiCantiere, setAccontiCantiere] = useState<any[]>([])
+const [fornitoreScadenza, setFornitoreScadenza] = useState('')
+const [fornitoreImportoTotale, setFornitoreImportoTotale] = useState('')
+const [fornitoreImportoPagato, setFornitoreImportoPagato] = useState('')
+const [altezzaTabellaFatture, setAltezzaTabellaFatture] = useState(450)
+const [pagineAperte, setPagineAperte] = useState<string[]>(() => {
+  if (typeof window !== 'undefined') {
+    const salvato = localStorage.getItem('artecna_pagine_aperte')
+    return salvato ? JSON.parse(salvato) : []
+  }
+  return ['home']
+})
+useEffect(() => {
+  localStorage.setItem('artecna_pagine_aperte', JSON.stringify(pagineAperte))
+}, [pagineAperte])
+
+useEffect(() => {
+  const controllaMobile = () => {
+    setIsMobile(window.innerWidth < 768)
+  }
+
+  controllaMobile()
+  window.addEventListener('resize', controllaMobile)
+
+  return () => window.removeEventListener('resize', controllaMobile)
+}, [])
+
+
+const [mostraPassword, setMostraPassword] = useState(false)
+const [filePathAnalisi, setFilePathAnalisi] = useState<string | null>(null)
+
+const [temaApp, setTemaApp] = useState('scuro')
+
+const [dataPresenzaManuale, setDataPresenzaManuale] = useState(
+  new Date().toISOString().slice(0, 10)
+)
+const [operaioPresenzaManuale, setOperaioPresenzaManuale] = useState('')
+const [cantierePresenzaManuale, setCantierePresenzaManuale] = useState('')
+const [oraEntrataManuale, setOraEntrataManuale] = useState('')
+const [oraUscitaManuale, setOraUscitaManuale] = useState('')
+const [economiaDataDa, setEconomiaDataDa] = useState('')
+const [economiaDataA, setEconomiaDataA] = useState('')
+
+const [operaioRegistroEdit, setOperaioRegistroEdit] = useState<string | null>(null)
+const [operaioRegistroNome, setOperaioRegistroNome] = useState('')
+const [operaioRegistroTelefono, setOperaioRegistroTelefono] = useState('')
+const [operaioRegistroQualifica, setOperaioRegistroQualifica] = useState('')
+const [operaioRegistroCosto, setOperaioRegistroCosto] = useState('')
+
+const [pagamentoOperaioRegistroEdit, setPagamentoOperaioRegistroEdit] = useState<string | null>
+(null)
+
+const [rapportinoRegistroEdit, setRapportinoRegistroEdit] = useState<string | null>(null)
+const [rapportinoRegistroData, setRapportinoRegistroData] = useState('')
+const [rapportinoRegistroCantiere, setRapportinoRegistroCantiere] = useState('')
+const [rapportinoRegistroOperaio, setRapportinoRegistroOperaio] = useState('')
+const [rapportinoRegistroOre, setRapportinoRegistroOre] = useState('')
+const [rapportinoRegistroDescrizione, setRapportinoRegistroDescrizione] = useState('')
+
+const [timbraturaRegistroEdit, setTimbraturaRegistroEdit] = useState<string | null>(null)
+const [timbraturaRegistroData, setTimbraturaRegistroData] = useState('')
+const [timbraturaRegistroOperaio, setTimbraturaRegistroOperaio] = useState('')
+const [timbraturaRegistroCantiere, setTimbraturaRegistroCantiere] = useState('')
+const [timbraturaRegistroEntrata, setTimbraturaRegistroEntrata] = useState('')
+const [timbraturaRegistroUscita, setTimbraturaRegistroUscita] = useState('')
+const [timbraturaRegistroOre, setTimbraturaRegistroOre] = useState('')
+
+
+const [pagamentoOperaioRegistroNome, setPagamentoOperaioRegistroNome] = useState('')
+const [pagamentoOperaioRegistroImporto, setPagamentoOperaioRegistroImporto] = useState('')
+const [pagamentoOperaioRegistroData, setPagamentoOperaioRegistroData] = useState('')
+const [pagamentoOperaioRegistroMetodo, setPagamentoOperaioRegistroMetodo] = useState('')
+const [pagamentoOperaioRegistroNota, setPagamentoOperaioRegistroNota] = useState('')
+
+const [salLavorazioni, setSalLavorazioni] = useState<any[]>([])
+const [salCantiere, setSalCantiere] = useState('')
+const [salDescrizione, setSalDescrizione] = useState('')
+const [salImportoPrevisto, setSalImportoPrevisto] = useState('')
+const [salPercentuale, setSalPercentuale] = useState('')
+const [salNote, setSalNote] = useState('')
+const [mostraConfrontoPdfSal, setMostraConfrontoPdfSal] = useState(false)
+const [lavorazioneEditId, setLavorazioneEditId] = useState<number | null>(null)
+const [lavorazioneEditDescrizione, setLavorazioneEditDescrizione] = useState('')
+const [lavorazioneEditImporto, setLavorazioneEditImporto] = useState('')
+  
+
+const [pagamentiDataDa, setPagamentiDataDa] = useState('')
+const [pagamentiDataA, setPagamentiDataA] = useState('')
+
+const [pagamentiFornitori, setPagamentiFornitori] = useState<PagamentoFornitore[]>([])
+
+const [fattureFornitori, setFattureFornitori] = useState<FatturaFornitore[]>([])
+const [righeFatturaDaAssegnare, setRigheFatturaDaAssegnare] = useState<RigaFatturaDaAssegnare[]>([])
+
+const [fatturaFornitore, setFatturaFornitore] = useState('')
+const [fatturaPartitaIva, setFatturaPartitaIva] = useState('')
+const [fatturaNumero, setFatturaNumero] = useState('')
+const [fatturaData, setFatturaData] = useState('')
+const [fatturaTotale, setFatturaTotale] = useState('')
+const [fatturaNomeFile, setFatturaNomeFile] = useState('')
+const [cantiereMassivoFattura, setCantiereMassivoFattura] = useState('')
+const [categoriaMassivaFattura, setCategoriaMassivaFattura] = useState('')
+const [fatturaTipoFile, setFatturaTipoFile] = useState('')
+const [fatturaTestoOriginale, setFatturaTestoOriginale] = useState('')
+const [filtroFattureFornitore, setFiltroFattureFornitore] = useState('')
+const [filtroFattureStato, setFiltroFattureStato] = useState('')
+const [fatturaApertaId, setFatturaApertaId] = useState<string | null>(null)
+const [righeFatturaAperta, setRigheFatturaAperta] = useState<RigaFatturaFornitore[]>([])
+const [filtroFattureCantiere, setFiltroFattureCantiere] = useState('')
+const [filtroSpeseImpresa, setFiltroSpeseImpresa] = useState('')
+
+const [fotoRapportinoAperte, setFotoRapportinoAperte] = useState<
+  FotoCantiere[]
+>([])
+
+const [salFotoCantiere, setSalFotoCantiere] = useState('')
+const [salFotoMese, setSalFotoMese] = useState(
+  new Date().toISOString().slice(0, 7)
+)
+
+
+
+
+
+const [fornitoreNome, setFornitoreNome] = useState('')
+const [fornitoreImporto, setFornitoreImporto] = useState('')
+const [fornitoreData, setFornitoreData] = useState('')
+const [fornitoreMetodo, setFornitoreMetodo] = useState('')
+const [fornitoreNota, setFornitoreNota] = useState('')
+const [apriChecklist, setApriChecklist] = useState(false)
+const [mostraAcconti, setMostraAcconti] = useState(false)
+
+const [registroTab, setRegistroTab] = useState('cantieri')
+const [registroCerca, setRegistroCerca] = useState('')
+const [registroFiltroNome, setRegistroFiltroNome] = useState('')
+const [registroFiltroDataDa, setRegistroFiltroDataDa] = useState('')
+const [registroFiltroDataA, setRegistroFiltroDataA] = useState('')
+
+const [descrizioneAcconto, setDescrizioneAcconto] = useState('')
+const [importoAcconto, setImportoAcconto] = useState('')
+const [dataAcconto, setDataAcconto] = useState('')
+const [metodoAcconto, setMetodoAcconto] = useState('')
+const [notaAcconto, setNotaAcconto] = useState('')
+
+const [prevDescrizione, setPrevDescrizione] = useState('')
+const [prevImporto, setPrevImporto] = useState('')
+const [prevQuantita, setPrevQuantita] = useState('')
+const [prevPrezzoUnitario, setPrevPrezzoUnitario] = useState('')
+const [prevUnita, setPrevUnita] = useState('')
+
+const [filtroFattureEmesse, setFiltroFattureEmesse] = useState('')
+
+const [fattureEmesse, setFattureEmesse] = useState<any[]>([])
+const [ordineFattureEmesseCampo, setOrdineFattureEmesseCampo] =
+  useState('data_fattura')
+
+const [ordineFattureEmesseDirezione, setOrdineFattureEmesseDirezione] =
+  useState<'asc' | 'desc'>('desc')
+const [fatturaEmessaAperta, setFatturaEmessaAperta] =
+  useState<any | null>(null)
+const [speseImpresa, setSpeseImpresa] = useState<any[]>([])
+
+const [popupFotoRapportino, setPopupFotoRapportino] = useState(false)
+const [fotoRapportinoTemp, setFotoRapportinoTemp] = useState<string[]>([])
+const [notaFotoRapportino, setNotaFotoRapportino] = useState('')
+
+const [popupNuovaFatturaEmessa, setPopupNuovaFatturaEmessa] =
+  useState(false)
+const [tabellaSpeseImpresaAperta, setTabellaSpeseImpresaAperta] =
+  useState(false)
+const [ordineSpeseCampo, setOrdineSpeseCampo] =
+  useState('categoria')
+
+
+const [popupOperaiRapportino, setPopupOperaiRapportino] = useState(false)
+
+const [operaiRapportinoTemp, setOperaiRapportinoTemp] = useState<
+ {
+  nome: string
+  ora_inizio?: string
+  ora_fine?: string
+  ore: number
+  costo_orario: number
+}[]
+>([])
+
+const [popupFotoSopralluogo, setPopupFotoSopralluogo] =
+  useState(false)
+
+const [fotoSopralluogoTemp, setFotoSopralluogoTemp] =
+  useState<string[]>([])
+
+const [notaFotoSopralluogo, setNotaFotoSopralluogo] =
+  useState('')
+
+const [cameraSopralluogoAttiva, setCameraSopralluogoAttiva] =
+  useState(false)
+
+const webcamSopralluogoRef = useRef<Webcam>(null)
+
+
+const [ordineSpeseDirezione, setOrdineSpeseDirezione] =
+  useState<'asc' | 'desc'>('asc')
+
+
+const [ordineMaterialiCampo, setOrdineMaterialiCampo] =
+  useState('data_documento')
+
+const [ordineMaterialiDirezione, setOrdineMaterialiDirezione] =
+  useState<'asc' | 'desc'>('desc')
+
+
+const [ordineBilancioCampo, setOrdineBilancioCampo] =
+  useState('nome')
+
+const [ordineBilancioDirezione, setOrdineBilancioDirezione] =
+  useState<'asc' | 'desc'>('asc')
+
+const [ordineFattureCampo, setOrdineFattureCampo] =
+  useState('fornitore')
+
+const [ordineFattureDirezione, setOrdineFattureDirezione] =
+  useState<'asc' | 'desc'>('asc')
+
+
+const [nuovaFatturaEmessa, setNuovaFatturaEmessa] = useState<any>({
+  numero_fattura: '',
+  data_fattura: '',
+  cliente: '',
+  cantiere: '',
+  imponibile: 0,
+  iva: 22,
+  totale: 0,
+  importo_incassato: 0,
+  stato: 'emessa',
+  note: '',
+})
+
+const [mostraValutazioneFondi, setMostraValutazioneFondi] = useState(false)
+
+const salvaAcconto = async () => {
+  if (!cantiereScheda) return alert('Seleziona un cantiere')
+
+  const importo = parseFloat(String(importoAcconto).replace(',', '.'))
+
+  if (!importo || importo <= 0) {
+    return alert('Importo non valido')
+  }
+
+  const { error } = await supabase.from('acconti_cantiere').insert([
+    {
+      cantiere: cantiereScheda,
+      descrizione: descrizioneAcconto || 'Acconto',
+      importo,
+      data_incasso: dataAcconto || null,
+      metodo: metodoAcconto,
+      nota: notaAcconto,
+    },
+  ])
+
+  if (error) {
+    alert('Errore salvataggio acconto: ' + error.message)
+    return
+  }
+
+  // reset campi
+  setDescrizioneAcconto('')
+  setImportoAcconto('')
+  setDataAcconto('')
+  setMetodoAcconto('')
+  setNotaAcconto('')
+
+  await caricaEconomia()
+
+  alert('Acconto salvato')
+}
+
+
+
+const rilevaGeolocalizzazioneSopralluogo = async () => {
+  if (!navigator.geolocation) {
+    alert('Geolocalizzazione non supportata')
+    return
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const lat = position.coords.latitude
+      const lng = position.coords.longitude
+
+      try {
+      
+       const response = await fetch(
+  `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=19&addressdetails=1`
+)
+        
+
+        const data = await response.json()
+
+       const a = data.address || {}
+
+const via =
+  a.road ||
+  a.pedestrian ||
+  a.footway ||
+  a.path ||
+  a.residential ||
+  a.neighbourhood ||
+  ''
+
+const numero = a.house_number || ''
+const citta =
+  a.city ||
+  a.town ||
+  a.village ||
+  a.municipality ||
+  ''
+
+const provincia =
+  a.county &&
+  a.county !== citta
+    ? a.county
+    : ''
+const cap = a.postcode || ''
+
+const indirizzoPulito = [
+  [via, numero].filter(Boolean).join(', '),
+  cap,
+  citta,
+  provincia,
+]
+  .filter(Boolean)
+  .join(' - ')
+
+const indirizzo =
+  via
+    ? indirizzoPulito
+    : data.display_name ||
+      `${cap} - ${citta} - posizione: ${lat.toFixed(6)}, ${lng.toFixed(6)}`
+        setIndirizzoSopralluogo(indirizzo)
+
+        setGeolocalizzazioneSopralluogo(
+          `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+        )
+      } catch {
+        alert('Errore recupero indirizzo')
+      }
+    },
+    () => {
+      alert('Impossibile ottenere la posizione')
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0,
+    }
+  )
+}
+
+
+const usaCoordinateManualiSopralluogo = async () => {
+  const parti = geolocalizzazioneSopralluogo
+    .split(',')
+    .map((p) => p.trim())
+
+  if (parti.length < 2) {
+    alert('Inserisci coordinate nel formato: 37.507900, 15.083000')
+    return
+  }
+
+  const lat = Number(parti[0])
+  const lng = Number(parti[1])
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    alert('Coordinate non valide')
+    return
+  }
+
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=19&addressdetails=1`
+  )
+
+  const data = await response.json()
+  const a = data.address || {}
+
+  const via =
+    a.road ||
+    a.pedestrian ||
+    a.footway ||
+    a.path ||
+    a.residential ||
+    ''
+
+  const numero = a.house_number || ''
+  const cap = a.postcode || ''
+  const citta =
+    a.city ||
+    a.town ||
+    a.village ||
+    a.municipality ||
+    ''
+
+  const indirizzo = [
+    [via, numero].filter(Boolean).join(', '),
+    cap,
+    citta,
+  ]
+    .filter(Boolean)
+    .join(' - ')
+
+  setIndirizzoSopralluogo(
+    indirizzo || data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+  )
+
+  setGeolocalizzazioneSopralluogo(`${lat.toFixed(6)}, ${lng.toFixed(6)}`)
+
+  alert('Indirizzo recuperato dalle coordinate')
+}
+
+const caricaSopralluoghi = async () => {
+  const { data, error } = await supabase
+    .from('sopralluoghi')
+    .select('*')
+    .order('data_sopralluogo', { ascending: false })
+
+  if (error) {
+    alert('Errore caricamento sopralluoghi: ' + error.message)
+    return
+  }
+
+  setSopralluoghi(data || [])
+}
+
+
+const caricaFotoSopralluoghi = async () => {
+  const { data, error } = await supabase
+    .from('foto_sopralluogo')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    alert(
+      'Errore caricamento foto sopralluoghi: ' +
+        error.message
+    )
+    return
+  }
+
+  setFotoSopralluoghi(data || [])
+}
+
+
+
+const eliminaSopralluogo = async (id?: string) => {
+  if (!id) return
+
+  const conferma = confirm(
+    'Eliminare questo sopralluogo? Verranno eliminate anche le foto collegate.'
+  )
+
+  if (!conferma) return
+
+  const { error } = await supabase
+    .from('sopralluoghi')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore eliminazione sopralluogo: ' + error.message)
+    return
+  }
+
+  if (sopralluogoAperto?.id === id) {
+    setSopralluogoAperto(null)
+  }
+
+  await caricaSopralluoghi()
+
+  alert('Sopralluogo eliminato')
+}
+
+
+
+
+const generaVociAutomatiche = (
+  s: Sopralluogo
+) => {
+  const testo =
+    `${s.tipo_lavoro || ''} ${s.note || ''}`
+      .toLowerCase()
+
+  const voci: any[] = []
+
+  if (
+    testo.includes('bagno') ||
+    testo.includes('doccia') ||
+    testo.includes('infiltrazione')
+  ) {
+    voci.push({
+      descrizione:
+        'Demolizione pavimento e rivestimento bagno',
+      quantita: 1,
+      prezzo_unitario: 850,
+    })
+
+    voci.push({
+      descrizione:
+        'Impermeabilizzazione con guaina cementizia',
+      quantita: 1,
+      prezzo_unitario: 650,
+    })
+
+    voci.push({
+      descrizione:
+        'Posa pavimento e rivestimento',
+      quantita: 1,
+      prezzo_unitario: 1200,
+    })
+  }
+
+  if (
+    testo.includes('pittura') ||
+    testo.includes('muffa')
+  ) {
+    voci.push({
+      descrizione:
+        'Raschiatura e trattamento antimuffa',
+      quantita: 1,
+      prezzo_unitario: 450,
+    })
+
+    voci.push({
+      descrizione:
+        'Tinteggiatura pareti',
+      quantita: 1,
+      prezzo_unitario: 700,
+    })
+  }
+
+  if (
+    testo.includes('terrazzo') ||
+    testo.includes('guaina')
+  ) {
+    voci.push({
+      descrizione:
+        'Rimozione pavimentazione terrazzo',
+      quantita: 1,
+      prezzo_unitario: 1200,
+    })
+
+    voci.push({
+      descrizione:
+        'Nuova impermeabilizzazione terrazzo',
+      quantita: 1,
+      prezzo_unitario: 1800,
+    })
+  }
+
+  return voci
+}
+
+
+
+const generaPreventivoDaSopralluogo = async (s: Sopralluogo) => {
+  if (!s.id) {
+    alert('Sopralluogo non valido')
+    return
+  }
+
+  const nomeCantiere = `${s.cliente} - ${s.tipo_lavoro || 'Lavoro'}`
+
+  const vociGenerate = generaVociAutomatiche(s)
+
+
+  const descrizione = [s.tipo_lavoro, s.note, s.indirizzo]
+    .filter(Boolean)
+    .join('\n\n')
+
+  const { data, error } = await supabase
+  .from('preventivi_cantiere')
+  .insert([
+    {
+      cantiere: nomeCantiere,
+      importo_totale: 0,
+      note: descrizione,
+      sopralluogo_id: s.id,
+      nome_file: `Preventivo_${s.cliente}`,
+    },
+  ])
+  .select()
+  .single()
+
+  if (error) {
+  alert('Errore creazione preventivo: ' + error.message)
+  return
+}
+
+setPreventivoGeneratoId(data?.id || null)
+
+  for (const voce of vociGenerate) {
+    await supabase.from('preventivo_lavorazioni').insert({
+      cantiere: nomeCantiere,
+      descrizione: voce.descrizione,
+      quantita: voce.quantita,
+      prezzo_unitario: voce.prezzo_unitario,
+      importo_previsto: voce.quantita * voce.prezzo_unitario,
+    })
+  }
+
+const righeExcel = vociGenerate.map((voce, index) => ({
+  N: index + 1,
+  'Voce di capitolato': voce.descrizione,
+  Quantità: voce.quantita,
+  'Prezzo unitario': voce.prezzo_unitario,
+  Totale: voce.quantita * voce.prezzo_unitario,
+}))
+
+const totalePreventivo = righeExcel.reduce(
+  (tot, r) => tot + Number(r.Totale || 0),
+  0
+)
+
+const datiExcel = [
+  ['ARTECNA - PREVENTIVO DA SOPRALLUOGO'],
+  [],
+  ['Cliente', s.cliente || ''],
+  ['Telefono', s.telefono || ''],
+  ['Indirizzo', s.indirizzo || ''],
+  ['Tipo lavoro', s.tipo_lavoro || ''],
+  ['Data sopralluogo', s.data_sopralluogo || ''],
+  [],
+  ['NOTE SOPRALLUOGO'],
+  [s.note || ''],
+  [],
+  ['N', 'Voce di capitolato', 'Quantità', 'Prezzo unitario', 'Totale'],
+  ...righeExcel.map((r) => [
+    r.N,
+    r['Voce di capitolato'],
+    r.Quantità,
+    r['Prezzo unitario'],
+    r.Totale,
+  ]),
+  [],
+  ['', '', '', 'TOTALE', totalePreventivo],
+]
+
+const ws = XLSX.utils.aoa_to_sheet(datiExcel)
+
+ws['!cols'] = [
+  { wch: 6 },
+  { wch: 60 },
+  { wch: 12 },
+  { wch: 18 },
+  { wch: 18 },
+]
+
+const wb = XLSX.utils.book_new()
+
+XLSX.utils.book_append_sheet(
+  wb,
+  ws,
+  'Preventivo'
+)
+
+XLSX.writeFile(
+  wb,
+  `Preventivo_${s.cliente}_${s.tipo_lavoro || 'sopralluogo'}.xlsx`
+)
+
+  await caricaEconomia()
+  await caricaPreventivoLavorazioni()
+await supabase
+  .from('sopralluoghi')
+  .update({
+    stato: 'preventivo_creato',
+  })
+  .eq('id', s.id)
+
+await caricaSopralluoghi()
+
+  alert('Preventivo creato')
+}
+
+
+
+const convertiSopralluogoInCantiere = async (s: Sopralluogo) => {
+  if (!s.cliente?.trim()) {
+    alert('Cliente non valido')
+    return
+  }
+
+  const nomeCantiere = `${s.cliente} - ${s.tipo_lavoro || 'Lavoro'}`
+
+  const { error } = await supabase.from('cantieri').insert([
+    {
+      nome: nomeCantiere,
+      preventivo: 0,
+      data_inizio_lavori: null,
+      data_fine_lavori: null,
+      lavori_conclusi: false,
+    },
+  ])
+
+  if (error) {
+    alert('Errore conversione in cantiere: ' + error.message)
+    return
+  }
+
+  await supabase
+    .from('sopralluoghi')
+    .update({ stato: 'convertito_in_cantiere' })
+    .eq('id', s.id)
+
+  await caricaCantieri()
+  await caricaSopralluoghi()
+
+  setSopralluogoAperto(null)
+
+  alert('Sopralluogo convertito in cantiere')
+}
+
+
+
+const salvaFotoSopralluogo = async () => {
+  if (!sopralluogoAperto?.id) {
+    alert('Apri un sopralluogo')
+    return
+  }
+
+  if (fotoSopralluogoTemp.length === 0) {
+    alert('Nessuna foto selezionata')
+    return
+  }
+
+  const righe = fotoSopralluogoTemp.map((img) => ({
+    sopralluogo_id: sopralluogoAperto.id,
+    immagine_base64: img,
+    nota: notaFotoSopralluogo,
+    includi_preventivo: true,
+  }))
+
+  const { error } = await supabase
+    .from('foto_sopralluogo')
+    .insert(righe)
+
+  if (error) {
+    alert(
+      'Errore salvataggio foto: ' +
+        error.message
+    )
+    return
+  }
+
+  setFotoSopralluogoTemp([])
+  setNotaFotoSopralluogo('')
+  setPopupFotoSopralluogo(false)
+
+  await caricaFotoSopralluoghi()
+
+  alert('Foto sopralluogo salvate')
+}
+
+
+
+const salvaSopralluogo = async () => {
+  if (!clienteSopralluogo.trim()) {
+    alert('Inserisci almeno il nome cliente')
+    return
+  }
+
+  const { error } = await supabase.from('sopralluoghi').insert([
+    {
+      cliente: clienteSopralluogo,
+  telefono: telefonoSopralluogo,
+  indirizzo: indirizzoSopralluogo,
+  geolocalizzazione: geolocalizzazioneSopralluogo,
+  data_sopralluogo: dataSopralluogo,
+  ora_appuntamento: oraSopralluogo,
+  promemoria: promemoriaSopralluogo,
+  tipo_lavoro: tipoLavoroSopralluogo,
+  note: noteSopralluogo,
+  stato: 'da_preventivare',
+    },
+  ])
+
+  if (error) {
+    alert('Errore salvataggio sopralluogo: ' + error.message)
+    return
+  }
+
+  setClienteSopralluogo('')
+setTelefonoSopralluogo('')
+setIndirizzoSopralluogo('')
+setTipoLavoroSopralluogo('')
+setNoteSopralluogo('')
+setDataSopralluogo(new Date().toISOString().slice(0, 10))
+
+setOraSopralluogo('')
+setPromemoriaSopralluogo('')
+
+
+  await caricaSopralluoghi()
+
+  alert('Sopralluogo salvato')
+}
+
+
+const caricaSalLavorazioni = async () => {
+  const { data, error } = await supabase
+    .from('sal_lavorazioni')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Errore caricamento SAL:', error.message)
+    return
+  }
+
+  setSalLavorazioni(data || [])
+}
+
+const caricaPreventivoLavorazioni = async () => {
+  const { data, error } = await supabase
+    .from('preventivo_lavorazioni')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Errore caricamento lavorazioni preventivo:', error.message)
+    return
+  }
+
+  setPreventivoLavorazioni(data || [])
+}
+
+const salvaSalLavorazione = async () => {
+  if (!salCantiere) {
+    alert('Seleziona un cantiere')
+    return
+  }
+
+  if (!salDescrizione.trim()) {
+    alert('Inserisci la descrizione della lavorazione')
+    return
+  }
+
+  const importoPrevisto = parseImporto(salImportoPrevisto)
+  const percentuale = parseImporto(salPercentuale)
+  const importoMaturato = (importoPrevisto * percentuale) / 100
+
+  const { error } = await supabase.from('sal_lavorazioni').insert({
+    cantiere: salCantiere,
+    descrizione: salDescrizione.trim(),
+    importo_previsto: importoPrevisto,
+    percentuale,
+    importo_maturato: importoMaturato,
+    completata: percentuale >= 100,
+    note: salNote.trim() || null,
+    data_aggiornamento: new Date().toISOString().slice(0, 10),
+  })
+
+  if (error) {
+    alert('Errore salvataggio SAL: ' + error.message)
+    return
+  }
+
+  setSalDescrizione('')
+  setSalImportoPrevisto('')
+  setSalPercentuale('')
+  setSalNote('')
+
+  await caricaSalLavorazioni()
+}
+
+
+const eliminaMaterialeCantiere = async (id?: string) => {
+  if (!id) return
+
+  const conferma = confirm('Eliminare questa riga materiale?')
+  if (!conferma) return
+
+  const { error } = await supabase
+    .from('materiali_cantiere')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore eliminazione materiale: ' + error.message)
+    return
+  }
+
+  await caricaEconomia()
+
+  alert('Riga materiale eliminata')
+}
+
+const eliminaSalLavorazione = async (id: number) => {
+  const conferma = confirm('Eliminare questa lavorazione SAL?')
+
+  if (!conferma) return
+
+  const { error } = await supabase
+    .from('sal_lavorazioni')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore eliminazione SAL: ' + error.message)
+    return
+  }
+
+  await caricaSalLavorazioni()
+}
+
+const salvaLavorazionePreventivo = async () => {
+  if (!salCantiere) {
+    alert('Seleziona un cantiere')
+    return
+  }
+
+  if (!prevDescrizione.trim()) {
+    alert('Inserisci descrizione')
+    return
+  }
+
+  const importo =
+    parseImporto(prevImporto) ||
+    parseImporto(prevQuantita) * parseImporto(prevPrezzoUnitario)
+
+  const { error } = await supabase.from('preventivo_lavorazioni').insert({
+    cantiere: salCantiere,
+    descrizione: prevDescrizione,
+    importo_previsto: importo,
+    quantita: parseImporto(prevQuantita),
+    prezzo_unitario: parseImporto(prevPrezzoUnitario),
+    unita_misura: prevUnita || null,
+  })
+
+  if (error) {
+  alert('Errore salvataggio: ' + error.message)
+  return
+}
+
+setPrevDescrizione('')
+setPrevImporto('')
+setPrevQuantita('')
+setPrevPrezzoUnitario('')
+setPrevUnita('')
+
+await caricaPreventivoLavorazioni()
+
+alert('Lavorazione preventivo salvata')
+
+}
+
+
+const caricaPagamentiFornitori = async () => {
+  const { data, error } = await supabase
+    .from('pagamenti_fornitori')
+    .select('*')
+    .order('data_scadenza', { ascending: true })
+
+  if (error) {
+    alert('Errore caricamento fornitori: ' + error.message)
+    return
+  }
+
+  setPagamentiFornitori((data || []) as PagamentoFornitore[])
+}
+
+const testoXml = (doc: Document, tag: string) => {
+  return doc.getElementsByTagName(tag)[0]?.textContent?.trim() || ''
+}
+
+const numeroXml = (valore: string) => {
+  const pulito = valore.replace(',', '.').replace(/[^\d.-]/g, '')
+  const numero = Number(pulito)
+  return Number.isFinite(numero) ? numero : 0
+}
+
+const caricaFatturaXml = async (file: File) => {
+  try {
+    const testo = await file.text()
+    const parser = new DOMParser()
+    const xml = parser.parseFromString(testo, 'text/xml')
+
+    const erroreParser = xml.getElementsByTagName('parsererror')[0]
+    if (erroreParser) {
+      alert('Il file XML non sembra valido.')
+      return
+    }
+    const cedente = xml.getElementsByTagName('CedentePrestatore')[0]
+    const datiAnagrafici = cedente?.getElementsByTagName('DatiAnagrafici')[0]
+    const idFiscaleIva = datiAnagrafici?.getElementsByTagName('IdFiscaleIVA')[0]
+
+    const partitaIva =
+      idFiscaleIva?.getElementsByTagName('IdCodice')[0]?.textContent?.trim() || ''
+
+    const denominazione =
+      datiAnagrafici?.getElementsByTagName('Denominazione')[0]?.textContent?.trim() ||
+      datiAnagrafici?.getElementsByTagName('Nome')[0]?.textContent?.trim() ||
+      ''
+
+    const datiGeneraliDocumento = xml.getElementsByTagName('DatiGeneraliDocumento')[0]
+
+    const numeroFattura =
+      datiGeneraliDocumento?.getElementsByTagName('Numero')[0]?.textContent?.trim() || ''
+
+    const dataFattura =
+      datiGeneraliDocumento?.getElementsByTagName('Data')[0]?.textContent?.trim() || ''
+
+    const importoTotale =
+      datiGeneraliDocumento?.getElementsByTagName('ImportoTotaleDocumento')[0]?.textContent?.trim() ||
+      ''
+
+    const dettaglioLinee = Array.from(xml.getElementsByTagName('DettaglioLinee'))
+
+    const righe = dettaglioLinee.map((riga, index) => {
+      const numeroLinea = Number(
+        riga.getElementsByTagName('NumeroLinea')[0]?.textContent?.trim() || index + 1
+      )
+
+      const descrizione =
+        riga.getElementsByTagName('Descrizione')[0]?.textContent?.trim() || ''
+
+      const quantita = numeroXml(
+        riga.getElementsByTagName('Quantita')[0]?.textContent?.trim() || '1'
+      )
+
+      const prezzoUnitario = numeroXml(
+        riga.getElementsByTagName('PrezzoUnitario')[0]?.textContent?.trim() || '0'
+      )
+
+      const prezzoTotale = numeroXml(
+        riga.getElementsByTagName('PrezzoTotale')[0]?.textContent?.trim() || '0'
+      )
+
+      return {
+        numero_riga: numeroLinea,
+        descrizione,
+        quantita,
+        prezzo_unitario: prezzoUnitario,
+        totale_riga: prezzoTotale,
+        cantiere: '',
+      }
+    })
+
+    setFatturaFornitore(denominazione)
+    setFatturaPartitaIva(partitaIva)
+    setFatturaNumero(numeroFattura)
+    setFatturaData(dataFattura)
+    setFatturaTotale(importoTotale)
+    setFatturaNomeFile(file.name)
+    setFatturaTipoFile('xml')
+    setFatturaTestoOriginale(testo)
+    setRigheFatturaDaAssegnare(righe)
+
+    alert(`Fattura XML caricata. Righe trovate: ${righe.length}`)
+  } catch (errore) {
+    console.error(errore)
+    alert('Errore durante la lettura della fattura XML.')
+  }
+}
+
+
+const estraiRigheDaTestoPdf = (testo: string) => {
+  const righe = testo
+    .split('\n')
+    .map((r) => r.trim())
+    .filter(Boolean)
+
+  const risultati: RigaFatturaDaAssegnare[] = []
+
+  righe.forEach((riga) => {
+    const rigaBassa = riga.toLowerCase()
+
+    if (
+      rigaBassa.includes('partita iva') ||
+      rigaBassa.includes('codice fiscale') ||
+      rigaBassa.includes('telefono') ||
+      rigaBassa.includes('email') ||
+      rigaBassa.includes('documento') ||
+      rigaBassa.includes('totale documento') ||
+      rigaBassa.includes('imponibile') ||
+      rigaBassa.includes('iva') ||
+      rigaBassa.includes('pagamento') ||
+      rigaBassa.includes('indirizzo') ||
+      rigaBassa.includes('esigibilità') ||
+      rigaBassa.includes('esigibilita') ||
+      rigaBassa.includes('immediata') ||
+      rigaBassa.includes('bonifico') ||
+      rigaBassa.includes('iban') ||
+      rigaBassa.includes('scadenza') ||
+      rigaBassa.includes('totale') ||
+      rigaBassa.includes('imposta') ||
+      rigaBassa.includes('ritenuta') ||
+      rigaBassa.includes('arrotondamento')
+    ) {
+      return
+    }
+
+    const numeri = riga.match(/\d+,\d{2}/g)
+    if (!numeri || numeri.length === 0) return
+
+    const totaleStringa = numeri[numeri.length - 1]
+    const totaleImponibile =
+      Number(totaleStringa.replace(/\./g, '').replace(',', '.')) || 0
+
+    if (totaleImponibile <= 0) return
+
+    let descrizione = riga
+
+    descrizione = descrizione.replace(/^\d+\s+/, '')
+    descrizione = descrizione.replace(/\d+,\d{2}.*$/g, '')
+    descrizione = descrizione.replace(/\s+/g, ' ').trim()
+
+    if (descrizione.length < 4) return
+
+    const matchCompleto = riga.match(
+  /(\d+,\d+)\s+(\d+,\d+)\s+(nr|pz|mt|kg|lt|cf|mq|mc)\s+(\d+,\d+)\s+(\d+,\d+)$/i
+)
+
+let quantita = 1
+let prezzoNetto = totaleImponibile
+let um = '-'
+let aliquotaIva = 22
+let totaleConIva =
+  Math.round((totaleImponibile * (1 + aliquotaIva / 100)) * 100) / 100
+
+if (matchCompleto) {
+  quantita = Number(matchCompleto[1].replace(',', '.')) || 1
+
+  prezzoNetto =
+    Number(matchCompleto[2].replace(',', '.')) || totaleImponibile
+
+  um = matchCompleto[3]
+
+  aliquotaIva =
+    Number(matchCompleto[4].replace(',', '.')) || 22
+
+  const totaleNetto =
+    Number(matchCompleto[5].replace(',', '.')) || totaleImponibile
+
+  totaleConIva =
+    Math.round((totaleNetto * (1 + aliquotaIva / 100)) * 100) / 100
+}
+
+   risultati.push({
+  numero_riga: risultati.length + 1,
+  descrizione,
+  quantita,
+  prezzo_unitario: prezzoNetto,
+  unita_misura: um,
+  aliquota_iva: aliquotaIva,
+  totale_riga: totaleConIva,
+  cantiere: '',
+})
+  })
+
+  return risultati
+}
+
+
+const estraiTotaleDocumentoPdf = (testo: string) => {
+  const righe = testo
+    .split('\n')
+    .map((r) => r.trim())
+    .filter(Boolean)
+
+  const rigaTotale = righe.find((r) => {
+    const b = r.toLowerCase()
+    return (
+      b.includes('totale documento') ||
+      b.includes('totale fattura') ||
+      b.includes('totale da pagare')
+    )
+  })
+
+  if (!rigaTotale) return 0
+
+  const numeri = rigaTotale.match(/\d+,\d{2}/g) || []
+  const ultimo = numeri[numeri.length - 1]
+
+  return ultimo ? Number(ultimo.replace(/\./g, '').replace(',', '.')) || 0 : 0
+}
+
+
+const caricaFatturaPdf = async (file: File) => {
+  try {
+    const pdfjsLib = await import('pdfjs-dist')
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+
+    const buffer = await file.arrayBuffer()
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
+
+    let testoCompleto = ''
+
+    for (let pagina = 1; pagina <= pdf.numPages; pagina++) {
+      const page = await pdf.getPage(pagina)
+
+      const viewport = page.getViewport({ scale: 2 })
+
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')
+
+      if (!context) continue
+
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+
+      await page.render({
+  canvas,
+  canvasContext: context,
+  viewport,
+}).promise
+
+      const image = canvas.toDataURL('image/png')
+
+      const risultato = await Tesseract.recognize(
+        image,
+        'ita'
+      )
+
+      testoCompleto += risultato.data.text + '\n'
+    }
+
+    console.log('TESTO OCR PDF:', testoCompleto)
+
+    setFatturaNomeFile(file.name)
+    setFatturaTipoFile('pdf')
+    setFatturaTestoOriginale(testoCompleto)
+
+const righePdf = estraiRigheDaTestoPdf(testoCompleto)
+
+setRigheFatturaDaAssegnare(righePdf)
+const matchFornitore = testoCompleto.match(
+  /Denominazione:\s*(.+)/i
+)
+
+const fornitoreEstratto = matchFornitore
+  ? matchFornitore[1].trim()
+  : 'Fornitore da PDF'
+setFatturaFornitore(fornitoreEstratto)
+setFatturaNumero(file.name)
+setFatturaData(new Date().toISOString().slice(0, 10))
+const totaleDocumentoPdf = estraiTotaleDocumentoPdf(testoCompleto)
+
+setFatturaTotale(
+  String(
+    totaleDocumentoPdf > 0
+      ? totaleDocumentoPdf
+      : righePdf.reduce((tot, r) => tot + r.totale_riga, 0)
+  )
+)
+    alert('PDF elaborato con OCR.')
+  } catch (errore) {
+    console.error(errore)
+    alert('Errore OCR PDF.')
+  }
+}
+
+
+
+const caricaSpeseImpresa = async () => {
+  const { data, error } = await supabase
+    .from('spese_impresa')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Errore caricamento spese impresa:', error.message)
+    return
+  }
+
+  setSpeseImpresa(data || [])
+}
+
+
+
+
+
+const caricaFattureFornitori = async () => {
+  const { data, error } = await supabase
+    .from('fatture_fornitori')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error(error)
+    return
+  }
+
+  setFattureFornitori(data || [])
+}
+
+const caricaFattureEmesse = async () => {
+  const { data, error } = await supabase
+    .from('fatture_emesse')
+    .select('*')
+    .order('data_fattura', { ascending: false })
+
+  if (error) {
+    console.error(error)
+    return
+  }
+
+  setFattureEmesse(data || [])
+}
+
+
+const caricaIncassiNonFatturati = async () => {
+  const { data, error } = await supabase
+    .from('incassi_non_fatturati')
+    .select('*')
+    .order('data_incasso', { ascending: false })
+
+  if (error) {
+    console.error(error)
+    return
+  }
+
+  setIncassiNonFatturati(data || [])
+}
+
+const salvaIncassoNonFatturato = async () => {
+  const { error } = await supabase
+    .from('incassi_non_fatturati')
+    .insert([
+      {
+        data_incasso: nuovoIncassoNonFatturato.data_incasso || null,
+        cliente: nuovoIncassoNonFatturato.cliente || '',
+        cantiere: nuovoIncassoNonFatturato.cantiere || '',
+        descrizione: nuovoIncassoNonFatturato.descrizione || '',
+        importo: Number(nuovoIncassoNonFatturato.importo || 0),
+        metodo: nuovoIncassoNonFatturato.metodo || '',
+        note: nuovoIncassoNonFatturato.note || '',
+        stato: 'non_fatturato',
+      },
+    ])
+
+  if (error) {
+    alert('Errore salvataggio incasso: ' + error.message)
+    return
+  }
+
+  await caricaIncassiNonFatturati()
+
+  setNuovoIncassoNonFatturato({
+    data_incasso: '',
+    cliente: '',
+    cantiere: '',
+    descrizione: '',
+    importo: 0,
+    metodo: '',
+    note: '',
+  })
+
+  setPopupIncassoNonFatturato(false)
+
+  alert('Incasso non fatturato salvato')
+}
+
+
+const salvaNuovaFatturaEmessa = async () => {
+  const totale =
+    Number(nuovaFatturaEmessa.imponibile || 0) +
+    (Number(nuovaFatturaEmessa.imponibile || 0) *
+      Number(nuovaFatturaEmessa.iva || 0)) /
+      100
+
+  const { error } = await supabase
+    .from('fatture_emesse')
+    .insert([
+      {
+        numero_fattura:
+          nuovaFatturaEmessa.numero_fattura,
+
+        data_fattura:
+          nuovaFatturaEmessa.data_fattura,
+
+        cliente:
+          nuovaFatturaEmessa.cliente,
+
+        cantiere:
+          nuovaFatturaEmessa.cantiere,
+
+        imponibile: Number(
+          nuovaFatturaEmessa.imponibile || 0
+        ),
+
+        iva: Number(
+          nuovaFatturaEmessa.iva || 0
+        ),
+
+        totale,
+
+        importo_incassato: Number(
+          nuovaFatturaEmessa.importo_incassato || 0
+        ),
+
+        stato:
+  Number(nuovaFatturaEmessa.importo_incassato || 0) <= 0
+    ? 'emessa'
+    : Number(nuovaFatturaEmessa.importo_incassato || 0) >= totale
+    ? 'incassata'
+    : 'parziale',
+
+        note:
+          nuovaFatturaEmessa.note || '',
+      },
+    ])
+
+  if (error) {
+    alert(
+      'Errore salvataggio fattura: ' +
+        error.message
+    )
+    return
+  }
+
+  await caricaFattureEmesse()
+
+  setPopupNuovaFatturaEmessa(false)
+
+  alert('Fattura emessa salvata')
+}
+
+const caricaFatturaEmessaXml = async (
+  file: File
+) => {
+  try {
+    const testo = await file.text()
+ const nomePulito = file.name
+  .replace(/\.[^/.]+$/, '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9_-]/g, '_')
+  .replace(/_+/g, '_')
+  .replace(/^_+|_+$/g, '')
+
+const filePath = `fatture-emesse/xml/${Date.now()}_${nomePulito}.xml`
+
+const { error: uploadError } = await supabase.storage
+  .from('preventivi')
+  .upload(filePath, file)
+
+if (uploadError) {
+  alert('Errore upload XML: ' + uploadError.message)
+  return
+}
+
+const { data: publicData } = supabase.storage
+  .from('preventivi')
+  .getPublicUrl(filePath)
+
+const xmlUrl = publicData.publicUrl
+
+
+    const parser = new DOMParser()
+
+    const xml = parser.parseFromString(
+      testo,
+      'text/xml'
+    )
+
+    const leggi = (tag: string) =>
+      xml.getElementsByTagName(tag)?.[0]
+        ?.textContent || ''
+
+    const numero = leggi('Numero')
+
+    const data = leggi('Data')
+
+    const totale = Number(
+      leggi('ImportoTotaleDocumento') || 0
+    )
+
+    const imponibile = Number(
+      leggi('ImponibileImporto') || 0
+    )
+
+    const iva = Number(
+      leggi('Imposta') || 0
+    )
+
+    const nome =
+      leggi('Nome') || ''
+
+    const cognome =
+      leggi('Cognome') || ''
+
+    const cliente = `${nome} ${cognome}`.trim()
+
+    const scadenza = leggi(
+      'DataScadenzaPagamento'
+    )
+
+    const pagamento = leggi(
+      'ModalitaPagamento'
+    )
+
+  const annoFattura = String(data || '').slice(0, 4)
+
+const { data: esistente } = await supabase
+  .from('fatture_emesse')
+  .select('id, numero_fattura, data_fattura')
+  .eq('numero_fattura', numero)
+  .gte('data_fattura', `${annoFattura}-01-01`)
+  .lte('data_fattura', `${annoFattura}-12-31`)
+  .limit(1)
+
+   if (esistente && esistente.length > 0) {
+  const { error: updateError } = await supabase
+    .from('fatture_emesse')
+    .update({
+      xml_url: xmlUrl,
+    })
+    .eq('id', esistente[0].id)
+
+  if (updateError) {
+    alert('Errore aggiornamento XML: ' + updateError.message)
+    return
+  }
+
+  await caricaFattureEmesse()
+
+  console.log('XML collegato a fattura già presente:', numero)
+  return
+}
+
+    const { error } = await supabase
+      .from('fatture_emesse')
+      .insert([
+        {
+          numero_fattura: numero,
+          data_fattura: data,
+          cliente,
+          imponibile,
+          iva,
+          totale,
+          importo_incassato: 0,
+          stato: 'emessa',
+xml_url: xmlUrl,
+          note:
+            `Import XML Bluenext\n` +
+            `Scadenza: ${scadenza}\n` +
+            `Pagamento: ${pagamento}`,
+        },
+      ])
+
+    if (error) {
+      alert(
+        'Errore import fattura: ' +
+          error.message
+      )
+      return
+    }
+
+    await caricaFattureEmesse()
+
+    console.log(
+      'Fattura emessa importata:',
+      numero
+    )
+  } catch (err) {
+    console.error(err)
+
+    alert(
+      'Errore lettura XML fattura emessa'
+    )
+  }
+}
+
+
+
+const caricaFatturaEmessaPdf = async (
+  file: File
+) => {
+  try {
+    const nomePulito = file.name
+      .replace(/\.[^/.]+$/, '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+
+    const filePath =
+      `fatture-emesse/pdf/${Date.now()}_${nomePulito}.pdf`
+
+    const { error: uploadError } =
+      await supabase.storage
+        .from('preventivi')
+        .upload(filePath, file)
+
+    if (uploadError) {
+      alert(
+        'Errore upload PDF: ' +
+          uploadError.message
+      )
+      return
+    }
+
+    const { data: publicData } =
+      supabase.storage
+        .from('preventivi')
+        .getPublicUrl(filePath)
+
+    const pdfUrl = publicData.publicUrl
+
+   const nomeSenzaEstensione = file.name.replace(/\.[^/.]+$/, '')
+
+const partiNome = nomeSenzaEstensione.split('_')
+
+const numeroEstratto =
+  partiNome.length >= 2
+    ? partiNome[1]
+    : file.name.match(/\d+/)?.[0] || ''
+
+
+alert('PDF letto: ' + file.name + '\nNumero estratto: ' + numeroEstratto)
+
+    if (!numeroEstratto) {
+      console.log(
+        'Numero fattura non trovato nel PDF'
+      )
+      return
+    }
+
+    const { data: esistente } =
+      await supabase
+        .from('fatture_emesse')
+        .select('id')
+        .ilike(
+          'numero_fattura',
+          `%${numeroEstratto}%`
+        )
+        .limit(1)
+
+    if (
+      !esistente ||
+      esistente.length === 0
+    ) {
+      console.log(
+        'Nessuna fattura trovata per PDF:',
+        numeroEstratto
+      )
+      return
+    }
+
+    const { error: updateError } =
+      await supabase
+        .from('fatture_emesse')
+        .update({
+          pdf_url: pdfUrl,
+        })
+        .eq('id', esistente[0].id)
+
+    if (updateError) {
+      alert(
+        'Errore collegamento PDF: ' +
+          updateError.message
+      )
+      return
+    }
+
+    await caricaFattureEmesse()
+
+    console.log(
+      'PDF collegato:',
+      numeroEstratto
+    )
+  } catch (err) {
+    console.error(err)
+
+    alert(
+      'Errore import PDF fattura emessa'
+    )
+  }
+}
+
+
+
+
+const apriFatturaFornitore = async (fatturaId: string) => {
+  const { data, error } = await supabase
+    .from('fatture_fornitori_righe')
+    .select('*')
+    .eq('fattura_id', fatturaId)
+    .order('numero_riga', { ascending: true })
+
+  if (error) {
+    alert('Errore apertura righe fattura: ' + error.message)
+    return
+  }
+
+  setFatturaApertaId(fatturaId)
+  setRigheFatturaAperta(data || [])
+}
+
+
+const salvaModificheFatturaAperta = async () => {
+  if (!fatturaApertaId) {
+    alert('Nessuna fattura aperta')
+    return
+  }
+
+
+
+  const righeAggiornate = righeFatturaAperta.map((r) => ({
+  id: r.id,
+  cantiere: r.cantiere || null,
+  categoria_economica: r.categoria_economica || null,
+  stato: r.cantiere ? 'assegnata' : 'da_assegnare',
+}))
+
+for (const riga of righeAggiornate) {
+  if (!riga.id) continue
+
+  const { error } = await supabase
+    .from('fatture_fornitori_righe')
+    .update({
+      cantiere: riga.cantiere,
+      categoria_economica: riga.categoria_economica,
+      stato: riga.stato,
+    })
+    .eq('id', riga.id)
+
+  if (error) {
+    alert('Errore aggiornamento riga fattura: ' + error.message)
+    return
+  }
+}
+
+const fatturaCorrente = fattureFornitori.find(
+  (f) => String(f.id) === String(fatturaApertaId)
+)
+
+if (fatturaCorrente) {
+  await supabase
+    .from('materiali_cantiere')
+    .delete()
+    .eq('nome_file', fatturaCorrente.nome_file || '')
+
+  await supabase
+    .from('spese_impresa')
+    .delete()
+    .eq('nome_file', fatturaCorrente.nome_file || '')
+
+  const materialiDaSalvare = righeFatturaAperta
+    .filter(
+      (r) =>
+        r.cantiere &&
+        r.cantiere !== 'Generale impresa' &&
+        r.categoria_economica === 'materiale_cantiere'
+    )
+    .map((r) => ({
+      cantiere: r.cantiere,
+      descrizione: r.descrizione,
+      quantita: r.quantita || 1,
+      prezzo_unitario: r.prezzo_unitario || 0,
+      totale: Number(r.totale_riga || 0),
+      fornitore: fatturaCorrente.fornitore || '',
+      data_documento: fatturaCorrente.data_fattura || '',
+      nome_file: fatturaCorrente.nome_file || '',
+      file_tipo: fatturaCorrente.tipo_file || '',
+      anteprima_testo: `Fattura ${fatturaCorrente.numero_fattura || ''}`,
+    }))
+
+  if (materialiDaSalvare.length > 0) {
+    const { error: erroreMateriali } = await supabase
+      .from('materiali_cantiere')
+      .insert(materialiDaSalvare)
+
+    if (erroreMateriali) {
+      alert(
+        'Errore salvataggio materiali: ' +
+          JSON.stringify(erroreMateriali)
+      )
+      return
+    }
+  }
+
+  const speseImpresaDaSalvare = righeFatturaAperta
+    .filter(
+      (r) =>
+        r.categoria_economica === 'attrezzo_ditta' ||
+        r.categoria_economica === 'magazzino' ||
+        r.categoria_economica === 'spesa_generale'
+    )
+    .map((r) => ({
+      categoria: r.categoria_economica,
+      descrizione: r.descrizione || '',
+      importo: Number(r.totale_riga || 0),
+      fornitore: fatturaCorrente.fornitore || '',
+      data_documento: fatturaCorrente.data_fattura || null,
+      nome_file: fatturaCorrente.nome_file || '',
+      fattura_id: fatturaCorrente.id || null,
+      riga_fattura_id: r.id || null,
+      nota: `Fattura ${fatturaCorrente.numero_fattura || ''}`,
+    }))
+
+  if (speseImpresaDaSalvare.length > 0) {
+    const { error: erroreSpese } = await supabase
+      .from('spese_impresa')
+      .insert(speseImpresaDaSalvare)
+
+    if (erroreSpese) {
+      alert(
+        'Errore salvataggio spese impresa: ' +
+          JSON.stringify(erroreSpese)
+      )
+      return
+    }
+  }
+}
+
+
+const righeAssegnate = righeFatturaAperta.filter(
+  (r) => r.cantiere || r.categoria_economica
+)
+  const nuovoStato =
+    righeAssegnate.length === righeFatturaAperta.length
+      ? 'assegnata'
+      : righeAssegnate.length > 0
+      ? 'parzialmente_assegnata'
+      : 'da_assegnare'
+
+  const { error: erroreFattura } = await supabase
+    .from('fatture_fornitori')
+    .update({ stato: nuovoStato })
+    .eq('id', fatturaApertaId)
+
+  if (erroreFattura) {
+  alert(
+    'Errore aggiornamento stato fattura: ' +
+      JSON.stringify(erroreFattura)
+  )
+  return
+}
+
+
+// QUI INCOLLI IL BLOCCO MATERIALI
+
+await caricaFattureFornitori()
+await caricaEconomia()
+await caricaSpeseImpresa()
+
+setFatturaApertaId(null)
+setRigheFatturaAperta([])
+setCantiereMassivoFattura('')
+
+alert('Modifiche fattura salvate')
+
+
+  await caricaFattureFornitori()
+
+setFatturaApertaId(null)
+setRigheFatturaAperta([])
+setCantiereMassivoFattura('')
+
+alert('Modifiche fattura salvate')
+}
+
+
+
+const eliminaFatturaFornitore = async (fattura: FatturaFornitore) => {
+  if (!fattura.id) return
+
+  const conferma = confirm(
+    `Vuoi eliminare la fattura ${fattura.numero_fattura} di ${fattura.fornitore}?\n\nVerranno eliminate anche le righe collegate.`
+  )
+
+  if (!conferma) return
+
+ const descrizionePagamento =
+  `Fattura ${fattura.numero_fattura} del ${fattura.data_fattura}`
+
+await supabase
+  .from('pagamenti_fornitori')
+  .delete()
+  .eq('descrizione', descrizionePagamento)
+
+await supabase
+  .from('materiali_cantiere')
+  .delete()
+  .eq('nome_file', fattura.nome_file || '')
+
+const { error } = await supabase
+  .from('fatture_fornitori')
+  .delete()
+  .eq('id', fattura.id)
+
+  if (error) {
+    alert('Errore eliminazione fattura: ' + error.message)
+    return
+  }
+
+  if (fatturaApertaId === fattura.id) {
+    setFatturaApertaId(null)
+    setRigheFatturaAperta([])
+  }
+
+  await caricaFattureFornitori()
+  await caricaEconomia()
+  await caricaPagamentiFornitori()
+
+  alert('Fattura eliminata')
+}
+
+
+const [operaiRapportino, setOperaiRapportino] = useState<
+  { nome: string; ore: number; costo: number }[]
+>([])
+const [costoExtraRapportino, setCostoExtraRapportino] = useState('')
+const [operaioSelezionato, setOperaioSelezionato] = useState('')
+const [oreOperaio, setOreOperaio] = useState(0)
+const [sottoSezioneCantieri, setSottoSezioneCantieri] = useState('elenco')
+const [cantiereSchedaSelezionato, setCantiereSchedaSelezionato] = useState<string | null>(null)
+const [sottoSezionePagamenti, setSottoSezionePagamenti] = useState('operai')
+
+const [fileUrlAnalisi, setFileUrlAnalisi] = useState<string | null>(null)
+const [fileTipoAnalisi, setFileTipoAnalisi] = useState<string | null>(null)
+
+const [cantiereRegistroEdit, setCantiereRegistroEdit] = useState<string | null>(null)
+const [cantiereRegistroNome, setCantiereRegistroNome] = useState('')
+const [cantiereRegistroPreventivo, setCantiereRegistroPreventivo] = useState('')
+const [cantiereRegistroInizio, setCantiereRegistroInizio] = useState('')
+const [cantiereRegistroFine, setCantiereRegistroFine] = useState('')
+const [cantiereRegistroConcluso, setCantiereRegistroConcluso] = useState(false)
+
+const [preventivoRegistroEdit, setPreventivoRegistroEdit] = useState<string | null>(null)
+
+const [preventivoRegistroCantiere, setPreventivoRegistroCantiere] = useState('')
+const [preventivoRegistroNomeFile, setPreventivoRegistroNomeFile] = useState('')
+const [preventivoRegistroImporto, setPreventivoRegistroImporto] = useState('')
+const [preventivoRegistroNote, setPreventivoRegistroNote] = useState('')
+
+
+const [pagamentiOperai, setPagamentiOperai] = useState<PagamentoOperaio[]>([])
+const [operaioPagamento, setOperaioPagamento] = useState('')
+const [importoPagamento, setImportoPagamento] = useState('')
+const [dataPagamento, setDataPagamento] = useState('')
+const [metodoPagamento, setMetodoPagamento] = useState('')
+const [notaPagamento, setNotaPagamento] = useState('')
+
+const [scadenzaPagamentiOperai, setScadenzaPagamentiOperai] = useState('')
+const [giorniPreavvisoPagamenti, setGiorniPreavvisoPagamenti] = useState(3)
+
+const [assistenteAttivo, setAssistenteAttivo] = useState(false)
+const [recognitionAssistente, setRecognitionAssistente] = useState<any>(null)
+
+const [timbraturaInModifica, setTimbraturaInModifica] = useState<string | null>(null)
+const [dataTimbraturaModifica, setDataTimbraturaModifica] = useState('')
+const [oraEntrataModifica, setOraEntrataModifica] = useState('')
+const [oraUscitaModifica, setOraUscitaModifica] = useState('')
+const [statoTimbraturaModifica, setStatoTimbraturaModifica] = useState('aperto')
+
+
+
+
+
+type RigaDocumentoAnalizzato = {
+  descrizione: string
+  quantita: number
+  unita_misura: string
+  prezzo_unitario: number
+  totale: number
+  riga_originale: string
+}
+
+const normalizzaTestoDocumento = (testo: string) => {
+  if (!testo) return ''
+
+  return testo
+    .replace(/\r/g, '\n')
+    .replace(/[·•]+/g, ' ')
+    .replace(/\.{2,}/g, ' ')
+    .replace(/[|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(
+      /\s(\d{1,3})\s+(?=[A-ZÀ-Ü])/g,
+      '\n$1 '
+    )
+    .replace(
+      /(mq|m²|ml|m|cad|pz|kg|lt|corpo)\s+/gi,
+      ' $1 '
+    )
+    .trim()
+}
+
+const analizzaRigheDocumento = (testo: string): RigaDocumentoAnalizzato[] => {
+  if (!testo) return []
+
+  const testoNormalizzato = normalizzaTestoDocumento(testo)
+
+  const righe = testoNormalizzato
+    .split('\n')
+    .map((r) => r.trim())
+    .filter((r) => r.length > 5)
+
+  return righe
+    .map((riga) => {
+      const rigaPulita = riga.replace(/\s+/g, ' ')
+
+      const numeri =
+        rigaPulita.match(/\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2}|\d+/g) || []
+
+      if (numeri.length === 0) return null
+
+      const patternComputo = rigaPulita.match(
+        /(mq|m²|ml|m|cad|pz|kg|lt|corpo)\s+([\d.,]+)\s+([\d.,]+)\s*([\d.,]+)?/i
+      )
+
+      let unitaMisura = 'corpo'
+      let quantitaNumero = '1'
+      let prezzoNumero = numeri[numeri.length - 1]
+      let totaleNumero = numeri[numeri.length - 1]
+
+      if (patternComputo) {
+        unitaMisura = patternComputo[1].toLowerCase()
+        quantitaNumero = patternComputo[2]
+        prezzoNumero = patternComputo[3]
+
+        if (patternComputo[4]) {
+          totaleNumero = patternComputo[4]
+        } else {
+          const qta = parseImporto(quantitaNumero)
+          const prezzo = parseImporto(prezzoNumero)
+          totaleNumero = String(qta * prezzo)
+        }
+      } else if (numeri.length >= 3) {
+        quantitaNumero = numeri[numeri.length - 3]
+        prezzoNumero = numeri[numeri.length - 2]
+        totaleNumero = numeri[numeri.length - 1]
+      }
+
+      const quantita = parseImporto(quantitaNumero) || 1
+      const prezzoUnitario = parseImporto(prezzoNumero)
+      const totale = parseImporto(totaleNumero)
+
+      if (!totale || totale <= 0) return null
+
+      const descrizione = rigaPulita
+        .replace(patternComputo?.[0] || '', '')
+        .replace(/\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2}|\d+/g, '')
+        .replace(/\b(mq|m²|ml|m|cad|pz|kg|lt|corpo)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+      if (!descrizione || descrizione.length < 4) return null
+
+      return {
+        descrizione,
+        quantita,
+        unita_misura: unitaMisura,
+        prezzo_unitario: prezzoUnitario,
+        totale,
+        riga_originale: riga,
+      }
+    })
+    .filter(Boolean) as RigaDocumentoAnalizzato[]
+}
+
+const salvaDocumentoAnalizzatoInEconomia = async (
+  tipo: 'preventivo' | 'materiale' | 'attrezzo'
+) => {
+  if (!cantiereScheda) {
+    alert('Seleziona prima un cantiere')
+    return
+  }
+
+  const importo = parseImporto(importoRilevatoDocumento)
+
+  if (!importo || importo <= 0) {
+    alert('Importo non valido')
+    return
+  }
+
+  const baseData = {
+    cantiere: cantiereScheda,
+    descrizione: nomeFileAnalisiDocumento || 'Documento analizzato',
+    quantita: 1,
+    prezzo_unitario: importo,
+    totale: importo,
+    fornitore: 'Documento analizzato',
+    data_documento: oggi,
+    nome_file: nomeFileAnalisiDocumento || 'Documento analizzato',
+    file_url: fileUrlAnalisi || null,
+    file_tipo: fileTipoAnalisi || null,
+    anteprima_testo: testoEstrattoDocumento || null,
+  }
+
+  let error = null
+
+if (tipo === 'preventivo') {
+  const res = await supabase.from('preventivi_cantiere').insert([
+    {
+      cantiere: cantiereScheda,
+      importo_totale: importo,
+      nome_file: nomeFileAnalisiDocumento || 'Documento analizzato',
+      note: 'Importato da analisi documento',
+
+      file_url: fileUrlAnalisi || null,
+      file_path: filePathAnalisi || null,
+
+      file_tipo: fileTipoAnalisi || null,
+      anteprima_testo: testoEstrattoDocumento || null,
+    },
+  ])
+
+  error = res.error
+
+ if (!error) {
+  const righeDocumento = analizzaRigheDocumento(testoEstrattoDocumento || '')
+
+  if (righeDocumento.length > 0) {
+    await supabase.from('preventivo_lavorazioni').insert(
+      righeDocumento.map((r) => ({
+        cantiere: cantiereScheda,
+        descrizione: r.descrizione,
+        importo_previsto: r.totale,
+        quantita: r.quantita,
+        prezzo_unitario: r.prezzo_unitario,
+        unita_misura: r.unita_misura,
+      }))
+    )
+  } else {
+    await supabase.from('preventivo_lavorazioni').insert([
+      {
+        cantiere: cantiereScheda,
+        descrizione: nomeFileAnalisiDocumento || 'Documento analizzato',
+        importo_previsto: importo,
+        quantita: 1,
+        prezzo_unitario: importo,
+        unita_misura: 'corpo',
+      },
+    ])
+  }
+
+  await caricaPreventivoLavorazioni()
+}
+}
+
+
+
+  if (tipo === 'materiale') {
+    const res = await supabase.from('materiali_cantiere').insert([baseData])
+    error = res.error
+  }
+
+  if (tipo === 'attrezzo') {
+    const res = await supabase.from('attrezzi_cantiere').insert([
+      {
+        ...baseData,
+        nota: 'Importato da analisi documento',
+      },
+    ])
+    error = res.error
+  }
+
+  if (error) {
+    alert('Errore salvataggio: ' + error.message)
+    return
+  }
+
+  await caricaEconomia()
+
+  alert(`Salvato come ${tipo}`)
+}
+
+const storicoGiornaliero = () => {
+  const giorni: Record<string, number> = {}
+
+
+  timbrature.forEach((t) => {
+    if (!t.data) return
+
+    if (dataDa && t.data < dataDa) return
+    if (dataA && t.data > dataA) return
+
+    const costo = calcolaCostoTimbratura(t)
+
+    if (!giorni[t.data]) {
+      giorni[t.data] = 0
+    }
+
+    giorni[t.data] += costo * -1
+  })
+
+rapportini.forEach((r) => {
+  if (!r.data) return
+
+  if (dataDa && r.data < dataDa) return
+  if (dataA && r.data > dataA) return
+
+  const costo = Number(r.costo_manodopera || 0)
+
+  if (!giorni[r.data]) {
+    giorni[r.data] = 0
+  }
+
+  giorni[r.data] += costo * -1
+})
+materialiCantiere.forEach((m) => {
+  const dataMateriale = m.data_documento || oggi
+
+  if (dataDa && dataMateriale < dataDa) return
+  if (dataA && dataMateriale > dataA) return
+
+  const costo = Number(m.totale || 0)
+
+  if (!giorni[dataMateriale]) {
+    giorni[dataMateriale] = 0
+  }
+  giorni[dataMateriale] += costo * -1
+})
+  return Object.entries(giorni)
+    .map(([data, costo]) => ({
+      data,
+      costo,
+    }))
+    .sort((a, b) => a.data.localeCompare(b.data))
+}
+const utileNelTempo = () => {
+  const giorni: Record<string, number> = {}
+
+  // COSTI (già negativi)
+  storicoGiornaliero().forEach((g) => {
+    giorni[g.data] = g.costo
+  })
+
+  // PREVENTIVI distribuiti (semplificato)
+  cantieri.forEach((c) => {
+    const preventivo = Number(c.preventivo || 0)
+
+    if (!preventivo) return
+
+    // distribuiamo su una sola data (oggi per ora)
+    const data = oggi
+
+    if (!giorni[data]) {
+      giorni[data] = 0
+    }
+
+    giorni[data] += preventivo
+  })
+
+  return Object.entries(giorni)
+    .map(([data, valore]) => ({
+      data,
+      valore,
+    }))
+    .sort((a, b) => a.data.localeCompare(b.data))
+}
+
+const controlloCostiPro = () => {
+  return cantieri.map((c) => {
+    const preventivo = Number(c.preventivo || 0)
+
+    const costoTimbrature = timbrature
+      .filter((t) => t.cantiere === c.nome)
+      .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+
+    const costoRapportini = rapportini
+      .filter((r) => r.cantiere === c.nome)
+      .reduce((tot, r) => tot + Number(r.costo_manodopera || 0), 0)
+
+    const costoMateriali = materialiCantiere
+      .filter((m) => m.cantiere === c.nome)
+      .reduce((tot, m) => tot + Number(m.totale || 0), 0)
+
+    const costoAttrezzi = attrezziCantiere
+      .filter((a) => a.cantiere === c.nome)
+      .reduce((tot, a) => tot + Number(a.totale || 0), 0)
+
+    const costoTotale =
+      costoTimbrature + costoRapportini + costoMateriali + costoAttrezzi
+
+    const utile = preventivo - costoTotale
+    const margine = preventivo > 0 ? (utile / preventivo) * 100 : 0
+
+
+    const stato =
+      utile < 0
+        ? 'perdita'
+        : margine < 10
+        ? 'attenzione'
+        : 'ok'
+
+    return {
+      nome: c.nome,
+      preventivo,
+      costoTotale,
+      utile,
+      margine,
+      stato,
+    }
+  })
+}
+
+const caricaFilePreventivo = async (file: File) => {
+  if (!file || !cantiereScheda) {
+    alert('Seleziona cantiere e file')
+    return
+  }
+
+  const fakeEvent = {
+    target: {
+      files: [file],
+    },
+  } as unknown as React.ChangeEvent<HTMLInputElement>
+
+  await handleUploadPreventivo(fakeEvent)
+}
+
+const handleUploadPreventivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0]
+
+  if (!file || !cantiereScheda) {
+    alert('Seleziona cantiere e file')
+    return
+  }
+
+  const estensione = file.name.split('.').pop()?.toLowerCase() || 'file'
+
+  const nomePulito = file.name
+    .replace(/\.[^/.]+$/, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+
+  const { data: userData } = await supabase.auth.getUser()
+const user = userData.user
+
+if (!user) {
+  alert('Utente non autenticato')
+  return
+}
+
+const cantierePulito = cantiereScheda
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9_-]/g, '_')
+  .replace(/_+/g, '_')
+  .replace(/^_+|_+$/g, '')
+
+const fileName = `utenti/${user.id}/cantieri/${cantierePulito}/preventivi/${Date.now()}_${nomePulito}.${estensione}`
+
+const { error: uploadError } = await supabase.storage
+  .from('preventivi')
+  .upload(fileName, file)
+
+  if (uploadError) {
+    console.error('UPLOAD ERROR:', uploadError)
+    alert('Errore upload file: ' + uploadError.message)
+    return
+  }
+
+  const { data } = supabase.storage
+    .from('preventivi')
+    .getPublicUrl(fileName)
+
+  const fileUrl = data.publicUrl
+
+  const nome = file.name.toLowerCase()
+
+  let tipo = 'altro'
+  if (nome.endsWith('.pdf')) tipo = 'pdf'
+  if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) tipo = 'excel'
+  if (
+    nome.endsWith('.jpg') ||
+    nome.endsWith('.jpeg') ||
+    nome.endsWith('.png') ||
+    nome.endsWith('.webp')
+  ) {
+    tipo = 'img'
+  }
+
+  let anteprima = ''
+  let importoTotale = 0
+
+  if (tipo === 'excel') {
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array' })
+    const sheet = workbook.Sheets[workbook.SheetNames[0]]
+    const json: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+
+    anteprima = JSON.stringify(json.slice(0, 100))
+
+    const numeri: number[] = []
+
+    json.forEach((row: any) => {
+      if (!Array.isArray(row)) return
+
+      row.forEach((cell) => {
+        if (typeof cell === 'number' && cell > 0) {
+          numeri.push(cell)
+        }
+
+        if (typeof cell === 'string') {
+          const pulito = cell
+            .replace(/\./g, '')
+            .replace(',', '.')
+            .replace(/[^\d.]/g, '')
+
+          const numero = parseFloat(pulito)
+
+          if (!isNaN(numero) && numero > 0) {
+            numeri.push(numero)
+          }
+        }
+      })
+    })
+
+    importoTotale = numeri.length > 0 ? Number(Math.max(...numeri).toFixed(2)) : 0
+  }
+
+  if (tipo === 'pdf') {
+    const testo = await leggiPdfTesto(file)
+    anteprima = testo.slice(0, 2000)
+
+    const totale = estraiTotaleScontrino(testo)
+    importoTotale = totale || 0
+  }
+
+  if (tipo === 'img') {
+    const testo = await leggiTestoDaImmagine(file)
+    anteprima = testo.slice(0, 2000)
+
+    const totale = estraiTotaleScontrino(testo)
+    importoTotale = totale || 0
+  }
+
+  const { error } = await supabase.from('preventivi_cantiere').insert([
+    {
+       cantiere: cantiereScheda,
+    nome_file: file.name,
+    file_url: fileUrl,
+    file_path: fileName,
+    file_tipo: tipo,
+    anteprima_testo: anteprima,
+    importo_totale: importoTotale,
+    },
+  ])
+
+  if (error) {
+    alert('Errore salvataggio DB: ' + error.message)
+    return
+  }
+
+  await caricaEconomia()
+  alert('Preventivo caricato ✔')
+}
+const previsioneCostiPro = () => {
+  return cantieri.map((c) => {
+    const preventivo = Number(c.preventivo || 0)
+
+    const costi = controlloCostiPro().find(x => x.nome === c.nome)
+
+    const costoAttuale = costi?.costoTotale || 0
+
+    const giorni = storicoGiornaliero().length || 1
+
+    const costoMedioGiornaliero = costoAttuale / giorni
+
+    const giorniStimatiTotali = giorni + 5 // puoi migliorarlo dopo
+
+    const costoStimatoFinale = costoMedioGiornaliero * giorniStimatiTotali
+
+    const utilePrevisto = preventivo - costoStimatoFinale
+
+    return {
+      nome: c.nome,
+      costoAttuale,
+      costoStimatoFinale,
+      utilePrevisto,
+    }
+  })
+}
+const utileCumulatoNelTempo = () => {
+  let cumulato = 0
+
+  return storicoGiornaliero().map((g) => {
+    cumulato += g.costo
+
+    return {
+      data: g.data,
+      utile: cumulato,
+    }
+  })
+}
+
+const utileRealePerCantiere = () => {
+  const risultati: Record<
+    string,
+    { data: string; utile: number }[]
+  > = {}
+
+  cantieri.forEach((c) => {
+    const preventivo = Number(c.preventivo || 0)
+
+    let cumulato = preventivo
+
+    risultati[c.nome] = storicoGiornaliero().map((g) => {
+      const costoGiorno =
+        timbrature
+          .filter(
+            (t) =>
+              t.cantiere === c.nome &&
+              t.data === g.data
+          )
+          .reduce(
+            (tot, t) => tot + calcolaCostoTimbratura(t),
+            0
+          ) +
+        rapportini
+          .filter(
+            (r) =>
+              r.cantiere === c.nome &&
+              r.data === g.data
+          )
+          .reduce(
+            (tot, r) =>
+              tot + Number(r.costo_manodopera || 0),
+            0
+          ) +
+        materialiCantiere
+          .filter(
+            (m) =>
+              m.cantiere === c.nome &&
+              (m.data_documento || oggi) === g.data
+          )
+          .reduce(
+            (tot, m) => tot + Number(m.totale || 0),
+            0
+          )
+
+      cumulato -= costoGiorno
+
+      return {
+        data: g.data,
+        utile: cumulato,
+      }
+    })
+  })
+
+  return risultati
+}
+const allarmiPerditaCantieri = () => {
+  return Object.entries(utileRealePerCantiere()).map(([nome, dati]) => {
+    const ultimo = dati[dati.length - 1]
+    const utileFinale = ultimo?.utile || 0
+
+    const cantiere = cantieri.find((c) => c.nome === nome)
+    const preventivo = Number(cantiere?.preventivo || 0)
+
+    const marginePercentuale =
+      preventivo > 0 ? (utileFinale / preventivo) * 100 : 0
+
+    return {
+      nome,
+      utileFinale,
+      marginePercentuale,
+      stato:
+        utileFinale < 0
+          ? 'perdita'
+          : marginePercentuale < 10
+          ? 'attenzione'
+          : 'ok',
+    }
+  })
+}
+const utileCumulatoPerCantiere = () => {
+  let cumulatoCosto = 0
+
+  return storicoGiornaliero().map((g) => {
+    const costiGiorno = timbrature
+      .filter(
+        (t) =>
+          t.data === g.data &&
+          (!cantiereGrafico || t.cantiere === cantiereGrafico)
+      )
+      .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+
+    cumulatoCosto += costiGiorno
+
+    const cantiere = cantieri.find((c) => c.nome === cantiereGrafico)
+    const preventivo = Number(cantiere?.preventivo || 0)
+
+    const utile = preventivo - cumulatoCosto
+
+    return {
+      data: g.data,
+      utile,
+    }
+  })
+}
+const previsioneCantiere = () => {
+  if (!cantiereGrafico) return null
+
+  const cantiere = cantieri.find((c) => c.nome === cantiereGrafico)
+  const preventivo = Number(cantiere?.preventivo || 0)
+
+  const timbratureCantiere = timbrature.filter(
+    (t) => t.cantiere === cantiereGrafico
+  )
+
+  const costoTotale = timbratureCantiere.reduce(
+    (tot, t) => tot + calcolaCostoTimbratura(t),
+    0
+  )
+
+  const giorniLavorati = new Set(
+    timbratureCantiere.map((t) => t.data).filter(Boolean)
+  ).size
+
+  const costoMedioGiornaliero =
+    giorniLavorati > 0 ? costoTotale / giorniLavorati : 0
+
+  const margineResiduo = preventivo - costoTotale
+
+  const giorniPrimaPerdita =
+    costoMedioGiornaliero > 0
+      ? Math.floor(margineResiduo / costoMedioGiornaliero)
+      : null
+
+  return {
+    preventivo,
+    costoTotale,
+    giorniLavorati,
+    costoMedioGiornaliero,
+    margineResiduo,
+    giorniPrimaPerdita,
+  }
+}
+  const [dataStoricoUtile, setDataStoricoUtile] = useState(
+  new Date().toISOString().split('T')[0]
+)
+const [dataDa, setDataDa] = useState('')
+const [dataA, setDataA] = useState('')
+
+const [cantiereGrafico, setCantiereGrafico] = useState('')
+
+  const [sottoSezioneOperai, setSottoSezioneOperai] = useState('anagrafica')
 
   const [preventivi, setPreventivi] = useState<PreventivoCantiere[]>([])
   const [materialiCantiere, setMaterialiCantiere] = useState<MaterialeCantiere[]>([])
   const [attrezziCantiere, setAttrezziCantiere] = useState<AttrezzoCantiere[]>([])
 
+// Stati generali per impostazioni
+const [fontFamily, setFontFamily] = useState('Inter')
+const [fontSize, setFontSize] = useState(15) // in px
+const [nomeApp, setNomeApp] = useState('ARTECNA')
+const [mostraImpostazioni, setMostraImpostazioni] = useState(false)
+const [dragAttivo, setDragAttivo] = useState(false)
+
   const [nomeCantiere, setNomeCantiere] = useState('')
   const [cantiereDaModificare, setCantiereDaModificare] = useState('')
   const [nuovoNomeCantiere, setNuovoNomeCantiere] = useState('')
+
+  const [includiVociAnalizzateNeiCosti, setIncludiVociAnalizzateNeiCosti] = useState(false)
+
+  const [menuAperto, setMenuAperto] = useState<string | null>(null)
+
+
+
+  const [preventivoCantiereInput, setPreventivoCantiereInput] = useState('')
 
   const [rapportinoInModifica, setRapportinoInModifica] = useState<string | null>(null)
   const [cantiereRapporto, setCantiereRapporto] = useState('')
@@ -212,6 +3284,14 @@ export default function Home() {
   const [dataDocumentoMaterialeModifica, setDataDocumentoMaterialeModifica] = useState('')
   const [nomeFileMaterialeModifica, setNomeFileMaterialeModifica] = useState('')
 
+const [materialeManualeDescrizione, setMaterialeManualeDescrizione] = useState('')
+const [materialeManualeQuantita, setMaterialeManualeQuantita] = useState('1')
+const [materialeManualePrezzo, setMaterialeManualePrezzo] = useState('')
+const [materialeManualeFornitore, setMaterialeManualeFornitore] = useState('Magazzino')
+const [materialeManualeNota, setMaterialeManualeNota] = useState('')
+
+
+
   const [attrezzoInModifica, setAttrezzoInModifica] = useState<string | null>(null)
   const [descrizioneAttrezzoModifica, setDescrizioneAttrezzoModifica] = useState('')
   const [quantitaAttrezzoModifica, setQuantitaAttrezzoModifica] = useState('')
@@ -221,25 +3301,443 @@ export default function Home() {
   const [nomeFileAttrezzoModifica, setNomeFileAttrezzoModifica] = useState('')
   const [notaAttrezzoModifica, setNotaAttrezzoModifica] = useState('')
 
-  const [filePreventivo, setFilePreventivo] = useState<File | null>(null)
-  const [fileMateriale, setFileMateriale] = useState<File | null>(null)
-  const [fileAttrezzo, setFileAttrezzo] = useState<File | null>(null)
+ const [filePreventivo, setFilePreventivo] = useState<File | null>(null)
+const [fileMateriale, setFileMateriale] = useState<File | null>(null)
+const [fileAttrezzo, setFileAttrezzo] = useState<File | null>(null)
 
-  const oggi = new Date().toISOString().slice(0, 10)
+const [fileAnalisiDocumento, setFileAnalisiDocumento] = useState<File | null>(null)
+const [testoEstrattoDocumento, setTestoEstrattoDocumento] = useState('')
+const [nomeFileAnalisiDocumento, setNomeFileAnalisiDocumento] = useState('')
+const [analisiInCorso, setAnalisiInCorso] = useState(false)
 
-  useEffect(() => {
-    try {
-      localStorage.clear()
-      sessionStorage.clear()
-    } catch {}
+const [vociAnalizzate, setVociAnalizzate] = useState<VoceAnalizzata[]>([])
+const [sezioneAttiva, setSezioneAttiva] = useState('home')
 
-    caricaCantieri()
-    caricaRapportini()
-    caricaFotoCantiere()
-    caricaOperai()
-    caricaTimbrature()
-    caricaEconomia()
-  }, [])
+const [incassiNonFatturati, setIncassiNonFatturati] = useState<any[]>([])
+const [popupIncassoNonFatturato, setPopupIncassoNonFatturato] = useState(false)
+
+const [nuovoIncassoNonFatturato, setNuovoIncassoNonFatturato] = useState<any>({
+  data_incasso: '',
+  cliente: '',
+  cantiere: '',
+  descrizione: '',
+  importo: 0,
+  metodo: '',
+  note: '',
+})
+
+const [graficoCantieriAperto, setGraficoCantieriAperto] =
+  useState(false)
+
+const [graficoTotaliAperto, setGraficoTotaliAperto] =
+  useState(false)
+
+const [importoRilevatoDocumento, setImportoRilevatoDocumento] = useState('')
+const [modalitaMulti, setModalitaMulti] = useState(false)
+const menuButtonStyle = (attivo: boolean): CSSProperties => ({
+  width: '100%',
+  textAlign: 'left',
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: 'none',
+  cursor: 'pointer',
+  background: attivo ? '#2563eb' : 'transparent',
+  color: 'white',
+  fontWeight: attivo ? 700 : 500,
+fontSize: fontSize,
+fontFamily: fontFamily,
+})
+
+const submenuStyle = {
+  padding: 6,
+  cursor: 'pointer',
+  color: '#cbd5e1',
+}
+const submenuButtonStyle = (attivo: boolean) => ({
+  padding: '8px 10px',
+  cursor: 'pointer',
+  color: attivo ? '#ffffff' : '#cbd5e1',
+  background: attivo ? '#2563eb' : 'transparent',
+  borderRadius: 8,
+  fontWeight: attivo ? 700 : 500,
+})
+const vaiASezione = (id: string) => {
+  setSezioneAttiva('cantieri')
+
+  setTimeout(() => {
+    const elemento = document.getElementById(id)
+    if (elemento) {
+      elemento.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, 100)
+}
+
+const excelBox = {
+  background: '#ffffff',
+  border: '1px solid #cbd5e1',
+  borderRadius: 10,
+  overflow: 'hidden',
+}
+
+const excelToolbar = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 10,
+  padding: 10,
+  background: '#f8fafc',
+  borderBottom: '1px solid #cbd5e1',
+}
+
+const excelTable: CSSProperties = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  tableLayout: 'auto',
+  fontSize: 14,
+}
+
+const cellaTabellaResponsive: CSSProperties = {
+  border: '1px solid #d1d5db',
+  padding: '6px 8px',
+  whiteSpace: 'normal',
+  wordBreak: 'break-word',
+  overflowWrap: 'anywhere',
+  verticalAlign: 'top',
+}
+
+const thOrdinabile = (campo: string, label: string) => (
+  <th
+    onClick={() => ordinaFatture(campo)}
+    style={{
+      ...cellaTabellaResponsive,
+      cursor: 'pointer',
+      background: '#f3f4f6',
+      userSelect: 'none',
+      position: 'sticky',
+      top: 0,
+      zIndex: 1,
+    }}
+  >
+    {label}
+  </th>
+)
+
+const excelTh = {
+  background: '#e5e7eb',
+  border: '1px solid #cbd5e1',
+  padding: '8px 10px',
+  textAlign: 'left' as const,
+  fontWeight: 700,
+  whiteSpace: 'nowrap' as const,
+
+  position: 'sticky' as const,
+  top: 0,
+  zIndex: 1,
+}
+
+const excelTd = {
+  border: '1px solid #cbd5e1',
+  padding: '7px 10px',
+  verticalAlign: 'middle' as const,
+}
+
+const excelInput = {
+  width: '100%',
+  border: '1px solid #cbd5e1',
+  borderRadius: 4,
+  padding: '6px 8px',
+  background: '#fff',
+
+  outline: 'none',
+  minWidth: 120,
+}
+
+const cardStyle = {
+  background: '#ffffff',
+  borderRadius: 12,
+  padding: 16,
+  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+  border: '1px solid #e2e8f0',
+}
+const inputStyle: CSSProperties = {
+  width: '100%',
+  padding: '10px',
+  marginBottom: 10,
+  background: '#ffffff',
+  color: '#0f172a',
+  border: '1px solid #cbd5e1',
+  borderRadius: 8,
+  fontSize: 14,
+}
+
+const selectStyle: CSSProperties = {
+  ...inputStyle,
+  cursor: 'pointer',
+}
+
+const [menuCantieriAperto, setMenuCantieriAperto] = useState(true)
+const [menuOperaiAperto, setMenuOperaiAperto] = useState(false)
+const [menuEconomiaAperto, setMenuEconomiaAperto] = useState(false)
+const [menuAttivitaAperto, setMenuAttivitaAperto] = useState(false)
+
+const oggi = new Date().toISOString().slice(0, 10)
+
+
+
+
+
+function analizzaTestoInVoci(testo: string) {
+  const righe = testo.split('\n')
+  const voci: VoceAnalizzata[] = []
+
+  righe.forEach((riga) => {
+    const pulita = riga
+      .replace(/\|+/g, ' | ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    if (pulita.length < 5) return
+
+    const parti = pulita.split('|').map((p) => p.trim()).filter(Boolean)
+
+    if (parti.length >= 4) {
+      const descrizione = parti[0] || ''
+      const unita = parti[1] || ''
+      const quantita = parseFloat((parti[2] || '').replace(',', '.'))
+      const prezzo = parseFloat((parti[3] || '').replace(',', '.'))
+
+      if (
+        descrizione &&
+        !isNaN(quantita) &&
+        !isNaN(prezzo) &&
+        descrizione.length > 2
+      ) {
+        voci.push({
+          descrizione,
+          unita,
+          quantita: Math.round(quantita * 100) / 100,
+          prezzo: Math.round(prezzo * 100) / 100,
+        })
+      }
+    }
+  })
+
+  setVociAnalizzate(voci)
+
+  const totale = voci.reduce((tot, voce) => {
+    const quantita = Number(voce.quantita || 0)
+    const prezzo = Number(voce.prezzo || 0)
+    return tot + quantita * prezzo
+  }, 0)
+
+  if (totale > 0) {
+    setImportoRilevatoDocumento(
+      totale.toLocaleString('it-IT', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    )
+  } else {
+    const totaleDocumento = estraiTotaleScontrino(testo)
+
+    if (totaleDocumento) {
+      setImportoRilevatoDocumento(
+        totaleDocumento.toLocaleString('it-IT', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      )
+    }
+  }
+}
+  
+
+function estraiTotaleScontrino(testo: string): number | null {
+  const match =
+    testo.match(/importo complessivo iva esclusa[^0-9]*([\d.,]+)/i) ||
+    testo.match(/importo complessivo[^0-9]*([\d.,]+)/i) ||
+    testo.match(/totale offerta[^0-9]*([\d.,]+)/i) ||
+    testo.match(/totale complessivo[^0-9]*([\d.,]+)/i) ||
+    testo.match(/totale preventivo[^0-9]*([\d.,]+)/i) ||
+    testo.match(/totale documento[^0-9]*([\d.,]+)/i) ||
+    testo.match(/importo totale[^0-9]*([\d.,]+)/i) ||
+    testo.match(/totale da pagare[^0-9]*([\d.,]+)/i) ||
+    testo.match(/importo eur[^0-9]*([\d.,]+)/i) ||
+    testo.match(/importo pagato[^0-9]*([\d.,]+)/i) ||
+    testo.match(/\bTOTALE\b[^0-9]*([\d.,]+)/i)
+
+  if (!match) return null
+
+  let raw = match[1].trim()
+
+// Se contiene sia punto che virgola → formato italiano
+if (raw.includes('.') && raw.includes(',')) {
+  raw = raw.replace(/\./g, '').replace(',', '.')
+} else {
+  // formato tipo 53845.2 → NON toccare il punto
+  raw = raw.replace(',', '.')
+}
+
+const valore = parseFloat(raw)
+  return isNaN(valore) ? null : valore
+}
+
+useEffect(() => {
+  const salvata = localStorage.getItem('artecna_email')
+  if (salvata) setEmailLogin(salvata)
+}, [])
+
+
+
+
+
+
+
+const confermaPuntoMappaSopralluogo = async () => {
+  if (!puntoMappaSopralluogo) {
+    alert('Seleziona un punto sulla mappa')
+    return
+  }
+
+  const { lat, lng } = puntoMappaSopralluogo
+
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=19&addressdetails=1`
+  )
+
+  const data = await response.json()
+  const a = data.address || {}
+
+  const via =
+    a.road ||
+    a.pedestrian ||
+    a.footway ||
+    a.path ||
+    a.residential ||
+    ''
+
+  const numero = a.house_number || ''
+  const cap = a.postcode || ''
+  const citta =
+    a.city ||
+    a.town ||
+    a.village ||
+    a.municipality ||
+    ''
+
+  const indirizzo = [
+    [via, numero].filter(Boolean).join(', '),
+    cap,
+    citta,
+  ]
+    .filter(Boolean)
+    .join(' - ')
+
+  setIndirizzoSopralluogo(
+    indirizzo || data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+  )
+
+  setGeolocalizzazioneSopralluogo(`${lat.toFixed(6)}, ${lng.toFixed(6)}`)
+  setPopupMappaSopralluogo(false)
+}
+
+
+
+
+
+const caricaAcconti = async () => {
+  const { data, error } = await supabase
+    .from('acconti_cantiere')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    alert('Errore caricamento acconti: ' + error.message)
+    return
+  }
+
+  setAccontiCantiere(data || [])
+}
+
+const caricaPagamentiOperai = async () => {
+  const { data, error } = await supabase
+    .from('pagamenti_operai')
+    .select('*')
+    .order('data_pagamento', { ascending: false })
+
+  if (error) {
+    alert('Errore caricamento pagamenti operai: ' + error.message)
+    return
+  }
+
+  setPagamentiOperai((data || []) as PagamentoOperaio[])
+}
+
+useEffect(() => {
+  const checkSession = async () => {
+    const { data } = await supabase.auth.getSession()
+
+    if (data.session) {
+      setUtente(data.session.user)
+    }
+  }
+
+  checkSession()
+
+  const { data: listener } = supabase.auth.onAuthStateChange(
+    (_event, session) => {
+      if (session?.user) {
+        setUtente(session.user)
+      } else {
+        setUtente(null)
+      }
+    }
+  )
+
+  return () => {
+    listener.subscription.unsubscribe()
+  }
+}, [])
+
+useEffect(() => {
+caricaSopralluoghi()
+  caricaCantieri()
+  caricaRapportini()
+  caricaFotoCantiere()
+  caricaOperai()
+  caricaTimbrature()
+  caricaEconomia()
+  caricaAcconti()
+  caricaPagamentiOperai()
+  caricaPagamentiFornitori()
+  caricaFattureFornitori()
+  caricaFattureEmesse()
+caricaIncassiNonFatturati()
+  caricaSalLavorazioni()
+  caricaPreventivoLavorazioni()
+caricaFotoSopralluoghi()
+caricaSpeseImpresa()
+}, [])
+
+useEffect(() => {
+  caricaImpostazioniSupabase()
+}, [])
+
+useEffect(() => {
+  localStorage.setItem('artecna_fontFamily', fontFamily)
+  localStorage.setItem('artecna_fontSize', String(fontSize))
+  localStorage.setItem('artecna_nomeApp', nomeApp)
+}, [fontFamily, fontSize, nomeApp])
+
+useEffect(() => {
+  const savedFont = localStorage.getItem('artecna_fontFamily')
+  const savedSize = localStorage.getItem('artecna_fontSize')
+  const savedNome = localStorage.getItem('artecna_nomeApp')
+
+  if (savedFont) setFontFamily(savedFont)
+  if (savedSize) setFontSize(Number(savedSize))
+  if (savedNome) setNomeApp(savedNome)
+}, [])
 
   const oraAttuale = () => {
     const now = new Date()
@@ -259,8 +3757,123 @@ export default function Home() {
     return h * 60 + m
   }
 
-  const formatMoney = (value: number) => `€ ${value.toFixed(2)}`
+  const formatMoney = (value: number) =>
+  Number(value || 0).toLocaleString('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+  })
+const parseImporto = (valore: any) => {
+  if (valore === null || valore === undefined) return 0
 
+  let testo = String(valore)
+    .replace(/[€\s]/g, '')
+    .trim()
+
+  if (!testo) return 0
+
+  const haVirgola = testo.includes(',')
+  const haPunto = testo.includes('.')
+
+  if (haVirgola && haPunto) {
+    // formato italiano: 53.845,20
+    testo = testo.replace(/\./g, '').replace(',', '.')
+  } else if (haVirgola && !haPunto) {
+    // formato italiano semplice: 53845,20
+    testo = testo.replace(',', '.')
+  } else {
+    // formato numerico normale: 53845.20
+    testo = testo
+  }
+
+  const numero = Number(testo)
+  return Number.isFinite(numero) ? numero : 0
+}
+const salvaModificaTimbratura = async () => {
+  if (!timbraturaInModifica) return
+
+  const { error } = await supabase
+    .from('timbrature')
+    .update({
+      data: dataTimbraturaModifica,
+      ora_entrata: oraEntrataModifica,
+      ora_uscita: oraUscitaModifica,
+    })
+    .eq('id', timbraturaInModifica)
+
+  if (error) {
+    alert('Errore modifica timbratura: ' + error.message)
+    return
+  }
+
+  setTimbraturaInModifica(null)
+
+  await caricaTimbrature()
+
+  alert('Timbratura aggiornata')
+}
+
+const salvaPagamentoOperaio = async () => {
+  if (!operaioPagamento || !importoPagamento) {
+    alert('Seleziona operaio e inserisci importo')
+    return
+  }
+
+  const importo = parseImporto(importoPagamento)
+
+  if (isNaN(importo) || importo <= 0) {
+    alert('Importo non valido')
+    return
+  }
+
+  const { error } = await supabase.from('pagamenti_operai').insert([
+    {
+      operaio_nome: operaioPagamento,
+      importo,
+      data_pagamento: dataPagamento || oggi,
+      metodo: metodoPagamento,
+      nota: notaPagamento,
+    },
+  ])
+
+  if (error) {
+    alert('Errore salvataggio pagamento: ' + error.message)
+    return
+  }
+
+  setOperaioPagamento('')
+  setImportoPagamento('')
+  setDataPagamento('')
+  setMetodoPagamento('')
+  setNotaPagamento('')
+
+  await caricaPagamentiOperai()
+  alert('Pagamento operaio salvato')
+}
+
+const preparaPagamentoRapidoOperaio = (
+  operaio: string,
+  importo: number,
+  tipo: 'saldo' | 'acconto' = 'saldo'
+) => {
+  if (!operaio) return
+
+  const importoPulito = Math.max(0, Number(importo || 0))
+
+  setOperaioPagamento(operaio)
+  setImportoPagamento(
+    importoPulito.toLocaleString('it-IT', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  )
+  setDataPagamento(oggi)
+  setMetodoPagamento('')
+  setNotaPagamento(
+    tipo === 'saldo'
+      ? `Saldo maturato${pagamentiDataDa || pagamentiDataA ? ' periodo filtrato' : ''}`
+      : 'Acconto operaio'
+  )
+}
   const caricaCantieri = async () => {
     const { data, error } = await supabase
       .from('cantieri')
@@ -274,6 +3887,26 @@ export default function Home() {
 
     setCantieri((data || []) as Cantiere[])
   }
+
+const eliminaPagamentoOperaio = async (id?: string) => {
+  if (!id) return
+
+  const conferma = confirm('Vuoi eliminare questo pagamento operaio?')
+  if (!conferma) return
+
+  const { error } = await supabase
+    .from('pagamenti_operai')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore eliminazione pagamento: ' + error.message)
+    return
+  }
+
+  await caricaPagamentiOperai()
+  alert('Pagamento eliminato')
+}
 
   const caricaRapportini = async () => {
     const { data, error } = await supabase
@@ -332,6 +3965,103 @@ export default function Home() {
 
     setTimbrature((data || []) as Timbratura[])
   }
+
+
+const caricaFotoRapportinoDaInput = (e: ChangeEvent<HTMLInputElement>) => {
+  const files = Array.from(e.target.files || [])
+  if (files.length === 0) return
+
+  files.forEach((file) => {
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      setFotoRapportinoTemp((foto) => [
+        ...foto,
+        String(reader.result || ''),
+      ])
+    }
+
+    reader.readAsDataURL(file)
+  })
+
+  e.target.value = ''
+}
+
+
+const scattaFotoSopralluogo = () => {
+  const immagine =
+    webcamSopralluogoRef.current?.getScreenshot()
+
+  if (!immagine) {
+    alert('Impossibile scattare foto')
+    return
+  }
+
+  setFotoSopralluogoTemp((foto) => [
+    ...foto,
+    immagine,
+  ])
+}
+
+const scattaFotoRapportino = () => {
+  const immagine = webcamRapportinoRef.current?.getScreenshot()
+
+  if (!immagine) {
+    alert('Impossibile scattare la foto')
+    return
+  }
+
+  setFotoRapportinoTemp((foto) => [
+    ...foto,
+    immagine,
+  ])
+}
+
+
+const caricaFotoDaInput = (e: ChangeEvent<HTMLInputElement>) => {
+  const files = Array.from(e.target.files || [])
+  if (files.length === 0) return
+
+  files.forEach((file) => {
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      setFotoDaCaricare((foto) => [
+        ...foto,
+        String(reader.result || ''),
+      ])
+    }
+
+    reader.readAsDataURL(file)
+  })
+
+  e.target.value = ''
+}
+
+
+const rilevaPosizioneFoto = () => {
+  if (!navigator.geolocation) {
+    alert('Geolocalizzazione non supportata da questo dispositivo')
+    return
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude.toFixed(6)
+      const lng = pos.coords.longitude.toFixed(6)
+      setGeolocalizzazioneFoto(`${lat}, ${lng}`)
+    },
+    () => {
+      alert('Impossibile rilevare la posizione')
+    }
+  )
+}
+
+
+
+const [mostraPreventiviCantiere, setMostraPreventiviCantiere] = useState(false)
+const [mostraMaterialiCantiere, setMostraMaterialiCantiere] = useState(false)
+const [mostraAttrezziCantiere, setMostraAttrezziCantiere] = useState(false)
 
   const caricaEconomia = async () => {
     const { data: p, error: errP } = await supabase
@@ -392,22 +4122,483 @@ export default function Home() {
     setGeolocalizzazione('')
   }
 
+
+const avviaDettaturaMateriali = () => {
+  const SpeechRecognition =
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition
+
+  if (!SpeechRecognition) {
+    alert('Dettatura non supportata')
+    return
+  }
+
+  const recognition = new SpeechRecognition()
+
+  recognition.lang = 'it-IT'
+  recognition.continuous = true
+  recognition.interimResults = false
+
+  recognition.onresult = (event: any) => {
+    let testo = ''
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      testo += event.results[i][0].transcript + ' '
+    }
+
+    setMateriali((prev) => (prev ? prev + ' ' + testo : testo))
+  }
+
+  recognition.onend = () => {
+    setAscoltoMateriali(false)
+  }
+
+  recognition.start()
+
+  setRecognitionMateriali(recognition)
+  setAscoltoMateriali(true)
+}
+
+const fermaDettaturaMateriali = () => {
+  recognitionMateriali?.stop()
+  setAscoltoMateriali(false)
+}
+
+
+
+
+const avviaDettatura = (
+  callback: (testo: string) => void
+) => {
+  const SpeechRecognition =
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition
+
+  if (!SpeechRecognition) {
+    alert('Dettatura vocale non supportata')
+    return
+  }
+
+  const recognition = new SpeechRecognition()
+
+  recognition.lang = 'it-IT'
+  recognition.continuous = false
+  recognition.interimResults = false
+  recognition.maxAlternatives = 1
+
+  recognition.onresult = (event: any) => {
+    const testo =
+      event.results?.[0]?.[0]?.transcript || ''
+
+    if (testo.trim()) {
+      callback(testo)
+    }
+  }
+
+  recognition.start()
+}
+
+
+
+const avviaAssistenteVocale = () => {
+  const SpeechRecognition =
+    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+
+  if (!SpeechRecognition) {
+    alert('Il riconoscimento vocale non è supportato da questo browser. Usa Chrome o Edge.')
+    return
+  }
+
+  const recognition = new SpeechRecognition()
+  recognition.lang = 'it-IT'
+  recognition.continuous = true
+  recognition.interimResults = true
+
+  setRecognitionAssistente(recognition)
+
+  recognition.onstart = () => {
+    setAssistenteAttivo(true)
+  }
+
+  recognition.onresult = (event: any) => {
+    let testo = ''
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      testo += event.results[i][0].transcript.toLowerCase()
+    }
+
+    console.log('ASSISTENTE HA SENTITO:', testo)
+
+  if (
+  testo.includes('rapportino') ||
+  testo.includes('rapporto')
+) {
+  setSezioneAttiva('rapportini')
+}
+
+if (
+  testo.includes('economia')
+) {
+  setSezioneAttiva('economia')
+}
+
+if (
+  testo.includes('timbrature')
+) {
+  setSezioneAttiva('operai')
+  setSottoSezioneOperai('timbrature')
+}
+
+if (
+  testo.includes('presenze')
+) {
+  setSezioneAttiva('operai')
+  setSottoSezioneOperai('presenze')
+}
+
+if (
+  testo.includes('dashboard') ||
+  testo.includes('home')
+) {
+  setSezioneAttiva('home')
+}
+
+if (
+  testo.includes('stop rapportino')
+) {
+  fermaDettaturaRapportino()
+}
+  }
+
+  recognition.onerror = () => {
+    setAssistenteAttivo(false)
+  }
+
+  recognition.onend = () => {
+    setAssistenteAttivo(false)
+  }
+
+  recognition.start()
+}
+
+
+const fermaAssistenteVocale = () => {
+  if (recognitionAssistente) {
+    recognitionAssistente.stop()
+  }
+
+  setAssistenteAttivo(false)
+}
+
+
+const avviaDettaturaNoteFoto = () => {
+  const SpeechRecognition =
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition
+
+  if (!SpeechRecognition) {
+    alert('Dettatura non supportata')
+    return
+  }
+
+  const recognition = new SpeechRecognition()
+
+  recognition.lang = 'it-IT'
+  recognition.continuous = true
+  recognition.interimResults = false
+
+  recognition.onresult = (event: any) => {
+    let testo = ''
+
+    for (
+      let i = event.resultIndex;
+      i < event.results.length;
+      i++
+    ) {
+      testo += event.results[i][0].transcript + ' '
+    }
+
+    setNotaFotoRapportino((prev) =>
+      prev ? prev + ' ' + testo : testo
+    )
+  }
+
+  recognition.onend = () => {
+    setAscoltoNoteFoto(false)
+  }
+
+  recognition.start()
+
+  setRecognitionNoteFoto(recognition)
+  setAscoltoNoteFoto(true)
+}
+
+
+
+const fermaDettaturaNoteFoto = () => {
+  recognitionNoteFoto?.stop()
+  setAscoltoNoteFoto(false)
+}
+
+
+
+
+const avviaDettaturaRapportino = () => {
+  const SpeechRecognition =
+    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+
+  if (!SpeechRecognition) {
+    alert('Il riconoscimento vocale non è supportato da questo browser. Usa Chrome o Edge.')
+    return
+  }
+
+  const recognition = new SpeechRecognition()
+  setRecognitionRapportino(recognition)
+
+  recognition.lang = 'it-IT'
+  recognition.continuous = true
+  recognition.interimResults = true
+
+  let testoFinale = ''
+  let ultimaFraseFinale = ''
+
+  recognition.onstart = () => {
+    setAscoltoRapportino(true)
+    setTestoVoceRapportino('')
+  }
+
+  recognition.onresult = (event: any) => {
+    let testoTemporaneo = ''
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const frase = String(event.results[i][0].transcript || '').trim()
+
+      if (!frase) continue
+
+      if (event.results[i].isFinal) {
+        if (frase !== ultimaFraseFinale) {
+          testoFinale = `${testoFinale} ${frase}`.trim()
+          ultimaFraseFinale = frase
+        }
+      } else {
+        testoTemporaneo = frase
+      }
+    }
+
+    const testoCompleto = `${testoFinale} ${testoTemporaneo}`.trim()
+    setTestoVoceRapportino(testoCompleto)
+  }
+
+  recognition.onerror = () => {
+    alert('Errore durante il riconoscimento vocale')
+  }
+
+  recognition.onend = () => {
+    setAscoltoRapportino(false)
+
+    const testoPulito = testoFinale.trim()
+
+    if (testoPulito) {
+      setNote((prev) => {
+        const vecchio = prev?.trim() || ''
+
+        if (vecchio.includes(testoPulito)) {
+          return vecchio
+        }
+
+        return vecchio ? `${vecchio}\n${testoPulito}` : testoPulito
+      })
+    }
+  }
+
+  recognition.start()
+}
+const fermaDettaturaRapportino = () => {
+  if (recognitionRapportino) {
+    recognitionRapportino.stop()
+  }
+
+  setAscoltoRapportino(false)
+}
+
+const compilaRapportinoConAI = async () => {
+  if (!testoVoceRapportino.trim()) {
+    alert('Prima detta il rapportino')
+    return
+  }
+
+  const res = await fetch('/api/analizza-rapportino', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      testo: testoVoceRapportino,
+      cantieri: cantieri.map((c) => c.nome),
+      operai: operaiAnagrafica.map((o) => o.nome),
+    }),
+  })
+
+  const dati = await res.json()
+
+  if (!res.ok) {
+    alert('Errore AI: ' + dati.error)
+    return
+  }
+
+  if (dati.cantiere) setCantiereRapporto(dati.cantiere)
+  if (dati.data) setData(dati.data)
+  if (dati.ore) setOre(dati.ore)
+  if (dati.note) setNote(dati.note)
+  if (dati.operai) setOperai(dati.operai)
+  if (dati.materiali) setMateriali(dati.materiali)
+  if (dati.costoMateriali) setCostoMateriali(dati.costoMateriali)
+
+  alert('Rapportino compilato con AI')
+}
+
   const aggiungiCantiere = async () => {
     if (!nomeCantiere.trim()) return
 
     const { error } = await supabase
       .from('cantieri')
-      .insert([{ nome: nomeCantiere.trim() }])
+     .insert([{
+  nome: nomeCantiere.trim(),
+  preventivo: parseFloat(preventivoCantiereInput) || 0,
+}])
 
     if (error) {
       alert('Errore salvataggio cantiere: ' + error.message)
       return
     }
-
+setPreventivoCantiereInput('')
     setNomeCantiere('')
     await caricaCantieri()
+await caricaEconomia()
+setCantiereScheda((prev) => prev)
   }
 
+
+const aggiungiVociAnalizzateComeMateriali = async () => {
+  if (!cantiereScheda) {
+    alert('Seleziona prima un cantiere')
+    return
+  }
+
+  if (vociAnalizzate.length === 0) {
+    alert('Non ci sono voci analizzate da salvare')
+    return
+  }
+
+  const conferma = confirm(
+    `Vuoi salvare ${vociAnalizzate.length} voci come materiali del cantiere "${cantiereScheda}"?`
+  )
+
+  if (!conferma) return
+
+  const records = vociAnalizzate
+    .filter((voce) => voce.descrizione && voce.quantita !== undefined && voce.prezzo !== undefined)
+    .map((voce) => ({
+      cantiere: cantiereScheda,
+  descrizione: nomeFileAnalisiDocumento || 'Scontrino attrezzo',
+  quantita: 1,
+ prezzo_unitario: estraiTotaleScontrino(testoEstrattoDocumento) || 0,
+totale: estraiTotaleScontrino(testoEstrattoDocumento) || 0,
+  fornitore: 'Documento analizzato',
+  data_documento: oggi,
+  nome_file: nomeFileAnalisiDocumento || 'Documento analizzato',
+  nota: 'Importato automaticamente da scontrino',
+    }))
+
+  if (records.length === 0) {
+    alert('Le voci analizzate non sono complete')
+    return
+  }
+
+  const { error } = await supabase.from('materiali_cantiere').insert(records)
+
+  if (error) {
+    alert('Errore nel salvataggio delle voci analizzate: ' + error.message)
+    return
+  }
+
+  await caricaEconomia()
+  alert('Voci analizzate salvate come materiali')
+}
+
+const aggiungiVociAnalizzateComeAttrezzi = async () => {
+  if (!cantiereScheda) {
+    alert('Seleziona prima un cantiere')
+    return
+  }
+
+  if (vociAnalizzate.length === 0) {
+    alert('Non ci sono voci analizzate da salvare')
+    return
+  }
+
+  const conferma = confirm(
+    `Vuoi salvare ${vociAnalizzate.length} voci come attrezzi del cantiere "${cantiereScheda}"?`
+  )
+
+  if (!conferma) return
+
+  const records = vociAnalizzate
+    .filter((voce) => voce.descrizione && voce.quantita !== undefined && voce.prezzo !== undefined)
+    .map((voce) => ({
+      cantiere: cantiereScheda,
+      descrizione: voce.descrizione,
+      quantita: Number(voce.quantita || 1),
+      prezzo_unitario: Number(voce.prezzo || 0),
+      totale: Number(voce.quantita || 1) * Number(voce.prezzo || 0),
+      fornitore: 'Documento analizzato',
+      data_documento: oggi,
+      nome_file: nomeFileAnalisiDocumento || 'Documento analizzato',
+      nota: 'Importato da analisi documento',
+    }))
+
+  if (records.length === 0) {
+    alert('Le voci analizzate non sono complete')
+    return
+  }
+
+  const { error } = await supabase.from('attrezzi_cantiere').insert(records)
+
+  if (error) {
+    alert('Errore nel salvataggio delle voci come attrezzi: ' + error.message)
+    return
+  }
+
+  await caricaEconomia()
+  alert('Voci analizzate salvate come attrezzi')
+}
+
+const eliminaVociImportate = async () => {
+  if (!cantiereScheda) {
+    alert('Seleziona prima un cantiere')
+    return
+  }
+
+  const conferma = confirm(
+    `Vuoi eliminare tutte le voci importate da documento per il cantiere "${cantiereScheda}"?`
+  )
+
+  if (!conferma) return
+
+  const { error } = await supabase
+    .from('materiali_cantiere')
+    .delete()
+    .eq('cantiere', cantiereScheda)
+    .eq('fornitore', 'Documento analizzato')
+
+  if (error) {
+    alert('Errore durante eliminazione: ' + error.message)
+    return
+  }
+
+  await caricaEconomia()
+  alert('Voci importate eliminate')
+}
   const aggiungiOperaio = async () => {
     if (!nomeOperaio.trim()) {
       alert('Inserisci il nome dell’operaio')
@@ -494,6 +4685,8 @@ export default function Home() {
     setCostoOrarioOperaioModifica('')
   }
 
+
+
   const salvaModificaOperaio = async () => {
     if (!operaioInModifica) {
       alert('Nessun operaio selezionato')
@@ -553,6 +4746,178 @@ export default function Home() {
     alert('Operaio modificato correttamente')
   }
 
+
+const preparaModificaRegistroOperaio = (o: Operaio) => {
+  setOperaioRegistroEdit(o.id || null)
+  setOperaioRegistroNome(o.nome || '')
+  setOperaioRegistroTelefono(o.telefono || '')
+  setOperaioRegistroQualifica(o.qualifica || '')
+  setOperaioRegistroCosto(String(o.costo_orario || ''))
+}
+
+const annullaModificaRegistroOperaio = () => {
+  setOperaioRegistroEdit(null)
+  setOperaioRegistroNome('')
+  setOperaioRegistroTelefono('')
+  setOperaioRegistroQualifica('')
+  setOperaioRegistroCosto('')
+}
+
+const salvaModificaRegistroOperaio = async (id?: string) => {
+  if (!id) return
+
+  const costo = parseFloat(String(operaioRegistroCosto).replace(',', '.'))
+
+  const { error } = await supabase
+    .from('operai')
+    .update({
+      nome: operaioRegistroNome.trim(),
+      telefono: operaioRegistroTelefono.trim(),
+      qualifica: operaioRegistroQualifica.trim(),
+      costo_orario: isNaN(costo) ? 0 : costo,
+    })
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore modifica operaio: ' + error.message)
+    return
+  }
+
+  annullaModificaRegistroOperaio()
+  await caricaOperai()
+  alert('Operaio aggiornato')
+}
+
+
+const preparaModificaRegistroPagamentoOperaio = (p: any) => {
+  setPagamentoOperaioRegistroEdit(String(p.id))
+  setPagamentoOperaioRegistroNome(p.operaio_nome || '')
+  setPagamentoOperaioRegistroImporto(String(p.importo || ''))
+  setPagamentoOperaioRegistroData(p.data_pagamento || '')
+  setPagamentoOperaioRegistroMetodo(p.metodo || '')
+  setPagamentoOperaioRegistroNota(p.nota || '')
+}
+
+const annullaModificaRegistroPagamentoOperaio = () => {
+  setPagamentoOperaioRegistroEdit(null)
+  setPagamentoOperaioRegistroNome('')
+  setPagamentoOperaioRegistroImporto('')
+  setPagamentoOperaioRegistroData('')
+  setPagamentoOperaioRegistroMetodo('')
+  setPagamentoOperaioRegistroNota('')
+}
+
+const salvaModificaRegistroPagamentoOperaio = async (id?: string) => {
+  if (!id) return
+
+  const { error } = await supabase
+    .from('pagamenti_operai')
+    .update({
+      operaio_nome: pagamentoOperaioRegistroNome,
+      importo: parseImporto(pagamentoOperaioRegistroImporto),
+      data_pagamento: pagamentoOperaioRegistroData || null,
+      metodo: pagamentoOperaioRegistroMetodo,
+      nota: pagamentoOperaioRegistroNota,
+    })
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore modifica pagamento operaio: ' + error.message)
+    return
+  }
+
+  annullaModificaRegistroPagamentoOperaio()
+  await caricaPagamentiOperai()
+  alert('Pagamento operaio aggiornato')
+}
+
+const preparaModificaRegistroRapportino = (r: any) => {
+  setRapportinoRegistroEdit(String(r.id))
+  setRapportinoRegistroData(r.data || '')
+  setRapportinoRegistroCantiere(r.cantiere || '')
+  setRapportinoRegistroOperaio(r.operai || '')
+  setRapportinoRegistroOre(String(r.ore || ''))
+  setRapportinoRegistroDescrizione(r.note || '')
+}
+
+const annullaModificaRegistroRapportino = () => {
+  setRapportinoRegistroEdit(null)
+  setRapportinoRegistroData('')
+  setRapportinoRegistroCantiere('')
+  setRapportinoRegistroOperaio('')
+  setRapportinoRegistroOre('')
+  setRapportinoRegistroDescrizione('')
+}
+
+const salvaModificaRegistroRapportino = async (id?: string) => {
+  if (!id) return
+
+  const { error } = await supabase
+    .from('rapportini')
+    .update({
+      data: rapportinoRegistroData || null,
+      cantiere: rapportinoRegistroCantiere,
+      operai: rapportinoRegistroOperaio,
+      ore: parseImporto(rapportinoRegistroOre),
+      note: rapportinoRegistroDescrizione,
+    })
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore modifica rapportino: ' + error.message)
+    return
+  }
+
+  annullaModificaRegistroRapportino()
+  await caricaRapportini()
+  alert('Rapportino aggiornato')
+}
+
+const preparaModificaRegistroTimbratura = (t: any) => {
+  setTimbraturaRegistroEdit(String(t.id))
+  setTimbraturaRegistroData(t.data || '')
+  setTimbraturaRegistroOperaio(t.operaio_nome || '')
+  setTimbraturaRegistroCantiere(t.cantiere || '')
+  setTimbraturaRegistroEntrata(t.ora_entrata || '')
+  setTimbraturaRegistroUscita(t.ora_uscita || '')
+  setTimbraturaRegistroOre(String(t.ore_totali || ''))
+}
+
+const annullaModificaRegistroTimbratura = () => {
+  setTimbraturaRegistroEdit(null)
+  setTimbraturaRegistroData('')
+  setTimbraturaRegistroOperaio('')
+  setTimbraturaRegistroCantiere('')
+  setTimbraturaRegistroEntrata('')
+  setTimbraturaRegistroUscita('')
+  setTimbraturaRegistroOre('')
+}
+
+const salvaModificaRegistroTimbratura = async (id?: string) => {
+  if (!id) return
+
+  const { error } = await supabase
+    .from('timbrature')
+    .update({
+      data: timbraturaRegistroData || null,
+      operaio_nome: timbraturaRegistroOperaio,
+      cantiere: timbraturaRegistroCantiere,
+      ora_entrata: timbraturaRegistroEntrata,
+      ora_uscita: timbraturaRegistroUscita,
+      ore_totali: parseImporto(timbraturaRegistroOre),
+    })
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore modifica timbratura: ' + error.message)
+    return
+  }
+
+  annullaModificaRegistroTimbratura()
+  await caricaTimbrature()
+  alert('Timbratura aggiornata')
+}
+
   const cambiaStatoOperaio = async (operaio: Operaio, nuovoStato: 'attivo' | 'sospeso') => {
     if (!operaio.id) return
 
@@ -569,6 +4934,23 @@ export default function Home() {
     await caricaOperai()
     alert(`Operaio ${nuovoStato === 'attivo' ? 'riattivato' : 'sospeso'}`)
   }
+
+
+const coloreStatoSopralluogo = (
+  stato?: string
+) => {
+  if (stato === 'convertito_in_cantiere')
+    return '#15803d'
+
+  if (stato === 'preventivo_creato')
+    return '#2563eb'
+
+  if (stato === 'da_preventivare')
+    return '#d97706'
+
+  return '#6b7280'
+}
+
 
   const eliminaOperaio = async (id?: string) => {
     if (!id) return
@@ -980,91 +5362,298 @@ export default function Home() {
     await caricaFotoCantiere()
     await caricaTimbrature()
     await caricaEconomia()
+    await caricaAcconti()
 
     alert('Cantiere modificato correttamente')
   }
 
-  const eliminaCantiere = async (nome: string) => {
-    const conferma = confirm(
-      `Vuoi eliminare il cantiere "${nome}"?\n\nVerranno eliminati anche rapportini, foto, timbrature, preventivi, materiali e attrezzi collegati.`
-    )
-    if (!conferma) return
 
-    const { error: errorRapportini } = await supabase.from('rapportini').delete().eq('cantiere', nome)
-    if (errorRapportini) {
-      alert('Errore eliminazione rapportini collegati: ' + errorRapportini.message)
-      return
-    }
+const preparaModificaRegistroCantiere = (c: Cantiere) => {
+  setCantiereRegistroEdit(c.id || null)
+  setCantiereRegistroNome(c.nome || '')
+  setCantiereRegistroPreventivo(String(c.preventivo || ''))
+  setCantiereRegistroInizio(c.data_inizio_lavori || '')
+  setCantiereRegistroFine(c.data_fine_lavori || '')
+  setCantiereRegistroConcluso(Boolean(c.lavori_conclusi))
+}
 
-    const { error: errorFoto } = await supabase.from('foto_cantiere').delete().eq('cantiere', nome)
-    if (errorFoto) {
-      alert('Errore eliminazione foto collegate: ' + errorFoto.message)
-      return
-    }
+const annullaModificaRegistroCantiere = () => {
+  setCantiereRegistroEdit(null)
+  setCantiereRegistroNome('')
+  setCantiereRegistroPreventivo('')
+  setCantiereRegistroInizio('')
+  setCantiereRegistroFine('')
+  setCantiereRegistroConcluso(false)
+}
 
-    const { error: errorTimbrature } = await supabase.from('timbrature').delete().eq('cantiere', nome)
-    if (errorTimbrature) {
-      alert('Errore eliminazione timbrature collegate: ' + errorTimbrature.message)
-      return
-    }
+const salvaModificaRegistroCantiere = async (id?: string) => {
+  if (!id) return
 
-    const { error: errorPreventivi } = await supabase.from('preventivi_cantiere').delete().eq('cantiere', nome)
-    if (errorPreventivi) {
-      alert('Errore eliminazione preventivi collegati: ' + errorPreventivi.message)
-      return
-    }
+  const preventivo = parseImporto(cantiereRegistroPreventivo)
 
-    const { error: errorMateriali } = await supabase.from('materiali_cantiere').delete().eq('cantiere', nome)
-    if (errorMateriali) {
-      alert('Errore eliminazione materiali collegati: ' + errorMateriali.message)
-      return
-    }
+  const { error } = await supabase
+    .from('cantieri')
+    .update({
+      nome: cantiereRegistroNome.trim(),
+      preventivo,
+      data_inizio_lavori: cantiereRegistroInizio || null,
+      data_fine_lavori: cantiereRegistroFine || null,
+      lavori_conclusi: cantiereRegistroConcluso,
+    })
+    .eq('id', id)
 
-    const { error: errorAttrezzi } = await supabase.from('attrezzi_cantiere').delete().eq('cantiere', nome)
-    if (errorAttrezzi) {
-      alert('Errore eliminazione attrezzi collegati: ' + errorAttrezzi.message)
-      return
-    }
-
-    const { error: errorCantiere } = await supabase.from('cantieri').delete().eq('nome', nome)
-    if (errorCantiere) {
-      alert('Errore eliminazione cantiere: ' + errorCantiere.message)
-      return
-    }
-
-    if (cantiereRapporto === nome) setCantiereRapporto('')
-    if (cantiereFoto === nome) setCantiereFoto('')
-    if (cantiereTimbratura === nome) setCantiereTimbratura('')
-    if (filtroCantiere === nome) setFiltroCantiere('')
-    if (cantiereScheda === nome) setCantiereScheda('')
-
-    await caricaCantieri()
-    await caricaRapportini()
-    await caricaFotoCantiere()
-    await caricaTimbrature()
-    await caricaEconomia()
-
-    alert('Cantiere eliminato con tutti i dati collegati')
+  if (error) {
+    alert('Errore modifica cantiere: ' + error.message)
+    return
   }
 
-  const salvaRapportino = async () => {
-    if (!cantiereRapporto || !data || !ore || !note.trim()) {
-      alert('Compila almeno cantiere, data, ore e note')
+  annullaModificaRegistroCantiere()
+  await caricaCantieri()
+  await caricaEconomia()
+  alert('Cantiere aggiornato')
+}
+
+const salvaModificaRegistroPreventivo = async (id?: string) => {
+  if (!id) return
+
+  const { error } = await supabase
+    .from('preventivi_cantiere')
+    .update({
+      cantiere: preventivoRegistroCantiere,
+      nome_file: preventivoRegistroNomeFile,
+      importo_totale: parseImporto(preventivoRegistroImporto),
+      note: preventivoRegistroNote,
+    })
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore modifica preventivo: ' + error.message)
+    return
+  }
+
+  setPreventivoRegistroEdit(null)
+  setPreventivoRegistroCantiere('')
+  setPreventivoRegistroNomeFile('')
+  setPreventivoRegistroImporto('')
+  setPreventivoRegistroNote('')
+
+  await caricaEconomia()
+  alert('Preventivo aggiornato')
+}
+
+
+const eliminaPreventivoCantiere = async (id?: string) => {
+  if (!id) return
+
+  if (!confirm('Vuoi eliminare questo preventivo?')) return
+
+  const { data: doc, error: errFetch } = await supabase
+    .from('preventivi_cantiere')
+    .select('file_path')
+    .eq('id', id)
+    .single()
+
+  if (errFetch) {
+    alert('Errore recupero file: ' + errFetch.message)
+    return
+  }
+
+  try {
+    await eliminaFileDaStorage(doc?.file_path)
+  } catch {
+    alert('Errore cancellazione file da Storage')
+    return
+  }
+
+  const { error } = await supabase
+    .from('preventivi_cantiere')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore eliminazione preventivo: ' + error.message)
+    return
+  }
+
+  await caricaEconomia()
+  alert('Preventivo eliminato completamente')
+}
+
+
+
+  const eliminaCantiere = async (nome: string) => {
+  const conferma = confirm(
+    `Vuoi eliminare completamente il cantiere "${nome}"?\n\nVerranno eliminati:\n- cantiere\n- rapportini\n- foto\n- timbrature\n- preventivi\n- materiali\n- attrezzi\n- file collegati nello Storage`
+  )
+
+  if (!conferma) return
+
+  // 1. Recupera tutti i file collegati al cantiere
+  const { data: preventiviDaEliminare, error: errPrevFetch } = await supabase
+    .from('preventivi_cantiere')
+    .select('file_path')
+    .eq('cantiere', nome)
+
+  if (errPrevFetch) {
+    alert('Errore recupero file preventivi: ' + errPrevFetch.message)
+    return
+  }
+
+  const { data: materialiDaEliminare, error: errMatFetch } = await supabase
+    .from('materiali_cantiere')
+    .select('file_path')
+    .eq('cantiere', nome)
+
+  if (errMatFetch) {
+    alert('Errore recupero file materiali: ' + errMatFetch.message)
+    return
+  }
+
+  const { data: attrezziDaEliminare, error: errAttFetch } = await supabase
+    .from('attrezzi_cantiere')
+    .select('file_path')
+    .eq('cantiere', nome)
+
+  if (errAttFetch) {
+    alert('Errore recupero file attrezzi: ' + errAttFetch.message)
+    return
+  }
+
+  const filePaths = [
+    ...(preventiviDaEliminare || []).map((x: any) => x.file_path),
+    ...(materialiDaEliminare || []).map((x: any) => x.file_path),
+    ...(attrezziDaEliminare || []).map((x: any) => x.file_path),
+  ].filter(Boolean)
+
+  // 2. Cancella i file dallo Storage
+  if (filePaths.length > 0) {
+    const { error: storageError } = await supabase.storage
+      .from('preventivi')
+      .remove(filePaths)
+
+    if (storageError) {
+      alert('Errore cancellazione file Storage: ' + storageError.message)
       return
     }
+  }
 
-    const nuovoRapportino: Rapportino = {
-      cantiere: cantiereRapporto,
-      data,
-      ore,
-      note,
-      operai,
-      numero_presenti: numeroPresenti,
-      ore_per_operaio: orePerOperaio,
-      materiali,
-      quantita_materiali: quantitaMateriali,
-      costo_materiali: costoMateriali,
-    }
+  // 3. Cancella dati collegati dal database
+  const { error: errorRapportini } = await supabase
+    .from('rapportini')
+    .delete()
+    .eq('cantiere', nome)
+
+  if (errorRapportini) {
+    alert('Errore eliminazione rapportini: ' + errorRapportini.message)
+    return
+  }
+
+  const { error: errorFoto } = await supabase
+    .from('foto_cantiere')
+    .delete()
+    .eq('cantiere', nome)
+
+  if (errorFoto) {
+    alert('Errore eliminazione foto: ' + errorFoto.message)
+    return
+  }
+
+  const { error: errorTimbrature } = await supabase
+    .from('timbrature')
+    .delete()
+    .eq('cantiere', nome)
+
+  if (errorTimbrature) {
+    alert('Errore eliminazione timbrature: ' + errorTimbrature.message)
+    return
+  }
+
+  const { error: errorPreventivi } = await supabase
+    .from('preventivi_cantiere')
+    .delete()
+    .eq('cantiere', nome)
+
+  if (errorPreventivi) {
+    alert('Errore eliminazione preventivi: ' + errorPreventivi.message)
+    return
+  }
+
+  const { error: errorMateriali } = await supabase
+    .from('materiali_cantiere')
+    .delete()
+    .eq('cantiere', nome)
+
+  if (errorMateriali) {
+    alert('Errore eliminazione materiali: ' + errorMateriali.message)
+    return
+  }
+
+  const { error: errorAttrezzi } = await supabase
+    .from('attrezzi_cantiere')
+    .delete()
+    .eq('cantiere', nome)
+
+  if (errorAttrezzi) {
+    alert('Errore eliminazione attrezzi: ' + errorAttrezzi.message)
+    return
+  }
+
+  // 4. Cancella il cantiere
+  const { error: errorCantiere } = await supabase
+    .from('cantieri')
+    .delete()
+    .eq('nome', nome)
+
+  if (errorCantiere) {
+    alert('Errore eliminazione cantiere: ' + errorCantiere.message)
+    return
+  }
+
+  // 5. Pulisce stati locali
+  if (cantiereRapporto === nome) setCantiereRapporto('')
+  if (cantiereFoto === nome) setCantiereFoto('')
+  if (cantiereTimbratura === nome) setCantiereTimbratura('')
+  if (filtroCantiere === nome) setFiltroCantiere('')
+  if (cantiereScheda === nome) setCantiereScheda('')
+  if (cantiereGrafico === nome) setCantiereGrafico('')
+
+  await caricaCantieri()
+  await caricaRapportini()
+  await caricaFotoCantiere()
+  await caricaTimbrature()
+  await caricaEconomia()
+
+  alert('Cantiere eliminato completamente, compresi i file nello Storage')
+}
+
+ const salvaRapportino = async () => {
+  if (!cantiereRapporto || !data) {
+    alert('Compila almeno cantiere e data')
+    return
+  }
+
+const costoManodoperaRapportino =
+  operaiRapportinoTemp.reduce(
+    (tot, o) => tot + o.ore * o.costo_orario,
+    0
+  )
+
+   const nuovoRapportino = {
+  cantiere: cantiereRapporto,
+  data,
+ ore: String(
+  operaiRapportinoTemp.reduce(
+    (tot, o) => tot + o.ore,
+    0
+  )
+),
+  note,
+  operai,
+  costo_manodopera: costoManodoperaRapportino,
+  materiali,
+  quantita_materiali: quantitaMateriali,
+  costo_materiali: costoMateriali,
+}
 
     const { error } = await supabase.from('rapportini').insert([nuovoRapportino])
 
@@ -1073,11 +5662,540 @@ export default function Home() {
       return
     }
 
-    setUltimoRapportino(nuovoRapportino)
-    resetFormRapportino()
-    await caricaRapportini()
-    alert('Rapportino salvato')
+   setUltimoRapportino(nuovoRapportino)
+
+if (fotoRapportinoTemp.length > 0) {
+  const fotoDaSalvare = fotoRapportinoTemp.map((foto) => ({
+    cantiere: cantiereRapporto,
+    nota: notaFotoRapportino || note || 'Foto rapportino',
+    immagine_base64: foto,
+    data_foto: data || new Date().toISOString().slice(0, 10),
+    geolocalizzazione: geolocalizzazioneFoto || null,
+  }))
+
+  const { error: erroreFoto } = await supabase
+    .from('foto_cantiere')
+    .insert(fotoDaSalvare)
+
+  if (erroreFoto) {
+    alert('Rapportino salvato, ma errore foto: ' + erroreFoto.message)
+    return
   }
+
+  await caricaFotoCantiere()
+}
+
+setFotoRapportinoTemp([])
+setNotaFotoRapportino('')
+setPopupFotoRapportino(false)
+
+resetFormRapportino()
+await caricaRapportini()
+await caricaFotoCantiere()
+
+alert('Rapportino salvato')
+}
+
+
+const generaPdfSopralluogo = async (
+  sopralluogo: Sopralluogo
+) => {
+  const pdf = new jsPDF()
+
+  let y = 18
+
+pdf.setFontSize(22)
+pdf.text('ARTECNA', 20, y)
+
+pdf.setFontSize(11)
+pdf.text('Impresa edile - Scheda sopralluogo tecnico', 20, y + 7)
+
+pdf.setFontSize(9)
+pdf.text(
+  `Generato il: ${new Date().toLocaleDateString('it-IT')}`,
+  150,
+  y
+)
+
+y += 18
+
+pdf.setDrawColor(180)
+pdf.line(20, y, 190, y)
+
+y += 12
+
+pdf.setFontSize(15)
+pdf.text('DATI CLIENTE', 20, y)
+
+y += 10
+
+pdf.setFontSize(12)
+
+  pdf.text(
+    `Cliente: ${sopralluogo.cliente || '-'}`,
+    20,
+    y
+  )
+
+  y += 8
+
+  pdf.text(
+    `Telefono: ${sopralluogo.telefono || '-'}`,
+    20,
+    y
+  )
+
+  y += 8
+
+  pdf.text(
+    `Indirizzo: ${sopralluogo.indirizzo || '-'}`,
+    20,
+    y
+  )
+
+  y += 8
+
+  pdf.text(
+    `Data: ${sopralluogo.data_sopralluogo || '-'}`,
+    20,
+    y
+  )
+
+  y += 12
+
+  pdf.setFontSize(14)
+
+  pdf.text('NOTE SOPRALLUOGO', 20, y)
+
+  y += 8
+
+  pdf.setFontSize(11)
+
+  const note = pdf.splitTextToSize(
+    sopralluogo.note || '-',
+    170
+  )
+
+  pdf.text(note, 20, y)
+
+  y += note.length * 6 + 10
+
+  const fotoDelSopralluogo =
+    fotoSopralluoghi.filter(
+      (f) =>
+        f.sopralluogo_id === sopralluogo.id
+    )
+
+if (fotoDelSopralluogo.length > 0) {
+  if (y > 230) {
+    pdf.addPage()
+    y = 20
+  }
+
+  pdf.setFontSize(15)
+  pdf.text('DOCUMENTAZIONE FOTOGRAFICA', 20, y)
+
+  y += 10
+}
+
+
+
+
+  for (const foto of fotoDelSopralluogo) {
+    if (y > 230) {
+      pdf.addPage()
+      y = 20
+    }
+
+    try {
+      pdf.addImage(
+        foto.immagine_base64,
+        'JPEG',
+        20,
+        y,
+        70,
+        50
+      )
+
+      y += 55
+
+      if (foto.nota) {
+        pdf.setFontSize(10)
+
+        const testoFoto =
+          pdf.splitTextToSize(
+            foto.nota,
+            160
+          )
+
+        pdf.text(testoFoto, 20, y)
+
+        y += testoFoto.length * 5 + 5
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+if (firmaCliente) {
+  if (y > 220) {
+    pdf.addPage()
+    y = 20
+  }
+
+  pdf.setFontSize(14)
+
+  pdf.text('FIRMA CLIENTE', 20, y)
+
+  y += 10
+
+  try {
+    pdf.addImage(
+      firmaCliente,
+      'PNG',
+      20,
+      y,
+      70,
+      35
+    )
+
+    y += 45
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+  pdf.save(
+    `Sopralluogo_${sopralluogo.cliente}.pdf`
+  )
+}
+
+
+
+
+const generaPdfRapportinoFotografico = (r: Rapportino) => {
+  const doc = new jsPDF('p', 'mm', 'a4')
+
+  const fotoDelRapportino = fotoCantiere.filter(
+    (f) =>
+      f.cantiere === r.cantiere &&
+      String(f.data_foto || '') === String(r.data || '')
+  )
+
+  doc.setFillColor(15, 23, 42)
+doc.rect(0, 0, 210, 28, 'F')
+
+doc.setTextColor(255, 255, 255)
+doc.setFontSize(18)
+doc.text('ARTECNA', 15, 12)
+
+doc.setFontSize(11)
+doc.text('Rapportino fotografico di cantiere', 15, 20)
+
+doc.setTextColor(15, 23, 42)
+doc.setFontSize(11)
+
+doc.text(`Cantiere: ${r.cantiere}`, 15, 38)
+doc.text(`Data: ${r.data}`, 15, 45)
+
+doc.setDrawColor(203, 213, 225)
+doc.line(15, 50, 195, 50)
+  doc.setFontSize(12)
+
+  doc.text('Descrizione lavori:', 15, 60)
+
+ const testoPulito = String(r.note || '-')
+  .replace(/[^\x00-\x7F]/g, '')
+
+const note = doc.splitTextToSize(
+  testoPulito,
+  180
+)
+  doc.setFontSize(10)
+ doc.text(note, 15, 68)
+
+let y = 68 + note.length * 5 + 8
+
+  if (r.operai) {
+    doc.setFontSize(12)
+    doc.text('Operai presenti:', 15, y)
+    y += 7
+
+    const testoOperai = doc.splitTextToSize(r.operai, 180)
+    doc.setFontSize(10)
+    doc.text(testoOperai, 15, y)
+    y += testoOperai.length * 5 + 8
+  }
+
+  if (fotoDelRapportino.length === 0) {
+    doc.text('Nessuna foto collegata al rapportino.', 15, y)
+  }
+
+  fotoDelRapportino.forEach((foto, index) => {
+    if (y > 210) {
+      doc.addPage()
+      y = 20
+    }
+
+    try {
+      doc.setFontSize(11)
+      doc.text(`Foto ${index + 1}`, 15, y)
+      y += 5
+
+    const props = doc.getImageProperties(foto.immagine_base64)
+
+const maxWidth = 140
+const maxHeight = 100
+
+const ratio = Math.min(
+  maxWidth / props.width,
+  maxHeight / props.height
+)
+
+const pdfWidth = props.width * ratio
+const pdfHeight = props.height * ratio
+
+const x = 15 + (140 - pdfWidth) / 2
+
+doc.addImage(
+  foto.immagine_base64,
+  'JPEG',
+  x,
+  y,
+  pdfWidth,
+  pdfHeight
+)
+
+y += pdfHeight + 10
+
+     
+
+      if (foto.nota) {
+        const notaFotoPulita = String(
+  foto.nota || ''
+).replace(/[^\x00-\x7F]/g, '')
+
+const notaFoto = doc.splitTextToSize(
+  notaFotoPulita,
+  180
+)
+        doc.setFontSize(9)
+        doc.text(notaFoto, 15, y)
+        y += notaFoto.length * 5 + 6
+      }
+    } catch {
+      doc.text(`Foto ${index + 1} non inseribile nel PDF`, 15, y)
+      y += 8
+    }
+  })
+if (y > 230) {
+  doc.addPage()
+  y = 25
+}
+
+doc.setDrawColor(203, 213, 225)
+doc.line(15, y, 195, y)
+y += 10
+
+doc.setFontSize(12)
+doc.text('Riepilogo rapportino', 15, y)
+y += 8
+
+doc.setFontSize(10)
+doc.text(`Cantiere: ${r.cantiere || '-'}`, 15, y)
+y += 6
+doc.text(`Data: ${r.data || '-'}`, 15, y)
+y += 6
+doc.text(`Ore totali: ${r.ore || '-'}`, 15, y)
+y += 6
+
+if (r.operai) {
+  const operaiPuliti = String(r.operai)
+    .replace(/[^\x00-\x7F]/g, '')
+
+  const testoOperai = doc.splitTextToSize(
+    operaiPuliti,
+    180
+  )
+
+  doc.text(testoOperai, 15, y)
+  y += testoOperai.length * 5 + 10
+}
+
+doc.setFontSize(10)
+doc.text('Firma impresa', 25, 275)
+doc.line(20, 268, 85, 268)
+
+doc.text('Firma cliente / D.L.', 125, 275)
+doc.line(120, 268, 185, 268)
+
+const nomeFile = `Rapportino_fotografico_${String(r.cantiere || 'cantiere')
+  .replace(/\s+/g, '_')
+  .replace(/[^\w-]/g, '')}_${String(r.data || 'data')}.pdf`
+
+doc.save(nomeFile)
+ 
+}
+
+
+const generaPdfSalFotografico = () => {
+  if (!salFotoCantiere || !salFotoMese) {
+    alert('Seleziona cantiere e mese')
+    return
+  }
+
+  const doc = new jsPDF('p', 'mm', 'a4')
+
+  const rapportiniDelMese = rapportini
+    .filter(
+      (r) =>
+        r.cantiere === salFotoCantiere &&
+        String(r.data || '').startsWith(salFotoMese)
+    )
+    .sort((a, b) =>
+      String(a.data || '').localeCompare(String(b.data || ''))
+    )
+
+  if (rapportiniDelMese.length === 0) {
+    alert('Nessun rapportino trovato per questo cantiere/mese')
+    return
+  }
+
+  doc.setFillColor(15, 23, 42)
+  doc.rect(0, 0, 210, 30, 'F')
+
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(18)
+  doc.text('ARTECNA', 15, 13)
+
+  doc.setFontSize(11)
+  doc.text('SAL fotografico di cantiere', 15, 22)
+
+  doc.setTextColor(15, 23, 42)
+  doc.setFontSize(11)
+  doc.text(`Cantiere: ${salFotoCantiere}`, 15, 42)
+  doc.text(`Periodo: ${salFotoMese}`, 15, 49)
+
+  let y = 62
+
+const fotoGiaInserite = new Set<string>()
+
+  rapportiniDelMese.forEach((r, index) => {
+    if (index > 0) {
+      doc.addPage()
+      y = 20
+    }
+
+    doc.setFontSize(13)
+    doc.text(`Data: ${r.data || '-'}`, 15, y)
+    y += 8
+
+    const notePulite = String(r.note || '-')
+      .replace(/[^\x00-\x7F]/g, '')
+
+    const note = doc.splitTextToSize(notePulite, 180)
+    doc.setFontSize(10)
+    doc.text(note, 15, y)
+    y += note.length * 5 + 8
+
+    const fotoGiorno = fotoCantiere.filter(
+      (f) =>
+        f.cantiere === r.cantiere &&
+        String(f.data_foto || '') === String(r.data || '')
+    )
+
+    if (fotoGiorno.length === 0) {
+      doc.text('Nessuna foto collegata a questa data.', 15, y)
+      y += 8
+    }
+
+    fotoGiorno.forEach((foto, i) => {
+const chiaveFoto =
+  String(foto.id || foto.immagine_base64.slice(0, 40))
+
+if (fotoGiaInserite.has(chiaveFoto)) {
+  return
+}
+
+fotoGiaInserite.add(chiaveFoto)
+      if (y > 220) {
+        doc.addPage()
+        y = 20
+      }
+
+      try {
+        const props = doc.getImageProperties(foto.immagine_base64)
+
+        const maxWidth = 140
+        const maxHeight = 95
+
+        const ratio = Math.min(
+          maxWidth / props.width,
+          maxHeight / props.height
+        )
+
+        const pdfWidth = props.width * ratio
+        const pdfHeight = props.height * ratio
+        const x = 15 + (140 - pdfWidth) / 2
+
+        doc.setFontSize(10)
+        doc.text(`Foto ${i + 1}`, 15, y)
+        y += 5
+
+        doc.addImage(
+          foto.immagine_base64,
+          'JPEG',
+          x,
+          y,
+          pdfWidth,
+          pdfHeight
+        )
+
+        y += pdfHeight + 8
+      } catch {
+        doc.text(`Foto ${i + 1} non inseribile`, 15, y)
+        y += 8
+      }
+    })
+  })
+
+  if (y > 235) {
+    doc.addPage()
+    y = 30
+  }
+
+  doc.setDrawColor(203, 213, 225)
+  doc.line(15, y, 195, y)
+  y += 12
+
+  doc.setFontSize(12)
+  doc.text('Riepilogo SAL fotografico', 15, y)
+  y += 8
+
+  doc.setFontSize(10)
+  doc.text(`Cantiere: ${salFotoCantiere}`, 15, y)
+  y += 6
+  doc.text(`Periodo: ${salFotoMese}`, 15, y)
+  y += 6
+  doc.text(`Giornate documentate: ${rapportiniDelMese.length}`, 15, y)
+
+  doc.text('Firma impresa', 25, 275)
+  doc.line(20, 268, 85, 268)
+
+  doc.text('Firma cliente / D.L.', 125, 275)
+  doc.line(120, 268, 185, 268)
+
+  const nomeFile = `SAL_fotografico_${salFotoCantiere
+    .replace(/\s+/g, '_')
+    .replace(/[^\w-]/g, '')}_${salFotoMese}.pdf`
+
+  doc.save(nomeFile)
+}
+
+
+
+
+
 
   const preparaModificaRapportino = (r: Rapportino) => {
     setRapportinoInModifica(r.id || null)
@@ -1100,25 +6218,34 @@ export default function Home() {
       return
     }
 
-    if (!cantiereRapporto || !data || !ore || !note.trim()) {
-      alert('Compila almeno cantiere, data, ore e note')
-      return
-    }
+   if (!cantiereRapporto || !data) {
+  alert('Compila almeno cantiere e data')
+  return
+}
 
     const { error } = await supabase
       .from('rapportini')
       .update({
-        cantiere: cantiereRapporto,
-        data,
-        ore,
-        note,
-        operai,
-        numero_presenti: numeroPresenti,
-        ore_per_operaio: orePerOperaio,
-        materiali,
-        quantita_materiali: quantitaMateriali,
-        costo_materiali: costoMateriali,
-      })
+  cantiere: cantiereRapporto,
+  data,
+  ore: String(
+    operaiRapportinoTemp.reduce(
+      (tot, o) => tot + o.ore,
+      0
+    )
+  ),
+  note,
+  operai,
+  costo_manodopera: operaiRapportinoTemp.reduce(
+    (tot, o) => tot + o.ore * o.costo_orario,
+    0
+  ),
+  numero_presenti: numeroPresenti,
+  ore_per_operaio: orePerOperaio,
+  materiali,
+  quantita_materiali: quantitaMateriali,
+  costo_materiali: costoMateriali,
+})
       .eq('id', rapportinoInModifica)
 
     if (error) {
@@ -1130,6 +6257,42 @@ export default function Home() {
     await caricaRapportini()
     alert('Rapportino aggiornato')
   }
+
+
+const eliminaFotoCantiere = async (id?: string) => {
+  if (!id) return
+
+  const conferma = confirm(
+    'Eliminare questa foto?'
+  )
+
+  if (!conferma) return
+
+  const { error } = await supabase
+    .from('foto_cantiere')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    alert(
+      'Errore eliminazione foto: ' +
+        error.message
+    )
+    return
+  }
+
+  await caricaFotoCantiere()
+
+  if (
+    fotoFullscreen &&
+    String(fotoFullscreen.id) === String(id)
+  ) {
+    setFotoFullscreen(null)
+  }
+
+  alert('Foto eliminata')
+}
+
 
   const eliminaRapportino = async (id?: string) => {
     if (!id) return
@@ -1161,6 +6324,7 @@ export default function Home() {
     }
     reader.readAsDataURL(file)
   }
+
 
   const usaPosizioneAttuale = () => {
     if (!navigator.geolocation) {
@@ -1220,6 +6384,56 @@ const gestisciFilePreventivo = async (e: React.ChangeEvent<HTMLInputElement>) =>
     alert('Errore durante la lettura del file preventivo')
   }
 } 
+
+
+const salvaMaterialeManuale = async () => {
+  if (!cantiereScheda || !materialeManualeDescrizione.trim()) {
+    alert('Inserisci cantiere e descrizione')
+    return
+  }
+
+  const quantita = Number(materialeManualeQuantita || 0)
+  const prezzo = Number(materialeManualePrezzo || 0)
+
+  const totale = quantita * prezzo
+
+  const { error } = await supabase
+    .from('materiali_cantiere')
+    .insert([
+      {
+        cantiere: cantiereScheda,
+        descrizione: materialeManualeDescrizione,
+        quantita,
+        prezzo_unitario: prezzo,
+        totale,
+        fornitore: materialeManualeFornitore || 'Magazzino',
+        nota: materialeManualeNota,
+        data_documento: new Date()
+          .toISOString()
+          .slice(0, 10),
+        nome_file: 'Inserimento manuale',
+      },
+    ])
+
+  if (error) {
+    alert('Errore salvataggio materiale: ' + error.message)
+    return
+  }
+
+  setMaterialeManualeDescrizione('')
+  setMaterialeManualeQuantita('1')
+  setMaterialeManualePrezzo('')
+  setMaterialeManualeFornitore('Magazzino')
+  setMaterialeManualeNota('')
+
+  await caricaEconomia()
+
+  alert('Materiale inserito')
+}
+
+
+
+
 const gestisciFileMateriale = async (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0] || null
   setFileMateriale(file)
@@ -1370,7 +6584,145 @@ const leggiTestoDaImmagine = async (file: File) => {
   return result.data.text || ''
 }
 
+const caricaFileAnalisiDocumento = async (file: File) => {
+  if (!file) return
 
+  const fakeEvent = {
+    target: {
+      files: [file],
+    },
+  } as unknown as React.ChangeEvent<HTMLInputElement>
+
+  await analizzaDocumentoCantiere(fakeEvent)
+}
+
+const analizzaDocumentoCantiere = async (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const file = e.target.files?.[0] || null
+  setFileAnalisiDocumento(file)
+  setNomeFileAnalisiDocumento(file ? file.name : '')
+  setTestoEstrattoDocumento('')
+
+  if (!file) {
+    alert('Nessun file selezionato')
+    return
+  }
+const estensione = file.name.split('.').pop()?.toLowerCase() || 'file'
+
+const nomePulito = file.name
+  .replace(/\.[^/.]+$/, '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9_-]/g, '_')
+  .replace(/_+/g, '_')
+  .replace(/^_+|_+$/g, '')
+
+const cantierePulito = (cantiereScheda || 'senza_cantiere')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9_-]/g, '_')
+  .replace(/_+/g, '_')
+  .replace(/^_+|_+$/g, '')
+  .toUpperCase()
+
+const fileName = `cantieri/${cantierePulito}/documenti/${Date.now()}_${nomePulito}.${estensione}`
+
+const { error: uploadError } = await supabase.storage
+  .from('preventivi')
+  .upload(fileName, file)
+
+if (uploadError) {
+  alert('Errore upload file: ' + uploadError.message)
+  return
+}
+
+const { data: urlData } = supabase.storage
+  .from('preventivi')
+  .getPublicUrl(fileName)
+
+setFileUrlAnalisi(urlData.publicUrl)
+setFilePathAnalisi(fileName)
+
+if (estensione === 'pdf') setFileTipoAnalisi('pdf')
+else if (estensione === 'xlsx' || estensione === 'xls') setFileTipoAnalisi('excel')
+else if (['jpg', 'jpeg', 'png', 'webp'].includes(estensione)) setFileTipoAnalisi('img')
+else setFileTipoAnalisi('altro')
+
+const tipo = file.name.toLowerCase().includes('.pdf')
+  ? 'pdf'
+  : file.name.toLowerCase().includes('.xls')
+  ? 'excel'
+  : 'img'
+
+// salva tipo
+setFileTipoAnalisi(tipo)
+
+
+
+  const nome = file.name.toLowerCase()
+
+  try {
+    setAnalisiInCorso(true)
+
+    let testo = ''
+
+    if (nome.endsWith('.pdf')) {
+      testo = await leggiPdfTesto(file)
+    } else if (
+      nome.endsWith('.jpg') ||
+      nome.endsWith('.jpeg') ||
+      nome.endsWith('.png') ||
+      nome.endsWith('.webp')
+    ) {
+      testo = await leggiTestoDaImmagine(file)
+    } else if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) {
+      const arrayBuffer = await file.arrayBuffer()
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+      const firstSheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[firstSheetName]
+      const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+      testo = rows
+        .map((row) => (Array.isArray(row) ? row.join(' | ') : ''))
+        .join('\n')
+    } else {
+      alert('Formato non supportato. Usa PDF, immagine o Excel.')
+      return
+    }
+
+   // PULIZIA TESTO
+let testoPulito = testo
+  .replace(/\|+/g, '|')
+  .replace(/\n\s*\n/g, '\n')
+  .replace(/€/g, '')
+    setTestoEstrattoDocumento(testoPulito || 'Nessun testo estratto')
+
+    analizzaTestoInVoci(testoPulito)
+
+    setTimeout(() => {
+      const totale = vociAnalizzate.reduce((tot, voce) => {
+        const quantita = Number(voce.quantita || 0)
+        const prezzo = Number(voce.prezzo || 0)
+        return tot + quantita * prezzo
+      }, 0)
+
+      if (totale > 0) {
+        setImportoRilevatoDocumento(
+          totale.toLocaleString('it-IT', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        )
+      }
+    }, 100)
+
+  } catch (error) {
+    console.error('ERRORE ANALISI DOCUMENTO:', error)
+    alert('Errore durante l’analisi del documento')
+  } finally {
+    setAnalisiInCorso(false)
+  }
+}
 const provaImportoDaPdf = async (file: File) => {
   const testo = await leggiPdfTesto(file)
   const righe = testo
@@ -1675,90 +7027,48 @@ const provaAttrezzoDaImmagine = async (file: File) => {
     }
   }
 }
+
+
   const salvaFotoCantiere = async () => {
-    if (!cantiereFoto || !immagineBase64) {
-      alert('Seleziona cantiere e foto')
-      return
-    }
-
-    const nuovaFoto: FotoCantiere = {
-      cantiere: cantiereFoto,
-      nota: notaFoto,
-      immagine_base64: immagineBase64,
-      data_foto: dataFoto,
-      geolocalizzazione,
-    }
-
-    const { error } = await supabase.from('foto_cantiere').insert([nuovaFoto])
-
-    if (error) {
-      alert('Errore salvataggio foto: ' + error.message)
-      return
-    }
-
-    resetFormFoto()
-    await caricaFotoCantiere()
-    alert('Foto salvata')
+  if (!cantiereScheda) {
+    alert('Seleziona prima un cantiere')
+    return
   }
 
-  const preparaModificaFoto = (f: FotoCantiere) => {
-    setFotoInModifica(f.id || null)
-    setCantiereFoto(f.cantiere ?? '')
-    setNotaFoto(f.nota ?? '')
-    setImmagineBase64(f.immagine_base64 ?? '')
-    setDataFoto(f.data_foto ?? '')
-    setGeolocalizzazione(f.geolocalizzazione ?? '')
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+  if (fotoDaCaricare.length === 0) {
+    alert('Carica o scatta almeno una foto')
+    return
   }
 
-  const aggiornaFoto = async () => {
-    if (!fotoInModifica) {
-      alert('Nessuna foto selezionata')
-      return
-    }
+  const dataFoto = new Date().toISOString().slice(0, 10)
 
-    if (!cantiereFoto || !immagineBase64) {
-      alert('Seleziona cantiere e foto')
-      return
-    }
+  const fotoDaSalvare = fotoDaCaricare.map((foto) => ({
+    cantiere: cantiereScheda,
+    nota: notaFotoCantiere,
+    immagine_base64: foto,
+    data_foto: dataFoto,
+    geolocalizzazione: geolocalizzazioneFoto || null,
+  }))
 
-    const { error } = await supabase
-      .from('foto_cantiere')
-      .update({
-        cantiere: cantiereFoto,
-        nota: notaFoto,
-        immagine_base64: immagineBase64,
-        data_foto: dataFoto,
-        geolocalizzazione,
-      })
-      .eq('id', fotoInModifica)
+  const { error } = await supabase
+    .from('foto_cantiere')
+    .insert(fotoDaSalvare)
 
-    if (error) {
-      alert('Errore aggiornamento foto: ' + error.message)
-      return
-    }
-
-    resetFormFoto()
-    await caricaFotoCantiere()
-    alert('Foto aggiornata')
+  if (error) {
+    alert('Errore salvataggio foto: ' + error.message)
+    return
   }
 
-  const eliminaFoto = async (id?: string) => {
-    if (!id) return
+  setFotoDaCaricare([])
+  setNotaFotoCantiere('')
+  setGeolocalizzazioneFoto('')
 
-    const conferma = confirm('Vuoi eliminare questa foto?')
-    if (!conferma) return
+  await caricaFotoCantiere()
 
-    const { error } = await supabase.from('foto_cantiere').delete().eq('id', id)
+  alert(`Salvate ${fotoDaCaricare.length} foto`)
+}
 
-    if (error) {
-      alert('Errore eliminazione foto: ' + error.message)
-      return
-    }
 
-    await caricaFotoCantiere()
-    alert('Foto eliminata')
-  }
 
   const salvaPreventivo = async () => {
     if (!cantiereScheda || !importoPreventivo.trim()) {
@@ -1777,6 +7087,7 @@ const provaAttrezzoDaImmagine = async (file: File) => {
       {
         cantiere: cantiereScheda,
         importo_totale: importo,
+
         note: notePreventivo.trim(),
         nome_file: nomeFilePreventivo.trim(),
       },
@@ -1792,6 +7103,7 @@ const provaAttrezzoDaImmagine = async (file: File) => {
     setNomeFilePreventivo('')
 
     await caricaEconomia()
+    await caricaAcconti()
     alert('Preventivo salvato')
   }
 
@@ -1806,32 +7118,41 @@ const provaAttrezzoDaImmagine = async (file: File) => {
 
     const quantitaPulita = isNaN(qta) ? 0 : qta
     const prezzoPulito = isNaN(prezzo) ? 0 : prezzo
-    const totale = quantitaPulita * prezzoPulito
+    
 
-    const { error } = await supabase.from('materiali_cantiere').insert([
-      {
-        cantiere: cantiereScheda,
-        descrizione: descrizioneMateriale.trim(),
-        quantita: quantitaPulita,
-        prezzo_unitario: prezzoPulito,
-        totale,
-        fornitore: fornitoreMateriale.trim(),
-        data_documento: dataDocumentoMateriale || null,
-        nome_file: nomeFileMateriale.trim(),
-      },
-    ])
+   const totale = estraiTotaleScontrino(testoEstrattoDocumento)
 
-    if (error) {
-      alert('Errore salvataggio materiale: ' + error.message)
-      return
-    }
+if (!totale) {
+  alert('Totale non trovato')
+  return
+}
 
-    setDescrizioneMateriale('')
-    setQuantitaMaterialeEconomia('')
-    setPrezzoMaterialeEconomia('')
-    setFornitoreMateriale('')
-    setDataDocumentoMateriale('')
-    setNomeFileMateriale('')
+
+const { error } = await supabase.from('attrezzi_cantiere').insert([
+  {
+    cantiere: cantiereScheda,
+    descrizione: nomeFileAnalisiDocumento || 'Scontrino attrezzo',
+    quantita: 1,
+    prezzo_unitario: estraiTotaleScontrino(testoEstrattoDocumento) || 0,
+totale: estraiTotaleScontrino(testoEstrattoDocumento) || 0,
+    fornitore: 'Documento analizzato',
+    data_documento: oggi,
+    nome_file: nomeFileAnalisiDocumento || 'Documento analizzato',
+    nota: 'Importato automaticamente da scontrino',
+  },
+])
+
+if (error) {
+  alert('Errore salvataggio materiale: ' + error.message)
+  return
+}
+
+setDescrizioneMateriale('')
+setQuantitaMaterialeEconomia('')
+setPrezzoMaterialeEconomia('')
+setFornitoreMateriale('')
+setDataDocumentoMateriale('')
+setNomeFileMateriale('')
 
     await caricaEconomia()
     alert('Materiale aggiunto')
@@ -1842,13 +7163,19 @@ const provaAttrezzoDaImmagine = async (file: File) => {
       alert('Seleziona il cantiere nella scheda e inserisci la descrizione dell’attrezzo')
       return
     }
+const totale = estraiTotaleScontrino(testoEstrattoDocumento)
 
+if (!totale) {
+  alert('Totale non trovato')
+  return
+}
     const qta = parseFloat((quantitaAttrezzo || '0').replace(',', '.'))
     const prezzo = parseFloat((prezzoAttrezzo || '0').replace(',', '.'))
 
     const quantitaPulita = isNaN(qta) ? 0 : qta
     const prezzoPulito = isNaN(prezzo) ? 0 : prezzo
-    const totale = quantitaPulita * prezzoPulito
+    const totaleCalcolato = quantitaPulita * prezzoPulito
+
 
     const { error } = await supabase.from('attrezzi_cantiere').insert([
       {
@@ -2224,7 +7551,9 @@ const provaAttrezzoDaImmagine = async (file: File) => {
 
   const operaiAttivi = operaiAnagrafica.filter((o) => o.stato !== 'sospeso')
 
-  const totaleCantieri = cantieri.length
+const cantieriAttivi = cantieri.filter((c) => !c.lavori_conclusi)
+
+const totaleCantieri = cantieriAttivi.length
   const totaleRapportini = rapportini.length
   const totaleFoto = fotoCantiere.length
   const totaleOperai = operaiAnagrafica.length
@@ -2241,9 +7570,57 @@ const provaAttrezzoDaImmagine = async (file: File) => {
     return tot + calcolaCostoTimbratura(t)
   }, 0)
 
+const costoPerCantiereOggi = () => {
+  const risultato: { [key: string]: number } = {}
+
+  timbratureOggi.forEach((t) => {
+    const costo = calcolaCostoTimbratura(t)
+
+    if (!risultato[t.cantiere]) {
+      risultato[t.cantiere] = 0
+    }
+
+
+    risultato[t.cantiere] += costo
+  })
+
+  return risultato
+}
+
+const totaleAccontiCantiere = accontiCantiere
+ .filter((a) => {
+  if (a.cantiere !== cantiereScheda) return false
+
+  if (
+    economiaDataDa &&
+    String(a.data_incasso || '') < economiaDataDa
+  ) {
+    return false
+  }
+
+  if (
+    economiaDataA &&
+    String(a.data_incasso || '') > economiaDataA
+  ) {
+    return false
+  }
+
+  return true
+})
+  .reduce((tot, a) => tot + Number(a.importo || 0), 0)
+
+
   const costoGiornalieroCantiereSelezionato = timbrature
     .filter((t) => t.cantiere === cantiereScheda && t.data === oggi)
     .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+
+const costoTotaleRapportino = operaiRapportino.reduce(
+  (tot, o) => tot + o.ore * o.costo,
+  0
+)
+
+const totaleFinaleRapportino =
+  costoTotaleRapportino + Number(costoExtraRapportino || 0)
 
   const costoGiornalieroRapportino = timbrature
     .filter((t) => t.cantiere === cantiereRapporto && t.data === oggi)
@@ -2253,40 +7630,254 @@ const provaAttrezzoDaImmagine = async (file: File) => {
   const ultimiRapportini = rapportini.slice(0, 5)
   const ultimeFoto = fotoCantiere.slice(0, 4)
 
-  const preventivoCantiere = preventivi
-    .filter((p) => p.cantiere === cantiereScheda)
-    .reduce((tot, p) => tot + Number(p.importo_totale || 0), 0)
+ const cantiereSelezionato = cantieri.find(
+  (c) => c.nome === cantiereScheda
+)
 
+const totalePreventiviCaricati = preventivi
+  .filter((p) => p.cantiere === cantiereScheda)
+  .reduce((tot, p) => {
+    const valoreDaUsare =
+      (p as any).importo_corretto &&
+      String((p as any).importo_corretto).trim() !== ''
+        ? (p as any).importo_corretto
+        : p.importo_totale
+
+    return tot + parseImporto(valoreDaUsare)
+  }, 0)
+const preventivoCantiere =
+  totalePreventiviCaricati > 0
+    ? totalePreventiviCaricati
+    : Number(cantiereSelezionato?.preventivo || 0)
+
+const residuoDaIncassare =
+  Number(preventivoCantiere || 0) - totaleAccontiCantiere
   const totaleMaterialiEconomia = materialiCantiere
-    .filter((m) => m.cantiere === cantiereScheda)
-    .reduce((tot, m) => tot + Number(m.totale || 0), 0)
+  .filter((m) => {
+    if (m.cantiere !== cantiereScheda) return false
+
+    if (
+      economiaDataDa &&
+      String(m.data_documento || '') < economiaDataDa
+    ) {
+      return false
+    }
+
+    if (
+      economiaDataA &&
+      String(m.data_documento || '') > economiaDataA
+    ) {
+      return false
+    }
+
+    return true
+  })
+  .reduce((tot, m) => tot + Number(m.totale || 0), 0)
+
 
   const totaleAttrezziEconomia = attrezziCantiere
     .filter((a) => a.cantiere === cantiereScheda)
     .reduce((tot, a) => tot + Number(a.totale || 0), 0)
+const totaleVociAnalizzate = vociAnalizzate.reduce((tot, voce) => {
+  if (voce.quantita !== undefined && voce.prezzo !== undefined) {
+    return tot + voce.quantita * voce.prezzo
+  }
+  return tot
+}, 0)
 
-  const totaleManodoperaCantiere = timbrature
-    .filter((t) => t.cantiere === cantiereScheda)
+ const totaleManodoperaTimbrature = timbrature
+  .filter((t) => {
+    if (t.cantiere !== cantiereScheda) return false
+
+    if (economiaDataDa && String(t.data || '') < economiaDataDa) {
+      return false
+    }
+
+    if (economiaDataA && String(t.data || '') > economiaDataA) {
+      return false
+    }
+
+    return true
+  })
+  .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+
+const totaleManodoperaRapportini = rapportini
+  .filter((r) => {
+    if (r.cantiere !== cantiereScheda) return false
+
+    if (economiaDataDa && String(r.data || '') < economiaDataDa) {
+      return false
+    }
+
+    if (economiaDataA && String(r.data || '') > economiaDataA) {
+      return false
+    }
+
+    return true
+  })
+  .reduce(
+    (tot, r) => tot + Number((r as any).costo_manodopera || 0),
+    0
+  )
+
+const totaleManodoperaCantiere =
+  totaleManodoperaTimbrature + totaleManodoperaRapportini
+
+const totaleCostiCantiere =
+  totaleManodoperaCantiere +
+  totaleMaterialiEconomia +
+  totaleAttrezziEconomia +
+  (includiVociAnalizzateNeiCosti ? totaleVociAnalizzate : 0)
+
+const utileCantiere = preventivoCantiere - totaleCostiCantiere
+
+const dashboardCantieri = cantieri.map((c) => {
+  const totalePreventiviCaricati = preventivi
+    .filter((p) => p.cantiere === c.nome)
+    .reduce((tot, p) => {
+      const valoreDaUsare =
+        (p as any).importo_corretto &&
+        String((p as any).importo_corretto).trim() !== ''
+          ? (p as any).importo_corretto
+          : p.importo_totale
+
+      return tot + parseImporto(valoreDaUsare)
+    }, 0)
+
+  const preventivo =
+    totalePreventiviCaricati > 0
+      ? totalePreventiviCaricati
+      : parseImporto(c.preventivo)
+
+  const materiali = materialiCantiere
+    .filter((m) => m.cantiere === c.nome)
+    .reduce((tot, m) => tot + Number(m.totale || 0), 0)
+
+  const attrezzi = attrezziCantiere
+    .filter((a) => a.cantiere === c.nome)
+    .reduce((tot, a) => tot + Number(a.totale || 0), 0)
+
+  const manodoperaTimbrature = timbrature
+    .filter((t) => t.cantiere === c.nome)
     .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
 
-  const totaleCostiCantiere =
-    totaleManodoperaCantiere + totaleMaterialiEconomia + totaleAttrezziEconomia
+  const manodoperaRapportini = rapportini
+    .filter((r) => r.cantiere === c.nome)
+    .reduce(
+      (tot, r) => tot + Number((r as any).costo_manodopera || 0),
+      0
+    )
 
-  const utileCantiere = preventivoCantiere - totaleCostiCantiere
+  const manodopera =
+    manodoperaTimbrature + manodoperaRapportini
+
+  const costi = materiali + attrezzi + manodopera
+  const utile = preventivo - costi
+  const margine = preventivo > 0 ? (utile / preventivo) * 100 : 0
+
+  return {
+    nome: c.nome,
+    preventivo,
+    costi,
+    utile,
+    margine,
+  }
+})
+
+const calcolaOreTimbratura = (entrata?: string, uscita?: string) => {
+  if (!entrata || !uscita) return '-'
+
+  const [eh, em] = entrata.split(':').map(Number)
+  const [uh, um] = uscita.split(':').map(Number)
+
+  const minutiEntrata = eh * 60 + em
+  const minutiUscita = uh * 60 + um
+  const differenza = minutiUscita - minutiEntrata
+
+  if (differenza <= 0) return '-'
+
+  const ore = Math.floor(differenza / 60)
+  const minuti = differenza % 60
+
+  return minuti === 0 ? `${ore} ore` : `${ore}h ${minuti}m`
+}
+
+const minutiDaOra = (ora?: string) => {
+  if (!ora) return 0
+
+  const [h, m] = ora.split(':').map(Number)
+  if (isNaN(h) || isNaN(m)) return 0
+
+  return h * 60 + m
+}
+
+const calcolaOreNumero = (entrata?: string, uscita?: string) => {
+  if (!entrata || !uscita) return 0
+
+  const minutiEntrata = minutiDaOra(entrata)
+  const minutiUscita = minutiDaOra(uscita)
+
+  const diff = minutiUscita - minutiEntrata
+  if (diff <= 0) return 0
+
+  return diff / 60
+}
+
+const totaleOreOperaio = (operaio: string) => {
+  return timbrature
+    .filter((t) => t.operaio_nome === operaio)
+    .reduce(
+      (tot, t) =>
+        tot + calcolaOreNumero(t.ora_entrata, t.ora_uscita),
+      0
+    )
+}
+
+
+
+const totalePreventiviImpresa = dashboardCantieri.reduce((tot, c) => tot + c.preventivo, 0)
+const totaleCostiImpresa = dashboardCantieri.reduce((tot, c) => tot + c.costi, 0)
+const utileTotaleImpresa = totalePreventiviImpresa - totaleCostiImpresa
+const margineMedioImpresa =
+  totalePreventiviImpresa > 0 ? (utileTotaleImpresa / totalePreventiviImpresa) * 100 : 0
+
+
+
+const classificaCantieri = dashboardCantieri
+  .filter((c) => !cantieri.find((x) => x.nome === c.nome)?.lavori_conclusi)
+  .sort((a, b) => b.utile - a.utile)
+
+
+const storicoUtileCantieri = cantieri.map((c) => {
+  const preventivo = Number(c.preventivo || 0)
+
+  const manodoperaGiorno = timbrature
+    .filter(
+      (t) =>
+        t.cantiere === c.nome &&
+        t.data &&
+        t.data <= dataStoricoUtile
+    )
+    .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+
+  const utileGiorno = preventivo - manodoperaGiorno
+
+  return {
+    nome: c.nome,
+    preventivo,
+    manodoperaGiorno,
+    utileGiorno,
+  }
+})
+
+
 
   const margineCantiere =
     preventivoCantiere > 0
       ? ((utileCantiere / preventivoCantiere) * 100).toFixed(2)
       : '0.00'
 
-  const cardStyle: CSSProperties = {
-    padding: 16,
-    border: '1px solid #d9d9d9',
-    borderRadius: 12,
-    background: '#ffffff',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
-  }
-
+ 
   const buttonPrimary: CSSProperties = {
     padding: '10px 14px',
     backgroundColor: '#0f172a',
@@ -2318,1656 +7909,12462 @@ const provaAttrezzoDaImmagine = async (file: File) => {
     color: stato === 'sospeso' ? '#991b1b' : '#166534',
     border: stato === 'sospeso' ? '1px solid #fecaca' : '1px solid #bbf7d0',
   })
+const togglePaginaAperta = (pagina: string) => {
+  setPagineAperte((prev) =>
+    prev.includes(pagina)
+      ? prev.filter((p) => p !== pagina)
+      : [...prev, pagina]
+  )
+}
+const labelStyle = {
+  display: 'block',
+  fontSize: 13,
+  color: '#cbd5e1',
+  marginBottom: 4,
+}
 
+const sectionTitle = {
+  marginTop: 8,
+  marginBottom: 4,
+  fontSize: 12,
+  color: '#94a3b8',
+}
+const calcolaOre = (t: Timbratura) => {
+  const entrata = parseOra(t.ora_entrata)
+  const uscita = parseOra(t.ora_uscita)
+
+  if (entrata === null || uscita === null || uscita < entrata) return 0
+
+  return (uscita - entrata) / 60
+}
+
+
+
+const timbratureFiltrate = timbrature.filter((t) => {
+  if (dataDa && t.data < dataDa) return false
+  if (dataA && t.data > dataA) return false
+  if (cantiereGrafico && t.cantiere !== cantiereGrafico) return false
+  return true
+})
+
+const totaleCostoPeriodo = timbratureFiltrate.reduce((tot, t) => {
+  return tot + calcolaCostoTimbratura(t)
+}, 0)
+
+const totaleOrePeriodo = timbratureFiltrate.reduce((tot, t) => {
+  return tot + calcolaOre(t)
+}, 0)
+
+const totaleMaturatoOperai = timbrature.reduce((tot, t) => {
+  return tot + calcolaCostoTimbratura(t)
+}, 0)
+
+const totalePagatoOperai = pagamentiOperai.reduce((tot, p) => {
+  return tot + Number(p.importo || 0)
+}, 0)
+
+const residuoPagamentiOperai = totaleMaturatoOperai - totalePagatoOperai
+
+const giorniAllaScadenzaPagamenti = scadenzaPagamentiOperai
+  ? Math.ceil(
+      (new Date(scadenzaPagamentiOperai).getTime() - new Date(oggi).getTime()) /
+        (1000 * 60 * 60 * 24)
+    )
+  : null
+
+const costoOperaiPerCantiere = timbrature.reduce((acc: any, t) => {
+  const cantiere = t.cantiere || 'Senza cantiere'
+
+  if (!acc[cantiere]) {
+    acc[cantiere] = 0
+  }
+
+  acc[cantiere] += calcolaCostoTimbratura(t)
+
+  return acc
+}, {})
+
+
+const situazioneCantieri = cantieri.map((c) => {
+  const nome = c.nome
+
+  const acconti = accontiCantiere
+    .filter((a) => a.cantiere === nome)
+    .reduce((tot, a) => tot + Number(a.importo || 0), 0)
+
+  const costoOperai = timbrature
+    .filter((t) => t.cantiere === nome)
+    .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+
+  const costoMateriali = materialiCantiere
+    .filter((m) => m.cantiere === nome)
+    .reduce((tot, m) => tot + Number(m.totale || 0), 0)
+
+  const costoAttrezzi = attrezziCantiere
+    .filter((a) => a.cantiere === nome)
+    .reduce((tot, a) => tot + Number(a.totale || 0), 0)
+
+  const costiTotali =
+    costoOperai + costoMateriali + costoAttrezzi
+
+  const saldo =
+    acconti - costiTotali
+
+
+const preventivo =
+  Number(c.preventivo || 0)
+
+const stimaMateriali =
+  preventivo * 0.28
+
+const stimaManodopera =
+  preventivo * 0.32
+
+const stimaCostiTotali =
+  stimaMateriali + stimaManodopera + costoAttrezzi
+
+const utileStimato =
+  preventivo - stimaCostiTotali
+
+const differenzaCosti =
+  stimaCostiTotali - costiTotali
+
+  let stato = 'ok'
+
+  if (saldo < 0) {
+    stato = 'critico'
+  } else if (saldo < costiTotali * 0.15) {
+    stato = 'attenzione'
+  }
+
+  return {
+    nome,
+    acconti,
+    costoOperai,
+    costoMateriali,
+    costoAttrezzi,
+    costiTotali,
+    saldo,
+    stato,
+
+preventivo,
+stimaMateriali,
+stimaManodopera,
+stimaCostiTotali,
+utileStimato,
+differenzaCosti,
+  }
+})
+
+
+const statoScadenzaPagamenti =
+  giorniAllaScadenzaPagamenti === null
+    ? 'nessuna'
+    : giorniAllaScadenzaPagamenti < 0
+    ? 'scaduto'
+    : giorniAllaScadenzaPagamenti <= giorniPreavvisoPagamenti
+    ? 'attenzione'
+    : 'ok'
+
+const aggiungiPresenzaManuale = async () => {
+  if (!operaioPresenzaManuale || !cantierePresenzaManuale || !dataPresenzaManuale || !oraEntrataManuale) {
+    alert('Compila operaio, cantiere, data e ora entrata')
+    return
+  }
+
+  const { error } = await supabase.from('timbrature').insert([
+    {
+      operaio_nome: operaioPresenzaManuale,
+      cantiere: cantierePresenzaManuale,
+      data: dataPresenzaManuale,
+      ora_entrata: oraEntrataManuale,
+      ora_uscita: oraUscitaManuale || null,
+      stato: oraUscitaManuale ? 'chiuso' : 'aperto',
+    },
+  ])
+
+  if (error) {
+    alert('Errore inserimento presenza: ' + error.message)
+    return
+  }
+
+  setOperaioPresenzaManuale('')
+  setCantierePresenzaManuale('')
+  setOraEntrataManuale('')
+  setOraUscitaManuale('')
+
+  await caricaTimbrature()
+  alert('Presenza inserita')
+}
+const erroreTimbratura = (t: Timbratura) => {
+  const entrata = parseOra(t.ora_entrata)
+  const uscita = parseOra(t.ora_uscita)
+
+  if (!t.ora_uscita || t.stato === 'aperto') {
+    return '⚠️ Mancata uscita'
+  }
+
+  if (entrata !== null && uscita !== null && uscita < entrata) {
+    return '🚨 Uscita precedente all’entrata'
+  }
+
+  const ore = calcolaOre(t)
+
+  if (ore > 10) {
+    return `⚠️ Ore eccessive: ${ore.toFixed(2)} h`
+  }
+
+  return ''
+}
+const eliminaFileDaStorage = async (filePath?: string | null) => {
+  if (!filePath) return
+
+  const { error } = await supabase.storage
+    .from('preventivi')
+    .remove([filePath])
+
+  if (error) {
+    console.error('Errore cancellazione Storage:', error.message)
+    throw error
+  }
+}
+
+const salvaDocumentoComeMaterialeUnico = async () => {
+  if (!cantiereScheda) {
+    alert('Seleziona prima un cantiere')
+    return
+  }
+
+  if (!fileAnalisiDocumento) {
+    alert('Seleziona prima un file')
+    return
+  }
+
+  const importo = parseImporto(importoRilevatoDocumento)
+
+  if (!importo || importo <= 0) {
+    alert('Importo non valido')
+    return
+  }
+
+  // 🔥 👇 INSERISCI QUI (PRIMA DELL'INSERT)
+
+  const estensione = fileAnalisiDocumento.name.split('.').pop()?.toLowerCase() || 'file'
+
+  let fileTipo = 'altro'
+  if (estensione === 'pdf') fileTipo = 'pdf'
+  if (estensione === 'xlsx' || estensione === 'xls') fileTipo = 'excel'
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(estensione)) fileTipo = 'img'
+
+  const nomePulito = fileAnalisiDocumento.name
+    .replace(/\.[^/.]+$/, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+
+  const cantierePulito = (cantiereScheda || 'senza_cantiere')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9_-]/g, '_')
+  .replace(/_+/g, '_')
+  .replace(/^_+|_+$/g, '')
+  .toUpperCase()
+
+const fileName = `cantieri/${cantierePulito}/documenti/${Date.now()}_${nomePulito}.${estensione}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('preventivi')
+    .upload(fileName, fileAnalisiDocumento)
+
+  if (uploadError) {
+    alert('Errore upload file: ' + uploadError.message)
+    return
+  }
+
+  const { data } = supabase.storage
+    .from('preventivi')
+    .getPublicUrl(fileName)
+
+  const fileUrl = data.publicUrl
+
+  // 🔥 👇 DOPO L’UPLOAD → INSERT
+
+  const { error } = await supabase.from('materiali_cantiere').insert([
+    {
+      cantiere: cantiereScheda,
+      descrizione: nomeFileAnalisiDocumento || 'Documento analizzato',
+      quantita: 1,
+      prezzo_unitario: importo,
+      totale: importo,
+      fornitore: 'Documento analizzato',
+      data_documento: oggi,
+      nome_file: nomeFileAnalisiDocumento || 'Documento analizzato',
+
+      file_url: fileUrl,
+      file_tipo: fileTipo,
+file_path: fileName,
+      anteprima_testo: testoEstrattoDocumento,
+    },
+  ])
+
+  if (error) {
+    alert('Errore salvataggio materiale: ' + error.message)
+    return
+  }
+
+  await caricaEconomia()
+  alert('Documento salvato come materiale')
+}
+
+const voceMenuStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '8px 10px',
+  borderRadius: 8,
+  cursor: 'pointer',
+}
+
+const voceSinistra = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+}
+
+const caricaImpostazioniSupabase = async () => {
+  const { data, error } = await supabase
+    .from('impostazioni_app')
+    .select('*')
+
+  if (error) {
+    console.error('Errore caricamento impostazioni:', error.message)
+    return
+  }
+
+  data?.forEach((item) => {
+    if (item.chiave === 'fontFamily') setFontFamily(item.valore || 'Inter')
+    if (item.chiave === 'fontSize') setFontSize(Number(item.valore || 15))
+    if (item.chiave === 'nomeApp') setNomeApp(item.valore || 'ARTECNA')
+    if (item.chiave === 'temaApp') setTemaApp(item.valore || 'scuro')
+  })
+}
+
+const salvaImpostazioneSupabase = async (chiave: string, valore: string) => {
+  const { error } = await supabase
+    .from('impostazioni_app')
+    .upsert(
+      { chiave, valore },
+      { onConflict: 'chiave' }
+    )
+
+  if (error) {
+    alert('Errore salvataggio impostazione: ' + error.message)
+  }
+}
+
+const [emailLogin, setEmailLogin] = useState('')
+const [passwordLogin, setPasswordLogin] = useState('')
+const [utente, setUtente] = useState<any>(null)
+const [ricordaEmail, setRicordaEmail] = useState(true)
+
+const login = async () => {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: emailLogin,
+    password: passwordLogin,
+  })
+
+  if (error) {
+    alert('Errore login: ' + error.message)
+    return
+  }
+
+  if (ricordaEmail) {
+    localStorage.setItem('artecna_email', emailLogin)
+  } else {
+    localStorage.removeItem('artecna_email')
+  }
+
+  setUtente(data.user)
+}
+const registrati = async () => {
+  const { data, error } = await supabase.auth.signUp({
+    email: emailLogin,
+    password: passwordLogin,
+  })
+
+  if (error) {
+    alert('Errore registrazione: ' + error.message)
+    return
+  }
+
+  setUtente(data.user)
+}
+
+if (!utente) {
   return (
-    <div style={{ padding: 20, fontFamily: 'Arial, sans-serif', maxWidth: 1100 }}>
+    <div style={{ padding: 40 }}>
+      <h1>ARTECNA</h1>
+      <h2>Login</h2>
+
+      <input
+        style={inputStyle}
+        placeholder="Email"
+        value={emailLogin}
+        onChange={(e) => setEmailLogin(e.target.value)}
+      />
+
+     <div style={{ position: 'relative' }}>
+  <input
+    style={inputStyle}
+    type={mostraPassword ? 'text' : 'password'}
+    placeholder="Password"
+    value={passwordLogin}
+    onChange={(e) => setPasswordLogin(e.target.value)}
+  />
+
+  <span
+    onClick={() => setMostraPassword(!mostraPassword)}
+    style={{
+      position: 'absolute',
+      right: 10,
+      top: '50%',
+      transform: 'translateY(-50%)',
+      cursor: 'pointer',
+      fontSize: 14,
+      color: '#64748b',
+    }}
+  >
+    {mostraPassword ? '🙈' : '👁️'}
+  </span>
+</div>
+
+      <button style={buttonPrimary} onClick={login}>
+        Accedi
+      </button>
+
+      <button style={{ ...buttonSecondary, marginLeft: 10 }} onClick={registrati}>
+        Registrati
+      </button>
+    </div>
+  )
+}
+
+
+
+
+
+
+
+
+const salvaFatturaFornitore = async () => {
+  if (!fatturaNumero || !fatturaData) {
+  alert('Dati fattura incompleti: manca numero o data fattura')
+  return
+}
+
+  if (righeFatturaDaAssegnare.length === 0) {
+    alert('Nessuna riga da salvare')
+    return
+  }
+
+  const totale = Number(String(fatturaTotale).replace(',', '.')) || 0
+
+  const { data: duplicati, error: erroreDuplicati } = await supabase
+    .from('fatture_fornitori')
+    .select('*')
+    .eq('partita_iva', fatturaPartitaIva || '')
+    .eq('numero_fattura', fatturaNumero)
+    .eq('data_fattura', fatturaData)
+    .eq('importo_totale', totale)
+
+  if (erroreDuplicati) {
+    alert('Errore controllo duplicati: ' + erroreDuplicati.message)
+    return
+  }
+
+  if (duplicati && duplicati.length > 0) {
+    alert('Questa fattura risulta già caricata.')
+    return
+  }
+
+  const righeAssegnate = righeFatturaDaAssegnare.filter((r) => r.cantiere)
+
+for (const riga of righeAssegnate) {
+  const totaleMateriale =
+    Number(riga.totale_riga || 0)
+
+  await supabase
+    .from('materiali_cantiere')
+    .insert({
+      cantiere: riga.cantiere,
+      descrizione: riga.descrizione,
+      quantita: riga.quantita || 1,
+      prezzo_unitario: riga.prezzo_unitario || 0,
+      totale: Number(riga.totale_riga || 0),
+      fornitore: fatturaFornitore,
+      data_documento: fatturaData,
+      nome_file: fatturaNomeFile,
+      file_tipo: fatturaTipoFile,
+      anteprima_testo: fatturaTestoOriginale,
+    })
+}
+
+  if (righeAssegnate.length === 0) {
+    alert('Assegna almeno una riga a un cantiere o a Generale impresa')
+    return
+  }
+
+  const stato =
+    righeAssegnate.length === righeFatturaDaAssegnare.length
+      ? 'assegnata'
+      : 'parzialmente_assegnata'
+
+  const { data: fatturaInserita, error: erroreFattura } = await supabase
+    .from('fatture_fornitori')
+    .insert({
+      fornitore: fatturaFornitore,
+      partita_iva: fatturaPartitaIva,
+      numero_fattura: fatturaNumero,
+      data_fattura: fatturaData,
+      tipo_documento: 'fattura',
+      importo_totale: totale,
+      nome_file: fatturaNomeFile,
+      tipo_file: fatturaTipoFile || 'xml',
+      xml_testo: fatturaTipoFile === 'xml' ? fatturaTestoOriginale : null,
+      pdf_testo: fatturaTipoFile === 'pdf' ? fatturaTestoOriginale : null,
+      stato,
+    })
+    .select()
+    .single()
+
+  if (erroreFattura) {
+    alert('Errore salvataggio fattura: ' + erroreFattura.message)
+    return
+  }
+
+  const fatturaId = fatturaInserita.id
+
+  const righeDaSalvare = righeFatturaDaAssegnare.map((r) => ({
+    fattura_id: fatturaId,
+    numero_riga: r.numero_riga,
+    descrizione: r.descrizione,
+    quantita: r.quantita,
+    prezzo_unitario: r.prezzo_unitario,
+    totale_riga: r.totale_riga,
+categoria_economica: r.categoria_economica || '',
+    cantiere: r.cantiere || null,
+    stato: r.cantiere ? 'assegnata' : 'da_assegnare',
+  }))
+
+  const { error: erroreRighe } = await supabase
+    .from('fatture_fornitori_righe')
+    .insert(righeDaSalvare)
+
+  if (erroreRighe) {
+    alert('Errore salvataggio righe fattura: ' + erroreRighe.message)
+    return
+  }
+
+  const materialiDaSalvare = righeAssegnate
+    .filter((r) => r.cantiere !== 'Generale impresa')
+    .map((r) => ({
+      cantiere: r.cantiere,
+      descrizione: `${fatturaFornitore} - ${r.descrizione}`,
+     totale: Number(r.totale_riga || 0),
+      data: fatturaData,
+      nome_file: fatturaNomeFile,
+      file_tipo: fatturaTipoFile || 'xml',
+      anteprima_testo: `Fattura ${fatturaNumero} del ${fatturaData}`,
+    }))
+console.log('MATERIALI DA SALVARE:', materialiDaSalvare)
+alert('Materiali da salvare in economia: ' + materialiDaSalvare.length)
+
+  if (materialiDaSalvare.length > 0) {
+    const { error: erroreMateriali } = await supabase
+      .from('materiali_cantiere')
+      .insert(materialiDaSalvare)
+
+    if (erroreMateriali) {
+      alert('Errore salvataggio materiali cantiere: ' + erroreMateriali.message)
+      return
+    }
+  }
+
+
+  const { error: errorePagamento } = await supabase
+    .from('pagamenti_fornitori')
+    .insert({
+      fornitore: fatturaFornitore,
+      descrizione: `Fattura ${fatturaNumero} del ${fatturaData}`,
+      importo: totale,
+      data_scadenza: fatturaData,
+      stato: 'da_pagare',
+      note: fatturaNomeFile,
+    })
+
+  if (errorePagamento) {
+    alert('Errore salvataggio pagamento fornitore: ' + errorePagamento.message)
+    return
+  }
+
+  setFatturaFornitore('')
+  setFatturaPartitaIva('')
+  setFatturaNumero('')
+  setFatturaData('')
+  setFatturaTotale('')
+  setFatturaNomeFile('')
+  setFatturaTipoFile('')
+  setFatturaTestoOriginale('')
+  setRigheFatturaDaAssegnare([])
+  setCantiereMassivoFattura('')
+
+  await caricaEconomia()
+  await caricaPagamentiFornitori()
+  await caricaFattureFornitori()
+
+  alert('Fattura salvata correttamente')
+}
+
+const importaFatturaSilenziosa = async (
+  dati: {
+    fornitore: string
+    partitaIva?: string
+    numero: string
+    data: string
+    totale: number
+    nomeFile: string
+    tipoFile: string
+    testoOriginale?: string
+  },
+  righe: RigaFatturaDaAssegnare[]
+) => {
+  try {
+    // controllo duplicato
+    const { data: esistente } = await supabase
+      .from('fatture_fornitori')
+      .select('id')
+      .eq('numero_fattura', dati.numero)
+      .eq('fornitore', dati.fornitore)
+      .maybeSingle()
+
+    if (esistente) {
+      return {
+        stato: 'duplicato',
+      }
+    }
+
+    // salva testata fattura
+    const { data: fattura, error } = await supabase
+      .from('fatture_fornitori')
+      .insert({
+        fornitore: dati.fornitore,
+        partita_iva: dati.partitaIva || '',
+        numero_fattura: dati.numero,
+        data_fattura: dati.data,
+        importo_totale: dati.totale,
+        nome_file: dati.nomeFile,
+        tipo_file: dati.tipoFile,
+        stato: 'da_assegnare',
+        xml_testo: dati.tipoFile === 'xml' ? dati.testoOriginale || '' : '',
+pdf_testo: dati.tipoFile === 'pdf' ? dati.testoOriginale || '' : '',
+      })
+      .select()
+      .single()
+
+    if (error || !fattura) {
+      console.error('Errore importazione fattura silenziosa:', error)
+
+alert(
+  'Errore importazione fattura silenziosa:\n' +
+    JSON.stringify(error, null, 2)
+)
+      return {
+        stato: 'errore',
+      }
+    }
+
+    // salva righe
+    if (righe.length > 0) {
+      const righeInsert = righe.map((r) => ({
+        fattura_id: fattura.id,
+        numero_riga: r.numero_riga,
+        descrizione: r.descrizione,
+        quantita: r.quantita || 1,
+        prezzo_unitario: r.prezzo_unitario || 0,
+        totale_riga: r.totale_riga || 0,
+        aliquota_iva: r.aliquota_iva || 0,
+        unita_misura: r.unita_misura || '',
+categoria_economica: r.categoria_economica || '',
+        cantiere: r.cantiere || '',
+       stato:
+  r.cantiere || r.categoria_economica
+    ? 'assegnata'
+    : 'da_assegnare',
+      }))
+
+     const { error: erroreRighe } = await supabase
+  .from('fatture_fornitori_righe')
+  .insert(righeInsert)
+
+if (erroreRighe) {
+  const messaggioErrore = [
+    erroreRighe.message,
+    erroreRighe.details,
+    erroreRighe.hint,
+    erroreRighe.code,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  alert(
+    'Errore salvataggio righe import massivo:\n' +
+      (messaggioErrore || 'Errore sconosciuto')
+  )
+
+  console.error('Errore righe import massivo:', {
+    message: erroreRighe.message,
+    details: erroreRighe.details,
+    hint: erroreRighe.hint,
+    code: erroreRighe.code,
+  })
+
+  return {
+    stato: 'errore',
+  }
+}    }
+
+    return {
+      stato: 'importata',
+    }
+  } catch (errore) {
+    console.error(errore)
+
+    return {
+      stato: 'errore',
+    }
+  }
+}
+
+
+const fattureOrdinate = [...fattureFornitori].sort((a: any, b: any) => {
+  const valoreA = String(a[ordineFattureCampo] || '').toLowerCase()
+  const valoreB = String(b[ordineFattureCampo] || '').toLowerCase()
+
+  if (ordineFattureDirezione === 'asc') {
+    return valoreA.localeCompare(valoreB)
+  }
+
+  return valoreB.localeCompare(valoreA)
+})
+
+const fattureEmesseOrdinate = [...fattureEmesse].sort((a: any, b: any) => {
+  const campo = ordineFattureEmesseCampo
+
+  let valoreA: any = a[campo] || ''
+  let valoreB: any = b[campo] || ''
+
+  if (
+    campo === 'totale' ||
+    campo === 'importo_incassato' ||
+    campo === 'imponibile'
+  ) {
+    valoreA = Number(valoreA || 0)
+    valoreB = Number(valoreB || 0)
+
+    return ordineFattureEmesseDirezione === 'asc'
+      ? valoreA - valoreB
+      : valoreB - valoreA
+  }
+
+  valoreA = String(valoreA).toLowerCase()
+  valoreB = String(valoreB).toLowerCase()
+
+  return ordineFattureEmesseDirezione === 'asc'
+    ? valoreA.localeCompare(valoreB)
+    : valoreB.localeCompare(valoreA)
+})
+
+
+{popupMappaSopralluogo && (
+  <div
+  style={{
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+    padding: 20,
+  }}
+>
+    <div style={{ ...cardStyle, width: '90%', maxWidth: 800 }}>
+      <h3>Seleziona punto sulla mappa</h3>
+
+      <div style={{ height: 400, borderRadius: 12, overflow: 'hidden' }}>
+       <MappaSopralluogo
+  punto={puntoMappaSopralluogo}
+  setPunto={setPuntoMappaSopralluogo}
+/>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+        <button onClick={confermaPuntoMappaSopralluogo} style={buttonPrimary}>
+          Conferma punto
+        </button>
+
+        <button
+          onClick={() => setPopupMappaSopralluogo(false)}
+          style={buttonSecondary}
+        >
+          Annulla
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+ return (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div
+  style={{
+    display: 'flex',
+    minHeight: '100vh',
+    fontFamily: fontFamily,
+    fontSize: fontSize,
+  }}
+>
+
+   <style>{`
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: #eef2f7;
+    color: #0f172a;
+  }
+
+  /* TESTO GENERALE */
+  p, span, label, div {
+    color: #0f172a;
+  }
+
+  h1, h2, h3 {
+    color: #0f172a;
+  }
+
+  /* INPUT */
+  input:not(.impostazioni-input),
+select:not(.impostazioni-input),
+textarea:not(.impostazioni-input) {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 10px;
+    font-size: 15px;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #64748b !important;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  }
+
+  /* SELECT */
+  select {
+    cursor: pointer;
+  }
+
+  /* BUTTON */
+  button {
+    min-height: 42px;
+    font-size: 14px;
+  }
+
+  /* SIDEBAR (mantiene testo bianco lì) */
+  aside, aside * {
+    color: white !important;
+  }
+
+`}</style>
+
+
+{isMobile && !menuMobileAperto && (
+  <button
+    onClick={() => setMenuMobileAperto(!menuMobileAperto)}
+    style={{
+      position: 'fixed',
+      top: 14,
+      left: 14,
+      zIndex: 1200,
+      background: '#0f172a',
+      color: '#fff',
+      border: 'none',
+      borderRadius: 8,
+      padding: '10px 12px',
+      fontSize: 22,
+      cursor: 'pointer',
+boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
+    }}
+  >
+    ☰
+  </button>
+)}
+
+{menuMobileAperto && isMobile && (
+  <div
+    onClick={() => setMenuMobileAperto(false)}
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.45)',
+      zIndex: 998,
+    }}
+  />
+)}
+
+
+<button
+  onClick={() => setSidebarAperta(!sidebarAperta)}
+  style={{
+    position: 'fixed',
+    top: 12,
+   left: sidebarAperta ? 12 : 12,
+    zIndex: 2000,
+    background: '#0f172a',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 12px',
+    cursor: 'pointer',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
+    transition: 'left 0.25s ease',
+  }}
+>
+ {sidebarAperta ? '✕' : '☰ Menu'}
+</button>
+
+<aside
+  style={{
+    width: sidebarAperta ? 260 : 0,
+    background: '#0f172a',
+    color: '#fff',
+    height: '100vh',
+    transition: 'width 0.25s ease',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    flexShrink: 0,
+  }}
+>
+
+
+
+{isMobile && (
+  <div
+    style={{
+      display: 'flex',
+      justifyContent: 'flex-end',
+      padding: 10,
+    }}
+  >
+    <button
+      onClick={() => setMenuMobileAperto(false)}
+      style={{
+        background: 'transparent',
+        color: '#fff',
+        border: 'none',
+        fontSize: 28,
+        cursor: 'pointer',
+      }}
+    >
+      ✕
+    </button>
+  </div>
+)}
+
+
+  <h2
+  style={{
+    marginTop: isMobile ? 60 : 0,
+    letterSpacing: 1,
+    textAlign: 'center',
+    paddingTop: 10,
+  }}
+>
+  {nomeApp}
+</h2>
+{menuAperto === 'impostazioni' && (
+  <div style={{ marginLeft: 10, marginTop: 5, display: 'grid', gap: 8 }}>
+    <label style={labelStyle}>
+      Font:
+      <input
+        value={fontFamily}
+        onChange={(e) => setFontFamily(e.target.value)}
+        placeholder="Scegli font"
+        style={{
+          marginTop: 4,
+          padding: 6,
+          borderRadius: 6,
+          backgroundColor: '#1e293b',
+          color: '#f3f4f6',
+          border: '1px solid #334155',
+          fontSize: 'inherit',
+          width: '100%',
+        }}
+      />
+    </label>
+
+    <label style={labelStyle}>
+      Dimensione font:
+      <input
+        value={fontSize}
+        onChange={(e) => setFontSize(Number(e.target.value))}
+        placeholder="Dimensione font"
+        style={{
+          marginTop: 4,
+          padding: 6,
+          borderRadius: 6,
+          backgroundColor: '#1e293b',
+          color: '#f3f4f6',
+          border: '1px solid #334155',
+          fontSize: 13,
+          width: '100%',
+        }}
+      />
+    </label>
+<label style={{ color: 'white' }}>
+  Intestazione:
+  <input
+    className="impostazioni-input"
+    value={nomeApp}
+    onChange={(e) => setNomeApp(e.target.value)}
+    placeholder="Nome app"
+    style={{
+      width: '100%',
+      padding: 8,
+      borderRadius: 8,
+      backgroundColor: '#0f172a',
+      color: '#ffffff',
+      border: '1px solid #475569',
+      marginTop: 4,
+    }}
+  />
+</label>
+  </div>
+)}
+
+  <div style={{ marginTop: 24, display: 'grid', gap: 8 }}>
+    <button
+      onClick={() => {
+        setSezioneAttiva('home')
+        setMenuAperto(null)
+      }}
+      style={menuButtonStyle(sezioneAttiva === 'home')}
+    >
+      🏠 Home
+    </button>
+
+<button
+  onClick={() => {
+    setSezioneAttiva('sopralluoghi')
+    setMenuAperto(null)
+  }}
+  style={menuButtonStyle(sezioneAttiva === 'sopralluoghi')}
+>
+  📍 Sopralluoghi
+</button>
+
+
+    <div>
+      <button
+        onClick={() => {
+          setMenuAperto(menuAperto === 'cantieri' ? null : 'cantieri')
+          setSezioneAttiva('cantieri')
+          setSottoSezioneCantieri('elenco')
+        }}
+        style={menuButtonStyle(sezioneAttiva === 'cantieri')}
+      >
+        🏗️ Cantieri {menuAperto === 'cantieri' ? '▲' : '▼'}
+      </button>
+
+      {menuAperto === 'cantieri' && (
+        <div style={{ marginLeft: 10, marginTop: 5, display: 'grid', gap: 4 }}>
+          <div
+            onClick={() => {
+              setSezioneAttiva('cantieri')
+              setSottoSezioneCantieri('elenco')
+            }}
+            style={submenuButtonStyle(sottoSezioneCantieri === 'elenco')}
+          >
+            📋 Elenco
+          </div>
+
+          <div
+            onClick={() => {
+              setSezioneAttiva('cantieri')
+              setSottoSezioneCantieri('scheda')
+            }}
+            style={submenuButtonStyle(sottoSezioneCantieri === 'scheda')}
+          >
+            🏗️ Scheda cantiere
+          </div>
+
+          <div
+            onClick={() => {
+              setSezioneAttiva('cantieri')
+              setSottoSezioneCantieri('analisi')
+            }}
+            style={submenuButtonStyle(sottoSezioneCantieri === 'analisi')}
+          >
+            📄 Analisi documento
+          </div>
+
+          <div
+            onClick={() => {
+              setSezioneAttiva('cantieri')
+              setSottoSezioneCantieri('economia')
+            }}
+            style={submenuButtonStyle(sottoSezioneCantieri === 'economia')}
+          >
+            💶 Economia cantiere
+          </div>
+        </div>
+      )}
+    </div>
+
+    <div>
+      <button
+        onClick={() => {
+          setMenuAperto(menuAperto === 'operai' ? null : 'operai')
+          setSezioneAttiva('operai')
+          setSottoSezioneOperai('anagrafica')
+        }}
+        style={menuButtonStyle(sezioneAttiva === 'operai')}
+      >
+        👷 Operai {menuAperto === 'operai' ? '▲' : '▼'}
+      </button>
+
+      {menuAperto === 'operai' && (
+        <div style={{ marginLeft: 10, marginTop: 5, display: 'grid', gap: 4 }}>
+          <div
+            onClick={() => {
+              setSezioneAttiva('operai')
+              setSottoSezioneOperai('anagrafica')
+            }}
+            style={submenuButtonStyle(sottoSezioneOperai === 'anagrafica')}
+          >
+            👷 Anagrafica
+          </div>
+
+          <div
+            onClick={() => {
+              setSezioneAttiva('operai')
+              setSottoSezioneOperai('timbrature')
+            }}
+            style={submenuButtonStyle(sottoSezioneOperai === 'timbrature')}
+          >
+            🕒 Timbrature
+          </div>
+
+          <div
+            onClick={() => {
+              setSezioneAttiva('operai')
+              setSottoSezioneOperai('presenze')
+            }}
+            style={submenuButtonStyle(sottoSezioneOperai === 'presenze')}
+          >
+            📋 Presenze / costi
+          </div>
+        </div>
+      )}
+    </div>
+
+    <button
+      onClick={() => {
+        setSezioneAttiva('rapportini')
+        setMenuAperto(null)
+      }}
+      style={menuButtonStyle(sezioneAttiva === 'rapportini')}
+    >
+      📄 Rapportini
+    </button>
+
+    <div>
+      <button
+        onClick={() =>
+          setMenuAperto(menuAperto === 'pagamenti' ? null : 'pagamenti')
+        }
+        style={menuButtonStyle(sezioneAttiva === 'pagamenti')}
+     >
+  💳 Pagamenti{' '}
+  {statoScadenzaPagamenti === 'attenzione' && '⚠️'}
+  {statoScadenzaPagamenti === 'scaduto' && '🚨'}
+  {menuAperto === 'pagamenti' ? '▲' : '▼'}
+</button>
+
+      {menuAperto === 'pagamenti' && (
+        <div style={{ marginLeft: 10, marginTop: 5, display: 'grid', gap: 4 }}>
+          <div
+            onClick={() => {
+              setSezioneAttiva('pagamenti')
+              setSottoSezionePagamenti('operai')
+            }}
+            style={submenuButtonStyle(sottoSezionePagamenti === 'operai')}
+          >
+            👷 Pagamenti operai
+          </div>
+
+          <div
+            onClick={() => {
+              setSezioneAttiva('pagamenti')
+              setSottoSezionePagamenti('fornitori')
+            }}
+            style={submenuButtonStyle(sottoSezionePagamenti === 'fornitori')}
+          >
+            🧾 Pagamenti fornitori
+          </div>
+        </div>
+      )}
+    </div>
+
+    <button
+      onClick={() => {
+        setSezioneAttiva('economia')
+        setMenuAperto(null)
+      }}
+      style={menuButtonStyle(sezioneAttiva === 'economia')}
+    >
+ 
+    💶 Economia generale
+    </button>
+<button
+  onClick={() => {
+    setSezioneAttiva('registro')
+    setMenuAperto(null)
+  }}
+  style={menuButtonStyle(sezioneAttiva === 'registro')}
+>
+  📚 Registro
+</button>
+    <button
+      onClick={() => {
+        setSezioneAttiva('attivita')
+        setMenuAperto(null)
+      }}
+      style={menuButtonStyle(sezioneAttiva === 'attivita')}
+    >
+
+      📅 Attività
+    </button>
+<div style={{ marginTop: 10, padding: 8, borderTop: '1px solid #334155' }}>
+  <button
+    onClick={() => setApriChecklist(!apriChecklist)}
+    style={{
+      width: '100%',
+      padding: '8px',
+      background: '#1e40af',
+      color: 'white',
+      border: 'none',
+      borderRadius: 6,
+      cursor: 'pointer',
+      fontWeight: 600,
+    }}
+  >
+
+    📂 Apri più pagine {apriChecklist ? '▲' : '▼'}
+  </button>
+
+ {apriChecklist && (
+  <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+    {[
+      ['home', '🏠 Home'],
+      ['cantieri-elenco', '📋 Elenco cantieri'],
+      ['cantieri-scheda', '🏗️ Scheda cantiere'],
+      ['cantieri-analisi', '📄 Analisi documento'],
+      ['cantieri-economia', '💶 Economia cantiere'],
+      ['operai-anagrafica', '👷 Anagrafica operai'],
+      ['operai-timbrature', '🕒 Timbrature'],
+      ['operai-presenze', '📋 Presenze / costi'],
+      ['rapportini', '📄 Rapportini'],
+      ['pagamenti-operai', '👷 Pagamenti operai'],
+      ['pagamenti-fornitori', '🧾 Pagamenti fornitori'],
+      ['economia', '💶 Economia generale'],
+      ['attivita', '📅 Attività'],
+    ].map(([key, testo]) => (
+      <label
+        key={key}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          padding: '8px 10px',
+          borderRadius: 8,
+          cursor: 'pointer',
+          color: '#f8fafc',
+          fontSize: 'inherit',
+          backgroundColor: pagineAperte.includes(key) ? '#1e3a8a' : 'transparent',
+        }}
+      >
+        <span>{testo}</span>
+
+        <input
+          type="checkbox"
+          checked={pagineAperte.includes(key)}
+          onChange={() => togglePaginaAperta(key)}
+        />
+      </label>
+    ))}
+  </div>
+)}
+</div> {/* CHIUSURA BOX CHECKLIST */}
+
+<button
+  onClick={() => setMostraImpostazioni(!mostraImpostazioni)}
+  style={buttonPrimary}
+>
+  ⚙️ Impostazioni {mostraImpostazioni ? '▲' : '▼'}
+</button>
+
+{mostraImpostazioni && (
+  <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+
+    <label style={{ color: '#f3f4f6', fontSize: 13 }}>
+      Font:
+      <select
+        value={fontFamily}
+        onChange={(e) => {
+  setFontFamily(e.target.value)
+  salvaImpostazioneSupabase('fontFamily', e.target.value)
+}}
+        style={{
+          marginLeft: 6,
+          padding: 6,
+          borderRadius: 6,
+          backgroundColor: '#1e293b',
+          color: '#f3f4f6',
+          border: '1px solid #334155',
+          fontSize: 13,
+          cursor: 'pointer',
+        }}
+      >
+        <option value="Inter">Inter</option>
+        <option value="Arial">Arial</option>
+        <option value="Helvetica">Helvetica</option>
+        <option value="Avenir Next LT Pro Light">Avenir Next LT Pro Light</option>
+        <option value="Microsoft JhengHei Light">Microsoft JhengHei Light</option>
+        <option value="Verdana">Verdana</option>
+      </select>
+    </label>
+
+    <label style={{ color: '#f3f4f6', fontSize: 13 }}>
+      Dimensione font:
+      <select
+        value={fontSize}
+       onChange={(e) => {
+  const val = e.target.value
+  setFontSize(Number(val))
+  salvaImpostazioneSupabase('fontSize', val)
+}}
+        style={{
+          marginLeft: 6,
+          padding: 6,
+          borderRadius: 6,
+          backgroundColor: '#1e293b',
+          color: '#f3f4f6',
+          border: '1px solid #334155',
+          fontSize: 13,
+          cursor: 'pointer',
+        }}
+      >
+        <option value={13}>Piccolo</option>
+        <option value={15}>Medio</option>
+        <option value={18}>Grande</option>
+        <option value={22}>Molto grande</option>
+        <option value={24}>Grandissimo</option>
+      </select>
+    </label>
+<label style={{ color: '#f3f4f6', fontSize: 'inherit' }}>
+  Tema:
+  <select
+    value={temaApp}
+    onChange={(e) => {
+      setTemaApp(e.target.value)
+      salvaImpostazioneSupabase('temaApp', e.target.value)
+    }}
+    style={{
+      marginLeft: 6,
+      padding: 6,
+      borderRadius: 6,
+      backgroundColor: '#1e293b',
+      color: '#f3f4f6',
+      border: '1px solid #334155',
+      cursor: 'pointer',
+    }}
+  >
+    <option value="scuro">Scuro</option>
+    <option value="chiaro">Chiaro</option>
+  </select>
+</label>
+    <label style={{ color: '#f3f4f6', fontSize: 13 }}>
+      Nome intestazione:
+      <input
+        className="impostazioni-input"
+        value={nomeApp}
+        onChange={(e) => {
+  setNomeApp(e.target.value)
+  salvaImpostazioneSupabase('nomeApp', e.target.value)
+}}
+        placeholder="Nome app"
+      />
+    </label>
+  </div>
+)}
+
+
+<p style={{ fontSize: 'inherit', color: '#cbd5e1' }}>Menu principale</p>
+
+</div> {/* CHIUSURA GRID MENU */}
+</aside>
+
+ <main
+  style={{
+    flex: 1,
+    padding: '80px 25px 25px 25px',
+    height: '100vh',
+    overflowY: 'auto',
+    fontFamily: fontFamily,
+    fontSize: `${fontSize}px`,
+  }}
+>
+
+
+
+
+{popupFotoRapportino && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(15, 23, 42, 0.55)',
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 12,
+        padding: 20,
+        width: '95%',
+        maxWidth: 900,
+        maxHeight: '85vh',
+        overflow: 'auto',
+      }}
+    >
+      <h3>📸 Foto lavoro rapportino</h3>
+
+     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+  <label style={buttonPrimary}>
+    📷 Scatta foto
+   <div style={{ display: 'grid', gap: 10 }}>
+  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+    <button
+      type="button"
+      onClick={() => setCameraRapportinoAttiva(!cameraRapportinoAttiva)}
+      style={buttonPrimary}
+    >
+      {cameraRapportinoAttiva ? 'Chiudi fotocamera' : '📷 Apri fotocamera'}
+    </button>
+
+    <label style={buttonSecondary}>
+      🖼 Seleziona foto
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={caricaFotoRapportinoDaInput}
+        style={{ display: 'none' }}
+      />
+    </label>
+  </div>
+
+  {cameraRapportinoAttiva && (
+    <div
+      style={{
+        border: '1px solid #cbd5e1',
+        borderRadius: 12,
+        padding: 10,
+        background: '#f8fafc',
+      }}
+    >
+      <Webcam
+        ref={webcamRapportinoRef}
+        audio={false}
+        screenshotFormat="image/jpeg"
+        videoConstraints={{
+          facingMode: 'environment',
+        }}
+        style={{
+          width: '100%',
+          maxHeight: 360,
+          objectFit: 'cover',
+          borderRadius: 10,
+          background: '#000',
+        }}
+      />
+
+      <button
+        type="button"
+        onClick={scattaFotoRapportino}
+        style={{
+          ...buttonPrimary,
+          marginTop: 10,
+          width: '100%',
+          fontSize: 18,
+        }}
+      >
+        📸 Scatta e aggiungi
+      </button>
+    </div>
+  )}
+</div>
+  </label>
+
+  <label style={buttonSecondary}>
+    🖼 Seleziona più foto
+    <input
+      type="file"
+      accept="image/*"
+      multiple
+      onChange={caricaFotoRapportinoDaInput}
+      style={{ display: 'none' }}
+    />
+  </label>
+</div>
+
+      <textarea
+        value={notaFotoRapportino}
+        onChange={(e) => setNotaFotoRapportino(e.target.value)}
+        placeholder="Nota unica per queste foto..."
+        style={{
+          width: '100%',
+          minHeight: 80,
+          marginTop: 10,
+          padding: 10,
+          borderRadius: 8,
+          border: '1px solid #cbd5e1',
+        }}
+      />
+
+
+<div style={{ marginTop: 8 }}>
+  {!ascoltoNoteFoto ? (
+    <button
+      type="button"
+      onClick={avviaDettaturaNoteFoto}
+      style={buttonSecondary}
+    >
+      🎤 Avvia dettatura foto
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={fermaDettaturaNoteFoto}
+      style={{
+        ...buttonSecondary,
+        backgroundColor: '#dc2626',
+        color: '#fff',
+      }}
+    >
+      ⏹ Stop dettatura
+    </button>
+  )}
+</div>
+
+
+
+      {fotoRapportinoTemp.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+            gap: 10,
+            marginTop: 12,
+          }}
+        >
+          {fotoRapportinoTemp.map((foto, i) => (
+            <div key={i} style={{ position: 'relative' }}>
+              <img
+                src={foto}
+                alt={`Foto rapportino ${i + 1}`}
+                style={{
+                  width: '100%',
+                  height: 120,
+                  objectFit: 'cover',
+                  borderRadius: 10,
+                  border: '1px solid #cbd5e1',
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() =>
+                  setFotoRapportinoTemp((lista) =>
+                    lista.filter((_, index) => index !== i)
+                  )
+                }
+                style={{
+                  position: 'absolute',
+                  top: 5,
+                  right: 5,
+                  background: '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '3px 6px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          justifyContent: 'flex-end',
+          marginTop: 18,
+        }}
+      >
+<button
+  type="button"
+  onClick={() => {
+    setCameraRapportinoAttiva(false)
+    setPopupFotoRapportino(false)
+  }}
+  style={buttonSecondary}
+>
+  Chiudi
+</button>
+       <button
+  type="button"
+  onClick={() => {
+    if (fotoRapportinoTemp.length === 0) {
+      alert('Aggiungi almeno una foto')
+      return
+    }
+
+    setNote((prev) => {
+      const testoFoto =
+        `\n\n📸 Foto lavoro allegate: ${fotoRapportinoTemp.length}` +
+        (notaFotoRapportino
+          ? `\nNota foto: ${notaFotoRapportino}`
+          : '')
+
+      if (prev.includes('📸 Foto lavoro allegate:')) {
+        return prev
+      }
+
+      return prev + testoFoto
+    })
+
+    setPopupFotoRapportino(false)
+  }}
+  style={buttonPrimary}
+>
+  Usa nel rapportino
+</button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+
+{popupOperaiRapportino && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(15,23,42,0.55)',
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 12,
+        padding: 20,
+        width: '95%',
+        maxWidth: 980,
+        maxHeight: '85vh',
+        overflow: 'auto',
+      }}
+    >
+      <h3>👷 Operai presenti</h3>
+
+      <div style={{ display: 'grid', gap: 10 }}>
+        {operaiAnagrafica.map((o, i) => {
+          const giaInserito = operaiRapportinoTemp.find(
+            (x) => x.nome === o.nome
+          )
+
+          return (
+            <div
+              key={i}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 260px 130px auto',
+                gap: 10,
+                alignItems: 'center',
+                padding: 10,
+                border: '1px solid #cbd5e1',
+                borderRadius: 10,
+              }}
+            >
+              <div>
+                <strong>{o.nome}</strong>
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input
+                  type="time"
+                  value={giaInserito?.ora_inizio || ''}
+                  onChange={(e) => {
+                    const oraInizio = e.target.value
+
+                    setOperaiRapportinoTemp((prev) => {
+                      const altri = prev.filter((x) => x.nome !== o.nome)
+                      const esistente = prev.find((x) => x.nome === o.nome)
+
+                      return [
+                        ...altri,
+                        {
+                          nome: o.nome,
+                          ora_inizio: oraInizio,
+                          ora_fine: esistente?.ora_fine || '',
+                          ore: esistente?.ore || 0,
+                          costo_orario: Number(o.costo_orario || 0),
+                        },
+                      ]
+                    })
+                  }}
+                  style={inputStyle}
+                />
+
+                <span>a</span>
+
+                <input
+                  type="time"
+                  value={giaInserito?.ora_fine || ''}
+                  onChange={(e) => {
+                    const oraFine = e.target.value
+
+                    setOperaiRapportinoTemp((prev) => {
+                      const altri = prev.filter((x) => x.nome !== o.nome)
+                      const esistente = prev.find((x) => x.nome === o.nome)
+
+                      let oreCalcolate = 0
+
+                      if (esistente?.ora_inizio && oraFine) {
+                        const [h1, m1] = esistente.ora_inizio
+                          .split(':')
+                          .map(Number)
+
+                        const [h2, m2] = oraFine
+                          .split(':')
+                          .map(Number)
+
+                        const minutiInizio = h1 * 60 + m1
+                        const minutiFine = h2 * 60 + m2
+
+                        oreCalcolate = Math.max(
+                          0,
+                          Number(((minutiFine - minutiInizio) / 60).toFixed(2))
+                        )
+                      }
+
+                      return [
+                        ...altri,
+                        {
+                          nome: o.nome,
+                          ora_inizio: esistente?.ora_inizio || '',
+                          ora_fine: oraFine,
+                          ore: oreCalcolate,
+                          costo_orario: Number(o.costo_orario || 0),
+                        },
+                      ]
+                    })
+                  }}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                {giaInserito?.ore || 0}h ·{' '}
+                {formatMoney(
+                  (giaInserito?.ore || 0) *
+                    (giaInserito?.costo_orario || 0)
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setOperaiRapportinoTemp((prev) =>
+                    prev.filter((x) => x.nome !== o.nome)
+                  )
+                }
+                style={{
+                  ...buttonSecondary,
+                  backgroundColor: '#dc2626',
+                  color: '#fff',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: 20,
+          alignItems: 'center',
+        }}
+      >
+        <strong>
+          Totale costo giornata:{' '}
+          {formatMoney(
+            operaiRapportinoTemp.reduce(
+              (tot, o) => tot + o.ore * o.costo_orario,
+              0
+            )
+          )}
+        </strong>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => setPopupOperaiRapportino(false)}
+            style={buttonSecondary}
+          >
+            Chiudi
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const riepilogo = operaiRapportinoTemp
+                .filter((o) => o.ore > 0)
+                .map(
+                  (o) =>
+                    `${o.nome} (${o.ora_inizio || '-'} / ${
+                      o.ora_fine || '-'
+                    } - ${o.ore}h)`
+                )
+                .join(', ')
+
+              const costoTotale = operaiRapportinoTemp.reduce(
+                (tot, o) => tot + o.ore * o.costo_orario,
+                0
+              )
+
+              setOperai(
+  `👷 Operai presenti:\n${riepilogo}\n\n💶 Costo giornata: ${formatMoney(
+    costoTotale
+  )}`
+)
+
+             
+
+              setPopupOperaiRapportino(false)
+            }}
+            style={buttonPrimary}
+          >
+            Usa nel rapportino
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+
+
+{fotoRapportinoAperte.length > 0 && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(15,23,42,0.65)',
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 12,
+        padding: 20,
+        width: '95%',
+        maxWidth: 1200,
+        maxHeight: '90vh',
+        overflow: 'auto',
+      }}
+    >
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: 16,
-          flexWrap: 'wrap',
           marginBottom: 20,
         }}
       >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 32 }}>ARTECNA Dashboard</h1>
-          <p style={{ margin: '6px 0 0 0', color: '#555' }}>
-            Controllo cantieri, rapportini, foto, operai e timbrature
-          </p>
-        </div>
+        <h3>📸 Foto rapportino</h3>
 
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 14, color: '#666' }}>Data di oggi</div>
-          <div style={{ fontWeight: 700, fontSize: 18 }}>{oggi}</div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginTop: 20,
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: 12,
-        }}
-      >
-        <div style={cardStyle}>
-          <div style={{ fontSize: 14, color: '#666' }}>Cantieri attivi</div>
-          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{totaleCantieri}</div>
-        </div>
-
-        <div style={cardStyle}>
-          <div style={{ fontSize: 14, color: '#666' }}>Rapportini totali</div>
-          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{totaleRapportini}</div>
-        </div>
-
-        <div style={cardStyle}>
-          <div style={{ fontSize: 14, color: '#666' }}>Rapportini di oggi</div>
-          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{totaleRapportiniOggi}</div>
-        </div>
-
-        <div style={cardStyle}>
-          <div style={{ fontSize: 14, color: '#666' }}>Ore totali oggi</div>
-          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{oreTotaliOggi}</div>
-        </div>
-
-        <div style={cardStyle}>
-          <div style={{ fontSize: 14, color: '#666' }}>Operai registrati</div>
-          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{totaleOperai}</div>
-        </div>
-
-        <div style={cardStyle}>
-          <div style={{ fontSize: 14, color: '#666' }}>Timbrature oggi</div>
-          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>{timbratureOggi.length}</div>
-        </div>
-
-        <div style={cardStyle}>
-          <div style={{ fontSize: 14, color: '#666' }}>Manodopera oggi</div>
-          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 8 }}>
-            {formatMoney(costoTotaleTimbratureOggi)}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ ...cardStyle, marginTop: 20 }}>
-        <h2 style={{ marginTop: 0 }}>Azioni rapide</h2>
-
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button onClick={() => window.scrollTo({ top: 1600, behavior: 'smooth' })} style={buttonPrimary}>
-            Nuovo rapportino
-          </button>
-
-          <button onClick={() => window.scrollTo({ top: 3100, behavior: 'smooth' })} style={buttonSecondary}>
-            Nuova foto
-          </button>
-
-          <button onClick={() => window.scrollTo({ top: 1100, behavior: 'smooth' })} style={buttonSecondary}>
-            Nuovo cantiere
-          </button>
-
-          <button onClick={() => window.scrollTo({ top: 1400, behavior: 'smooth' })} style={buttonSecondary}>
-            Anagrafica operai
-          </button>
-
-          <button onClick={() => window.scrollTo({ top: 2350, behavior: 'smooth' })} style={buttonSecondary}>
-            Timbratura operai
-          </button>
-
-          <button onClick={generaPDF} style={buttonSecondary}>
-            Genera PDF
-          </button>
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginTop: 20,
-          display: 'grid',
-          gridTemplateColumns: '1.2fr 1.2fr 1fr',
-          gap: 16,
-        }}
-      >
-        <div style={cardStyle}>
-          <h2 style={{ marginTop: 0 }}>Ultimi cantieri</h2>
-          {ultimiCantieri.length === 0 ? (
-            <p>Nessun cantiere presente</p>
-          ) : (
-            <div>
-              {ultimiCantieri.map((c, i) => (
-                <div
-                  key={c.id || i}
-                  style={{
-                    padding: '10px 0',
-                    borderBottom: i < ultimiCantieri.length - 1 ? '1px solid #eee' : 'none',
-                  }}
-                >
-                  <div style={{ fontWeight: 600 }}>{c.nome}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div style={cardStyle}>
-          <h2 style={{ marginTop: 0 }}>Ultimi rapportini</h2>
-          {ultimiRapportini.length === 0 ? (
-            <p>Nessun rapportino presente</p>
-          ) : (
-            <div>
-              {ultimiRapportini.map((r, i) => (
-                <div
-                  key={r.id || i}
-                  style={{
-                    padding: '10px 0',
-                    borderBottom: i < ultimiRapportini.length - 1 ? '1px solid #eee' : 'none',
-                  }}
-                >
-                  <div style={{ fontWeight: 600 }}>{r.cantiere}</div>
-                  <div style={{ fontSize: 14, color: '#666' }}>
-                    {r.data} · {r.ore} ore
-                  </div>
-                  <div style={{ fontSize: 14, marginTop: 4 }}>
-                    {String(r.note || '').slice(0, 60)}
-                    {String(r.note || '').length > 60 ? '...' : ''}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div style={cardStyle}>
-          <h2 style={{ marginTop: 0 }}>Ultime foto</h2>
-          {ultimeFoto.length === 0 ? (
-            <p>Nessuna foto presente</p>
-          ) : (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 8,
-              }}
-            >
-              {ultimeFoto.map((f, i) => (
-                <div key={f.id || i}>
-                  <img
-                    src={f.immagine_base64}
-                    alt="Foto cantiere"
-                    style={{
-                      width: '100%',
-                      height: 100,
-                      objectFit: 'cover',
-                      borderRadius: 8,
-                      border: '1px solid #ddd',
-                    }}
-                  />
-                  <div style={{ fontSize: 12, marginTop: 4 }}>{f.cantiere}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={{ marginTop: 20, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>Filtro per cantiere</h2>
-
-        <select
-          value={filtroCantiere}
-          onChange={(e) => setFiltroCantiere(e.target.value)}
-          style={{ padding: 8, width: 260, marginRight: 10 }}
+        <button
+          onClick={() =>
+            setFotoRapportinoAperte([])
+          }
+          style={buttonSecondary}
         >
-          <option value="">Tutti i cantieri</option>
-          {cantieri.map((c, i) => (
-            <option key={c.id || i} value={c.nome}>
-              {c.nome}
-            </option>
-          ))}
-        </select>
-
-        <button onClick={() => setFiltroCantiere('')} style={{ padding: 8 }}>
-          Azzera filtro
+          Chiudi
         </button>
       </div>
 
-      <div style={{ marginTop: 20, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>Scheda singolo cantiere</h2>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fill, minmax(220px, 1fr))',
+          gap: 15,
+        }}
+      >
+        {fotoRapportinoAperte.map((foto, i) => (
+          <div
+            key={foto.id || i}
+            style={{
+              border: '1px solid #cbd5e1',
+              borderRadius: 10,
+              overflow: 'hidden',
+            }}
+          >
+            <img
+              src={foto.immagine_base64}
+              alt="Foto rapportino"
+              style={{
+                width: '100%',
+                height: 220,
+                objectFit: 'cover',
+              }}
+            />
 
-        <select
-          value={cantiereScheda}
-          onChange={(e) => setCantiereScheda(e.target.value)}
-          style={{ padding: 8, width: 260, marginBottom: 15 }}
-        >
-          <option value="">Seleziona cantiere</option>
-          {cantieri.map((c, i) => (
-            <option key={c.id || i} value={c.nome}>
-              {c.nome}
-            </option>
-          ))}
-        </select>
+            <div style={{ padding: 10 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: '#64748b',
+                }}
+              >
+                {foto.data_foto}
+              </div>
 
-        {!cantiereScheda ? (
-          <p>Seleziona un cantiere per vedere la scheda completa.</p>
-        ) : (
+              <div style={{ marginTop: 6 }}>
+                {foto.nota}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
+
+
+
+
+{/* ================= MULTI PAGINE - LAYOUT AFFIANCATO PRO ================= */}
+{modalitaMulti && pagineAperte.length > 0 && (
+  <div
+    style={{
+      display: 'flex',
+      gap: 16,
+      overflowX: 'auto',
+scrollBehavior: 'smooth',
+WebkitOverflowScrolling: 'touch',
+      paddingBottom: 12,
+      marginBottom: 20,
+    }}
+  >
+    {pagineAperte.includes('home') && (
+      <div style={{ ...cardStyle, minWidth: 360, maxWidth: 420 }}>
+        <h3>🏠 Home</h3>
+        <p>Cantieri: {totaleCantieri}</p>
+        <p>Operai: {totaleOperai}</p>
+        <p>Rapportini: {totaleRapportini}</p>
+        <p><strong>Utile:</strong> {formatMoney(utileTotaleImpresa)}</p>
+      </div>
+    )}
+
+    {pagineAperte.includes('cantieri-elenco') && (
+      <div style={{ ...cardStyle, minWidth: 420, maxWidth: 480 }}>
+        <h3>🏗️ Elenco cantieri</h3>
+        {cantieri.slice(0, 8).map((c, i) => (
+          <div key={c.id || i} style={{ borderBottom: '1px solid #eee', padding: '6px 0' }}>
+            <strong>{c.nome}</strong><br />
+            Preventivo: {formatMoney(Number(c.preventivo || 0))}
+          </div>
+        ))}
+      </div>
+    )}
+
+    {pagineAperte.includes('cantieri-economia') && (
+      <div style={{ ...cardStyle, minWidth: 420, maxWidth: 480 }}>
+        <h3>💶 Economia cantiere</h3>
+        <p>Cantiere: {cantiereScheda || 'nessuno'}</p>
+        <p>Preventivo: {formatMoney(preventivoCantiere)}</p>
+        <p>Manodopera: {formatMoney(totaleManodoperaCantiere)}</p>
+        <p>Materiali: {formatMoney(totaleMaterialiEconomia)}</p>
+        <p>Attrezzi: {formatMoney(totaleAttrezziEconomia)}</p>
+        <p>
+          <strong style={{ color: utileCantiere >= 0 ? 'green' : 'red' }}>
+            Utile: {formatMoney(utileCantiere)}
+          </strong>
+        </p>
+      </div>
+    )}
+
+    {pagineAperte.includes('operai-presenze') && (
+      <div style={{ ...cardStyle, minWidth: 380, maxWidth: 440 }}>
+        <h3>📋 Presenze / costi</h3>
+        <p>Timbrature oggi: {timbratureOggi.length}</p>
+        <p><strong>Manodopera oggi:</strong> {formatMoney(costoTotaleTimbratureOggi)}</p>
+      </div>
+    )}
+
+    {pagineAperte.includes('pagamenti-operai') && (
+      <div style={{ ...cardStyle, minWidth: 380, maxWidth: 440 }}>
+        <h3>💳 Pagamenti operai</h3>
+        <p>Pagamenti registrati: {pagamentiOperai.length}</p>
+        <p>Operai: {operaiAnagrafica.length}</p>
+      </div>
+    )}
+
+    {pagineAperte.includes('pagamenti-fornitori') && (
+      <div style={{ ...cardStyle, minWidth: 380, maxWidth: 440 }}>
+        <h3>🧾 Pagamenti fornitori</h3>
+        <p>Fornitori registrati: {pagamentiFornitori.length}</p>
+        <p>
+          Totale:{' '}
+          {formatMoney(
+            pagamentiFornitori.reduce(
+              (tot, p) => tot + parseImporto(p.importo_totale),
+              0
+            )
+          )}
+        </p>
+      </div>
+    )}
+
+    {pagineAperte.includes('economia') && (
+      <div style={{ ...cardStyle, minWidth: 420, maxWidth: 480 }}>
+        <h3>💶 Economia generale</h3>
+        <p>Totale preventivi: {formatMoney(totalePreventiviImpresa)}</p>
+        <p>Totale costi: {formatMoney(totaleCostiImpresa)}</p>
+        <p>
+          <strong style={{ color: utileTotaleImpresa >= 0 ? 'green' : 'red' }}>
+            Utile totale: {formatMoney(utileTotaleImpresa)}
+          </strong>
+        </p>
+        <p>Margine medio: {margineMedioImpresa.toFixed(1)}%</p>
+      </div>
+    )}
+
+    {pagineAperte.includes('attivita') && (
+      <div style={{ ...cardStyle, minWidth: 360, maxWidth: 420 }}>
+        <h3>📅 Attività</h3>
+        <p>Agenda, scadenze, appuntamenti e promemoria.</p>
+      </div>
+    )}
+  </div>
+)}
+    {pagineAperte.includes('cantieri-economia') && (
+      <div style={cardStyle}>
+        <h3>💶 Economia cantiere</h3>
+        <p>Cantiere: {cantiereScheda || 'nessuno'}</p>
+        <p>Preventivo: {formatMoney(preventivoCantiere)}</p>
+        <p>Manodopera: {formatMoney(totaleManodoperaCantiere)}</p>
+        <p>Materiali: {formatMoney(totaleMaterialiEconomia)}</p>
+        <p>Attrezzi: {formatMoney(totaleAttrezziEconomia)}</p>
+        <p>Utile: {formatMoney(utileCantiere)}</p>
+      </div>
+    )}
+
+    {pagineAperte.includes('operai-anagrafica') && (
+      <div style={cardStyle}>
+        <h3>👷 Anagrafica operai</h3>
+        <p>Operai registrati: {operaiAnagrafica.length}</p>
+        {operaiAnagrafica.slice(0, 5).map((o, i) => (
+          <div key={o.id || i}>
+            {o.nome} — {o.qualifica || '-'} — {formatMoney(Number(o.costo_orario || 0))}
+          </div>
+        ))}
+      </div>
+    )}
+
+    {pagineAperte.includes('operai-timbrature') && (
+      <div style={cardStyle}>
+        <h3>🕒 Timbrature</h3>
+        <p>Timbrature oggi: {timbratureOggi.length}</p>
+        {timbratureOggi.slice(0, 5).map((t, i) => (
+          <div key={t.id || i}>
+            {t.operaio_nome} — {t.cantiere} — {t.ora_entrata || '-'} / {t.ora_uscita || '-'}
+          </div>
+        ))}
+      </div>
+    )}
+
+    {pagineAperte.includes('operai-presenze') && (
+      <div style={cardStyle}>
+        <h3>📋 Presenze / costi</h3>
+        <p>Manodopera oggi: {formatMoney(costoTotaleTimbratureOggi)}</p>
+        <p>Presenze oggi: {timbratureOggi.length}</p>
+      </div>
+    )}
+
+    {pagineAperte.includes('rapportini') && (
+      <div style={cardStyle}>
+        <h3>📄 Rapportini</h3>
+        <p>Totale rapportini: {totaleRapportini}</p>
+        <p>Rapportini oggi: {totaleRapportiniOggi}</p>
+        <p>Ore oggi: {oreTotaliOggi}</p>
+      </div>
+    )}
+
+    {pagineAperte.includes('pagamenti-operai') && (
+      <div style={cardStyle}>
+        <h3>💳 Pagamenti operai</h3>
+        <p>Pagamenti registrati: {pagamentiOperai.length}</p>
+        <p>Operai: {operaiAnagrafica.length}</p>
+      </div>
+    )}
+
+    {pagineAperte.includes('pagamenti-fornitori') && (
+      <div style={cardStyle}>
+        <h3>🧾 Pagamenti fornitori</h3>
+        <p>Fornitori registrati: {pagamentiFornitori.length}</p>
+        <p>
+          Totale fornitori:{' '}
+          {formatMoney(
+            pagamentiFornitori.reduce(
+              (tot, p) => tot + parseImporto(p.importo_totale),
+              0
+            )
+          )}
+        </p>
+      </div>
+    )}
+
+    {pagineAperte.includes('economia') && (
+      <div style={cardStyle}>
+        <h3>💶 Economia generale</h3>
+        <p>Totale preventivi: {formatMoney(totalePreventiviImpresa)}</p>
+        <p>Totale costi: {formatMoney(totaleCostiImpresa)}</p>
+        <p>Utile totale: {formatMoney(utileTotaleImpresa)}</p>
+        <p>Margine medio: {margineMedioImpresa.toFixed(1)}%</p>
+      </div>
+    )}
+
+    {pagineAperte.includes('attivita') && (
+      <div style={cardStyle}>
+        <h3>📅 Attività</h3>
+        <p>Agenda, scadenze, appuntamenti e promemoria.</p>
+      </div>
+    )}
+  
+{/* ================= HOME ================= */}
+{(
+  pagineAperte.includes('home') ||
+  (!modalitaMulti && sezioneAttiva === 'home')
+) && (
+  
+<div style={cardStyle}>
+
+  <h2 style={{ margin: 0 }}>Dashboard impresa</h2>
+
+  <div style={{ marginTop: 15, marginBottom: 20 }}>
+    {!assistenteAttivo ? (
+      <button
+        onClick={avviaAssistenteVocale}
+        style={{
+          ...buttonPrimary,
+          backgroundColor: '#2563eb',
+        }}
+      >
+        🎧 Avvia assistente vocale Artecna
+      </button>
+    ) : (
+      <button
+        onClick={fermaAssistenteVocale}
+        style={{
+          ...buttonPrimary,
+          backgroundColor: '#dc2626',
+        }}
+      >
+        ⛔ Ferma assistente vocale
+      </button>
+    )}
+
+    {assistenteAttivo && (
+      <div
+        style={{
+          marginTop: 10,
+          padding: 10,
+          borderRadius: 10,
+          background: '#eff6ff',
+          border: '1px solid #bfdbfe',
+        }}
+      >
+        🎧 Assistente Artecna attivo
+        <br />
+        Comandi disponibili:
+        <ul style={{ marginTop: 8 }}>
+          <li>“Hey Artecna apri rapportino”</li>
+          <li>“Hey Artecna apri economia”</li>
+          <li>“Hey Artecna apri presenze”</li>
+          <li>“Hey Artecna apri timbrature”</li>
+        </ul>
+      </div>
+    )}
+  </div>
+
+  
+    {/* HEADER HOME */}
+    {/* lascia qui tutto il tuo header */}
+
+    {/* GRID DASHBOARD */}
+    {/* lascia qui tutta la tua grid */}
+
+    <h3 style={{ marginTop: 25 }}>Classifica cantieri</h3>
+
+    {classificaCantieri.length === 0 ? (
+      <p>Nessun cantiere presente</p>
+    ) : (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {classificaCantieri.map((c, i) => (
+          <div
+            key={c.nome || i}
+            style={{
+              padding: 12,
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              background: '#fff',
+            }}
+          >
+            <strong>#{i + 1} — {c.nome}</strong>
+            <br />
+            Utile:{' '}
+            <strong style={{ color: c.utile >= 0 ? 'green' : 'red' }}>
+              {formatMoney(c.utile)}
+            </strong>
+            <br />
+            Margine: {c.margine.toFixed(1)}%
+          </div>
+        ))}
+      </div>
+    )}
+
+  <div style={{ marginTop: 25 }}>
+  <button
+    onClick={() => setMostraCantieriConclusi(!mostraCantieriConclusi)}
+    style={buttonSecondary}
+  >
+    {mostraCantieriConclusi ? 'Nascondi cantieri conclusi' : 'Mostra cantieri conclusi'}
+  </button>
+</div>
+
+{mostraCantieriConclusi && (
+  <>
+    {cantieri.filter((c) => c.lavori_conclusi).length === 0 ? (
+      <p>Nessun cantiere concluso</p>
+    ) : (
+      <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+        {cantieri
+          .filter((c) => c.lavori_conclusi)
+          .map((c, i) => {
+            const utile = calcoloEconomiaCantiere(c.nome).utileReale
+
+            return (
+              <div
+                key={c.nome || i}
+                style={{
+                  padding: 12,
+                  border: '1px solid #ddd',
+                  borderRadius: 8,
+                  background: '#f1f5f9',
+                  opacity: 0.9,
+                }}
+              >
+                <strong>{c.nome}</strong>
+                <br />
+                Fine lavori: {c.data_fine_lavori || '-'}
+                <br />
+                Utile:{' '}
+                <strong style={{ color: utile >= 0 ? 'green' : 'red' }}>
+                  {formatMoney(utile)}
+                </strong>
+              </div>
+            )
+          })}
+      </div>
+    )}
+  </>
+)}
+  </div>
+)}
+
+{/* ================= CANTIERI - ELENCO ================= */}
+{(
+  pagineAperte.includes('cantieri-elenco') ||
+  (!modalitaMulti &&
+    sezioneAttiva === 'cantieri' &&
+    sottoSezioneCantieri === 'elenco')
+) && (
+  <div style={cardStyle}>
+    <h2>Elenco cantieri</h2>
+
+    <div style={{ display: 'flex', gap: 8, marginBottom: 15 }}>
+      <input
+        placeholder="Nome cantiere"
+        value={nomeCantiere || ''}
+        onChange={(e) => setNomeCantiere(e.target.value)}
+        style={{ padding: 8, width: 220 }}
+      />
+
+      <input
+        placeholder="Preventivo €"
+        value={preventivoCantiereInput || ''}
+        onChange={(e) => setPreventivoCantiereInput(e.target.value)}
+        style={{ padding: 8, width: 140 }}
+      />
+
+      <button onClick={aggiungiCantiere} style={buttonPrimary}>
+        Aggiungi
+      </button>
+    </div>
+
+    {cantieri.length === 0 ? (
+      <p>Nessun cantiere presente</p>
+    ) : (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {cantieri.map((c, i) => (
+          <div
+            key={c.id || i}
+            style={{
+              padding: 12,
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              background: '#fff',
+            }}
+          >
+            <strong>{c.nome}</strong>
+            <br />
+            Preventivo: {formatMoney(Number(c.preventivo || 0))}
+
+            <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => {
+                  setCantiereScheda(c.nome)
+                  setSottoSezioneCantieri('scheda')
+                }}
+                style={buttonPrimary}
+              >
+                Apri
+              </button>
+
+              <button
+                onClick={() => eliminaCantiere(c.nome)}
+                style={{
+                  padding: '10px 14px',
+                  backgroundColor: '#d9534f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                Elimina
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+{/* ================= CANTIERI - SCHEDA ================= */}
+{(
+  pagineAperte.includes('cantieri-scheda') ||
+  (!modalitaMulti &&
+    sezioneAttiva === 'cantieri' &&
+    sottoSezioneCantieri === 'scheda')
+) && (
+  <div style={cardStyle}>
+    <h2>Scheda cantiere</h2>
+
+    <select
+      value={cantiereScheda || ''}
+      onChange={(e) => setCantiereScheda(e.target.value)}
+      style={{ padding: 8, width: 260, marginBottom: 15 }}
+    >
+      <option value="">Seleziona cantiere</option>
+      {cantieri.map((c, i) => (
+        <option key={c.id || i} value={c.nome}>
+          {c.nome}
+        </option>
+      ))}
+    </select>
+
+    {!cantiereScheda ? (
+      <p>Seleziona un cantiere per vedere i dettagli.</p>
+    ) : (
+      (() => {
+        const dati = calcoloEconomiaCantiere(cantiereScheda)
+
+        const margine =
+          dati.preventivo > 0
+            ? ((dati.utileReale / dati.preventivo) * 100).toFixed(1)
+            : 0
+
+        return (
           <div>
             <h3>{cantiereScheda}</h3>
-            <p><strong>Rapportini collegati:</strong> {rapportiniScheda.length}</p>
-            <p><strong>Foto collegate:</strong> {fotoScheda.length}</p>
-            <p><strong>Costo giornaliero manodopera oggi:</strong> {formatMoney(costoGiornalieroCantiereSelezionato)}</p>
 
-            <div style={{ marginTop: 20, padding: 15, border: '2px solid #000', borderRadius: 10 }}>
-              <h3 style={{ marginTop: 0 }}>Controllo economico cantiere</h3>
+            {/* STATO */}
+            <div style={{ marginTop: 15, padding: 15, border: '1px solid #ddd', borderRadius: 10 }}>
+              <h3 style={{ marginTop: 0 }}>Stato cantiere</h3>
 
-              <p><strong>Preventivo:</strong> € {preventivoCantiere.toFixed(2)}</p>
-              <p><strong>Manodopera:</strong> € {totaleManodoperaCantiere.toFixed(2)}</p>
-              <p><strong>Materiali:</strong> € {totaleMaterialiEconomia.toFixed(2)}</p>
-              <p><strong>Attrezzi:</strong> € {totaleAttrezziEconomia.toFixed(2)}</p>
+              <p>Preventivo: {formatMoney(dati.preventivo)}</p>
+              <p>Manodopera: {formatMoney(dati.costoManodopera)}</p>
+              <p>Fornitori: {formatMoney(dati.costoFornitori)}</p>
 
-              <hr />
+              <p>
+                <strong>Costo totale: {formatMoney(dati.costoTotale)}</strong>
+              </p>
 
-              <p><strong>Totale costi:</strong> € {totaleCostiCantiere.toFixed(2)}</p>
-              <p><strong>Utile:</strong> € {utileCantiere.toFixed(2)}</p>
-              <p><strong>Margine:</strong> {margineCantiere}%</p>
+              <p>
+                <strong style={{ color: dati.utileReale >= 0 ? 'green' : 'red' }}>
+                  Utile: {formatMoney(dati.utileReale)}
+                </strong>
+              </p>
 
-              <hr />
+              <p>
+                <strong>Margine: {margine}%</strong>
+              </p>
+            </div>
 
-             <h4>Inserisci preventivo</h4>
-<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-  <input
-    placeholder="Importo preventivo €"
-    value={importoPreventivo}
-    onChange={(e) => setImportoPreventivo(e.target.value)}
-    style={{ padding: 8, width: 180 }}
+            {/* MESSAGGIO STATO */}
+            <div style={{ marginTop: 15 }}>
+              {dati.utileReale < 0 ? (
+                <strong style={{ color: 'red' }}>🚨 Cantiere in perdita</strong>
+              ) : Number(margine) < 10 ? (
+                <strong style={{ color: '#f59e0b' }}>⚠️ Margine basso</strong>
+              ) : (
+                <strong style={{ color: 'green' }}>✅ Cantiere in utile</strong>
+              )}
+            </div>
+
+<div
+  style={{
+    marginTop: 20,
+    padding: 15,
+    border: '1px solid #d1d5db',
+    borderRadius: 12,
+    background: '#fff',
+  }}
+>
+  <h3 style={{ marginTop: 0 }}>
+    📸 Foto cantiere
+  </h3>
+
+  <div
+    style={{
+      display: 'flex',
+      gap: 10,
+      flexWrap: 'wrap',
+      marginBottom: 12,
+      alignItems: 'center',
+    }}
+  >
+   <input
+  type="file"
+  accept="image/*"
+  capture="environment"
+  multiple
+  onChange={caricaFotoDaInput}
+/>
+    <button
+      onClick={rilevaPosizioneFoto}
+      style={buttonSecondary}
+    >
+      📍 Geolocalizza
+    </button>
+
+    <button
+      onClick={salvaFotoCantiere}
+      style={buttonPrimary}
+    >
+      💾 Salva foto
+    </button>
+  </div>
+
+  <textarea
+    value={notaFotoCantiere}
+    onChange={(e) =>
+      setNotaFotoCantiere(e.target.value)
+    }
+    placeholder="Descrivi il lavoro eseguito..."
+    style={{
+      width: '100%',
+      minHeight: 70,
+      padding: 10,
+      borderRadius: 8,
+      border: '1px solid #cbd5e1',
+      marginBottom: 12,
+    }}
   />
+ 
+
+
+<textarea
+  value={note}
+  onChange={(e) => setNote(e.target.value)}
+  placeholder="Descrivi il lavoro eseguito..."
+  style={{
+    width: '100%',
+    minHeight: 120,
+  }}
+/>
+
+<button
+  type="button"
+  onClick={() =>
+    avviaDettatura((testo) =>
+      setNote((prev) =>
+        prev ? prev + ' ' + testo : testo
+      )
+    )
+  }
+  style={{
+    ...buttonSecondary,
+    marginTop: 8,
+  }}
+>
+  🎤 Avvia dettatura
+</button>
+
+
+
+
+<div style={{ marginTop: 15 }}>
+  <strong>
+    Foto salvate per questo cantiere:{' '}
+    {
+      fotoCantiere.filter(
+        (f) => f.cantiere === cantiereScheda
+      ).length
+    }
+  </strong>
+</div>
+
+<div
+  style={{
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+    gap: 12,
+    marginTop: 15,
+  }}
+>
+  {fotoCantiere
+    .filter((f) => f.cantiere === cantiereScheda)
+    .map((foto, i) => (
+      <div
+        key={foto.id || i}
+        style={{
+          border: '1px solid #d1d5db',
+          borderRadius: 10,
+          overflow: 'hidden',
+          background: '#fff',
+        }}
+      >
+        <img
+          src={foto.immagine_base64}
+          alt="Foto cantiere"
+          onClick={() => setFotoFullscreen(foto)}
+          style={{
+            width: '100%',
+            height: 180,
+            objectFit: 'cover',
+            cursor: 'pointer',
+          }}
+        />
+
+        <div style={{ padding: 10 }}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>
+            {foto.data_foto || '-'}
+          </div>
+
+          <div style={{ marginTop: 6 }}>
+            {foto.nota || 'Nessuna nota'}
+          </div>
+
+          <button
+            onClick={() => eliminaFotoCantiere(foto.id)}
+            style={{
+              ...buttonSecondary,
+              backgroundColor: '#dc2626',
+              color: '#fff',
+              marginTop: 10,
+              width: '100%',
+            }}
+          >
+            🗑 Elimina
+          </button>
+        </div>
+      </div>
+    ))}
+</div>
+
+
+  {geolocalizzazioneFoto && (
+    <div
+      style={{
+        marginBottom: 10,
+        fontSize: 13,
+        color: '#475569',
+      }}
+    >
+      📍 {geolocalizzazioneFoto}
+    </div>
+  )}
+
+  {fotoDaCaricare.length > 0 && (
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+      gap: 10,
+      marginBottom: 15,
+    }}
+  >
+    {fotoDaCaricare.map((foto, i) => (
+      <div key={i} style={{ position: 'relative' }}>
+        <img
+          src={foto}
+          alt={`Anteprima ${i + 1}`}
+          style={{
+            width: '100%',
+            height: 120,
+            objectFit: 'cover',
+            borderRadius: 10,
+            border: '1px solid #cbd5e1',
+          }}
+        />
+
+        <button
+          type="button"
+          onClick={() =>
+            setFotoDaCaricare((lista) =>
+              lista.filter((_, index) => index !== i)
+            )
+          }
+          style={{
+            position: 'absolute',
+            top: 5,
+            right: 5,
+            background: '#dc2626',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            padding: '3px 6px',
+            cursor: 'pointer',
+            fontWeight: 700,
+          }}
+        >
+          ×
+        </button>
+      </div>
+    ))}
+  </div>
+)}
+
+</div>
+          </div>
+        )
+      })()
+    )}
+  </div>
+)}
+     
+        
+    
+    
+
+  
+
+{/* ================= CANTIERI - ANALISI DOCUMENTO ================= */}
+{(
+  pagineAperte.includes('cantieri-analisi') ||
+  (!modalitaMulti &&
+    sezioneAttiva === 'cantieri' &&
+    sottoSezioneCantieri === 'analisi')
+) && (
+  <div style={cardStyle}>
+    <h2>Analisi documento cantiere</h2>
+
+    <select
+      value={cantiereScheda || ''}
+      onChange={(e) => setCantiereScheda(e.target.value)}
+      style={{ padding: 8, width: 260, marginBottom: 15 }}
+    >
+      <option value="">Seleziona cantiere</option>
+      {cantieri.map((c, i) => (
+        <option key={c.id || i} value={c.nome}>
+          {c.nome}
+        </option>
+      ))}
+    </select>
+
+    <div
+  onDragOver={(e) => {
+    e.preventDefault()
+    setDragAttivo(true)
+  }}
+  onDragLeave={() => setDragAttivo(false)}
+  onDrop={async (e) => {
+    e.preventDefault()
+    setDragAttivo(false)
+
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return
+
+    await caricaFileAnalisiDocumento(file)
+  }}
+  style={{
+    padding: 20,
+    border: dragAttivo ? '2px solid #2563eb' : '2px dashed #cbd5e1',
+    borderRadius: 12,
+    background: dragAttivo ? '#eff6ff' : '#f8fafc',
+    marginBottom: 15,
+    textAlign: 'center',
+    cursor: 'pointer',
+  }}
+>
+  <div style={{ fontWeight: 700, marginBottom: 6 }}>
+    📄 Trascina qui il documento da analizzare
+  </div>
+
+  <div style={{ fontSize: 13, color: '#64748b', marginBottom: 10 }}>
+    PDF, Excel o immagini — oppure clicca per selezionare
+  </div>
 
   <input
-    placeholder="Note preventivo"
-    value={notePreventivo}
-    onChange={(e) => setNotePreventivo(e.target.value)}
-    style={{ padding: 8, width: 220 }}
+    type="file"
+    accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp"
+    onChange={analizzaDocumentoCantiere}
+    style={{ maxWidth: 320, margin: '0 auto' }}
   />
 </div>
 
-<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15, alignItems: 'center' }}>
- <label
+    {nomeFileAnalisiDocumento && (
+      <p>
+        File selezionato: <strong>{nomeFileAnalisiDocumento}</strong>
+      </p>
+    )}
+
+    {analisiInCorso && <p><strong>Analisi in corso...</strong></p>}
+
+    <textarea
+      value={testoEstrattoDocumento}
+      onChange={(e) => {
+        setTestoEstrattoDocumento(e.target.value)
+
+        const totale = estraiTotaleScontrino(e.target.value)
+        if (totale) {
+          setImportoRilevatoDocumento(
+            totale.toLocaleString('it-IT', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          )
+        }
+
+        analizzaTestoInVoci(e.target.value)
+      }}
+      placeholder="Qui comparirà il testo estratto dal documento"
+      style={{
+        width: '100%',
+        minHeight: 250,
+        padding: 10,
+        border: '1px solid #ccc',
+        borderRadius: 8,
+        marginTop: 10,
+        boxSizing: 'border-box',
+        fontFamily: fontFamily,
+        fontSize: fontSize,
+        lineHeight: 1.6,
+        whiteSpace: 'pre-wrap',
+      }}
+    />
+
+
+{testoEstrattoDocumento && (
+  <div
+    style={{
+      marginTop: 12,
+      padding: 12,
+      border: '1px solid #ddd',
+      borderRadius: 8,
+      background: '#fafafa',
+    }}
+  >
+    <h4 style={{ marginTop: 0 }}>
+      📋 Righe riconosciute automaticamente
+    </h4>
+
+    {analizzaRigheDocumento(testoEstrattoDocumento).length === 0 ? (
+      <div style={{ color: '#999' }}>
+        Nessuna riga riconosciuta
+      </div>
+    ) : (
+      analizzaRigheDocumento(testoEstrattoDocumento).map((r, i) => (
+        <div
+          key={i}
+          style={{
+            padding: '6px 0',
+            borderBottom: '1px solid #eee',
+          }}
+        >
+          <div
   style={{
-    padding: '8px 12px',
-    backgroundColor: '#f3f4f6',
-    border: '1px solid #d1d5db',
-    borderRadius: 8,
-    cursor: 'pointer',
+    fontSize: 20,
+    lineHeight: 1.5,
+    fontWeight: 400,
+    whiteSpace: 'pre-wrap',
+textTransform: 'none',
+letterSpacing: 0,
+  }}
+>
+ {String(r.descrizione || '')
+  .replace(/\s+/g, ' ')
+  .trim()}
+</div>
+
+          <div
+            style={{
+              fontSize: 13,
+              color: '#666',
+            }}
+          >
+            Qtà: {r.quantita} | UM: {r.unita_misura} | €
+            {formatMoney(r.totale)}
+          </div>
+        </div>
+      ))
+    )}
+  </div>
+)}
+
+
+    {testoEstrattoDocumento && (
+      <div
+        style={{
+          marginTop: 15,
+          padding: 12,
+          border: '2px solid #0f172a',
+          borderRadius: 8,
+          background: '#f8fafc',
+        }}
+      >
+        <label style={{ display: 'block', marginBottom: 12 }}>
+          <strong>Importo rilevato/modificabile:</strong>
+
+          <input
+            value={importoRilevatoDocumento}
+            onChange={(e) => setImportoRilevatoDocumento(e.target.value)}
+            onBlur={() => {
+              const numero = parseImporto(importoRilevatoDocumento)
+
+              if (numero > 0) {
+                setImportoRilevatoDocumento(
+                  numero.toLocaleString('it-IT', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+                )
+              }
+            }}
+            placeholder="Importo €"
+            style={{
+              marginTop: 6,
+              padding: 8,
+              width: 180,
+              borderRadius: 8,
+              border: '1px solid #ccc',
+            }}
+          />
+        </label>
+
+<button
+  onClick={() => salvaDocumentoAnalizzatoInEconomia('preventivo')}
+  style={buttonPrimary}
+>
+  Salva come preventivo
+</button>
+
+<button
+  onClick={async () => {
+    if (!cantiereScheda) {
+      alert('Seleziona prima un cantiere')
+      return
+    }
+
+    const righeDocumento = analizzaRigheDocumento(testoEstrattoDocumento || '')
+
+    const totale =
+      totaleVociAnalizzate > 0
+        ? totaleVociAnalizzate
+        : parseImporto(importoRilevatoDocumento)
+
+    if (!totale || totale <= 0) {
+      alert('Totale non valido')
+      return
+    }
+
+    const resPreventivo = await supabase.from('preventivi_cantiere').insert([
+      {
+        cantiere: cantiereScheda,
+        importo_totale: totale,
+        nome_file: nomeFileAnalisiDocumento || 'Documento analizzato',
+        note: 'Importato da voci analizzate',
+        file_url: fileUrlAnalisi || null,
+        file_path: filePathAnalisi || null,
+        file_tipo: fileTipoAnalisi || null,
+        anteprima_testo: testoEstrattoDocumento || null,
+      },
+    ])
+
+    if (resPreventivo.error) {
+      alert('Errore salvataggio preventivo in economia: ' + resPreventivo.error.message)
+      return
+    }
+
+    if (righeDocumento.length > 0) {
+      const resRighe = await supabase.from('preventivo_lavorazioni').insert(
+        righeDocumento.map((r) => ({
+          cantiere: cantiereScheda,
+          descrizione: r.descrizione,
+          importo_previsto: r.totale,
+          quantita: r.quantita,
+          prezzo_unitario: r.prezzo_unitario,
+          unita_misura: r.unita_misura,
+        }))
+      )
+
+      if (resRighe.error) {
+        alert('Preventivo salvato in economia, ma errore nelle lavorazioni SAL: ' + resRighe.error.message)
+        return
+      }
+    }
+
+    await supabase
+      .from('cantieri')
+      .update({ preventivo: totale })
+      .eq('nome', cantiereScheda)
+
+    await caricaCantieri()
+    await caricaEconomia()
+    await caricaPreventivoLavorazioni()
+
+    alert('Preventivo importato in economia e lavorazioni SAL')
+  }}
+  style={{ ...buttonSecondary, marginLeft: 10 }}
+>
+  Importa voci come preventivo
+</button>
+
+<button
+  onClick={salvaDocumentoComeMaterialeUnico}
+  style={{
+    ...buttonSecondary,
+    marginLeft: 10,
+    backgroundColor: '#111827',
+    color: '#fff',
+    border: 'none',
     fontWeight: 600,
   }}
 >
-  Scegli file preventivo
-  <input
-    type="file"
-    accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png,.webp"
-    onChange={gestisciFilePreventivo}
-    style={{ display: 'none' }}
-  />
-</label>
-  <input
-    placeholder="Nome file"
-    value={nomeFilePreventivo}
-    onChange={(e) => setNomeFilePreventivo(e.target.value)}
-    style={{ padding: 8, width: 220 }}
-  />
-
-  <button onClick={salvaPreventivo} style={{ padding: 8 }}>
-    Salva preventivo
-  </button>
-</div>
-
-{filePreventivo && (
-  <p style={{ fontSize: 13, color: '#444', marginTop: -8 }}>
-    File selezionato: <strong>{filePreventivo.name}</strong>
-  </p>
-)}
-
-<h4>Materiali</h4>
-<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-  <input
-    placeholder="Descrizione materiale"
-    value={descrizioneMateriale}
-    onChange={(e) => setDescrizioneMateriale(e.target.value)}
-    style={{ padding: 8, width: 220 }}
-  />
-  <input
-    placeholder="Qta"
-    value={quantitaMaterialeEconomia}
-    onChange={(e) => setQuantitaMaterialeEconomia(e.target.value)}
-    style={{ padding: 8, width: 100 }}
-  />
-  <input
-    placeholder="Prezzo €"
-    value={prezzoMaterialeEconomia}
-    onChange={(e) => setPrezzoMaterialeEconomia(e.target.value)}
-    style={{ padding: 8, width: 120 }}
-  />
-</div>
-
-<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
-  <input
-    placeholder="Fornitore"
-    value={fornitoreMateriale}
-    onChange={(e) => setFornitoreMateriale(e.target.value)}
-    style={{ padding: 8, width: 180 }}
-  />
-
-  <input
-    type="date"
-    value={dataDocumentoMateriale}
-    onChange={(e) => setDataDocumentoMateriale(e.target.value)}
-    style={{ padding: 8, width: 160 }}
-  />
-
-  <input
-  type="file"
-  accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp"
-  onChange={gestisciFileMateriale}
-  style={{ padding: 8, width: 240 }}
-  />
-
-  <button onClick={aggiungiMaterialeEconomia} style={{ padding: 8 }}>
-    Aggiungi materiale
-  </button>
-</div>
-
-{fileMateriale && (
-  <p style={{ fontSize: 13, color: '#444', marginTop: -8 }}>
-    File selezionato: <strong>{fileMateriale.name}</strong>
-  </p>
-)}
-
-<h4>Attrezzi / Noli</h4>
-<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-  <input
-    placeholder="Descrizione attrezzo"
-    value={descrizioneAttrezzo}
-    onChange={(e) => setDescrizioneAttrezzo(e.target.value)}
-    style={{ padding: 8, width: 220 }}
-  />
-  <input
-    placeholder="Qta"
-    value={quantitaAttrezzo}
-    onChange={(e) => setQuantitaAttrezzo(e.target.value)}
-    style={{ padding: 8, width: 100 }}
-  />
-  <input
-    placeholder="Prezzo €"
-    value={prezzoAttrezzo}
-    onChange={(e) => setPrezzoAttrezzo(e.target.value)}
-    style={{ padding: 8, width: 120 }}
-  />
-</div>
-
-<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-  <input
-    placeholder="Fornitore"
-    value={fornitoreAttrezzo}
-    onChange={(e) => setFornitoreAttrezzo(e.target.value)}
-    style={{ padding: 8, width: 180 }}
-  />
-
-  <input
-    type="date"
-    value={dataDocumentoAttrezzo}
-    onChange={(e) => setDataDocumentoAttrezzo(e.target.value)}
-    style={{ padding: 8, width: 160 }}
-  />
-
- <input
-  type="file"
-  accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp"
-  onChange={gestisciFileAttrezzo}
-  style={{ padding: 8, width: 240 }}
-  />
-</div>
-
-<div style={{ marginBottom: 10 }}>
-  <textarea
-    placeholder="Nota attrezzo / nolo"
-    value={notaAttrezzo}
-    onChange={(e) => setNotaAttrezzo(e.target.value)}
-    style={{ padding: 8, width: '100%', minHeight: 70 }}
-  />
-</div>
-
-<button onClick={aggiungiAttrezzo} style={{ padding: 8 }}>
-  Aggiungi attrezzo
+  Salva come materiale unico
 </button>
 
-{fileAttrezzo && (
-  <p style={{ fontSize: 13, color: '#444', marginTop: 8 }}>
-    File selezionato: <strong>{fileAttrezzo.name}</strong>
+        <button
+          onClick={aggiungiVociAnalizzateComeMateriali}
+          style={{ ...buttonSecondary, marginLeft: 10 }}
+        >
+          Importa voci come materiali
+        </button>
+<button
+  onClick={() => salvaDocumentoAnalizzatoInEconomia('attrezzo')}
+  style={{
+    ...buttonSecondary,
+    marginLeft: 10,
+    backgroundColor: '#111827',
+    color: '#ffffff',
+    border: 'none',
+    fontWeight: 600,
+  }}
+>
+  Salva come attrezzi
+</button>
+        <button
+          onClick={aggiungiVociAnalizzateComeAttrezzi}
+          style={{ ...buttonSecondary, marginLeft: 10 }}
+        >
+          Importa voci come attrezzi
+        </button>
+      </div>
+    )}
+
+    {vociAnalizzate.length > 0 && (
+      <div style={{ marginTop: 20 }}>
+        <h3>Voci individuate</h3>
+
+        <div style={{ display: 'grid', gap: 8 }}>
+          {vociAnalizzate.map((voce, i) => (
+            <div
+              key={i}
+              style={{
+                padding: 10,
+                border: '1px solid #ddd',
+                borderRadius: 8,
+                background: '#fff',
+boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+              }}
+            >
+              <strong>{voce.descrizione}</strong>
+              <br />
+              U.M.: {voce.unita || '-'} · Quantità:{' '}
+              {typeof voce.quantita === 'number' ? voce.quantita : '-'} · Prezzo:{' '}
+              {typeof voce.prezzo === 'number' ? formatMoney(voce.prezzo) : '-'}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)}
+
+
+ {/* ================= CANTIERI - ECONOMIA CANTIERE ================= */}
+{(
+  pagineAperte.includes('cantieri-economia') ||
+  (!modalitaMulti &&
+    sezioneAttiva === 'cantieri' &&
+    sottoSezioneCantieri === 'economia')
+) && (
+  <div style={cardStyle}>
+    <h2>Economia cantiere</h2>
+
+{cantiereScheda && (
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 15,
+      marginBottom: 20,
+    }}
+  >
+    {/* GRAFICO COLONNE */}
+    <div
+      style={{
+        height: 260,
+        background: '#fff',
+        border: '1px solid #ddd',
+        borderRadius: 12,
+        padding: 10,
+      }}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={[
+            { nome: 'Preventivo', valore: preventivoCantiere },
+            { nome: 'Costi', valore: totaleCostiCantiere },
+            { nome: 'Acconti', valore: totaleAccontiCantiere },
+            { nome: 'Residuo', valore: residuoDaIncassare },
+            { nome: 'Utile', valore: utileCantiere },
+          ]}
+          barCategoryGap="40%"
+          barGap={4}
+        >
+          <XAxis dataKey="nome" />
+          <YAxis />
+          <Tooltip />
+          <Bar dataKey="valore" barSize={30} radius={[6, 6, 0, 0]}>
+            {[0, 1, 2, 3, 4].map((_, index) => {
+              const colori = ['#3b82f6', '#ef4444', '#06b6d4', '#f59e0b', '#22c55e']
+              return <Cell key={index} fill={colori[index]} />
+            })}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+
+    {/* GRAFICO CIAMBELLA */}
+    <div
+      style={{
+        height: 260,
+        background: '#fff',
+        border: '1px solid #ddd',
+        borderRadius: 12,
+        padding: 10,
+      }}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+         <Pie
+  data={[
+    { nome: 'Manodopera', valore: totaleManodoperaCantiere || 0 },
+    { nome: 'Materiali', valore: totaleMaterialiEconomia || 0 },
+    { nome: 'Attrezzi', valore: totaleAttrezziEconomia || 0 },
+  ]}
+  dataKey="valore"
+  nameKey="nome"
+  innerRadius={60}
+  outerRadius={90}
+  paddingAngle={3}
+  label={({ percent }) =>
+    `${((percent || 0) * 100).toFixed(0)}%`
+  }
+  labelLine={false}
+  onClick={(data: any) => {
+    if (data?.nome === 'Manodopera') {
+      setMostraDettaglioManodopera(true)
+      setMostraDettaglioMateriali(false)
+      setMostraDettaglioAttrezzi(false)
+    }
+
+    if (data?.nome === 'Materiali') {
+      setMostraDettaglioMateriali(true)
+      setMostraDettaglioManodopera(false)
+      setMostraDettaglioAttrezzi(false)
+    }
+
+    if (data?.nome === 'Attrezzi') {
+      setMostraDettaglioAttrezzi(true)
+      setMostraDettaglioManodopera(false)
+      setMostraDettaglioMateriali(false)
+    }
+  }}
+  style={{ cursor: 'pointer' }}
+>
+  <Cell fill="#ef4444" />
+  <Cell fill="#f59e0b" />
+  <Cell fill="#3b82f6" />
+</Pie>
+          <Tooltip />
+<Legend />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
+  </div>
+)}
+    <select
+      value={cantiereScheda || ''}
+      onChange={(e) => setCantiereScheda(e.target.value)}
+      style={{ padding: 8, width: 260, marginBottom: 15 }}
+    >
+      <option value="">Seleziona cantiere</option>
+      {cantieri.map((c, i) => (
+        <option key={c.id || i} value={c.nome}>
+          {c.nome}
+        </option>
+      ))}
+    </select>
+
+ <div
+  onDragOver={(e) => {
+    e.preventDefault()
+    setDragAttivo(true)
+  }}
+  onDragLeave={() => setDragAttivo(false)}
+  onDrop={async (e) => {
+    e.preventDefault()
+    setDragAttivo(false)
+
+    const file = e.dataTransfer.files?.[0]
+
+    if (!file) return
+
+    await caricaFilePreventivo(file)
+  }}
+  style={{
+    padding: 20,
+    border: dragAttivo ? '2px solid #2563eb' : '2px dashed #cbd5e1',
+    borderRadius: 12,
+    background: dragAttivo ? '#eff6ff' : '#f8fafc',
+    marginBottom: 15,
+    textAlign: 'center',
+    cursor: cantiereScheda ? 'pointer' : 'not-allowed',
+    opacity: cantiereScheda ? 1 : 0.6,
+  }}
+>
+  <div style={{ fontWeight: 700, marginBottom: 6 }}>
+    📎 Trascina qui il file del preventivo
+  </div>
+
+  <div style={{ fontSize: 13, color: '#64748b', marginBottom: 10 }}>
+    PDF, Excel o immagini — oppure clicca per selezionare
+  </div>
+
+  <input
+    type="file"
+    disabled={!cantiereScheda}
+    accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp"
+    onChange={handleUploadPreventivo}
+    style={{ maxWidth: 320, margin: '0 auto' }}
+  />
+</div>
+
+    {!cantiereScheda ? (
+      <p>Seleziona un cantiere per vedere l’economia.</p>
+    ) : (
+      <div>
+        <h3>{cantiereScheda}</h3>
+{(() => {
+  const cantiereCorrente = cantieri.find((c) => c.nome === cantiereScheda)
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: 10,
+        marginBottom: 15,
+        padding: 12,
+        border: '1px solid #ddd',
+        borderRadius: 8,
+        background: '#f8fafc',
+      }}
+    >
+      <label>
+        <strong>Data inizio lavori</strong>
+        <input
+          type="date"
+          value={cantiereCorrente?.data_inizio_lavori || ''}
+          onChange={async (e) => {
+            const nuovaData = e.target.value || null
+
+            const { error } = await supabase
+              .from('cantieri')
+              .update({ data_inizio_lavori: nuovaData })
+              .eq('nome', cantiereScheda)
+
+            if (error) {
+              alert('Errore salvataggio data inizio: ' + error.message)
+              return
+            }
+
+            await caricaCantieri()
+          }}
+        />
+      </label>
+
+    <label>
+  <strong>Data fine lavori</strong>
+
+  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <input
+      type="date"
+      value={cantiereCorrente?.data_fine_lavori || ''}
+      onChange={async (e) => {
+        const nuovaData = e.target.value || null
+
+        const { error } = await supabase
+          .from('cantieri')
+          .update({ data_fine_lavori: nuovaData })
+          .eq('nome', cantiereScheda)
+
+        if (error) {
+          alert('Errore salvataggio data fine: ' + error.message)
+          return
+        }
+
+        await caricaCantieri()
+      }}
+    />
+
+    <input
+      type="checkbox"
+      title="Considera lavori conclusi"
+      checked={Boolean(cantiereCorrente?.lavori_conclusi)}
+      onChange={async (e) => {
+        const concluso = e.target.checked
+
+        const { error } = await supabase
+          .from('cantieri')
+          .update({ lavori_conclusi: concluso })
+          .eq('nome', cantiereScheda)
+
+        if (error) {
+          alert('Errore aggiornamento stato lavori: ' + error.message)
+          return
+        }
+
+        await caricaCantieri()
+      }}
+      style={{
+        width: 18,
+        height: 18,
+        cursor: 'pointer',
+        marginBottom: 10,
+      }}
+    />
+  </div>
+</label>
+
+
+    </div>
+  )
+})()}
+
+        <div style={{ display: 'grid', gap: 10 }}>
+
+
+
+          {/* ================= PREVENTIVI ================= */}
+          <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+            <strong>Preventivo totale:</strong> {formatMoney(preventivoCantiere)}
+
+            <button
+              onClick={() => setMostraPreventiviCantiere(!mostraPreventiviCantiere)}
+              style={{ ...buttonSecondary, marginLeft: 10 }}
+            >
+              {mostraPreventiviCantiere ? 'Nascondi anteprima' : 'Vedi anteprima preventivi'}
+            </button>
+
+            {mostraPreventiviCantiere && (
+              <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+                {preventivi.filter((p) => p.cantiere === cantiereScheda).length === 0 ? (
+                  <p>Nessun preventivo caricato.</p>
+                ) : (
+                  preventivi
+                    .filter((p) => p.cantiere === cantiereScheda)
+                    .map((p, i) => (
+                      <div
+                        key={p.id || i}
+                        style={{
+                          padding: 12,
+                          border: '1px solid #ddd',
+                          borderRadius: 8,
+                          background: '#fff',
+                        }}
+                      >
+                        <strong>{p.nome_file || `Preventivo ${i + 1}`}</strong>
+                        <br />
+
+                        <div style={{ marginTop: 8 }}>
+                          <strong>Importo usato nel totale:</strong>{' '}
+                          {formatMoney(
+                            parseImporto(
+                              (p as any).importo_corretto &&
+                                String((p as any).importo_corretto).trim() !== ''
+                                ? (p as any).importo_corretto
+                                : p.importo_totale
+                            )
+                          )}
+                        </div>
+
+                        <label style={{ display: 'block', marginTop: 8 }}>
+                          <strong>Correggi importo:</strong>
+
+                          <input
+                            value={String((p as any).importo_corretto ?? '')}
+                            onChange={(e) => {
+                              const valore = e.target.value
+
+                              setPreventivi((prev) =>
+                                prev.map((item) =>
+                                  item.id === p.id
+                                    ? { ...item, importo_corretto: valore }
+                                    : item
+                                ) as any
+                              )
+                            }}
+                            placeholder="Es. 53845.20"
+                            style={{
+                              marginTop: 6,
+                              maxWidth: 180,
+                              padding: 8,
+                              borderRadius: 8,
+                              border: '1px solid #cbd5e1',
+                            }}
+                          />
+                        </label>
+
+                        <button
+                          onClick={async () => {
+                            if (!p.id) return alert('ID preventivo mancante')
+
+                            const valoreCorretto = (p as any).importo_corretto
+
+                            if (!valoreCorretto || String(valoreCorretto).trim() === '') {
+                              alert('Inserisci prima un importo corretto')
+                              return
+                            }
+
+                            const importo = parseImporto(valoreCorretto)
+
+                            if (!importo || importo <= 0) {
+                              alert('Importo non valido')
+                              return
+                            }
+
+                            const { error } = await supabase
+                              .from('preventivi_cantiere')
+                              .update({ importo_totale: importo })
+                              .eq('id', p.id)
+
+                            if (error) {
+                              alert('Errore salvataggio importo: ' + error.message)
+                              return
+                            }
+
+                            await caricaEconomia()
+                            alert('Importo corretto salvato')
+                          }}
+                          style={{ ...buttonSecondary, marginTop: 8 }}
+                        >
+                          Salva correzione
+                        </button>
+
+                        <br />
+                        Note: {p.note || '-'}
+
+
+                        {p.file_tipo === 'pdf' && p.file_url && (
+                          <div
+                            style={{
+                              width: 700,
+                              height: 500,
+                              minWidth: 300,
+                              minHeight: 250,
+                              maxWidth: '100%',
+                              resize: 'both',
+                              overflow: 'auto',
+                              border: '1px solid #ddd',
+                              borderRadius: 8,
+                              marginTop: 10,
+                            }}
+                          >
+                            <iframe
+                              src={p.file_url}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                border: 'none',
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {p.file_tipo === 'excel' && p.anteprima_testo && (
+                          <div
+                            style={{
+                              marginTop: 12,
+                              border: '1px solid #cbd5e1',
+                              borderRadius: 10,
+                              background: '#ffffff',
+                              overflow: 'visible',
+                            }}
+                          >
+                            <div
+                              style={{
+                                padding: '10px 12px',
+                                background: '#f1f5f9',
+                                borderBottom: '1px solid #cbd5e1',
+                                fontWeight: 700,
+                              }}
+                            >
+                              Anteprima Excel
+                            </div>
+
+                            <div
+                              style={{
+                                width: 700,
+                                height: 400,
+                                minWidth: 300,
+                                minHeight: 250,
+                                maxWidth: '100%',
+                                resize: 'both',
+                                overflow: 'auto',
+                              }}
+                            >
+                              <table
+                                style={{
+                                  width: '100%',
+                                  borderCollapse: 'collapse',
+                                  fontSize: 13,
+                                  minWidth: 900,
+                                }}
+                              >
+                                <tbody>
+                                  {(() => {
+                                    try {
+                                      const righe = JSON.parse(p.anteprima_testo)
+
+                                      return righe.map((row: any[], i: number) => (
+                                        <tr key={i}>
+                                          {(Array.isArray(row) ? row : []).map((cell, j) => (
+                                            <td
+                                              key={j}
+                                              style={{
+                                                border: '1px solid #e2e8f0',
+                                                padding: '8px 10px',
+                                                whiteSpace: 'normal',
+                                                wordBreak: 'break-word',
+                                                lineHeight: 1.4,
+                                                verticalAlign: 'top',
+                                                fontWeight: i === 0 ? 700 : 400,
+                                                background: i === 0 ? '#f8fafc' : '#ffffff',
+                                                maxWidth: 220,
+                                              }}
+                                            >
+                                              {String(cell ?? '')}
+                                            </td>
+                                          ))}
+                                        </tr>
+                                      ))
+                                    } catch {
+                                      return (
+                                        <tr>
+                                          <td style={{ padding: 12 }}>
+                                            Anteprima Excel non leggibile
+                                          </td>
+                                        </tr>
+                                      )
+                                    }
+                                  })()}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+
+                        <div style={{ marginTop: 10 }}>
+                          <button
+  onClick={async () => {
+    if (!p.id) return
+
+    if (!confirm('Vuoi eliminare questo preventivo?')) return
+
+    if (p.file_path) {
+      const { error: storageError } = await supabase.storage
+        .from('preventivi')
+        .remove([p.file_path])
+
+      if (storageError) {
+        alert('Errore cancellazione file da Storage: ' + storageError.message)
+        return
+      }
+    }
+
+    const { error } = await supabase
+      .from('preventivi_cantiere')
+      .delete()
+      .eq('id', p.id)
+
+    if (error) {
+      alert('Errore eliminazione preventivo: ' + error.message)
+      return
+    }
+
+    await caricaEconomia()
+    alert('Preventivo eliminato completamente')
+  }}
+  style={{
+    ...buttonSecondary,
+    backgroundColor: '#d9534f',
+    color: 'white',
+  }}
+>
+  Elimina preventivo
+</button>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            )}
+          </div>
+
+
+{/* ================= SAL DETTAGLIATO ================= */}
+<div style={cardStyle}>
+  <h2>📊 SAL dettagliato</h2>
+
+  <p style={{ color: '#64748b', marginTop: 0 }}>
+    Gestisci lo stato avanzamento lavori per singola lavorazione.
   </p>
-)} 
 
-<div style={{ marginTop: 20 }}>
-  <h4>Preventivi salvati</h4>
+  <div
+    style={{
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+      marginBottom: 18,
+    }}
+  >
+    <select
+      value={salCantiere}
+      onChange={(e) => setSalCantiere(e.target.value)}
+      style={{ padding: 8, width: 220 }}
+    >
+      <option value="">Seleziona cantiere</option>
+      {cantieri.map((c, i) => (
+        <option key={c.id || i} value={c.nome}>
+          {c.nome}
+        </option>
+      ))}
+    </select>
 
-  {preventivi.filter((p) => p.cantiere === cantiereScheda).length === 0 ? (
-    <p>Nessun preventivo salvato</p>
-  ) : (
-    <div style={{ display: 'grid', gap: 10 }}>
-      {preventivi
-        .filter((p) => p.cantiere === cantiereScheda)
+    <input
+      placeholder="Descrizione lavorazione"
+      value={salDescrizione}
+      onChange={(e) => setSalDescrizione(e.target.value)}
+      style={{ padding: 8, width: 260 }}
+    />
+
+    <input
+      placeholder="Importo previsto €"
+      value={salImportoPrevisto}
+      onChange={(e) => setSalImportoPrevisto(e.target.value)}
+      style={{ padding: 8, width: 160 }}
+    />
+
+    <input
+      placeholder="% eseguita"
+      value={salPercentuale}
+      onChange={(e) => setSalPercentuale(e.target.value)}
+      style={{ padding: 8, width: 130 }}
+    />
+
+    <input
+      placeholder="Note"
+      value={salNote}
+      onChange={(e) => setSalNote(e.target.value)}
+      style={{ padding: 8, width: 220 }}
+    />
+
+    <button onClick={salvaSalLavorazione} style={buttonPrimary}>
+      Salva lavorazione SAL
+    </button>
+
+    <button
+      onClick={async () => {
+        if (!salCantiere) {
+          alert('Seleziona prima un cantiere')
+          return
+        }
+
+        const { data: righePreventivo, error: erroreCaricamento } =
+          await supabase
+            .from('preventivo_lavorazioni')
+            .select('*')
+            .eq('cantiere', salCantiere)
+
+        if (erroreCaricamento) {
+          alert(
+            'Errore caricamento lavorazioni preventivo: ' +
+              erroreCaricamento.message
+          )
+          return
+        }
+
+        if (!righePreventivo || righePreventivo.length === 0) {
+          alert('Nessuna lavorazione preventivo trovata per questo cantiere')
+          return
+        }
+
+        const lavorazioniDaInserire = righePreventivo.map((r) => ({
+          cantiere: salCantiere,
+          descrizione: r.descrizione,
+          importo_previsto: Number(r.importo_previsto || 0),
+          percentuale: 0,
+          importo_maturato: 0,
+          completata: false,
+          note: 'Importata da preventivo',
+          data_aggiornamento: new Date().toISOString().slice(0, 10),
+        }))
+
+        const { error } = await supabase
+          .from('sal_lavorazioni')
+          .insert(lavorazioniDaInserire)
+
+        if (error) {
+          alert('Errore importazione nel SAL: ' + error.message)
+          return
+        }
+
+        await caricaSalLavorazioni()
+
+        alert('Lavorazioni importate nel SAL')
+      }}
+      style={buttonSecondary}
+    >
+      Importa lavorazioni preventivo nel SAL
+    </button>
+  </div>
+
+  <div
+    style={{
+      marginTop: 20,
+      marginBottom: 20,
+      padding: 14,
+      border: '1px solid #ddd',
+      borderRadius: 10,
+      background: '#fff',
+    }}
+  >
+    <h3 style={{ marginTop: 0 }}>📋 Lavorazioni preventivo</h3>
+
+    <div
+      style={{
+        display: 'flex',
+        gap: 8,
+        flexWrap: 'wrap',
+      }}
+    >
+      <input
+        placeholder="Descrizione"
+        value={prevDescrizione}
+        onChange={(e) => setPrevDescrizione(e.target.value)}
+        style={{ padding: 8, width: 240 }}
+      />
+
+      <input
+        placeholder="Quantità"
+        value={prevQuantita}
+        onChange={(e) => setPrevQuantita(e.target.value)}
+        style={{ padding: 8, width: 100 }}
+      />
+
+      <input
+        placeholder="Prezzo unit."
+        value={prevPrezzoUnitario}
+        onChange={(e) => setPrevPrezzoUnitario(e.target.value)}
+        style={{ padding: 8, width: 120 }}
+      />
+
+      <input
+        placeholder="UM"
+        value={prevUnita}
+        onChange={(e) => setPrevUnita(e.target.value)}
+        style={{ padding: 8, width: 80 }}
+      />
+
+      <input
+        placeholder="Importo totale"
+        value={prevImporto}
+        onChange={(e) => setPrevImporto(e.target.value)}
+        style={{ padding: 8, width: 140 }}
+      />
+
+     <button
+  onClick={salvaLavorazionePreventivo}
+  style={buttonPrimary}
+>
+  Salva lavorazione preventivo
+</button> 
+
+    </div>
+  </div>
+{salCantiere && (() => {
+  const totalePreventiviPdf = preventivi
+    .filter((p) => p.cantiere === salCantiere)
+    .reduce((tot, p) => tot + Number(p.importo_totale || 0), 0)
+
+  const totaleLavorazioniPreventivo = preventivoLavorazioni
+    .filter((p) => p.cantiere === salCantiere)
+    .reduce((tot, p) => tot + Number(p.importo_previsto || 0), 0)
+
+  const differenza = totalePreventiviPdf - totaleLavorazioniPreventivo
+
+  return (
+    <div
+      style={{
+        marginTop: 15,
+        padding: 12,
+        border: '2px solid #0f172a',
+        borderRadius: 8,
+        background: '#f8fafc',
+      }}
+    >
+      <strong>📊 Controllo importazione preventivo</strong>
+
+      <div style={{ marginTop: 8 }}>
+        Totale preventivi caricati: € {formatMoney(totalePreventiviPdf)}
+      </div>
+
+      <div>
+        Totale lavorazioni preventivo/SAL: € {formatMoney(totaleLavorazioniPreventivo)}
+      </div>
+
+
+
+
+<div style={{ marginTop: 16 }}>
+  <strong style={{ fontSize: 18 }}>
+    📋 Lavorazioni preventivo caricate
+  </strong>
+
+  <div
+  style={{
+    marginTop: 12,
+   background: '#fff',
+    border: '1px solid #cbd5e1',
+    borderRadius: 10,
+    padding: 18,
+boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+
+    width: '100%',
+    minWidth: 360,
+    maxWidth: '100%',
+
+    height: 520,
+    minHeight: 260,
+    maxHeight: '80vh',
+
+    overflow: 'auto',
+    resize: 'both',
+  }}
+>
+    {preventivoLavorazioni.filter(
+      (p) => p.cantiere === salCantiere
+    ).length === 0 ? (
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 8,
+          padding: 20,
+        }}
+      >
+        Nessuna lavorazione caricata.
+      </div>
+    ) : (
+      preventivoLavorazioni
+        .filter((p) => p.cantiere === salCantiere)
         .map((p, i) => (
           <div
             key={p.id || i}
             style={{
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              padding: 12,
-              background: '#fafafa',
+              background: '#fff',
+              marginBottom: 18,
+              padding: '22px 26px',
+              borderRadius: 4,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+              border: '1px solid #e5e7eb',
+              position: 'relative',
             }}
           >
-            <div><strong>Importo:</strong> {formatMoney(Number(p.importo_totale || 0))}</div>
-            <div><strong>Note:</strong> {p.note || '-'}</div>
-            <div><strong>File:</strong> {p.nome_file || '-'}</div>
-
-            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => preparaModificaPreventivo(p)}
-                style={{
-                  padding: 8,
-                  backgroundColor: '#0275d8',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                }}
-              >
-                Modifica
-              </button>
-
+            <div
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                display: 'flex',
+                gap: 8,
+              }}
+            >
               <button
                 onClick={async () => {
-                  if (!p.id) return
-                  const conferma = confirm('Vuoi eliminare questo preventivo?')
+                  const conferma = confirm(
+                    'Eliminare questa lavorazione?'
+                  )
+
                   if (!conferma) return
 
                   const { error } = await supabase
-                    .from('preventivi_cantiere')
+                    .from('preventivo_lavorazioni')
                     .delete()
                     .eq('id', p.id)
 
                   if (error) {
-                    alert('Errore eliminazione preventivo: ' + error.message)
+                    alert(
+                      'Errore eliminazione: ' + error.message
+                    )
                     return
                   }
 
-                  await caricaEconomia()
-                  alert('Preventivo eliminato')
+                  await caricaPreventivoLavorazioni()
+
+                  alert('Lavorazione eliminata')
                 }}
                 style={{
-                  padding: 8,
-                  backgroundColor: '#d9534f',
-                  color: 'white',
+                  background: '#dc2626',
+                  color: '#fff',
                   border: 'none',
                   borderRadius: 6,
+                  padding: '6px 10px',
                   cursor: 'pointer',
                 }}
               >
                 Elimina
               </button>
             </div>
+
+            <div
+              style={{
+                fontSize: 13,
+                color: '#64748b',
+                marginBottom: 8,
+              }}
+            >
+              Riga #{i + 1}
+            </div>
+
+            <div
+              style={{
+                fontSize: 20,
+                fontWeight: 400,
+                marginBottom: 10,
+                lineHeight: 1.3,
+              }}
+            >
+             {String(p.descrizione || '')
+  .replace(/\s+/g, ' ')
+  .trim()}
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '120px 120px 120px 1fr',
+                gap: 12,
+                marginTop: 18,
+                fontSize: 18,
+              }}
+            >
+              <div>
+                <strong>UM</strong>
+                <br />
+                {p.unita_misura || '-'}
+              </div>
+
+              <div>
+                <strong>Qtà</strong>
+                <br />
+                {p.quantita || '-'}
+              </div>
+
+              <div>
+                <strong>Prezzo</strong>
+                <br />
+                €
+                {formatMoney(
+                  Number(p.prezzo_unitario || 0)
+                )}
+              </div>
+
+              <div>
+                <strong>Totale</strong>
+                <br />
+                <span
+                  style={{
+                    fontSize: 24,
+                    fontWeight: 700,
+                  }}
+                >
+                  €
+                  {formatMoney(
+                    Number(p.importo_previsto || 0)
+                  )}
+                </span>
+              </div>
+            </div>
           </div>
-        ))}
-    </div>
-  )}
-
-  {preventivoInModifica && (
-    <div style={{ marginTop: 15, padding: 12, border: '1px solid #ccc', borderRadius: 8 }}>
-      <h4>Modifica preventivo</h4>
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <input
-          placeholder="Importo preventivo €"
-          value={importoPreventivoModifica}
-          onChange={(e) => setImportoPreventivoModifica(e.target.value)}
-          style={{ padding: 8, width: 180 }}
-        />
-
-        <input
-          placeholder="Nome file"
-          value={nomeFilePreventivoModifica}
-          onChange={(e) => setNomeFilePreventivoModifica(e.target.value)}
-          style={{ padding: 8, width: 220 }}
-        />
-      </div>
-
-      <div style={{ marginBottom: 10 }}>
-        <textarea
-          placeholder="Note preventivo"
-          value={notePreventivoModifica}
-          onChange={(e) => setNotePreventivoModifica(e.target.value)}
-          style={{ padding: 8, width: '100%', minHeight: 70 }}
-        />
-      </div>
-
-      <button onClick={salvaModificaPreventivo} style={{ padding: 8 }}>
-        Salva modifica preventivo
-      </button>
-
-      <button
-        onClick={annullaModificaPreventivo}
-        style={{ padding: 8, marginLeft: 10 }}
-      >
-        Annulla
-      </button>
-    </div>
-  )}
+        ))
+    )}
+  </div>
 </div>
 
-<div style={{ marginTop: 20 }}>
-  <h4>Materiali salvati</h4>
+      <div
+        style={{
+          marginTop: 8,
+          fontWeight: 700,
+          color: Math.abs(differenza) > 1 ? '#b91c1c' : '#15803d',
+        }}
+      >
+        Differenza: € {formatMoney(differenza)}
+      </div>
 
-  {materialiCantiere.filter((m) => m.cantiere === cantiereScheda).length === 0 ? (
-    <p>Nessun materiale salvato</p>
+      {Math.abs(differenza) > 1 && (
+        <div style={{ marginTop: 8, color: '#92400e' }}>
+          ⚠️ Il totale delle lavorazioni non coincide con il totale del preventivo.
+          Potrebbero mancare alcune voci oppure alcune righe sono state lette male.
+        </div>
+      )}
+
+<div style={{ marginTop: 14 }}>
+  <strong>📄 Preventivi caricati per questo cantiere</strong>
+
+  {preventivi.filter((p) => p.cantiere === salCantiere).length === 0 ? (
+    <div style={{ marginTop: 8, color: '#64748b' }}>
+      Nessun preventivo caricato.
+    </div>
   ) : (
-    <div style={{ display: 'grid', gap: 10 }}>
-      {materialiCantiere
-        .filter((m) => m.cantiere === cantiereScheda)
-        .map((m, i) => (
-          <div
-            key={m.id || i}
+    preventivi
+      .filter((p) => p.cantiere === salCantiere)
+      .map((p, i) => (
+        <div
+          key={p.id || i}
+          style={{
+            marginTop: 8,
+            padding: 10,
+            border: '1px solid #ddd',
+            borderRadius: 8,
+            background: '#fff',
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 10,
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <strong>{p.nome_file || 'Preventivo'}</strong>
+            <br />
+            Importo: € {formatMoney(Number(p.importo_totale || 0))}
+          </div>
+
+          <button
+            onClick={async () => {
+              const conferma = confirm('Eliminare questo preventivo caricato?')
+              if (!conferma) return
+
+              if (p.file_path) {
+                await supabase.storage
+                  .from('preventivi')
+                  .remove([p.file_path])
+              }
+
+              const { error } = await supabase
+                .from('preventivi_cantiere')
+                .delete()
+                .eq('id', p.id)
+
+              if (error) {
+                alert('Errore eliminazione preventivo: ' + error.message)
+                return
+              }
+
+              await caricaEconomia()
+              alert('Preventivo eliminato')
+            }}
             style={{
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              padding: 12,
-              background: '#fafafa',
+              background: '#dc2626',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              padding: '6px 10px',
+              cursor: 'pointer',
             }}
           >
-            <div><strong>Descrizione:</strong> {m.descrizione || '-'}</div>
-            <div><strong>Quantità:</strong> {m.quantita ?? 0}</div>
-            <div><strong>Prezzo unitario:</strong> {formatMoney(Number(m.prezzo_unitario || 0))}</div>
-            <div><strong>Totale:</strong> {formatMoney(Number(m.totale || 0))}</div>
-            <div><strong>Fornitore:</strong> {m.fornitore || '-'}</div>
-            <div><strong>Data documento:</strong> {m.data_documento || '-'}</div>
-            <div><strong>File:</strong> {m.nome_file || '-'}</div>
-
-            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => preparaModificaMateriale(m)}
-                style={{
-                  padding: 8,
-                  backgroundColor: '#0275d8',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                }}
-              >
-                Modifica
-              </button>
-
-              <button
-                onClick={async () => {
-                  if (!m.id) return
-                  const conferma = confirm('Vuoi eliminare questo materiale?')
-                  if (!conferma) return
-
-                  const { error } = await supabase
-                    .from('materiali_cantiere')
-                    .delete()
-                    .eq('id', m.id)
-
-                  if (error) {
-                    alert('Errore eliminazione materiale: ' + error.message)
-                    return
-                  }
-
-                  await caricaEconomia()
-                  alert('Materiale eliminato')
-                }}
-                style={{
-                  padding: 8,
-                  backgroundColor: '#d9534f',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                }}
-              >
-                Elimina
-              </button>
-            </div>
-          </div>
-        ))}
-    </div>
-  )}
-
-  {materialeInModifica && (
-    <div style={{ marginTop: 15, padding: 12, border: '1px solid #ccc', borderRadius: 8 }}>
-      <h4>Modifica materiale</h4>
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <input
-          placeholder="Descrizione materiale"
-          value={descrizioneMaterialeModifica}
-          onChange={(e) => setDescrizioneMaterialeModifica(e.target.value)}
-          style={{ padding: 8, width: 220 }}
-        />
-        <input
-          placeholder="Qta"
-          value={quantitaMaterialeModifica}
-          onChange={(e) => setQuantitaMaterialeModifica(e.target.value)}
-          style={{ padding: 8, width: 100 }}
-        />
-        <input
-          placeholder="Prezzo €"
-          value={prezzoMaterialeModifica}
-          onChange={(e) => setPrezzoMaterialeModifica(e.target.value)}
-          style={{ padding: 8, width: 120 }}
-        />
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <input
-          placeholder="Fornitore"
-          value={fornitoreMaterialeModifica}
-          onChange={(e) => setFornitoreMaterialeModifica(e.target.value)}
-          style={{ padding: 8, width: 180 }}
-        />
-
-        <input
-          type="date"
-          value={dataDocumentoMaterialeModifica}
-          onChange={(e) => setDataDocumentoMaterialeModifica(e.target.value)}
-          style={{ padding: 8, width: 160 }}
-        />
-
-        <input
-          placeholder="Nome file"
-          value={nomeFileMaterialeModifica}
-          onChange={(e) => setNomeFileMaterialeModifica(e.target.value)}
-          style={{ padding: 8, width: 220 }}
-        />
-      </div>
-
-      <button onClick={salvaModificaMateriale} style={{ padding: 8 }}>
-        Salva modifica materiale
-      </button>
-
-      <button
-        onClick={annullaModificaMateriale}
-        style={{ padding: 8, marginLeft: 10 }}
-      >
-        Annulla
-      </button>
-    </div>
+            Elimina
+          </button>
+        </div>
+      ))
   )}
 </div>
 
-<div style={{ marginTop: 20 }}>
-  <h4>Attrezzi / noli salvati</h4>
 
-  {attrezziCantiere.filter((a) => a.cantiere === cantiereScheda).length === 0 ? (
-    <p>Nessun attrezzo salvato</p>
-  ) : (
-    <div style={{ display: 'grid', gap: 10 }}>
-      {attrezziCantiere
-        .filter((a) => a.cantiere === cantiereScheda)
-        .map((a, i) => (
+<button
+  onClick={() => setMostraConfrontoPdfSal(!mostraConfrontoPdfSal)}
+  style={{ ...buttonSecondary, marginTop: 14 }}
+>
+  {mostraConfrontoPdfSal
+    ? 'Nascondi confronto PDF ↔ lavorazioni'
+    : 'Mostra confronto PDF ↔ lavorazioni'}
+</button>
+
+{mostraConfrontoPdfSal && (
+  <div style={{ marginTop: 16 }}>
+    <strong>🔍 Confronto PDF ↔ Lavorazioni SAL</strong>
+
+    {(() => {
+      const preventivoPdf = preventivi.find((p) => p.cantiere === salCantiere)
+      const righePdf = analizzaRigheDocumento(preventivoPdf?.anteprima_testo || '')
+      const righeSal = preventivoLavorazioni.filter(
+        (p) => p.cantiere === salCantiere
+      )
+
+      if (!preventivoPdf) {
+        return (
+          <div style={{ marginTop: 8, color: '#64748b' }}>
+            Nessun PDF/preventivo caricato da confrontare.
+          </div>
+        )
+      }
+
+      return (
+        <div
+          style={{
+            marginTop: 10,
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 12,
+            alignItems: 'start',
+          }}
+        >
           <div
-            key={a.id || i}
             style={{
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              padding: 12,
-              background: '#fafafa',
+              position: 'sticky',
+              top: 10,
+              alignSelf: 'start',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              paddingRight: 6,
             }}
           >
-            <div><strong>Descrizione:</strong> {a.descrizione || '-'}</div>
-            <div><strong>Quantità:</strong> {a.quantita ?? 0}</div>
-            <div><strong>Prezzo unitario:</strong> {formatMoney(Number(a.prezzo_unitario || 0))}</div>
-            <div><strong>Totale:</strong> {formatMoney(Number(a.totale || 0))}</div>
-            <div><strong>Fornitore:</strong> {a.fornitore || '-'}</div>
-            <div><strong>Data documento:</strong> {a.data_documento || '-'}</div>
-            <div><strong>File:</strong> {a.nome_file || '-'}</div>
-            <div><strong>Nota:</strong> {a.nota || '-'}</div>
+            <strong>Righe riconosciute dal PDF</strong>
 
-            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => preparaModificaAttrezzo(a)}
-                style={{
-                  padding: 8,
-                  backgroundColor: '#0275d8',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                }}
-              >
-                Modifica
-              </button>
+            {righePdf.map((r, i) => {
+              const abbinata = righeSal.some(
+                (s) =>
+                  Math.abs(Number(s.importo_previsto || 0) - r.totale) < 1
+              )
 
-              <button
-                onClick={async () => {
-                  if (!a.id) return
-                  const conferma = confirm('Vuoi eliminare questo attrezzo?')
-                  if (!conferma) return
+              const giaImportata = righeSal.some(
+                (s) =>
+                  String(s.descrizione || '').trim().toLowerCase() ===
+                  String(r.descrizione || '').trim().toLowerCase()
+              )
 
-                  const { error } = await supabase
-                    .from('attrezzi_cantiere')
-                    .delete()
-                    .eq('id', a.id)
+              return (
+                <div
+                  key={i}
+                  style={{
+                    marginTop: 8,
+                    padding: 8,
+                    border: '1px solid #ddd',
+                    borderRadius: 8,
+                    background: abbinata ? '#f0fdf4' : '#fef2f2',
+                  }}
+                >
+                  <strong>
+                    {abbinata ? '✅' : '❌'} {r.descrizione}
+                  </strong>
 
-                  if (error) {
-                    alert('Errore eliminazione attrezzo: ' + error.message)
-                    return
-                  }
+                  <br />
 
-                  await caricaEconomia()
-                  alert('Attrezzo eliminato')
-                }}
-                style={{
-                  padding: 8,
-                  backgroundColor: '#d9534f',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                }}
-              >
-                Elimina
-              </button>
-            </div>
+                  Qtà: {r.quantita} | UM: {r.unita_misura} | Totale: €
+                  {formatMoney(r.totale)}
+
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      disabled={giaImportata}
+                      onClick={async () => {
+                        if (!salCantiere) {
+                          alert('Seleziona un cantiere')
+                          return
+                        }
+
+                        const { error } = await supabase
+                          .from('preventivo_lavorazioni')
+                          .insert([
+                            {
+                              cantiere: salCantiere,
+                              descrizione: r.descrizione,
+                              quantita: r.quantita,
+                              prezzo_unitario: r.prezzo_unitario,
+                              importo_previsto: r.totale,
+                              unita_misura: r.unita_misura,
+                            },
+                          ])
+
+                        if (error) {
+                          alert('Errore importazione riga PDF: ' + error.message)
+                          return
+                        }
+
+                        await caricaPreventivoLavorazioni()
+
+                        alert('Riga PDF importata nelle lavorazioni')
+                      }}
+                      style={{
+                        marginTop: 4,
+                        background: '#2563eb',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '5px 8px',
+                        cursor: giaImportata ? 'not-allowed' : 'pointer',
+                        opacity: giaImportata ? 0.5 : 1,
+                      }}
+                    >
+                      {giaImportata
+                        ? '✅ Riga già importata'
+                        : '📥 Usa questa riga PDF'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
-        ))}
-    </div>
-  )}
 
-  {attrezzoInModifica && (
-    <div style={{ marginTop: 15, padding: 12, border: '1px solid #ccc', borderRadius: 8 }}>
-      <h4>Modifica attrezzo / nolo</h4>
+          <div
+            style={{
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              paddingRight: 6,
+            }}
+          >
+            <strong>Lavorazioni presenti nel SAL/preventivo</strong>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <input
-          placeholder="Descrizione attrezzo"
-          value={descrizioneAttrezzoModifica}
-          onChange={(e) => setDescrizioneAttrezzoModifica(e.target.value)}
-          style={{ padding: 8, width: 220 }}
-        />
-        <input
-          placeholder="Qta"
-          value={quantitaAttrezzoModifica}
-          onChange={(e) => setQuantitaAttrezzoModifica(e.target.value)}
-          style={{ padding: 8, width: 100 }}
-        />
-        <input
-          placeholder="Prezzo €"
-          value={prezzoAttrezzoModifica}
-          onChange={(e) => setPrezzoAttrezzoModifica(e.target.value)}
-          style={{ padding: 8, width: 120 }}
-        />
-      </div>
+            {righeSal.map((s, i) => {
+              const descrizioneSal = String(s.descrizione || '').toLowerCase()
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <input
-          placeholder="Fornitore"
-          value={fornitoreAttrezzoModifica}
-          onChange={(e) => setFornitoreAttrezzoModifica(e.target.value)}
-          style={{ padding: 8, width: 180 }}
-        />
+              const descrizioneTroppoLunga =
+                String(s.descrizione || '').length > 220
 
-        <input
-          type="date"
-          value={dataDocumentoAttrezzoModifica}
-          onChange={(e) => setDataDocumentoAttrezzoModifica(e.target.value)}
-          style={{ padding: 8, width: 160 }}
-        />
+              const pdfSimile = righePdf.find((r) =>
+                descrizioneSal.includes(
+                  String(r.descrizione || '')
+                    .toLowerCase()
+                    .slice(0, 25)
+                )
+              )
 
-        <input
-          placeholder="Nome file"
-          value={nomeFileAttrezzoModifica}
-          onChange={(e) => setNomeFileAttrezzoModifica(e.target.value)}
-          style={{ padding: 8, width: 220 }}
-        />
-      </div>
+              const abbinata = righePdf.some(
+                (r) =>
+                  Math.abs(Number(s.importo_previsto || 0) - r.totale) < 1
+              )
 
-      <div style={{ marginBottom: 10 }}>
-        <textarea
-          placeholder="Nota attrezzo"
-          value={notaAttrezzoModifica}
-          onChange={(e) => setNotaAttrezzoModifica(e.target.value)}
-          style={{ padding: 8, width: '100%', minHeight: 70 }}
-        />
-      </div>
+              return (
+                <div
+                  key={s.id || i}
+                  style={{
+                    marginTop: 8,
+                    padding: 8,
+                    border: '1px solid #ddd',
+                    borderRadius: 8,
+                    background:
+                      !abbinata || descrizioneTroppoLunga
+                        ? '#fef2f2'
+                        : pdfSimile
+                        ? '#eff6ff'
+                        : '#f0fdf4',
+                  }}
+                >
+                  {lavorazioneEditId === s.id ? (
+                    <div style={{ display: 'grid', gap: 6 }}>
 
-      <button onClick={salvaModificaAttrezzo} style={{ padding: 8 }}>
-        Salva modifica attrezzo
-      </button>
 
-      <button
-        onClick={annullaModificaAttrezzo}
-        style={{ padding: 8, marginLeft: 10 }}
-      >
-        Annulla
-      </button>
-    </div>
-  )}
-</div>
-</div>
-            <div style={{ marginTop: 15 }}> 
-              <h4>Rapportini del cantiere</h4>
-              {rapportiniScheda.length === 0 ? (
-                <p>Nessun rapportino collegato.</p>
-              ) : (
-                <ul>
-                  {rapportiniScheda.map((r, i) => (
-                    <li key={r.id || i} style={{ marginBottom: 10 }}>
-                      <strong>{r.data}</strong> - {r.ore} ore
-                      <br />
-                      {r.note}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+                     <textarea
+  value={lavorazioneEditDescrizione}
+  onChange={(e) =>
+    setLavorazioneEditDescrizione(e.target.value)
+  }
+  style={{
+    padding: 8,
+    border: '1px solid #ccc',
+    borderRadius: 6,
+    minHeight: 120,
+    width: '100%',
+    resize: 'vertical',
+    lineHeight: 1.5,
+    fontFamily: 'inherit',
+  }}
+/>
 
-            <div style={{ marginTop: 15 }}>
-              <h4>Foto del cantiere</h4>
-              {fotoScheda.length === 0 ? (
-                <p>Nessuna foto collegata.</p>
-              ) : (
-                <div>
-                  {fotoScheda.map((f, i) => (
-                    <div key={f.id || i} style={{ marginBottom: 20 }}>
-                      <strong>Data foto:</strong> {f.data_foto || '-'}
-                      <br />
-                      <strong>Geolocalizzazione:</strong> {f.geolocalizzazione || '-'}
-                      <br />
-                      {f.nota}
-                      <br />
-                      <img
-                        src={f.immagine_base64}
-                        alt="Foto cantiere"
-                        style={{ maxWidth: 250, marginTop: 8, border: '1px solid #ccc' }}
+
+                      <input
+                        value={lavorazioneEditImporto}
+                        onChange={(e) =>
+                          setLavorazioneEditImporto(e.target.value)
+                        }
+                        style={{
+                          padding: 6,
+                          border: '1px solid #ccc',
+                          borderRadius: 6,
+                        }}
                       />
                     </div>
-                  ))}
+                  ) : (
+                    <>
+                      <strong>
+                        {abbinata && !descrizioneTroppoLunga ? '✅' : '⚠️'}{' '}
+                        {s.descrizione}
+                      </strong>
+                      <br />
+                      Totale: € {formatMoney(Number(s.importo_previsto || 0))}
+
+                    </>
+                  )}
+
+                  {pdfSimile && (
+                    <div
+                      style={{
+                        marginTop: 4,
+                        fontSize: 12,
+                        color: '#1d4ed8',
+                      }}
+                    >
+                      📄 Riga PDF simile: {pdfSimile.descrizione}
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 6,
+                      marginTop: 8,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    {lavorazioneEditId === s.id ? (
+                      <>
+                        <button
+                          onClick={async () => {
+                            const nuovoImporto =
+                              parseImporto(lavorazioneEditImporto)
+
+                            if (!lavorazioneEditDescrizione.trim()) {
+                              alert('Descrizione non valida')
+                              return
+                            }
+
+                            if (!nuovoImporto || nuovoImporto <= 0) {
+                              alert('Importo non valido')
+                              return
+                            }
+
+                            const { error } = await supabase
+                              .from('preventivo_lavorazioni')
+                              .update({
+                                descrizione:
+                                  lavorazioneEditDescrizione.trim(),
+                                importo_previsto: nuovoImporto,
+                                prezzo_unitario: nuovoImporto,
+                              })
+                              .eq('id', s.id)
+
+                            if (error) {
+                              alert(
+                                'Errore salvataggio modifica: ' +
+                                  error.message
+                              )
+                              return
+                            }
+
+                            setLavorazioneEditId(null)
+                            setLavorazioneEditDescrizione('')
+                            setLavorazioneEditImporto('')
+
+                            await caricaPreventivoLavorazioni()
+
+                            alert('Lavorazione aggiornata')
+                          }}
+                          style={{
+                            background: '#16a34a',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 6,
+                            padding: '5px 8px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          💾 Salva
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setLavorazioneEditId(null)
+                            setLavorazioneEditDescrizione('')
+                            setLavorazioneEditImporto('')
+                          }}
+                          style={{
+                            background: '#64748b',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 6,
+                            padding: '5px 8px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Annulla
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setLavorazioneEditId(s.id)
+                          setLavorazioneEditDescrizione(s.descrizione || '')
+                          setLavorazioneEditImporto(
+                            String(s.importo_previsto || '')
+                          )
+                        }}
+                        style={{
+                          background: '#2563eb',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '5px 8px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✏️ Modifica
+                      </button>
+                    )}
+
+                    <button
+                      onClick={async () => {
+                        const conferma = confirm(
+                          'Eliminare questa lavorazione preventivo?'
+                        )
+
+                        if (!conferma) return
+
+                        const { error } = await supabase
+                          .from('preventivo_lavorazioni')
+                          .delete()
+                          .eq('id', s.id)
+
+                        if (error) {
+                          alert('Errore eliminazione: ' + error.message)
+                          return
+                        }
+
+                        await caricaPreventivoLavorazioni()
+
+                        alert('Lavorazione eliminata')
+                      }}
+                      style={{
+                        background: '#dc2626',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '5px 8px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🗑 Elimina
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        const { error } = await supabase
+                          .from('preventivo_lavorazioni')
+                          .insert([
+                            {
+                              cantiere: s.cantiere,
+                              descrizione: s.descrizione,
+                              quantita: s.quantita,
+                              prezzo_unitario: s.prezzo_unitario,
+                              importo_previsto: s.importo_previsto,
+                              unita_misura: s.unita_misura,
+                            },
+                          ])
+
+                        if (error) {
+                          alert('Errore duplicazione: ' + error.message)
+                          return
+                        }
+
+                        await caricaPreventivoLavorazioni()
+
+                        alert('Lavorazione duplicata')
+                      }}
+                      style={{
+                        background: '#16a34a',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '5px 8px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ➕ Duplica
+                    </button>
+                  </div>
+
+                  {descrizioneTroppoLunga && (
+                    <div style={{ color: '#b91c1c', marginTop: 4 }}>
+                      Descrizione troppo lunga: possibile riga accorpata.
+                    </div>
+                  )}
+
+                  {!abbinata && (
+                    <div style={{ color: '#b91c1c', marginTop: 4 }}>
+                      Non trovata corrispondenza nel PDF.
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )
+    })()}
+  </div>
+)}
+
+<button
+  onClick={async () => {
+    if (!salCantiere) return
+
+    const conferma = confirm(
+      'Pulire TUTTI i dati preventivo/SAL di questo cantiere? Verranno eliminati preventivi caricati, lavorazioni preventivo e lavorazioni SAL.'
+    )
+
+    if (!conferma) return
+
+    const preventiviDaEliminare = preventivi.filter(
+      (p) => p.cantiere === salCantiere
+    )
+
+   const fileDaEliminare = preventiviDaEliminare
+  .map((p) => p.file_path)
+  .filter((path): path is string => Boolean(path))
+
+    if (fileDaEliminare.length > 0) {
+      await supabase.storage
+        .from('preventivi')
+        .remove(fileDaEliminare)
+    }
+
+    const { error: errorePreventivi } = await supabase
+      .from('preventivi_cantiere')
+      .delete()
+      .eq('cantiere', salCantiere)
+
+    if (errorePreventivi) {
+      alert('Errore eliminazione preventivi: ' + errorePreventivi.message)
+      return
+    }
+
+    const { error: erroreLavorazioniPreventivo } = await supabase
+      .from('preventivo_lavorazioni')
+      .delete()
+      .eq('cantiere', salCantiere)
+
+    if (erroreLavorazioniPreventivo) {
+      alert(
+        'Errore eliminazione lavorazioni preventivo: ' +
+          erroreLavorazioniPreventivo.message
+      )
+      return
+    }
+
+    const { error: erroreSal } = await supabase
+      .from('sal_lavorazioni')
+      .delete()
+      .eq('cantiere', salCantiere)
+
+    if (erroreSal) {
+      alert('Errore eliminazione SAL: ' + erroreSal.message)
+      return
+    }
+
+    const { error: erroreCantiere } = await supabase
+      .from('cantieri')
+      .update({ preventivo: 0 })
+      .eq('nome', salCantiere)
+
+    if (erroreCantiere) {
+      alert('Errore azzeramento cantiere: ' + erroreCantiere.message)
+      return
+    }
+
+    await caricaCantieri()
+    await caricaEconomia()
+    await caricaPreventivoLavorazioni()
+    await caricaSalLavorazioni()
+
+    alert('Preventivi e SAL del cantiere puliti')
+  }}
+  style={{
+    marginTop: 12,
+    background: '#f97316',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 6,
+    padding: '8px 12px',
+    cursor: 'pointer',
+  }}
+>
+  Pulisci preventivo e SAL del cantiere
+</button>
+
+
+
+    </div>
+  )
+})()}
+
+  {salCantiere && (
+    <>
+      {(() => {
+        const lavorazioniCantiere = salLavorazioni.filter(
+          (s) => s.cantiere === salCantiere
+        )
+
+        const totalePrevistoSal = lavorazioniCantiere.reduce(
+          (tot, s) => tot + Number(s.importo_previsto || 0),
+          0
+        )
+
+        const totaleMaturatoSal = lavorazioniCantiere.reduce(
+          (tot, s) => tot + Number(s.importo_maturato || 0),
+          0
+        )
+
+        const totaleAccontiSal = accontiCantiere
+  .filter((a) => a.cantiere === salCantiere)
+  .reduce(
+    (tot, a) => tot + Number(a.importo || 0),
+    0
+  )
+        const daRichiedereSal =
+  totaleMaturatoSal - totaleAccontiSal
+
+        const percentualeGlobaleSal =
+          totalePrevistoSal > 0
+            ? (totaleMaturatoSal / totalePrevistoSal) * 100
+            : 0
+
+        let statoSal = 'coperto'
+
+        if (daRichiedereSal > 0) {
+          statoSal = 'da_richiedere'
+        }
+
+        if (daRichiedereSal > 500) {
+          statoSal = 'urgente'
+        }
+
+        return (
+          <>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 12,
+                marginBottom: 18,
+              }}
+            >
+              <div style={{ padding: 14, borderRadius: 10, background: '#fff', border: '1px solid #ddd' }}>
+                <div style={{ color: '#666', marginBottom: 6 }}>Totale lavori inseriti</div>
+                <strong style={{ fontSize: 20 }}>{formatMoney(totalePrevistoSal)}</strong>
+              </div>
+
+              <div style={{ padding: 14, borderRadius: 10, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                <div style={{ color: '#666', marginBottom: 6 }}>SAL maturato</div>
+                <strong style={{ fontSize: 20, color: 'green' }}>{formatMoney(totaleMaturatoSal)}</strong>
+              </div>
+
+              <div style={{ padding: 14, borderRadius: 10, background: '#fff', border: '1px solid #ddd' }}>
+                <div style={{ color: '#666', marginBottom: 6 }}>Acconti ricevuti</div>
+                <strong style={{ fontSize: 20 }}>{formatMoney(totaleAccontiSal)}</strong>
+              </div>
+
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: 10,
+                  background: daRichiedereSal > 0 ? '#fef2f2' : '#f0fdf4',
+                  border: '1px solid #ddd',
+                }}
+              >
+                <div style={{ color: '#666', marginBottom: 6 }}>Da richiedere</div>
+                <strong style={{ fontSize: 20, color: daRichiedereSal > 0 ? 'red' : 'green' }}>
+                  {formatMoney(daRichiedereSal)}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: 10,
+                  background:
+                    statoSal === 'urgente'
+                      ? '#fee2e2'
+                      : statoSal === 'da_richiedere'
+                      ? '#fef3c7'
+                      : '#f0fdf4',
+                  border: '1px solid #ddd',
+                }}
+              >
+                <div style={{ color: '#666', marginBottom: 6 }}>Stato SAL</div>
+                <strong
+                  style={{
+                    fontSize: 18,
+                    color:
+                      statoSal === 'urgente'
+                        ? '#dc2626'
+                        : statoSal === 'da_richiedere'
+                        ? '#d97706'
+                        : '#16a34a',
+                  }}
+                >
+                  {statoSal === 'urgente' && '🚨 SAL urgente'}
+                  {statoSal === 'da_richiedere' && '⚠️ SAL da richiedere'}
+                  {statoSal === 'coperto' && '✅ SAL coperto'}
+                </strong>
+              </div>
+
+              <div style={{ padding: 14, borderRadius: 10, background: '#fff', border: '1px solid #ddd' }}>
+                <div style={{ color: '#666', marginBottom: 6 }}>📈 Avanzamento globale</div>
+                <strong style={{ fontSize: 22 }}>
+                  {percentualeGlobaleSal.toFixed(1)}%
+                </strong>
+
+                <div
+                  style={{
+                    marginTop: 10,
+                    height: 12,
+                    background: '#e5e7eb',
+                    borderRadius: 999,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${Math.min(percentualeGlobaleSal, 100)}%`,
+                      height: '100%',
+                      background:
+                        percentualeGlobaleSal < 30
+                          ? '#dc2626'
+                          : percentualeGlobaleSal < 70
+                          ? '#f59e0b'
+                          : '#16a34a',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {lavorazioniCantiere.length === 0 ? (
+              <p>Nessuna lavorazione SAL inserita per questo cantiere.</p>
+            ) : (
+              <div
+  style={{
+    marginTop: 12,
+    background: '#fff',
+    border: '1px solid #cbd5e1',
+    borderRadius: 10,
+    padding: 12,
+boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+
+    width: '100%',
+    minWidth: 360,
+    maxWidth: '100%',
+
+    height: 520,
+    minHeight: 260,
+    maxHeight: '80vh',
+
+    overflow: 'auto',
+    resize: 'both',
+  }}
+>
+                <table style={excelTable}>
+                  <thead>
+                    <tr>
+                      <th style={excelTh}>Completata</th>
+                      <th style={excelTh}>Lavorazione</th>
+                      <th style={excelTh}>Importo previsto</th>
+                      <th style={excelTh}>% eseguita</th>
+                      <th style={excelTh}>SAL maturato</th>
+                      <th style={excelTh}>Data</th>
+                      <th style={excelTh}>Note</th>
+                      <th style={excelTh}>Azioni</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                   {lavorazioniCantiere.map((s, i) => {
+  const testoSospetto = String(s.descrizione || '').toLowerCase()
+
+  const rigaSospetta =
+    testoSospetto.includes('totale offerta') ||
+    testoSospetto.includes('cronoprogramma') ||
+    testoSospetto.includes('schema pagamenti') ||
+    testoSospetto.includes('garanzia') ||
+    testoSospetto.includes('firma') ||
+    testoSospetto.includes('iva esclusa')
+
+  return (
+
+                      <tr key={s.id || i}>
+                        <td style={excelTd}>
+                          <input
+                            type="checkbox"
+                            checked={!!s.completata}
+                            onChange={async (e) => {
+                             const completata = e.target.checked
+
+const nuovaPercentuale = completata
+  ? Number(s.percentuale || 0)
+  : 0
+
+const nuovoMaturato = completata
+  ? (Number(s.importo_previsto || 0) * nuovaPercentuale) / 100
+  : 0
+
+                              const { error } = await supabase
+                                .from('sal_lavorazioni')
+                                .update({
+                                  completata,
+                                  percentuale: nuovaPercentuale,
+                                  importo_maturato: nuovoMaturato,
+                                  data_aggiornamento: new Date().toISOString().slice(0, 10),
+                                })
+                                .eq('id', s.id)
+
+                              if (error) {
+                                alert('Errore aggiornamento SAL: ' + error.message)
+                                return
+                              }
+
+                              await caricaSalLavorazioni()
+                            }}
+                          />
+                        </td>
+
+                        <td style={excelTd}>
+  <textarea
+    value={s.descrizione || ''}
+    onChange={async (e) => {
+      const { error } = await supabase
+        .from('sal_lavorazioni')
+        .update({
+          descrizione: e.target.value,
+        })
+        .eq('id', s.id)
+
+      if (!error) {
+        await caricaSalLavorazioni()
+      }
+    }}
+    style={{
+      width: '100%',
+      minWidth: 260,
+      minHeight: 80,
+      border: '1px solid #ccc',
+      borderRadius: 6,
+      padding: 6,
+      resize: 'vertical',
+      fontFamily: 'inherit',
+      lineHeight: 1.4,
+    }}
+  />
+</td>
+
+                       <td style={excelTd}>
+  <input
+    value={s.importo_previsto || ''}
+    onChange={async (e) => {
+      const valore = parseImporto(e.target.value)
+
+      const { error } = await supabase
+        .from('sal_lavorazioni')
+        .update({
+          importo_previsto: valore,
+        })
+        .eq('id', s.id)
+
+      if (!error) {
+        await caricaSalLavorazioni()
+      }
+    }}
+    style={{
+      width: 110,
+      padding: 6,
+      borderRadius: 6,
+      border: '1px solid #ccc',
+    }}
+  />
+</td>
+
+                        <td style={excelTd}>
+  <input
+    value={s.percentuale || 0}
+    onChange={async (e) => {
+      const percentuale = Number(e.target.value || 0)
+
+      const maturato =
+        (Number(s.importo_previsto || 0) * percentuale) / 100
+
+      const { error } = await supabase
+        .from('sal_lavorazioni')
+        .update({
+          percentuale,
+          importo_maturato: maturato,
+        })
+        .eq('id', s.id)
+
+      if (!error) {
+        await caricaSalLavorazioni()
+      }
+    }}
+    style={{
+      width: 70,
+      padding: 6,
+      borderRadius: 6,
+      border: '1px solid #ccc',
+    }}
+  />
+</td>
+
+                        <td style={{ ...excelTd, fontWeight: 700, color: '#16a34a' }}>
+                          {formatMoney(Number(s.importo_maturato || 0))}
+                        </td>
+
+                        <td style={excelTd}>{s.data_aggiornamento || '-'}</td>
+
+                        <td style={excelTd}>
+  {rigaSospetta ? '⚠️ Probabile errore OCR/importazione' : s.note || '-'}
+</td>
+
+                        <td style={excelTd}>
+                          <button
+                            onClick={() => eliminaSalLavorazione(s.id)}
+                            style={{
+                              background: '#dc2626',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 6,
+                              padding: '6px 10px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Elimina
+                          </button>
+                        </td>
+                      </tr>
+  )
+})}
+
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )
+      })()}
+    </>
+  )}
+</div>
+
+<div
+  style={{
+    display: 'flex',
+    gap: 10,
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginBottom: 16,
+    padding: 12,
+    border: '1px solid #ddd',
+    borderRadius: 8,
+    background: '#fff',
+  }}
+>
+  <strong>Filtro periodo:</strong>
+
+  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <span>Da</span>
+
+    <input
+      type="date"
+      value={economiaDataDa}
+      onChange={(e) => setEconomiaDataDa(e.target.value)}
+    />
+  </div>
+
+  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <span>A</span>
+
+    <input
+      type="date"
+      value={economiaDataA}
+      onChange={(e) => setEconomiaDataA(e.target.value)}
+    />
+  </div>
+
+  <button
+    onClick={() => {
+      setEconomiaDataDa('')
+      setEconomiaDataA('')
+    }}
+    style={buttonSecondary}
+  >
+    Reset
+  </button>
+</div>
+
+{/* ================= ACCONTI / SAL ================= */}
+<div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+  <strong>Acconti / SAL ricevuti:</strong> {formatMoney(totaleAccontiCantiere)}
+
+  <button
+    onClick={() => setMostraAcconti(!mostraAcconti)}
+    style={{ ...buttonSecondary, marginLeft: 10 }}
+  >
+    {mostraAcconti ? 'Nascondi' : 'Gestisci acconti'}
+  </button>
+
+  <div style={{ marginTop: 10 }}>
+    <strong>Residuo da incassare:</strong>{' '}
+   <span
+  style={{
+    color:
+      residuoDaIncassare > 0
+        ? 'red'
+        : residuoDaIncassare === 0
+        ? 'green'
+        : '#f59e0b',
+    fontWeight: 700,
+  }}
+>
+  {formatMoney(residuoDaIncassare)}
+</span>
+  </div>
+
+  {mostraAcconti && (
+    <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+      <input
+        placeholder="Descrizione (SAL 1, acconto...)"
+        value={descrizioneAcconto}
+        onChange={(e) => setDescrizioneAcconto(e.target.value)}
+      />
+
+      <input
+        placeholder="Importo €"
+        value={importoAcconto}
+        onChange={(e) => setImportoAcconto(e.target.value)}
+      />
+
+      <input
+        type="date"
+        value={dataAcconto}
+        onChange={(e) => setDataAcconto(e.target.value)}
+      />
+
+      <input
+        placeholder="Metodo (contanti, bonifico...)"
+        value={metodoAcconto}
+        onChange={(e) => setMetodoAcconto(e.target.value)}
+      />
+
+      <input
+        placeholder="Nota"
+        value={notaAcconto}
+        onChange={(e) => setNotaAcconto(e.target.value)}
+      />
+
+      <button onClick={salvaAcconto} style={buttonPrimary}>
+        Salva acconto
+      </button>
+
+    {accontiCantiere.filter((a) => a.cantiere === cantiereScheda).length === 0 ? (
+  <p>Nessun acconto registrato.</p>
+) : (
+  <div style={{ overflowX: 'auto' }}>
+    <table style={excelTable}>
+      <thead>
+        <tr>
+          <th style={excelTh}>Data</th>
+          <th style={excelTh}>Descrizione</th>
+          <th style={excelTh}>Importo</th>
+          <th style={excelTh}>Metodo</th>
+          <th style={excelTh}>Nota</th>
+          <th style={excelTh}>Azioni</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {accontiCantiere
+          .filter((a) => {
+  if (a.cantiere !== cantiereScheda) return false
+
+  if (
+    economiaDataDa &&
+    String(a.data_incasso || '') < economiaDataDa
+  ) {
+    return false
+  }
+
+  if (
+    economiaDataA &&
+    String(a.data_incasso || '') > economiaDataA
+  ) {
+    return false
+  }
+
+  return true
+})
+          .map((a, i) => (
+            <tr key={a.id || i}>
+              <td style={excelTd}>{a.data_incasso || '-'}</td>
+              <td style={excelTd}>{a.descrizione || 'Acconto'}</td>
+              <td style={excelTd}>
+                <strong>{formatMoney(Number(a.importo || 0))}</strong>
+              </td>
+              <td style={excelTd}>{a.metodo || '-'}</td>
+              <td style={excelTd}>{a.nota || '-'}</td>
+              <td style={excelTd}>
+                <button
+                  onClick={async () => {
+                    const nuovoImporto = prompt(
+                      'Modifica importo acconto',
+                      String(a.importo || '')
+                    )
+
+                    if (nuovoImporto === null) return
+
+                    const importo = parseImporto(nuovoImporto)
+
+                    if (!importo || importo <= 0) {
+                      alert('Importo non valido')
+                      return
+                    }
+
+                    const nuovaDescrizione = prompt(
+                      'Modifica descrizione',
+                      a.descrizione || 'Acconto'
+                    )
+
+                    if (nuovaDescrizione === null) return
+
+                    const { error } = await supabase
+                      .from('acconti_cantiere')
+                      .update({
+                        importo,
+                        descrizione: nuovaDescrizione,
+                      })
+                      .eq('id', a.id)
+
+                    if (error) {
+                      alert('Errore modifica acconto: ' + error.message)
+                      return
+                    }
+
+                    await caricaAcconti()
+
+                    alert('Acconto modificato')
+                  }}
+                  style={buttonSecondary}
+                >
+                  ✏️
+                </button>
+
+                <button
+                  onClick={async () => {
+                    const conferma = confirm('Eliminare questo acconto?')
+
+                    if (!conferma) return
+
+                    const { error } = await supabase
+                      .from('acconti_cantiere')
+                      .delete()
+                      .eq('id', a.id)
+
+                    if (error) {
+                      alert('Errore eliminazione acconto: ' + error.message)
+                      return
+                    }
+
+                    await caricaAcconti()
+
+                    alert('Acconto eliminato')
+                  }}
+                  style={{
+                    ...buttonSecondary,
+                    backgroundColor: '#dc2626',
+                    color: '#fff',
+                    marginLeft: 6,
+                  }}
+                >
+                  🗑️
+                </button>
+              </td>
+            </tr>
+          ))}
+      </tbody>
+    </table>
+  </div>
+)}
+    </div>
+  )}
+</div>
+
+          {/* ================= RIEPILOGO COSTI ================= */}
+          <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+  <strong>Manodopera:</strong> {formatMoney(totaleManodoperaCantiere)}
+
+  <button
+    onClick={() => setMostraDettaglioManodopera(!mostraDettaglioManodopera)}
+    style={{ ...buttonSecondary, marginLeft: 10 }}
+  >
+    {mostraDettaglioManodopera ? 'Nascondi operai' : 'Vedi operai'}
+  </button>
+
+  {mostraDettaglioManodopera && (
+  <div style={{ marginTop: 12, overflowX: 'auto' }}>
+    {timbrature.filter((t) => t.cantiere === cantiereScheda).length === 0 ? (
+      <p>Nessuna presenza registrata per questo cantiere.</p>
+    ) : (
+      <table style={excelTable}>
+        <thead>
+          <tr>
+            <th style={excelTh}>Data</th>
+            <th style={excelTh}>Operaio</th>
+            <th style={excelTh}>Entrata</th>
+            <th style={excelTh}>Uscita</th>
+            <th style={excelTh}>Ore</th>
+            <th style={excelTh}>Costo</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {timbrature
+  .filter((t) => {
+  if (t.cantiere !== cantiereScheda) return false
+
+  if (
+    economiaDataDa &&
+    String(t.data || '') < economiaDataDa
+  ) {
+    return false
+  }
+
+  if (
+    economiaDataA &&
+    String(t.data || '') > economiaDataA
+  ) {
+    return false
+  }
+
+  return true
+})
+
+  .sort((a, b) => {
+    const nome = String(a.operaio_nome || '').localeCompare(
+      String(b.operaio_nome || '')
+    )
+
+    if (nome !== 0) return nome
+
+    return String(b.data || '').localeCompare(
+      String(a.data || '')
+    )
+  })
+
+  .map((t, i) => (
+              <tr key={t.id || i}>
+                <td style={excelTd}>{t.data || '-'}</td>
+                <td style={excelTd}>{t.operaio_nome || '-'}</td>
+                <td style={excelTd}>{t.ora_entrata || '-'}</td>
+                <td style={excelTd}>{t.ora_uscita || '-'}</td>
+                <td style={excelTd}>{calcolaOre(t).toFixed(2)}</td>
+                <td style={excelTd}>
+                  <strong>{formatMoney(calcolaCostoTimbratura(t))}</strong>
+                </td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+)}
+</div>
+
+         <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+  <strong>Materiali:</strong> {formatMoney(totaleMaterialiEconomia)}
+
+
+  <button
+    onClick={() => setMostraDettaglioMateriali(!mostraDettaglioMateriali)}
+    style={{ ...buttonSecondary, marginLeft: 10 }}
+  >
+    {mostraDettaglioMateriali ? 'Nascondi materiali' : 'Vedi materiali'}
+  </button>
+
+  
+   {mostraDettaglioMateriali && (
+  <div
+    style={{
+      marginTop: 12,
+      overflow: 'auto',
+      border: '1px solid #cbd5e1',
+      borderRadius: 10,
+      background: '#fff',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      maxHeight: '65vh',
+    }}
+  >
+
+
+<div
+  style={{
+    padding: 15,
+    border: '1px solid #cbd5e1',
+    borderRadius: 12,
+    marginBottom: 20,
+    background: '#f8fafc',
+  }}
+>
+  <h3>➕ Inserimento materiale manuale</h3>
+
+  <input
+    placeholder="Descrizione materiale"
+    value={materialeManualeDescrizione}
+    onChange={(e) =>
+      setMaterialeManualeDescrizione(e.target.value)
+    }
+    style={{ ...inputStyle, width: '100%', marginBottom: 8 }}
+  />
+
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+      gap: 10,
+    }}
+  >
+    <input
+      placeholder="Quantità"
+      value={materialeManualeQuantita}
+      onChange={(e) =>
+        setMaterialeManualeQuantita(e.target.value)
+      }
+      style={inputStyle}
+    />
+
+    <input
+      placeholder="Prezzo unitario €"
+      value={materialeManualePrezzo}
+      onChange={(e) =>
+        setMaterialeManualePrezzo(e.target.value)
+      }
+      style={inputStyle}
+    />
+
+    <input
+      placeholder="Fornitore / provenienza"
+      value={materialeManualeFornitore}
+      onChange={(e) =>
+        setMaterialeManualeFornitore(e.target.value)
+      }
+      style={inputStyle}
+    />
+  </div>
+
+  <textarea
+    placeholder="Nota"
+    value={materialeManualeNota}
+    onChange={(e) =>
+      setMaterialeManualeNota(e.target.value)
+    }
+    style={{
+      ...inputStyle,
+      width: '100%',
+      minHeight: 70,
+      marginTop: 10,
+    }}
+  />
+
+  <button
+    onClick={salvaMaterialeManuale}
+    style={{
+      ...buttonPrimary,
+      marginTop: 12,
+    }}
+  >
+    💾 Salva materiale
+  </button>
+</div>
+
+
+
+
+    {materialiCantiere.filter((m) => m.cantiere === cantiereScheda).length === 0 ? (
+      <p style={{ padding: 12 }}>Nessun materiale registrato per questo cantiere.</p>
+    ) : (
+      <table
+        style={{
+          ...excelTable,
+          tableLayout: 'auto',
+          width: '100%',
+          borderCollapse: 'collapse',
+        }}
+      >
+        <thead>
+          <tr>
+            <th onClick={() => ordinaMateriali('data_documento')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>
+              Data ↕
+            </th>
+            <th onClick={() => ordinaMateriali('descrizione')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>
+              Descrizione ↕
+            </th>
+            <th onClick={() => ordinaMateriali('fornitore')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>
+              Fornitore ↕
+            </th>
+            <th onClick={() => ordinaMateriali('quantita')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>
+              Q.tà ↕
+            </th>
+            <th onClick={() => ordinaMateriali('prezzo_unitario')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>
+              Prezzo unit. ↕
+            </th>
+            <th onClick={() => ordinaMateriali('totale')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>
+              Totale ↕
+            </th>
+            <th onClick={() => ordinaMateriali('nome_file')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>
+              File ↕
+            </th>
+            <th style={{ ...excelTh, whiteSpace: 'normal' }}>
+              Azioni
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {materialiCantiere
+            .filter((m) => {
+              if (m.cantiere !== cantiereScheda) return false
+
+              if (
+                economiaDataDa &&
+                String(m.data_documento || '') < economiaDataDa
+              ) {
+                return false
+              }
+
+              if (
+                economiaDataA &&
+                String(m.data_documento || '') > economiaDataA
+              ) {
+                return false
+              }
+
+              return true
+            })
+            .sort((a: any, b: any) => {
+              const campo = ordineMaterialiCampo
+
+              let valoreA: any = a[campo] || ''
+              let valoreB: any = b[campo] || ''
+
+              if (
+                campo === 'quantita' ||
+                campo === 'prezzo_unitario' ||
+                campo === 'totale'
+              ) {
+                valoreA = Number(valoreA || 0)
+                valoreB = Number(valoreB || 0)
+
+                return ordineMaterialiDirezione === 'asc'
+                  ? valoreA - valoreB
+                  : valoreB - valoreA
+              }
+
+              valoreA = String(valoreA).toLowerCase()
+              valoreB = String(valoreB).toLowerCase()
+
+              return ordineMaterialiDirezione === 'asc'
+                ? valoreA.localeCompare(valoreB)
+                : valoreB.localeCompare(valoreA)
+            })
+            .map((m, i) => (
+              <tr key={m.id || i}>
+                <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', verticalAlign: 'top' }}>
+                  {m.data_documento || '-'}
+                </td>
+
+                <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', verticalAlign: 'top' }}>
+                  {m.descrizione || '-'}
+                </td>
+
+                <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', verticalAlign: 'top' }}>
+                  {m.fornitore || '-'}
+                </td>
+
+                <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', verticalAlign: 'top' }}>
+                  {m.quantita ?? '-'}
+                </td>
+
+                <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', verticalAlign: 'top' }}>
+                  {formatMoney(Number(m.prezzo_unitario || 0))}
+                </td>
+
+                <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', verticalAlign: 'top' }}>
+                  <strong>{formatMoney(Number(m.totale || 0))}</strong>
+                </td>
+
+                <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', verticalAlign: 'top' }}>
+                  {m.nome_file || '-'}
+                </td>
+
+                <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', verticalAlign: 'top' }}>
+                  <button
+                    onClick={() => eliminaMaterialeCantiere(String(m.id))}
+                    style={{
+                      ...buttonSecondary,
+                      backgroundColor: '#dc2626',
+                      color: '#fff',
+                    }}
+                  >
+                    🗑 Elimina
+                  </button>
+                </td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+)}
+</div>
+          <div style={{ padding: 12, border: '2px solid #111827', borderRadius: 8 }}>
+            <strong>Totale costi:</strong> {formatMoney(totaleCostiCantiere)}
+          </div>
+
+          <div
+            style={{
+              padding: 12,
+              border: utileCantiere >= 0 ? '2px solid green' : '2px solid red',
+              borderRadius: 8,
+              background: utileCantiere >= 0 ? '#dcfce7' : '#fee2e2',
+            }}
+          >
+            <strong>Utile:</strong>{' '}
+            <span style={{ color: utileCantiere >= 0 ? 'green' : 'red', fontWeight: 700 }}>
+              {formatMoney(utileCantiere)}
+            </span>
+            <br />
+            <strong>Margine:</strong> {margineCantiere}%
+          </div>
+
+         {/* ================= MATERIALI CON ANTEPRIMA ================= */}
+<div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+  <strong>Materiali caricati:</strong>
+
+  <button
+    onClick={() => setMostraMaterialiCantiere(!mostraMaterialiCantiere)}
+    style={{ ...buttonSecondary, marginLeft: 10 }}
+  >
+    {mostraMaterialiCantiere ? 'Nascondi anteprima' : 'Vedi anteprima materiali'}
+  </button>
+
+  {materialiCantiere.filter((m) => m.cantiere === cantiereScheda).length === 0 ? (
+    <p>Nessun materiale caricato.</p>
+  ) : (
+    mostraMaterialiCantiere && (
+      <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+        {materialiCantiere
+          .filter((m) => {
+  if (m.cantiere !== cantiereScheda) return false
+
+  if (
+    economiaDataDa &&
+    String(m.data_documento || '') < economiaDataDa
+  ) {
+    return false
+  }
+
+  if (
+    economiaDataA &&
+    String(m.data_documento || '') > economiaDataA
+  ) {
+    return false
+  }
+
+  return true
+})
+          .map((m, i) => (
+            <div
+              key={m.id || i}
+              style={{
+                padding: 12,
+                border: '1px solid #ddd',
+                borderRadius: 8,
+                background: '#fff',
+              }}
+            >
+              <strong>{m.nome_file || m.descrizione || `Materiale ${i + 1}`}</strong>
+              <br />
+
+              <div style={{ marginTop: 8 }}>
+                <strong>Importo:</strong> {formatMoney(Number(m.totale || 0))}
+              </div>
+
+              <br />
+              Fornitore: {m.fornitore || '-'}
+              <br />
+              Data: {m.data_documento || '-'}
+
+              {m.file_tipo === 'pdf' && m.file_url && (
+                <div
+                  style={{
+                    width: 700,
+                    height: 500,
+                    minWidth: 300,
+                    minHeight: 250,
+                    maxWidth: '100%',
+                    resize: 'both',
+                    overflow: 'auto',
+                    border: '1px solid #ddd',
+                    borderRadius: 8,
+                    marginTop: 10,
+                  }}
+                >
+                  <iframe
+                    src={m.file_url}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      border: 'none',
+                    }}
+                  />
                 </div>
               )}
+
+              {m.file_tipo === 'excel' && m.anteprima_testo && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 10,
+                    background: '#ffffff',
+                    overflow: 'visible',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      background: '#f1f5f9',
+                      borderBottom: '1px solid #cbd5e1',
+                      fontWeight: 700,
+                    }}
+                  >
+                    Anteprima Excel
+                  </div>
+
+                  <div
+                    style={{
+                      width: 700,
+                      height: 400,
+                      minWidth: 300,
+                      minHeight: 250,
+                      maxWidth: '100%',
+                      resize: 'both',
+                      overflow: 'auto',
+                    }}
+                  >
+                    <table
+                      style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        fontSize: 13,
+                        minWidth: 900,
+                      }}
+                    >
+                      <tbody>
+                        {(() => {
+                          try {
+                            const righe = JSON.parse(m.anteprima_testo)
+
+                            return righe.map((row: any[], i: number) => (
+                              <tr key={i}>
+                                {(Array.isArray(row) ? row : []).map((cell, j) => (
+                                  <td
+                                    key={j}
+                                    style={{
+                                      border: '1px solid #e2e8f0',
+                                      padding: '8px 10px',
+                                      whiteSpace: 'normal',
+                                      wordBreak: 'break-word',
+                                      lineHeight: 1.4,
+                                      verticalAlign: 'top',
+                                      fontWeight: i === 0 ? 700 : 400,
+                                      background: i === 0 ? '#f8fafc' : '#ffffff',
+                                      maxWidth: 220,
+                                    }}
+                                  >
+                                    {String(cell ?? '')}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))
+                          } catch {
+                            return (
+                              <tr>
+                                <td style={{ padding: 12 }}>
+                                  Anteprima Excel non leggibile
+                                </td>
+                              </tr>
+                            )
+                          }
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {m.file_tipo === 'img' && m.file_url && (
+                <div
+                  style={{
+                    width: 700,
+                    height: 500,
+                    minWidth: 300,
+                    minHeight: 250,
+                    maxWidth: '100%',
+                    resize: 'both',
+                    overflow: 'auto',
+                    border: '1px solid #ddd',
+                    borderRadius: 8,
+                    marginTop: 10,
+                  }}
+                >
+                  <img
+                    src={m.file_url}
+                    style={{
+                      width: '100%',
+                      display: 'block',
+                    }}
+                  />
+                </div>
+              )}
+
+              <div style={{ marginTop: 10 }}>
+                <button
+                  onClick={async () => {
+                  try {
+  await eliminaFileDaStorage(m.file_path)
+} catch {
+  alert('Errore cancellazione file da Storage')
+  return
+}
+
+                    const { error } = await supabase
+                      .from('materiali_cantiere')
+                      .delete()
+                      .eq('id', m.id)
+
+                    if (error) {
+                      alert('Errore eliminazione: ' + error.message)
+                      return
+                    }
+
+                    await caricaEconomia()
+                  }}
+                  style={{
+                    backgroundColor: '#d9534f',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '6px 10px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Elimina materiale
+                </button>
+              </div>
+            </div>
+          ))}
+      </div>
+    )
+  )}
+</div>
+
+         {/* ================= ATTREZZI CON ANTEPRIMA ================= */}
+<div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+  <strong>Attrezzature / noli caricati:</strong>
+
+  <button
+    onClick={() => setMostraAttrezziCantiere(!mostraAttrezziCantiere)}
+    style={{ ...buttonSecondary, marginLeft: 10 }}
+  >
+    {mostraAttrezziCantiere ? 'Nascondi anteprima' : 'Vedi anteprima attrezzature'}
+  </button>
+
+  {attrezziCantiere.filter((a) => a.cantiere === cantiereScheda).length === 0 ? (
+    <p>Nessuna attrezzatura caricata.</p>
+  ) : (
+    mostraAttrezziCantiere && (
+      <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+       {attrezziCantiere
+  .filter((a) => a.cantiere === cantiereScheda)
+
+  .sort((a, b) =>
+    String(b.data_documento || '').localeCompare(
+      String(a.data_documento || '')
+    )
+  )
+
+  .map((a, i) => (
+            <div
+              key={a.id || i}
+              style={{
+                padding: 12,
+                border: '1px solid #ddd',
+                borderRadius: 8,
+                background: '#fff',
+              }}
+            >
+              <strong>{a.nome_file || a.descrizione || `Attrezzatura ${i + 1}`}</strong>
+              <br />
+
+              <div style={{ marginTop: 8 }}>
+                <strong>Importo:</strong> {formatMoney(Number(a.totale || 0))}
+              </div>
+
+              <br />
+              Fornitore: {a.fornitore || '-'}
+              <br />
+              Data: {a.data_documento || '-'}
+              <br />
+              Nota: {a.nota || '-'}
+
+              {a.file_tipo === 'pdf' && a.file_url && (
+                <div
+                  style={{
+                    width: 700,
+                    height: 500,
+                    minWidth: 300,
+                    minHeight: 250,
+                    resize: 'both',
+                    overflow: 'auto',
+                    border: '1px solid #ddd',
+                    borderRadius: 8,
+                    marginTop: 10,
+                  }}
+                >
+                  <iframe
+                    src={a.file_url}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      border: 'none',
+                    }}
+                  />
+                </div>
+              )}
+
+              {a.file_tipo === 'img' && a.file_url && (
+                <div
+                  style={{
+                    width: 700,
+                    height: 500,
+                    minWidth: 300,
+                    minHeight: 250,
+                    resize: 'both',
+                    overflow: 'auto',
+                    border: '1px solid #ddd',
+                    borderRadius: 8,
+                    marginTop: 10,
+                  }}
+                >
+                  <img
+                    src={a.file_url}
+                    style={{
+                      width: '100%',
+                      display: 'block',
+                    }}
+                  />
+                </div>
+              )}
+
+              <div style={{ marginTop: 10 }}>
+                <button
+  onClick={async () => {
+    if (!a.id) return
+
+    if (!confirm('Sei sicuro di eliminare questa attrezzatura?')) return
+
+    try {
+      await eliminaFileDaStorage(a.file_path)
+    } catch {
+      alert('Errore cancellazione file da Storage')
+      return
+    }
+
+    const { error } = await supabase
+      .from('attrezzi_cantiere')
+      .delete()
+      .eq('id', a.id)
+
+    if (error) {
+      alert('Errore eliminazione: ' + error.message)
+      return
+    }
+
+    await caricaEconomia()
+  }}
+  style={{
+    backgroundColor: '#d9534f',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 10px',
+    cursor: 'pointer',
+    fontWeight: 600,
+  }}
+>
+  Elimina attrezzatura
+</button>
+              </div>
+            </div>
+          ))}
+      </div>
+    )
+  )}
+</div>
+  </div>
+      </div>
+    )}
+  </div>
+)}
+
+
+
+{fotoFullscreen && (
+  <div
+    onClick={() => setFotoFullscreen(null)}
+    style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(0,0,0,0.92)',
+      zIndex: 99999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+      cursor: 'pointer',
+    }}
+  >
+    <div
+      style={{
+        maxWidth: '95vw',
+        maxHeight: '95vh',
+        position: 'relative',
+      }}
+    >
+      <img
+        src={fotoFullscreen.immagine_base64}
+        alt="Fullscreen"
+        style={{
+          maxWidth: '95vw',
+          maxHeight: '90vh',
+          borderRadius: 10,
+          boxShadow: '0 0 30px rgba(0,0,0,0.5)',
+        }}
+      />
+
+      <div
+        style={{
+          marginTop: 10,
+          color: '#fff',
+          textAlign: 'center',
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {fotoFullscreen.nota}
+      </div>
+    </div>
+  </div>
+)}
+
+{/* ================= OPERAI - ANAGRAFICA ================= */}
+
+{/* ================= OPERAI - ANAGRAFICA ================= */}
+{(
+  pagineAperte.includes('operai-anagrafica') ||
+  (!modalitaMulti &&
+    sezioneAttiva === 'operai' &&
+    sottoSezioneOperai === 'anagrafica')
+) && (
+  <div style={cardStyle}>
+   <h2>Anagrafica operai</h2>
+
+{operaioInModifica && (
+ <div
+  onClick={annullaModificaOperaio}
+  style={{
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+    padding: 20,
+  }}
+>
+    <div
+  onClick={(e) => e.stopPropagation()}
+  style={{
+    width: '100%',
+    maxWidth: 720,
+    background: '#ffffff',
+    borderRadius: 14,
+    padding: 20,
+    boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+    border: '1px solid #e5e7eb',
+  }}
+>
+      <h3 style={{ marginTop: 0 }}>
+        Modifica operaio
+      </h3>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <input
+          placeholder="Nome operaio"
+          value={nomeOperaioModifica}
+          onChange={(e) => setNomeOperaioModifica(e.target.value)}
+        />
+
+        <input
+          placeholder="Telefono"
+          value={telefonoOperaioModifica}
+          onChange={(e) => setTelefonoOperaioModifica(e.target.value)}
+        />
+
+        <input
+          placeholder="Qualifica"
+          value={qualificaOperaioModifica}
+          onChange={(e) => setQualificaOperaioModifica(e.target.value)}
+        />
+
+        <input
+          placeholder="PIN"
+          value={pinOperaioModifica}
+          onChange={(e) => setPinOperaioModifica(e.target.value)}
+        />
+
+        <input
+          placeholder="Costo orario €"
+          value={costoOrarioOperaioModifica}
+          onChange={(e) => setCostoOrarioOperaioModifica(e.target.value)}
+        />
+
+        <select
+          value={statoOperaioModifica}
+          onChange={(e) => setStatoOperaioModifica(e.target.value)}
+        >
+          <option value="attivo">Attivo</option>
+          <option value="sospeso">Sospeso</option>
+        </select>
+      </div>
+
+      <textarea
+        placeholder="Nota operaio"
+        value={notaOperaioModifica}
+        onChange={(e) => setNotaOperaioModifica(e.target.value)}
+        style={{
+          marginTop: 10,
+          minHeight: 110,
+          width: '100%',
+          padding: 10,
+          borderRadius: 10,
+          border: '1px solid #cbd5e1',
+        }}
+      />
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: 10,
+          marginTop: 15,
+        }}
+      >
+        <button
+          onClick={annullaModificaOperaio}
+          style={buttonSecondary}
+        >
+          Annulla
+        </button>
+
+        <button
+          onClick={salvaModificaOperaio}
+          style={buttonPrimary}
+        >
+          Salva modifica
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
+      <input
+        placeholder="Nome operaio"
+        value={nomeOperaio || ''}
+        onChange={(e) => setNomeOperaio(e.target.value)}
+        style={{ padding: 8, width: 220 }}
+      />
+
+      <input
+        placeholder="Telefono"
+        value={telefonoOperaio || ''}
+        onChange={(e) => setTelefonoOperaio(e.target.value)}
+        style={{ padding: 8, width: 160 }}
+      />
+
+      <input
+        placeholder="Qualifica"
+        value={qualificaOperaio || ''}
+        onChange={(e) => setQualificaOperaio(e.target.value)}
+        style={{ padding: 8, width: 160 }}
+      />
+
+      <input
+        placeholder="PIN"
+        value={pinOperaio || ''}
+        onChange={(e) => setPinOperaio(e.target.value)}
+        style={{ padding: 8, width: 120 }}
+      />
+
+      <input
+        placeholder="Costo orario €"
+        value={costoOrarioOperaio || ''}
+        onChange={(e) => setCostoOrarioOperaio(e.target.value)}
+        style={{ padding: 8, width: 140 }}
+      />
+
+      <button onClick={aggiungiOperaio} style={buttonPrimary}>
+        Aggiungi operaio
+      </button>
+    </div>
+
+    {operaiFiltrati.length === 0 ? (
+      <p>Nessun operaio presente</p>
+    ) : (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {operaiFiltrati.map((o, i) => (
+          <div
+            key={o.id || i}
+            style={{
+              padding: 12,
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              background: '#fff',
+            }}
+          >
+            <strong>{o.nome}</strong>
+            <span style={badgeStyle(o.stato)}>{o.stato || 'attivo'}</span>
+            <br />
+            Qualifica: {o.qualifica || '-'}
+            <br />
+            Telefono: {o.telefono || '-'}
+            <br />
+            PIN: {o.pin || '-'}
+            <br />
+            Costo orario: {formatMoney(Number(o.costo_orario || 0))}
+            <br />
+            Nota: {o.nota || '-'}
+
+            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => preparaModificaOperaio(o)}
+                style={buttonSecondary}
+              >
+                Modifica
+              </button>
+
+              {o.stato === 'sospeso' ? (
+                <button
+                  onClick={() => cambiaStatoOperaio(o, 'attivo')}
+                  style={buttonPrimary}
+                >
+                  Riattiva
+                </button>
+              ) : (
+                <button
+                  onClick={() => cambiaStatoOperaio(o, 'sospeso')}
+                  style={buttonSecondary}
+                >
+                  Sospendi
+                </button>
+              )}
+
+              <button
+                onClick={() => eliminaOperaio(o.id)}
+                style={{
+                  padding: '10px 14px',
+                  backgroundColor: '#d9534f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Elimina
+              </button>
             </div>
           </div>
-        )}
+        ))}
       </div>
+    )}
+  </div>
+)}
 
-      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>Aggiungi cantiere</h2>
-        <input
-          placeholder="Nome cantiere"
-          value={nomeCantiere}
-          onChange={(e) => setNomeCantiere(e.target.value)}
-          style={{ padding: 8, marginRight: 8, width: 250 }}
-        />
-        <button onClick={aggiungiCantiere} style={{ padding: 8 }}>
-          Aggiungi cantiere
-        </button>
-      </div>
+{/* ================= OPERAI - TIMBRATURE ================= */}
+{(
+  pagineAperte.includes('operai-timbrature') ||
+  (!modalitaMulti &&
+    sezioneAttiva === 'operai' &&
+    sottoSezioneOperai === 'timbrature')
+) && (
+  <div style={cardStyle}>
+    <h2>Timbrature operai</h2>
 
-      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>Modifica nome cantiere</h2>
-        <div style={{ marginBottom: 10 }}>
-          <select
-            value={cantiereDaModificare}
-            onChange={(e) => {
-              setCantiereDaModificare(e.target.value)
-              setNuovoNomeCantiere(e.target.value)
+    {timbraturaInModifica && (
+      <div
+        onClick={() => setTimbraturaInModifica(null)}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.55)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: 20,
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: '100%',
+            maxWidth: 700,
+            background: '#fff',
+            borderRadius: 14,
+            padding: 20,
+            boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+          }}
+        >
+          <h3 style={{ marginTop: 0 }}>Modifica timbratura</h3>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 10,
             }}
-            style={{ padding: 8, width: 260, marginRight: 8 }}
           >
-            <option value="">Seleziona cantiere</option>
-            {cantieri.map((c, i) => (
-              <option key={c.id || i} value={c.nome}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
+            <input
+              type="date"
+              value={dataTimbraturaModifica}
+              onChange={(e) => setDataTimbraturaModifica(e.target.value)}
+            />
 
-          <input
-            placeholder="Nuovo nome cantiere"
-            value={nuovoNomeCantiere}
-            onChange={(e) => setNuovoNomeCantiere(e.target.value)}
-            style={{ padding: 8, width: 260 }}
-          />
-        </div>
+            <input
+              type="time"
+              value={oraEntrataModifica}
+              onChange={(e) => setOraEntrataModifica(e.target.value)}
+            />
 
-        <button onClick={salvaModificaCantiere} style={{ padding: 8 }}>
-          Salva modifica cantiere
-        </button>
-      </div>
+            <input
+              type="time"
+              value={oraUscitaModifica}
+              onChange={(e) => setOraUscitaModifica(e.target.value)}
+            />
+          </div>
 
-      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>Anagrafica operai</h2>
-
-        <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input
-            placeholder="Cerca operaio"
-            value={ricercaOperaio}
-            onChange={(e) => setRicercaOperaio(e.target.value)}
-            style={{ padding: 8, width: 220 }}
-          />
-
-          <select
-            value={statoOperaio}
-            onChange={(e) => setStatoOperaio(e.target.value)}
-            style={{ padding: 8, width: 160 }}
+          <div
+            style={{
+              marginTop: 15,
+              padding: 12,
+              borderRadius: 10,
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+            }}
           >
-            <option value="attivo">Attivo</option>
-            <option value="sospeso">Sospeso</option>
-          </select>
-        </div>
+            <strong>Ore lavorate:</strong>{' '}
+            {(() => {
+              const entrata = parseOra(oraEntrataModifica)
+              const uscita = parseOra(oraUscitaModifica)
 
-        <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input
-            placeholder="Nome operaio"
-            value={nomeOperaio}
-            onChange={(e) => setNomeOperaio(e.target.value)}
-            style={{ padding: 8, width: 220 }}
-          />
+              if (entrata === null || uscita === null || uscita < entrata) {
+                return '0.00'
+              }
 
-          <input
-            placeholder="Telefono"
-            value={telefonoOperaio}
-            onChange={(e) => setTelefonoOperaio(e.target.value)}
-            style={{ padding: 8, width: 180 }}
-          />
+              return ((uscita - entrata) / 60).toFixed(2)
+            })()}
+          </div>
 
-          <input
-            placeholder="Qualifica"
-            value={qualificaOperaio}
-            onChange={(e) => setQualificaOperaio(e.target.value)}
-            style={{ padding: 8, width: 180 }}
-          />
-
-          <input
-            placeholder="PIN operaio"
-            value={pinOperaio}
-            onChange={(e) => setPinOperaio(e.target.value)}
-            style={{ padding: 8, width: 140 }}
-          />
-
-          <input
-            placeholder="Costo orario €"
-            value={costoOrarioOperaio}
-            onChange={(e) => setCostoOrarioOperaio(e.target.value)}
-            style={{ padding: 8, width: 140 }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 10 }}>
-          <textarea
-            placeholder="Nota operaio"
-            value={notaOperaio}
-            onChange={(e) => setNotaOperaio(e.target.value)}
-            style={{ padding: 8, width: '100%', minHeight: 70 }}
-          />
-        </div>
-
-        <button onClick={aggiungiOperaio} style={{ padding: 8 }}>
-          Aggiungi operaio
-        </button>
-
-        {operaioInModifica && (
-          <div style={{ marginTop: 20, padding: 15, border: '1px solid #ddd', borderRadius: 8 }}>
-            <h3>Modifica operaio</h3>
-
-            <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <input
-                placeholder="Nome operaio"
-                value={nomeOperaioModifica}
-                onChange={(e) => setNomeOperaioModifica(e.target.value)}
-                style={{ padding: 8, width: 220 }}
-              />
-
-              <input
-                placeholder="Telefono"
-                value={telefonoOperaioModifica}
-                onChange={(e) => setTelefonoOperaioModifica(e.target.value)}
-                style={{ padding: 8, width: 180 }}
-              />
-
-              <input
-                placeholder="Qualifica"
-                value={qualificaOperaioModifica}
-                onChange={(e) => setQualificaOperaioModifica(e.target.value)}
-                style={{ padding: 8, width: 180 }}
-              />
-
-              <input
-                placeholder="PIN operaio"
-                value={pinOperaioModifica}
-                onChange={(e) => setPinOperaioModifica(e.target.value)}
-                style={{ padding: 8, width: 140 }}
-              />
-
-              <input
-                placeholder="Costo orario €"
-                value={costoOrarioOperaioModifica}
-                onChange={(e) => setCostoOrarioOperaioModifica(e.target.value)}
-                style={{ padding: 8, width: 140 }}
-              />
-
-              <select
-                value={statoOperaioModifica}
-                onChange={(e) => setStatoOperaioModifica(e.target.value)}
-                style={{ padding: 8, width: 160 }}
-              >
-                <option value="attivo">Attivo</option>
-                <option value="sospeso">Sospeso</option>
-              </select>
-            </div>
-
-            <div style={{ marginBottom: 10 }}>
-              <textarea
-                placeholder="Nota operaio"
-                value={notaOperaioModifica}
-                onChange={(e) => setNotaOperaioModifica(e.target.value)}
-                style={{ padding: 8, width: '100%', minHeight: 70 }}
-              />
-            </div>
-
-            <button onClick={salvaModificaOperaio} style={{ padding: 8 }}>
-              Salva modifica operaio
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 10,
+              marginTop: 15,
+            }}
+          >
+            <button
+              onClick={() => setTimbraturaInModifica(null)}
+              style={buttonSecondary}
+            >
+              Annulla
             </button>
 
             <button
-              onClick={annullaModificaOperaio}
-              style={{ padding: 8, marginLeft: 10 }}
+              onClick={salvaModificaTimbratura}
+              style={buttonPrimary}
             >
-              Annulla modifica
+              Salva modifica
             </button>
           </div>
-        )}
+        </div>
+      </div>
+    )}
 
-        <div style={{ marginTop: 20 }}>
-          {operaiFiltrati.length === 0 ? (
-            <p>Nessun operaio presente</p>
-          ) : (
-            <div style={{ display: 'grid', gap: 12 }}>
-              {operaiFiltrati.map((o, i) => (
-                <div
-                  key={o.id || i}
-                  style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 10,
-                    padding: 12,
-                    background: '#fafafa',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                    <div>
-                      <strong>{o.nome}</strong>
-                      <span style={badgeStyle(o.stato)}>{o.stato || 'attivo'}</span>
-                      <div style={{ marginTop: 6, fontSize: 14, color: '#374151' }}>
-                        {o.qualifica ? `Qualifica: ${o.qualifica}` : 'Qualifica: -'}
-                      </div>
-                      <div style={{ marginTop: 4, fontSize: 14, color: '#374151' }}>
-                        {o.telefono ? `Telefono: ${o.telefono}` : 'Telefono: -'}
-                      </div>
-                      <div style={{ marginTop: 4, fontSize: 14, color: '#374151' }}>
-                        {o.pin ? `PIN: ${o.pin}` : 'PIN: -'}
-                      </div>
-                      <div style={{ marginTop: 4, fontSize: 14, color: '#374151' }}>
-                        Costo orario: {formatMoney(Number(o.costo_orario || 0))}
-                      </div>
-                      <div style={{ marginTop: 4, fontSize: 14, color: '#374151' }}>
-                        Nota: {o.nota || '-'}
-                      </div>
-                    </div>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
+      <select
+        value={operaioTimbratura || ''}
+        onChange={(e) => setOperaioTimbratura(e.target.value)}
+        style={{ padding: 8, width: 220 }}
+      >
+        <option value="">Seleziona operaio</option>
+        {operaiAttivi.map((o, i) => (
+          <option key={o.id || i} value={o.nome}>
+            {o.nome}
+          </option>
+        ))}
+      </select>
 
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      <button
-                        onClick={() => preparaModificaOperaio(o)}
-                        style={{
-                          padding: 8,
-                          backgroundColor: '#0275d8',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Modifica
-                      </button>
+      <select
+        value={cantiereTimbratura || ''}
+        onChange={(e) => setCantiereTimbratura(e.target.value)}
+        style={{ padding: 8, width: 240 }}
+      >
+        <option value="">Seleziona cantiere</option>
+        {cantieri.map((c, i) => (
+          <option key={c.id || i} value={c.nome}>
+            {c.nome}
+          </option>
+        ))}
+      </select>
 
-                      {o.stato === 'sospeso' ? (
-                        <button
-                          onClick={() => cambiaStatoOperaio(o, 'attivo')}
-                          style={{
-                            padding: 8,
-                            backgroundColor: '#16a34a',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Riattiva
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => cambiaStatoOperaio(o, 'sospeso')}
-                          style={{
-                            padding: 8,
-                            backgroundColor: '#f59e0b',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Sospendi
-                        </button>
-                      )}
+      <input
+        placeholder="PIN"
+        value={pinTimbratura || ''}
+        onChange={(e) => setPinTimbratura(e.target.value)}
+        style={{ padding: 8, width: 140 }}
+      />
 
-                      <button
-                        onClick={() => eliminaOperaio(o.id)}
-                        style={{
-                          padding: 8,
-                          backgroundColor: '#d9534f',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Elimina
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+      <button onClick={timbraEntrataConPin} style={buttonPrimary}>
+        Entrata
+      </button>
+
+      <button onClick={timbraUscitaConPin} style={buttonSecondary}>
+        Uscita
+      </button>
+    </div>
+
+    <h3>Timbrature di oggi</h3>
+
+    {timbratureOggi.length === 0 ? (
+      <p>Nessuna timbratura presente oggi</p>
+    ) : (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {timbratureOggi.map((t, i) => (
+          <div
+            key={t.id || i}
+            style={{
+              padding: 12,
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              background: '#fff',
+            }}
+          >
+            <strong>{t.operaio_nome}</strong> — {t.cantiere}
+            <br />
+            Entrata: {t.ora_entrata || '-'} | Uscita: {t.ora_uscita || '-'}
+            <br />
+            Stato: {t.stato || '-'}
+            <br />
+            Costo: {formatMoney(calcolaCostoTimbratura(t))}
+
+            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => {
+                  setTimbraturaInModifica(t.id || null)
+                  setDataTimbraturaModifica(t.data || '')
+                  setOraEntrataModifica(t.ora_entrata || '')
+                  setOraUscitaModifica(t.ora_uscita || '')
+                  setStatoTimbraturaModifica(t.stato || 'aperto')
+                }}
+                style={buttonSecondary}
+              >
+                Modifica
+              </button>
+
+              <button
+                onClick={() => eliminaTimbratura(t.id)}
+                style={{
+                  ...buttonSecondary,
+                  backgroundColor: '#d9534f',
+                  color: 'white',
+                }}
+              >
+                Elimina
+              </button>
             </div>
-          )}
-        </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+{/* ================= OPERAI - PRESENZE / COSTI ================= */}
+{(
+  pagineAperte.includes('operai-presenze') ||
+  (!modalitaMulti &&
+    sezioneAttiva === 'operai' &&
+    sottoSezioneOperai === 'presenze')
+) && (
+  <div style={cardStyle}>
+    <h2>Presenze / costi operai</h2>
+
+{timbraturaInModifica && (
+  <div
+    onClick={() => setTimbraturaInModifica(null)}
+    style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(15, 23, 42, 0.55)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9999,
+      padding: 20,
+    }}
+  >
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        width: '100%',
+        maxWidth: 700,
+        background: '#fff',
+        borderRadius: 14,
+        padding: 20,
+        boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+      }}
+    >
+      <h3 style={{ marginTop: 0 }}>Modifica presenza</h3>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 10,
+        }}
+      >
+        <input
+          type="date"
+          value={dataTimbraturaModifica}
+          onChange={(e) => setDataTimbraturaModifica(e.target.value)}
+        />
+
+        <input
+          type="time"
+          value={oraEntrataModifica}
+          onChange={(e) => setOraEntrataModifica(e.target.value)}
+        />
+
+        <input
+          type="time"
+          value={oraUscitaModifica}
+          onChange={(e) => setOraUscitaModifica(e.target.value)}
+        />
       </div>
 
-      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>Timbratura operai per cantiere</h2>
+      <div
+        style={{
+          marginTop: 15,
+          padding: 12,
+          borderRadius: 10,
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+        }}
+      >
+        <strong>Ore lavorate:</strong>{' '}
+        {(() => {
+          const entrata = parseOra(oraEntrataModifica)
+          const uscita = parseOra(oraUscitaModifica)
 
-        <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <select
-            value={operaioTimbratura}
-            onChange={(e) => setOperaioTimbratura(e.target.value)}
-            style={{ padding: 8, width: 220 }}
-          >
-            <option value="">Seleziona operaio attivo</option>
-            {operaiAttivi.map((o, i) => (
-              <option key={o.id || i} value={o.nome}>
-                {o.nome}
-              </option>
-            ))}
-          </select>
+          if (entrata === null || uscita === null || uscita < entrata) {
+            return '0.00'
+          }
 
-          <select
-            value={cantiereTimbratura}
-            onChange={(e) => setCantiereTimbratura(e.target.value)}
-            style={{ padding: 8, width: 240 }}
-          >
-            <option value="">Seleziona cantiere</option>
-            {cantieri.map((c, i) => (
-              <option key={c.id || i} value={c.nome}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ marginBottom: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input
-            placeholder="PIN operaio"
-            value={pinTimbratura}
-            onChange={(e) => setPinTimbratura(e.target.value)}
-            style={{ padding: 8, width: 180 }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={timbraEntrata} style={buttonPrimary}>
-            Timbra entrata
-          </button>
-
-          <button onClick={timbraUscita} style={buttonSecondary}>
-            Timbra uscita
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-          <button onClick={timbraEntrataConPin} style={buttonPrimary}>
-            Entrata con PIN
-          </button>
-
-          <button onClick={timbraUscitaConPin} style={buttonSecondary}>
-            Uscita con PIN
-          </button>
-        </div>
-
-        <div style={{ marginTop: 20 }}>
-          <h3>Timbrature di oggi</h3>
-
-          {timbratureOggi.length === 0 ? (
-            <p>Nessuna timbratura presente oggi</p>
-          ) : (
-            <ul>
-              {timbratureOggi.map((t, i) => (
-                <li key={t.id || i} style={{ marginBottom: 12 }}>
-                  <strong>{t.operaio_nome}</strong> - {t.cantiere}
-                  <br />
-                  Entrata: {t.ora_entrata || '-'} | Uscita: {t.ora_uscita || '-'} | Stato:{' '}
-                  {t.stato || '-'}
-                  <br />
-                  Costo: {formatMoney(calcolaCostoTimbratura(t))}
-                  <br />
-                  <button
-                    onClick={() => eliminaTimbratura(t.id)}
-                    style={{
-                      marginTop: 6,
-                      padding: 5,
-                      backgroundColor: '#d9534f',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Elimina timbratura
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+          return ((uscita - entrata) / 60).toFixed(2)
+        })()}
       </div>
 
-      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>Elenco cantieri</h2>
-
-        {cantieri.length === 0 ? (
-          <p>Nessun cantiere presente</p>
-        ) : (
-          <ul>
-            {cantieri.map((c, i) => (
-              <li key={c.id || i} style={{ marginBottom: 10 }}>
-                {c.nome}
-                <br />
-                <button
-                  onClick={() => preparaModificaCantiere(c.nome)}
-                  style={{
-                    marginTop: 6,
-                    marginRight: 8,
-                    padding: 5,
-                    backgroundColor: '#0275d8',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Modifica
-                </button>
-
-                <button
-                  onClick={() => setCantiereScheda(c.nome)}
-                  style={{
-                    marginTop: 6,
-                    marginRight: 8,
-                    padding: 5,
-                    backgroundColor: '#5cb85c',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Apri scheda
-                </button>
-
-                <button
-                  onClick={() => eliminaCantiere(c.nome)}
-                  style={{
-                    marginTop: 6,
-                    padding: 5,
-                    backgroundColor: '#d9534f',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Elimina cantiere
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>{rapportinoInModifica ? 'Modifica rapportino in corso' : 'Rapportino giornaliero'}</h2>
-
-        <div style={{ marginBottom: 10 }}>
-          <select
-            value={cantiereRapporto}
-            onChange={(e) => setCantiereRapporto(e.target.value)}
-            style={{ padding: 8, width: 260 }}
-          >
-            <option value="">Seleziona cantiere</option>
-            {cantieri.map((c, i) => (
-              <option key={c.id || i} value={c.nome}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ marginBottom: 10 }}>
-          <input
-            type="date"
-            value={data}
-            onChange={(e) => setData(e.target.value)}
-            style={{ padding: 8, marginRight: 8 }}
-          />
-          <input
-            placeholder="Ore totali lavorate"
-            value={ore}
-            onChange={(e) => setOre(e.target.value)}
-            style={{ padding: 8, width: 180 }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 10 }}>
-          <textarea
-            placeholder="Note lavoro"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            style={{ padding: 8, width: '100%', minHeight: 90 }}
-          />
-        </div>
-
-        <h3>Operai presenti</h3>
-
-        <div style={{ marginBottom: 10 }}>
-          <textarea
-            placeholder="Nomi operai presenti"
-            value={operai}
-            onChange={(e) => setOperai(e.target.value)}
-            style={{ padding: 8, width: '100%', minHeight: 70 }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 10 }}>
-          <input
-            placeholder="Numero presenti"
-            value={numeroPresenti}
-            onChange={(e) => setNumeroPresenti(e.target.value)}
-            style={{ padding: 8, marginRight: 8, width: 180 }}
-          />
-          <input
-            placeholder="Ore per ciascuno"
-            value={orePerOperaio}
-            onChange={(e) => setOrePerOperaio(e.target.value)}
-            style={{ padding: 8, width: 180 }}
-          />
-        </div>
-
-        <div style={{ marginTop: 12, fontWeight: 700 }}>
-          Costo manodopera da timbrature oggi: {formatMoney(costoGiornalieroRapportino)}
-        </div>
-
-        <h3>Materiali usati</h3>
-
-        <div style={{ marginBottom: 10 }}>
-          <textarea
-            placeholder="Materiali usati"
-            value={materiali}
-            onChange={(e) => setMateriali(e.target.value)}
-            style={{ padding: 8, width: '100%', minHeight: 70 }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 10 }}>
-          <input
-            placeholder="Quantità"
-            value={quantitaMateriali}
-            onChange={(e) => setQuantitaMateriali(e.target.value)}
-            style={{ padding: 8, marginRight: 8, width: 180 }}
-          />
-          <input
-            placeholder="Costo materiali"
-            value={costoMateriali}
-            onChange={(e) => setCostoMateriali(e.target.value)}
-            style={{ padding: 8, width: 180 }}
-          />
-        </div>
-
-        {rapportinoInModifica ? (
-          <>
-            <button onClick={aggiornaRapportino} style={{ padding: 8 }}>
-              Aggiorna rapportino
-            </button>
-            <button onClick={resetFormRapportino} style={{ padding: 8, marginLeft: 10 }}>
-              Annulla modifica
-            </button>
-          </>
-        ) : (
-          <button onClick={salvaRapportino} style={{ padding: 8 }}>
-            Salva rapportino
-          </button>
-        )}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: 10,
+          marginTop: 15,
+        }}
+      >
+        <button
+          onClick={() => setTimbraturaInModifica(null)}
+          style={buttonSecondary}
+        >
+          Annulla
+        </button>
 
         <button
-          onClick={compilaRapportinoDaTimbrature}
-          style={{ padding: 8, marginLeft: 10 }}
+          onClick={salvaModificaTimbratura}
+          style={buttonPrimary}
         >
-          Compila da timbrature
-        </button>
-
-        <button onClick={generaPDF} style={{ padding: 8, marginLeft: 10 }}>
-          Scarica PDF
+          Salva modifica
         </button>
       </div>
+    </div>
+  </div>
+)}
 
-      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>{fotoInModifica ? 'Modifica foto in corso' : 'Foto cantiere'}</h2>
+<div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8, background: '#fff', marginBottom: 20 }}>
+  <h3>Inserisci presenza manuale</h3>
 
-        <div style={{ marginBottom: 10 }}>
-          <select
-            value={cantiereFoto}
-            onChange={(e) => setCantiereFoto(e.target.value)}
-            style={{ padding: 8, width: 260 }}
+  <input
+    type="date"
+    value={dataPresenzaManuale}
+    onChange={(e) => setDataPresenzaManuale(e.target.value)}
+  />
+
+  <select
+    value={operaioPresenzaManuale}
+    onChange={(e) => setOperaioPresenzaManuale(e.target.value)}
+  >
+    <option value="">Seleziona operaio</option>
+    {operaiAnagrafica.map((o, i) => (
+      <option key={o.id || i} value={o.nome}>
+        {o.nome}
+      </option>
+    ))}
+  </select>
+
+  <select
+    value={cantierePresenzaManuale}
+    onChange={(e) => setCantierePresenzaManuale(e.target.value)}
+  >
+    <option value="">Seleziona cantiere</option>
+    {cantieri.map((c, i) => (
+      <option key={c.id || i} value={c.nome}>
+        {c.nome}
+      </option>
+    ))}
+  </select>
+
+  <input
+    type="time"
+    value={oraEntrataManuale}
+    onChange={(e) => setOraEntrataManuale(e.target.value)}
+  />
+
+  <input
+    type="time"
+    value={oraUscitaManuale}
+    onChange={(e) => setOraUscitaManuale(e.target.value)}
+  />
+
+  <button onClick={aggiungiPresenzaManuale} style={buttonPrimary}>
+    Aggiungi presenza
+  </button>
+</div>
+<div style={{ display: 'flex', gap: 10, marginBottom: 15 }}>
+  <input
+    type="date"
+    value={dataDa}
+    onChange={(e) => setDataDa(e.target.value)}
+  />
+
+  <input
+    type="date"
+    value={dataA}
+    onChange={(e) => setDataA(e.target.value)}
+  />
+
+  <select
+    value={cantiereGrafico}
+    onChange={(e) => setCantiereGrafico(e.target.value)}
+  >
+    <option value="">Tutti i cantieri</option>
+    {cantieri.map((c, i) => (
+      <option key={i} value={c.nome}>{c.nome}</option>
+    ))}
+  </select>
+</div>
+
+    <div style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
+      <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8, background: '#fff' }}>
+        <strong>Totale periodo:</strong> {formatMoney(totaleCostoPeriodo)}
+<br />
+<strong>Ore totali:</strong> {totaleOrePeriodo.toFixed(2)}
+             </div>
+
+      <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8, background: '#fff' }}>
+        <strong>Timbrature oggi:</strong> {timbratureOggi.length}
+      </div>
+    </div>
+
+    <h3>Costo per cantiere oggi</h3>
+
+    {Object.keys(costoPerCantiereOggi()).length === 0 ? (
+      <p>Nessun costo disponibile oggi.</p>
+    ) : (
+      <div style={{ display: 'grid', gap: 10, marginBottom: 25 }}>
+        {Object.entries(costoPerCantiereOggi()).map(([cantiere, totale]) => (
+          <div
+            key={cantiere}
+            style={{
+              padding: 12,
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              background: '#fff',
+            }}
           >
-            <option value="">Seleziona cantiere</option>
-            {cantieri.map((c, i) => (
-              <option key={c.id || i} value={c.nome}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ marginBottom: 10 }}>
-          <input type="file" accept="image/*" onChange={gestisciFileImmagine} />
-          <p style={{ fontSize: 12, color: '#666', marginTop: 6 }}>
-            In modifica, l’immagine attuale resta nell’anteprima. Se vuoi sostituirla,
-            seleziona un nuovo file.
-          </p>
-        </div>
-
-        <div style={{ marginBottom: 10 }}>
-          <input
-            type="date"
-            value={dataFoto}
-            onChange={(e) => setDataFoto(e.target.value)}
-            style={{ padding: 8, marginRight: 8 }}
-          />
-
-          <input
-            placeholder="Geolocalizzazione"
-            value={geolocalizzazione}
-            onChange={(e) => setGeolocalizzazione(e.target.value)}
-            style={{ padding: 8, width: 260 }}
-          />
-
-          <button onClick={usaPosizioneAttuale} style={{ padding: 8, marginLeft: 8 }}>
-            Usa posizione attuale
-          </button>
-        </div>
-
-        <div style={{ marginBottom: 10 }}>
-          <textarea
-            placeholder="Nota foto"
-            value={notaFoto}
-            onChange={(e) => setNotaFoto(e.target.value)}
-            style={{ padding: 8, width: '100%', minHeight: 70 }}
-          />
-        </div>
-
-        {fotoInModifica ? (
-          <>
-            <button onClick={aggiornaFoto} style={{ padding: 8 }}>
-              Aggiorna foto
-            </button>
-            <button onClick={resetFormFoto} style={{ padding: 8, marginLeft: 10 }}>
-              Annulla modifica
-            </button>
-          </>
-        ) : (
-          <button onClick={salvaFotoCantiere} style={{ padding: 8 }}>
-            Salva foto
-          </button>
-        )}
-
-        {immagineBase64 && (
-          <div style={{ marginTop: 15 }}>
-            <p>Anteprima foto:</p>
-            <img
-              src={immagineBase64}
-              alt="Anteprima"
-              style={{ maxWidth: 250, border: '1px solid #ccc' }}
-            />
+            <strong>{cantiere}</strong>
+            <br />
+            Manodopera oggi: {formatMoney(Number(totale || 0))}
           </div>
-        )}
+        ))}
+      </div>
+    )}
+
+    <h3>Dettaglio presenze oggi</h3>
+
+    {timbratureOggi.length === 0 ? (
+      <p>Nessuna presenza registrata oggi.</p>
+    ) : (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {timbratureOggi.map((t, i) => (
+          <div
+            key={t.id || i}
+            style={{
+              padding: 12,
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              background: '#fff',
+            }}
+          >
+            <strong>{t.operaio_nome}</strong>
+            <br />
+            Cantiere: {t.cantiere || '-'}
+            <br />
+            Entrata: {t.ora_entrata || '-'} | Uscita: {t.ora_uscita || '-'}
+            <br />
+            Stato: {t.stato || '-'}
+            <br />
+            <strong>Costo:</strong> {formatMoney(calcolaCostoTimbratura(t))}
+{erroreTimbratura(t) && (
+  <div
+    style={{
+      marginTop: 8,
+      padding: 8,
+      borderRadius: 8,
+      background: '#fee2e2',
+      color: '#991b1b',
+      fontWeight: 700,
+    }}
+  >
+    {erroreTimbratura(t)}
+  </div>
+)}
+<div style={{ marginTop: 8 }}>
+  <button
+    onClick={() => {
+      setTimbraturaInModifica(t.id || null)
+      setDataTimbraturaModifica(t.data || '')
+      setOraEntrataModifica(t.ora_entrata || '')
+      setOraUscitaModifica(t.ora_uscita || '')
+      setStatoTimbraturaModifica(t.stato || 'aperto')
+    }}
+    style={buttonSecondary}
+  >
+    ✏️ Modifica
+  </button>
+<button
+  onClick={() => eliminaTimbratura(t.id)}
+  style={{
+    ...buttonSecondary,
+    marginLeft: 8,
+    backgroundColor: '#d9534f',
+    color: 'white',
+  }}
+>
+  Elimina
+</button>
+</div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+
+{/* ================= SOPRALLUOGHI ================= */}
+{sezioneAttiva === 'sopralluoghi' && (
+  <div style={cardStyle}>
+    <h2>📍 Sopralluoghi</h2>
+
+    <div style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
+      <input
+        placeholder="Cliente"
+        value={clienteSopralluogo}
+        onChange={(e) => setClienteSopralluogo(e.target.value)}
+      />
+
+      <input
+        placeholder="Telefono"
+        value={telefonoSopralluogo}
+        onChange={(e) => setTelefonoSopralluogo(e.target.value)}
+      />
+
+      <input
+        placeholder="Indirizzo"
+        value={indirizzoSopralluogo}
+        onChange={(e) => setIndirizzoSopralluogo(e.target.value)}
+      />
+
+<div
+  style={{
+    display: 'flex',
+    gap: 10,
+    flexWrap: 'wrap',
+  }}
+>
+  <input
+    placeholder="Geolocalizzazione"
+    value={geolocalizzazioneSopralluogo}
+    onChange={(e) =>
+      setGeolocalizzazioneSopralluogo(e.target.value)
+    }
+    style={{ flex: 1 }}
+  />
+
+  <button
+    type="button"
+    onClick={rilevaGeolocalizzazioneSopralluogo}
+    style={buttonSecondary}
+  >
+    📍 Usa posizione attuale
+  </button>
+
+
+
+<button
+  type="button"
+  onClick={() => {
+    window.open(
+      'https://www.google.com/maps/@37.5079,15.083,16z',
+      '_blank'
+    )
+  }}
+  style={buttonSecondary}
+>
+  🗺 Apri mappa
+</button>
+
+
+</div>
+
+      <input
+        type="date"
+        value={dataSopralluogo}
+        onChange={(e) => setDataSopralluogo(e.target.value)}
+      />
+
+<div>
+  <label>Coordinate manuali</label>
+
+  <input
+    type="text"
+    placeholder="Es: 37.507900, 15.083000"
+    value={geolocalizzazioneSopralluogo}
+    onChange={(e) =>
+      setGeolocalizzazioneSopralluogo(e.target.value)
+    }
+    style={inputStyle}
+  />
+</div>
+
+<button
+  type="button"
+  onClick={usaCoordinateManualiSopralluogo}
+  style={buttonSecondary}
+>
+  📍 Usa coordinate
+</button>
+
+
+
+<div>
+  <label>Ora appuntamento</label>
+
+  <input
+    type="time"
+    value={oraSopralluogo}
+    onChange={(e) =>
+      setOraSopralluogo(e.target.value)
+    }
+    style={inputStyle}
+  />
+</div>
+
+
+<div>
+  <label>Promemoria</label>
+
+  <input
+    type="text"
+    placeholder="Es: chiamare cliente prima"
+    value={promemoriaSopralluogo}
+    onChange={(e) =>
+      setPromemoriaSopralluogo(
+        e.target.value
+      )
+    }
+    style={inputStyle}
+  />
+</div>
+
+
+<div>
+  <label>Promemoria</label>
+
+  <input
+    type="text"
+    placeholder="Es: chiamare cliente prima"
+    value={promemoriaSopralluogo}
+    onChange={(e) =>
+      setPromemoriaSopralluogo(e.target.value)
+    }
+    style={inputStyle}
+  />
+</div>
+
+
+
+      <input
+        placeholder="Tipo lavoro"
+        value={tipoLavoroSopralluogo}
+        onChange={(e) => setTipoLavoroSopralluogo(e.target.value)}
+      />
+
+      <textarea
+        placeholder="Note sopralluogo"
+        value={noteSopralluogo}
+        onChange={(e) => setNoteSopralluogo(e.target.value)}
+        style={{ minHeight: 100 }}
+      />
+
+      <button onClick={salvaSopralluogo} style={buttonPrimary}>
+        💾 Salva sopralluogo
+      </button>
+    </div>
+
+    <h3>Elenco sopralluoghi</h3>
+
+    {sopralluoghi.length === 0 ? (
+      <p>Nessun sopralluogo salvato</p>
+    ) : (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {sopralluoghi.map((s, i) => (
+          <div
+            key={s.id || i}
+            style={{
+              padding: 12,
+              border: '1px solid #ddd',
+              borderRadius: 10,
+              background: '#fff',
+            }}
+          >
+
+<div style={{ marginTop: 10 }}>
+ <button
+  onClick={async () => {
+    setSopralluogoAperto(s)
+
+    setFirmaCliente(
+      s.firma_cliente || ''
+    )
+
+    const { data } = await supabase
+      .from('foto_sopralluogo')
+      .select('*')
+      .eq('sopralluogo_id', s.id)
+      .order('created_at', { ascending: false })
+
+    setFotoSopralluoghi(data || [])
+  }}
+  style={buttonPrimary}
+>
+  🔍 Apri sopralluogo
+</button>
+<button
+  onClick={() => eliminaSopralluogo(s.id)}
+  style={{
+    ...buttonSecondary,
+    marginLeft: 8,
+    backgroundColor: '#dc2626',
+    color: '#fff',
+  }}
+>
+  🗑 Elimina
+</button>
+
+</div>
+            <strong>{s.cliente}</strong>
+            <br />
+            {s.indirizzo || '-'}
+            <br />
+            Data: {s.data_sopralluogo || '-'}
+            <br />
+            Tipo lavoro: {s.tipo_lavoro || '-'}
+            <br />
+            Stato: {s.stato || '-'}
+          </div>
+        ))}
+      </div>
+    )}
+
+{sopralluogoAperto && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(15,23,42,0.55)',
+      zIndex: 9999,
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 14,
+        width: '100%',
+        maxWidth: 1000,
+        maxHeight: '90vh',
+        overflow: 'auto',
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 20,
+        }}
+      >
+        <h2>📍 {sopralluogoAperto.cliente}</h2>
+
+        <button
+          onClick={() => setSopralluogoAperto(null)}
+          style={buttonSecondary}
+        >
+          Chiudi
+        </button>
       </div>
 
-      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>Rapportini salvati</h2>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <div>
+          <strong>Telefono:</strong>{' '}
+          {sopralluogoAperto.telefono || '-'}
+        </div>
 
-        {rapportiniFiltrati.length === 0 ? (
-          <p>Nessun rapportino presente</p>
-        ) : (
-          <ul>
-            {rapportiniFiltrati.map((r, i) => (
-              <li key={r.id || i} style={{ marginBottom: 14 }}>
-                <strong>{r.cantiere}</strong> - {r.data} - {r.ore} ore
-                <br />
-                {r.note}
-                <br />
-                <em>Operai:</em> {r.operai || '-'}
-                <br />
-                <em>Materiali:</em> {r.materiali || '-'}
-                <br />
+        <div>
+          <strong>Indirizzo:</strong>{' '}
+          {sopralluogoAperto.indirizzo || '-'}
+        </div>
+<div>
+  <strong>Data sopralluogo:</strong>{' '}
+  {sopralluogoAperto.data_sopralluogo || '-'}
+</div>
 
-                <button
-                  onClick={() => preparaModificaRapportino(r)}
-                  style={{
-                    marginTop: 6,
-                    marginRight: 8,
-                    padding: 5,
-                    backgroundColor: '#0275d8',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Modifica rapportino
-                </button>
+<div>
+  <strong>Tipo lavoro:</strong>{' '}
+  {sopralluogoAperto.tipo_lavoro || '-'}
+</div>
 
-                <button
-                  onClick={() => eliminaRapportino(r.id)}
-                  style={{
-                    marginTop: 6,
-                    padding: 5,
-                    backgroundColor: '#d9534f',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Elimina rapportino
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+<div>
+  <strong>Stato:</strong>
+
+  <span
+    style={{
+      background:
+        coloreStatoSopralluogo(
+          sopralluogoAperto.stato
+        ),
+      color: '#fff',
+      padding: '4px 10px',
+      borderRadius: 999,
+      fontSize: 12,
+      marginLeft: 8,
+    }}
+  >
+    {sopralluogoAperto.stato || '-'}
+  </span>
+</div>
+
+<div>
+  <strong>Note:</strong>
+  <div
+    style={{
+      marginTop: 6,
+      padding: 10,
+      background: '#f8fafc',
+      border: '1px solid #e5e7eb',
+      borderRadius: 8,
+      whiteSpace: 'pre-wrap',
+    }}
+  >
+    {sopralluogoAperto.note || 'Nessuna nota inserita'}
+  </div>
+</div>
+
+<div style={{ marginTop: 20 }}>
+  <h4>Firma cliente</h4>
+
+  <div
+    style={{
+      border: '1px solid #d1d5db',
+      borderRadius: 8,
+      overflow: 'hidden',
+      background: '#fff',
+    }}
+  >
+    <SignatureCanvas
+      ref={firmaRef}
+      penColor="black"
+      canvasProps={{
+        width: 350,
+        height: 160,
+        style: {
+          width: '100%',
+          height: 160,
+        },
+      }}
+    />
+  </div>
+
+
+
+
+
+  <div
+    style={{
+      display: 'flex',
+      gap: 10,
+      marginTop: 10,
+    }}
+  >
+   <button
+  onClick={async () => {
+    const firma =
+      firmaRef.current
+        ?.getTrimmedCanvas()
+        .toDataURL('image/png') || ''
+
+    setFirmaCliente(firma)
+
+    if (sopralluogoAperto?.id) {
+      const { error } = await supabase
+        .from('sopralluoghi')
+        .update({
+          firma_cliente: firma,
+        })
+        .eq('id', sopralluogoAperto.id)
+
+      if (error) {
+        alert(
+          'Errore salvataggio firma: ' +
+            error.message
+        )
+        return
+      }
+    }
+
+    alert('Firma salvata')
+  }}
+  style={buttonPrimary}
+>
+  Salva firma
+</button>
+  </div>
+</div>
+
+
+        <div>
+          <strong>Data:</strong>{' '}
+          {sopralluogoAperto.data_sopralluogo || '-'}
+        </div>
+
+        <div>
+          <strong>Tipo lavoro:</strong>{' '}
+          {sopralluogoAperto.tipo_lavoro || '-'}
+        </div>
+
+        <div>
+          <strong>Stato:</strong>{' '}
+          {sopralluogoAperto.stato || '-'}
+        </div>
+
+        <div
+          style={{
+            padding: 12,
+            background: '#f8fafc',
+            borderRadius: 10,
+            marginTop: 10,
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {sopralluogoAperto.note || 'Nessuna nota'}
+        </div>
       </div>
 
-      <div style={{ marginTop: 30, padding: 15, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h2>Foto salvate</h2>
+      <div style={{ marginTop: 25 }}>
+        <h3>📸 Galleria sopralluogo</h3>
 
-        {fotoFiltrate.length === 0 ? (
-          <p>Nessuna foto presente</p>
+  {fotoSopralluoghi.length === 0 ? (
+          <p>Nessuna foto caricata</p>
         ) : (
-          <div>
-            {fotoFiltrate.map((f, i) => (
-              <div key={f.id || i} style={{ marginBottom: 20 }}>
-                <strong>{f.cantiere}</strong>
-                <br />
-                <strong>Data foto:</strong> {f.data_foto || '-'}
-                <br />
-                <strong>Geolocalizzazione:</strong> {f.geolocalizzazione || '-'}
-                <br />
-                {f.nota}
-                <br />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fill, minmax(180px, 1fr))',
+              gap: 12,
+              marginTop: 10,
+            }}
+          >
+            {fotoSopralluoghi.map((foto, i) => (
+              <div
+                key={foto.id || i}
+                style={{
+                  border: '1px solid #ddd',
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  background: '#fff',
+                }}
+              >
                 <img
-                  src={f.immagine_base64}
-                  alt="Foto cantiere"
-                  style={{ maxWidth: 250, marginTop: 8, border: '1px solid #ccc' }}
+                  src={foto.immagine_base64}
+                  style={{
+                    width: '100%',
+                    height: 180,
+                    objectFit: 'cover',
+                  }}
                 />
-                <br />
 
-                <button
-                  onClick={() => preparaModificaFoto(f)}
-                  style={{
-                    marginTop: 8,
-                    marginRight: 8,
-                    padding: 5,
-                    backgroundColor: '#0275d8',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Modifica foto
-                </button>
+                <div style={{ padding: 10 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {foto.nota || 'Nessuna nota'}
+                  </div>
 
-                <button
-                  onClick={() => eliminaFoto(f.id)}
-                  style={{
-                    marginTop: 8,
-                    padding: 5,
-                    backgroundColor: '#d9534f',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Elimina foto
-                </button>
+                  <label
+                    style={{
+                      display: 'flex',
+                      gap: 6,
+                      alignItems: 'center',
+                      marginTop: 10,
+                      fontSize: 13,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(
+                        foto.includi_preventivo
+                      )}
+                      onChange={async (e) => {
+                        const nuovoValore =
+                          e.target.checked
+
+                        setFotoSopralluoghi((prev) =>
+                          prev.map((f) =>
+                            f.id === foto.id
+                              ? {
+                                  ...f,
+                                  includi_preventivo:
+                                    nuovoValore,
+                                }
+                              : f
+                          )
+                        )
+             const { error } = await supabase
+                          .from('foto_sopralluogo')
+                          .update({
+                            includi_preventivo:
+                              nuovoValore,
+                          })
+                          .eq('id', foto.id)
+
+                        if (error) {
+                          alert(
+                            'Errore aggiornamento foto: ' +
+                              error.message
+                          )
+                        }
+                      }}
+                    />
+
+                    Usa nel preventivo
+                  </label>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginTop: 20,
+        }}
+      >
+        <button
+          onClick={() =>
+            setPopupFotoSopralluogo(true)
+          }
+          style={{
+            ...buttonPrimary,
+            backgroundColor: '#0f172a',
+          }}
+        >
+          📸 Foto sopralluogo
+        </button>
+
+
+<div style={{ marginTop: 16 }}>
+  <h4>Foto sopralluogo</h4>
+
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+      gap: 12,
+    }}
+  >
+    {fotoSopralluoghi
+      .filter((f) => f.sopralluogo_id === sopralluogoAperto.id)
+      .map((foto) => (
+        <div
+          key={foto.id}
+          style={{
+            border: '1px solid #e5e7eb',
+            borderRadius: 10,
+            padding: 8,
+            background: '#fff',
+          }}
+        >
+          <img
+  src={foto.immagine_base64}
+  alt="Foto sopralluogo"
+  onClick={() =>
+    setFotoFullscreen({
+      id: foto.id,
+      cantiere: '',
+      nota: foto.nota || '',
+      immagine_base64: foto.immagine_base64,
+      created_at: foto.created_at,
+    })
+  }
+          />
+
+<button
+  onClick={async () => {
+    const conferma = confirm(
+      'Eliminare questa foto?'
+    )
+
+    if (!conferma) return
+
+    const { error } = await supabase
+      .from('foto_sopralluogo')
+      .delete()
+      .eq('id', foto.id)
+
+    if (error) {
+      alert(
+        'Errore eliminazione foto: ' +
+          error.message
+      )
+      return
+    }
+
+    await caricaFotoSopralluoghi()
+
+    alert('Foto eliminata')
+  }}
+  style={{
+    marginTop: 8,
+    width: '100%',
+    background: '#dc2626',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 8px',
+    cursor: 'pointer',
+    fontSize: 12,
+  }}
+>
+  🗑 Elimina
+</button>
+
+          {foto.nota && (
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: 12,
+                color: '#374151',
+              }}
+            >
+              {foto.nota}
+            </div>
+          )}
+        </div>
+      ))}
+  </div>
+</div>
+
+
+<button
+  onClick={() =>
+    generaPreventivoDaSopralluogo(
+      sopralluogoAperto
+    )
+  }
+  style={{
+    ...buttonPrimary,
+    backgroundColor: '#7c3aed',
+  }}
+>
+  🧾 Genera preventivo
+</button>
+
+{preventivoGeneratoId && (
+  <button
+    onClick={() => {
+      setSezioneAttiva('registro')
+      setRegistroTab('preventivi')
+      setSopralluogoAperto(null)
+    }}
+    style={{
+      ...buttonPrimary,
+      backgroundColor: '#059669',
+    }}
+  >
+    📂 Apri preventivo creato
+  </button>
+)}
+       <button
+  onClick={() => convertiSopralluogoInCantiere(sopralluogoAperto)}
+  style={{
+    ...buttonPrimary,
+    backgroundColor: '#15803d',
+  }}
+>
+  🏗 Converti in cantiere
+</button>
+
+<button
+  onClick={() =>
+    generaPdfSopralluogo(
+      sopralluogoAperto
+    )
+  }
+  style={{
+    ...buttonPrimary,
+    backgroundColor: '#2563eb',
+  }}
+>
+  📄 Genera PDF
+</button>
+
+
+      </div>
+    </div>
+  </div>
+)}
+
+{popupFotoSopralluogo && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(15,23,42,0.55)',
+      zIndex: 10000,
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 14,
+        width: '100%',
+        maxWidth: 900,
+        maxHeight: '90vh',
+        overflow: 'auto',
+        padding: 20,
+      }}
+    >
+      <h2>📸 Foto sopralluogo</h2>
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button
+          onClick={() =>
+            setCameraSopralluogoAttiva(
+              !cameraSopralluogoAttiva
+            )
+          }
+          style={buttonPrimary}
+        >
+          {cameraSopralluogoAttiva
+            ? 'Chiudi fotocamera'
+            : '📷 Apri fotocamera'}
+        </button>
+      </div>
+
+<input
+  type="file"
+  accept="image/*"
+  multiple
+  onChange={(e) => {
+    const files = Array.from(e.target.files || [])
+
+    files.forEach((file) => {
+      const reader = new FileReader()
+
+      reader.onload = () => {
+        setFotoSopralluogoTemp((foto) => [
+          ...foto,
+          String(reader.result || ''),
+        ])
+      }
+
+      reader.readAsDataURL(file)
+    })
+
+    e.target.value = ''
+  }}
+/>
+
+      {cameraSopralluogoAttiva && (
+        <div style={{ marginTop: 15 }}>
+          <Webcam
+            ref={webcamSopralluogoRef}
+            audio={false}
+            screenshotFormat="image/jpeg"
+            videoConstraints={{
+              facingMode: 'environment',
+            }}
+            style={{
+              width: '100%',
+              borderRadius: 12,
+            }}
+          />
+
+          <button
+            onClick={scattaFotoSopralluogo}
+            style={{
+              ...buttonPrimary,
+              marginTop: 10,
+              width: '100%',
+            }}
+          >
+            📸 Scatta foto
+          </button>
+        </div>
+      )}
+
+      <textarea
+        placeholder="Note foto sopralluogo"
+        value={notaFotoSopralluogo}
+        onChange={(e) =>
+          setNotaFotoSopralluogo(
+            e.target.value
+          )
+        }
+        style={{
+          width: '100%',
+          minHeight: 80,
+          marginTop: 15,
+          padding: 10,
+        }}
+      />
+
+
+
+       {fotoSopralluogoTemp.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(140px, 1fr))',
+            gap: 10,
+            marginTop: 15,
+          }}
+        >
+          {fotoSopralluogoTemp.map((foto, i) => (
+            <img
+              key={i}
+              src={foto}
+              style={{
+                width: '100%',
+                borderRadius: 10,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+       <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: 10,
+          marginTop: 20,
+        }}
+      >
+        <button
+          onClick={() => {
+            setPopupFotoSopralluogo(false)
+            setCameraSopralluogoAttiva(false)
+          }}
+          style={buttonSecondary}
+        >
+          Chiudi
+        </button>
+
+        <button
+          onClick={salvaFotoSopralluogo}
+          style={buttonPrimary}
+        >
+          💾 Salva foto
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+  </div>
+)}
+
+
+
+
+{/* ================= RAPPORTINI ================= */}
+{(
+  pagineAperte.includes('rapportini') ||
+  (!modalitaMulti && sezioneAttiva === 'rapportini')
+) && (
+  <div style={cardStyle}>
+    <h2>{rapportinoInModifica ? 'Modifica rapportino' : 'Rapportino giornaliero'}</h2>
+<div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+  {!ascoltoRapportino ? (
+    <button
+      onClick={avviaDettaturaRapportino}
+      style={{
+        ...buttonPrimary,
+        backgroundColor: '#111827',
+      }}
+    >
+      🎙️ Avvia dettatura
+    </button>
+  ) : (
+    <button
+      onClick={fermaDettaturaRapportino}
+      style={{
+        ...buttonPrimary,
+        backgroundColor: '#dc2626',
+      }}
+    >
+      ⏹️ Stop dettatura
+    </button>
+  )}
+</div>
+{testoVoceRapportino && (
+  <div
+    style={{
+      padding: 10,
+      background: '#f8fafc',
+      border: '1px solid #cbd5e1',
+      borderRadius: 8,
+      marginBottom: 12,
+    }}
+  >
+    <strong>Testo rilevato:</strong>
+    <br />
+    {testoVoceRapportino}
+  </div>
+)}
+
+<button
+  onClick={compilaRapportinoConAI}
+  style={{
+    ...buttonSecondary,
+    marginBottom: 12,
+    marginLeft: 10,
+    backgroundColor: '#7c3aed',
+    color: '#fff',
+  }}
+>
+  🤖 Compila con AI
+</button>
+
+    <select
+      value={cantiereRapporto || ''}
+      onChange={(e) => setCantiereRapporto(e.target.value)}
+      style={{ padding: 8, width: 260, marginBottom: 10 }}
+    >
+      <option value="">Seleziona cantiere</option>
+      {cantieri.map((c, i) => (
+        <option key={c.id || i} value={c.nome}>
+          {c.nome}
+        </option>
+      ))}
+    </select>
+
+    <div style={{ marginBottom: 10 }}>
+      <input
+        type="date"
+        value={data || ''}
+        onChange={(e) => setData(e.target.value)}
+        style={{ padding: 8, marginRight: 8 }}
+      />
+
+         </div>
+
+
+<button
+  type="button"
+  onClick={() => setPopupFotoRapportino(true)}
+  style={{
+    ...buttonSecondary,
+    marginBottom: 10,
+    backgroundColor: '#0f172a',
+    color: '#fff',
+  }}
+>
+  📸 Aggiungi foto lavoro
+</button>
+
+
+
+    <textarea
+      placeholder="Note lavoro"
+      value={note || ''}
+      onChange={(e) => setNote(e.target.value)}
+      style={{ padding: 8, width: '100%', minHeight: 90 }}
+    />
+
+
+<button
+  type="button"
+  onClick={() =>
+    setPopupOperaiRapportino(true)
+  }
+  style={{
+    ...buttonSecondary,
+    marginBottom: 10,
+    marginLeft: 10,
+    backgroundColor: '#14532d',
+    color: '#fff',
+  }}
+>
+  👷 Operai presenti
+</button>
+
+    <h3>Operai presenti</h3>
+
+    <textarea
+      placeholder="Nomi operai presenti"
+      value={operai || ''}
+      onChange={(e) => setOperai(e.target.value)}
+      style={{ padding: 8, width: '100%', minHeight: 70 }}
+    />
+
+    <h3>Materiali usati</h3>
+
+<textarea
+  placeholder="Materiali usati"
+  value={materiali || ''}
+  onChange={(e) => setMateriali(e.target.value)}
+  style={{ padding: 8, width: '100%', minHeight: 70 }}
+/>
+
+<div style={{ marginTop: 8 }}>
+  {!ascoltoMateriali ? (
+    <button
+      type="button"
+      onClick={avviaDettaturaMateriali}
+      style={buttonSecondary}
+    >
+      🎤 Avvia dettatura materiali
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={fermaDettaturaMateriali}
+      style={{
+        ...buttonSecondary,
+        backgroundColor: '#dc2626',
+        color: '#fff',
+      }}
+    >
+      ⏹ Stop dettatura
+    </button>
+  )}
+</div>
+
+<div style={{ marginTop: 10 }}>
+  <input
+    placeholder="Costo materiali €"
+    value={costoMateriali || ''}
+    onChange={(e) => setCostoMateriali(e.target.value)}
+    style={{ padding: 8, width: 180 }}
+  />
+</div>
+
+<div style={{ marginTop: 15 }}>
+  {rapportinoInModifica ? (
+    <>
+      <button onClick={aggiornaRapportino} style={buttonPrimary}>
+        Aggiorna
+      </button>
+
+      <button
+        onClick={resetFormRapportino}
+        style={{ ...buttonSecondary, marginLeft: 10 }}
+      >
+        Annulla
+      </button>
+    </>
+  ) : (
+    <button onClick={salvaRapportino} style={buttonPrimary}>
+      Salva
+    </button>
+  )}
+
+  <button
+    onClick={generaPDF}
+    style={{ ...buttonSecondary, marginLeft: 10 }}
+  >
+    PDF
+  </button>
+</div>
+
+
+<div
+  style={{
+    marginTop: 20,
+    padding: 15,
+    border: '1px solid #cbd5e1',
+    borderRadius: 12,
+    background: '#f8fafc',
+  }}
+>
+  <h3>📄 SAL fotografico cantiere</h3>
+
+  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+    <select
+      value={salFotoCantiere}
+      onChange={(e) => setSalFotoCantiere(e.target.value)}
+      style={{ maxWidth: 260 }}
+    >
+      <option value="">Seleziona cantiere</option>
+      {cantieri.map((c, i) => (
+        <option key={c.id || i} value={c.nome}>
+          {c.nome}
+        </option>
+      ))}
+    </select>
+
+    <input
+      type="month"
+      value={salFotoMese}
+      onChange={(e) => setSalFotoMese(e.target.value)}
+      style={{ maxWidth: 180 }}
+    />
+
+    <button
+      type="button"
+      onClick={generaPdfSalFotografico}
+      style={{
+        ...buttonPrimary,
+        backgroundColor: '#2563eb',
+      }}
+    >
+      📄 Genera SAL fotografico
+    </button>
+  </div>
+</div>
+
+
+
+
+    <h3 style={{ marginTop: 30 }}>Storico rapportini</h3>
+
+    {rapportiniFiltrati.length === 0 ? (
+      <p>Nessun rapportino presente</p>
+    ) : (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {rapportiniFiltrati.map((r, i) => (
+          <div
+            key={r.id || i}
+            style={{
+              padding: 12,
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              background: '#fff',
+            }}
+          >
+            <strong>{r.cantiere}</strong> — {r.data} — {r.ore} ore
+            <br />
+            {r.note}
+
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={() => preparaModificaRapportino(r)}
+                style={buttonSecondary}
+              >
+                Modifica
+              </button>
+
+<button
+  onClick={() => {
+    const fotoCollegate = fotoCantiere.filter(
+      (f) =>
+        f.cantiere === r.cantiere &&
+        String(f.data_foto || '') === String(r.data || '')
+    )
+
+    setFotoRapportinoAperte(fotoCollegate)
+  }}
+  style={{
+    ...buttonSecondary,
+    marginLeft: 6,
+    backgroundColor: '#0f172a',
+    color: '#fff',
+  }}
+>
+  📸 Apri foto
+</button>
+
+              <button
+                onClick={() => eliminaRapportino(r.id)}
+                style={{
+                  marginLeft: 8,
+                  padding: '10px 14px',
+                  backgroundColor: '#d9534f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Elimina
+              </button>
+
+<button
+  onClick={() => generaPdfRapportinoFotografico(r)}
+  style={{
+    ...buttonSecondary,
+    marginLeft: 6,
+    backgroundColor: '#2563eb',
+    color: '#fff',
+  }}
+>
+  📄 PDF foto
+</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+{/* ================= PAGAMENTI - OPERAI ================= */}
+{(
+  pagineAperte.includes('pagamenti-operai') ||
+  (!modalitaMulti &&
+    sezioneAttiva === 'pagamenti' &&
+    sottoSezionePagamenti === 'operai')
+) && (
+  <div style={cardStyle}>
+    <h2>Pagamenti operai</h2>
+
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: 12,
+        marginBottom: 20,
+      }}
+    >
+      <div style={{ padding: 14, borderRadius: 10, background: '#fff', border: '1px solid #ddd' }}>
+        <div style={{ color: '#666', marginBottom: 6 }}>Totale maturato</div>
+        <strong style={{ fontSize: 20 }}>{formatMoney(totaleMaturatoOperai)}</strong>
+      </div>
+
+      <div style={{ padding: 14, borderRadius: 10, background: '#fff', border: '1px solid #ddd' }}>
+        <div style={{ color: '#666', marginBottom: 6 }}>Totale pagato</div>
+        <strong style={{ fontSize: 20, color: 'green' }}>{formatMoney(totalePagatoOperai)}</strong>
+      </div>
+
+      <div
+        style={{
+          padding: 14,
+          borderRadius: 10,
+          background: residuoPagamentiOperai > 0 ? '#fef2f2' : '#f0fdf4',
+          border: '1px solid #ddd',
+        }}
+      >
+        <div style={{ color: '#666', marginBottom: 6 }}>Residuo da pagare</div>
+        <strong style={{ fontSize: 20, color: residuoPagamentiOperai > 0 ? 'red' : 'green' }}>
+          {formatMoney(residuoPagamentiOperai)}
+        </strong>
+      </div>
+
+      <div
+        style={{
+          padding: 14,
+          borderRadius: 10,
+          background:
+            statoScadenzaPagamenti === 'scaduto'
+              ? '#fee2e2'
+              : statoScadenzaPagamenti === 'attenzione'
+              ? '#fef3c7'
+              : '#f0fdf4',
+          border: '1px solid #ddd',
+        }}
+      >
+        <div style={{ color: '#666', marginBottom: 6 }}>Prossima scadenza</div>
+        <strong style={{ fontSize: 18 }}>{scadenzaPagamentiOperai || '-'}</strong>
+
+        <div style={{ marginTop: 6 }}>
+          {statoScadenzaPagamenti === 'scaduto' && '🚨 Scaduta'}
+          {statoScadenzaPagamenti === 'attenzione' &&
+            `⚠️ Mancano ${giorniAllaScadenzaPagamenti} giorni`}
+          {statoScadenzaPagamenti === 'ok' &&
+            `✅ Mancano ${giorniAllaScadenzaPagamenti} giorni`}
+        </div>
+      </div>
+    </div>
+
+    <h3 style={{ marginTop: 25 }}>Ripartizione costi operai per cantiere</h3>
+
+    {Object.keys(costoOperaiPerCantiere).length === 0 ? (
+      <p>Nessun costo presente.</p>
+    ) : (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {Object.entries(costoOperaiPerCantiere).map(([cantiere, totale]) => (
+          <div
+            key={cantiere}
+            style={{
+              padding: 14,
+              borderRadius: 10,
+              background: '#fff',
+              border: '1px solid #ddd',
+            }}
+          >
+            <strong>{String(cantiere)}</strong>
+
+            <div style={{ marginTop: 6 }}>Costo operai maturato:</div>
+
+            <strong style={{ fontSize: 20, color: '#dc2626' }}>
+              {formatMoney(Number(totale || 0))}
+            </strong>
+          </div>
+        ))}
+      </div>
+    )}
+
+    <div
+      style={{
+        marginTop: 30,
+        marginBottom: 12,
+        display: 'flex',
+        gap: 10,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+      }}
+    >
+      <button
+        onClick={() => setMostraValutazioneFondi(!mostraValutazioneFondi)}
+        style={buttonSecondary}
+      >
+        {mostraValutazioneFondi
+          ? 'Nascondi valutazione fondi'
+          : 'Mostra valutazione fondi'}
+      </button>
+
+      <button
+        onClick={() => setMostraCostiPresenze(!mostraCostiPresenze)}
+        style={buttonSecondary}
+      >
+        📊 Costi e presenze
+      </button>
+    </div>
+
+    {mostraCostiPresenze && (
+      <div
+        style={{
+          marginTop: 15,
+          padding: 15,
+          border: '1px solid #cbd5e1',
+          borderRadius: 10,
+          background: '#f8fafc',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 15,
+          }}
+        >
+          <h3 style={{ margin: 0 }}>📊 Costi e presenze operai</h3>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))',
+            gap: 12,
+            marginBottom: 20,
+          }}
+        >
+          <div style={cardStyle}>
+            <strong>Ore totali registrate</strong>
+
+            <div style={{ fontSize: 24, marginTop: 8 }}>
+              {timbrature
+                .reduce(
+                  (tot, t) =>
+                    tot + calcolaOreNumero(t.ora_entrata, t.ora_uscita),
+                  0
+                )
+                .toFixed(1)}{' '}
+              h
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <strong>Costo totale manodopera</strong>
+
+            <div style={{ fontSize: 24, marginTop: 8 }}>
+              {formatMoney(
+                operaiAnagrafica.reduce(
+                  (tot, o) =>
+                    tot +
+                    totaleOreOperaio(o.nome) * Number(o.costo_orario || 0),
+                  0
+                )
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={excelTable}>
+            <thead>
+              <tr>
+                <th style={excelTh}>Operaio</th>
+                <th style={excelTh}>Ore totali</th>
+                <th style={excelTh}>Costo orario</th>
+                <th style={excelTh}>Costo totale</th>
+                <th style={excelTh}>Pagato</th>
+                <th style={excelTh}>Residuo</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {operaiAnagrafica.map((o, i) => {
+                const ore = totaleOreOperaio(o.nome)
+                const costoOrario = Number(o.costo_orario || 0)
+                const totale = ore * costoOrario
+
+                const pagato = pagamentiOperai
+                  .filter((p) => p.operaio_nome === o.nome)
+                  .reduce((tot, p) => tot + Number(p.importo || 0), 0)
+
+                const residuo = totale - pagato
+
+                return (
+                  <tr key={o.id || i}>
+                    <td style={excelTd}>{o.nome}</td>
+                    <td style={excelTd}>{ore.toFixed(1)} h</td>
+                    <td style={excelTd}>{formatMoney(costoOrario)}</td>
+                    <td style={excelTd}>{formatMoney(totale)}</td>
+                    <td style={excelTd}>{formatMoney(pagato)}</td>
+                    <td
+                      style={{
+                        ...excelTd,
+                        fontWeight: 700,
+                        color: residuo > 0 ? '#dc2626' : '#16a34a',
+                      }}
+                    >
+                      {formatMoney(residuo)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+
+    {mostraValutazioneFondi && (
+      <>
+        {situazioneCantieri.length === 0 ? (
+          <p>Nessun cantiere presente.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {situazioneCantieri.map((c) => (
+              <div
+                key={c.nome}
+                style={{
+                  padding: 14,
+                  borderRadius: 10,
+                  background:
+                    c.stato === 'critico'
+                      ? '#fee2e2'
+                      : c.stato === 'attenzione'
+                      ? '#fef3c7'
+                      : '#f0fdf4',
+                  border:
+                    c.stato === 'critico'
+                      ? '2px solid #dc2626'
+                      : c.stato === 'attenzione'
+                      ? '2px solid #f59e0b'
+                      : '1px solid #bbf7d0',
+                }}
+              >
+                <strong>{c.nome}</strong>
+
+                <div style={{ marginTop: 8 }}>
+                  Acconti ricevuti: <strong>{formatMoney(c.acconti)}</strong>
+                </div>
+
+                <div>
+                  Operai maturati: <strong>{formatMoney(c.costoOperai)}</strong>
+                </div>
+
+                <div>
+                  Materiali: <strong>{formatMoney(c.costoMateriali)}</strong>
+                </div>
+
+                <div>
+                  Attrezzi/noli: <strong>{formatMoney(c.costoAttrezzi)}</strong>
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  Costi totali: <strong>{formatMoney(c.costiTotali)}</strong>
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  Saldo reale cantiere:{' '}
+                  <strong style={{ color: c.saldo < 0 ? 'red' : 'green' }}>
+                    {formatMoney(c.saldo)}
+                  </strong>
+                </div>
+
+                <div style={{ marginTop: 8, fontWeight: 700 }}>
+                  {c.stato === 'critico' &&
+                    '🚨 Cantiere scoperto: attenzione ai pagamenti'}
+                  {c.stato === 'attenzione' && '⚠️ Margine di sicurezza basso'}
+                  {c.stato === 'ok' && '✅ Cantiere coperto'}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: 10,
+                    borderRadius: 8,
+                    background: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                  }}
+                >
+                  <strong>🧠 Stima costi mancanti</strong>
+
+                  <div style={{ marginTop: 6 }}>
+                    Preventivo: <strong>{formatMoney(c.preventivo)}</strong>
+                  </div>
+
+                  <div>
+                    Materiali stimati:{' '}
+                    <strong>{formatMoney(c.stimaMateriali)}</strong>
+                  </div>
+
+                  <div>
+                    Manodopera stimata:{' '}
+                    <strong>{formatMoney(c.stimaManodopera)}</strong>
+                  </div>
+
+                  <div>
+                    Costi stimati totali:{' '}
+                    <strong>{formatMoney(c.stimaCostiTotali)}</strong>
+                  </div>
+
+                  <div>
+                    Costi ancora da prevedere:{' '}
+                    <strong
+                      style={{
+                        color: c.differenzaCosti > 0 ? '#dc2626' : 'green',
+                      }}
+                    >
+                      {formatMoney(c.differenzaCosti)}
+                    </strong>
+                  </div>
+
+                  <div style={{ marginTop: 6 }}>
+                    Utile stimato:{' '}
+                    <strong style={{ color: c.utileStimato < 0 ? 'red' : 'green' }}>
+                      {formatMoney(c.utileStimato)}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    )}
+
+    <div style={{ marginBottom: 14, marginTop: 25 }}>
+      <h3 style={{ margin: 0 }}>Pagamenti operai</h3>
+      <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 14 }}>
+        Registra acconti, saldi e movimenti pagati agli operai
+      </p>
+    </div>
+
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
+      <input
+        type="date"
+        value={pagamentiDataDa || ''}
+        onChange={(e) => setPagamentiDataDa(e.target.value)}
+        style={{ padding: 8 }}
+      />
+
+      <input
+        type="date"
+        value={pagamentiDataA || ''}
+        onChange={(e) => setPagamentiDataA(e.target.value)}
+        style={{ padding: 8 }}
+      />
+    </div>
+
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
+      <select
+        value={operaioPagamento || ''}
+        onChange={(e) => setOperaioPagamento(e.target.value)}
+        style={{ padding: 8, width: 220 }}
+      >
+        <option value="">Seleziona operaio</option>
+        {operaiAnagrafica.map((o, i) => (
+          <option key={o.id || i} value={o.nome}>
+            {o.nome}
+          </option>
+        ))}
+      </select>
+
+      <input
+        placeholder="Importo €"
+        value={importoPagamento || ''}
+        onChange={(e) => setImportoPagamento(e.target.value)}
+        style={{ padding: 8, width: 130 }}
+      />
+
+      <input
+        type="date"
+        value={dataPagamento || ''}
+        onChange={(e) => setDataPagamento(e.target.value)}
+        style={{ padding: 8 }}
+      />
+
+      <input
+        placeholder="Metodo"
+        value={metodoPagamento || ''}
+        onChange={(e) => setMetodoPagamento(e.target.value)}
+        style={{ padding: 8, width: 140 }}
+      />
+
+      <input
+        placeholder="Nota"
+        value={notaPagamento || ''}
+        onChange={(e) => setNotaPagamento(e.target.value)}
+        style={{ padding: 8, width: 220 }}
+      />
+
+      <button onClick={salvaPagamentoOperaio} style={buttonPrimary}>
+        Salva pagamento
+      </button>
+    </div>
+
+    <div
+      style={{
+        marginTop: 20,
+        marginBottom: 12,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 10,
+        flexWrap: 'wrap',
+      }}
+    >
+      <h3 style={{ margin: 0 }}>Prepara un pagamento</h3>
+
+
+      <button
+        onClick={() => setMostraRiepilogoOperai(!mostraRiepilogoOperai)}
+        style={buttonSecondary}
+      >
+        {mostraRiepilogoOperai ? 'Nascondi riepilogo' : 'Mostra riepilogo'}
+      </button>
+    </div>
+
+    {mostraRiepilogoOperai && (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {operaiAnagrafica.map((o, i) => {
+          const timbratureOperaioPeriodo = timbrature.filter((t) => {
+            if (t.operaio_nome !== o.nome) return false
+            if (pagamentiDataDa && t.data < pagamentiDataDa) return false
+            if (pagamentiDataA && t.data > pagamentiDataA) return false
+            return true
+          })
+
+          const costoMaturato = timbratureOperaioPeriodo.reduce(
+            (tot, t) => tot + calcolaCostoTimbratura(t),
+            0
+          )
+
+          const totaleOrePeriodo = timbratureOperaioPeriodo.reduce((tot, t) => {
+            const entrata = parseOra(t.ora_entrata)
+            const uscita = parseOra(t.ora_uscita)
+
+            if (entrata === null || uscita === null || uscita < entrata) return tot
+
+            return tot + (uscita - entrata) / 60
+          }, 0)
+
+          const pagamentiOperaioPeriodo = pagamentiOperai.filter((p) => {
+            if (p.operaio_nome !== o.nome) return false
+            if (pagamentiDataDa && (p.data_pagamento || '') < pagamentiDataDa)
+              return false
+            if (pagamentiDataA && (p.data_pagamento || '') > pagamentiDataA)
+              return false
+            return true
+          })
+
+          const pagato = pagamentiOperaioPeriodo.reduce(
+            (tot, p) => tot + Number(p.importo || 0),
+            0
+          )
+
+          const residuo = costoMaturato - pagato
+
+          return (
+            <div
+              key={o.id || i}
+              style={{
+                padding: 12,
+                border: '1px solid #ddd',
+                borderRadius: 8,
+                background: '#fff',
+              }}
+            >
+              <strong>{o.nome}</strong>
+              <br />
+              Ore lavorate: {totaleOrePeriodo.toFixed(2)}
+              <br />
+              Costo maturato: {formatMoney(costoMaturato)}
+              <br />
+              Pagato: {formatMoney(pagato)}
+              <br />
+              <strong style={{ color: residuo > 0 ? 'red' : 'green' }}>
+                Residuo: {formatMoney(residuo)}
+              </strong>
+
+              <div
+                style={{
+                  marginTop: 10,
+                  display: 'flex',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <button
+                  onClick={() =>
+                    preparaPagamentoRapidoOperaio(
+                      o.nome,
+                      Math.max(residuo, 0),
+                      'saldo'
+                    )
+                  }
+                  disabled={residuo <= 0}
+                  style={{
+                    ...buttonPrimary,
+                    opacity: residuo <= 0 ? 0.55 : 1,
+                    cursor: residuo <= 0 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  💳 Prepara saldo
+                </button>
+
+                <button
+                  onClick={() =>
+                    preparaPagamentoRapidoOperaio(o.nome, 0, 'acconto')
+                  }
+                  style={buttonSecondary}
+                >
+                  ➕ Prepara acconto
+                </button>
+              </div>
+
+              <div style={{ marginTop: 10 }}>
+                <strong>Costi maturati per cantiere:</strong>
+
+                {cantieri.map((c) => {
+                  const timbratureOperaioCantiere =
+                    timbratureOperaioPeriodo.filter((t) => t.cantiere === c.nome)
+
+                  const costoCantiere = timbratureOperaioCantiere.reduce(
+                    (tot, t) => tot + calcolaCostoTimbratura(t),
+                    0
+                  )
+
+                  const oreCantiere = timbratureOperaioCantiere.reduce(
+                    (tot, t) => {
+                      const entrata = parseOra(t.ora_entrata)
+                      const uscita = parseOra(t.ora_uscita)
+
+                      if (
+                        entrata === null ||
+                        uscita === null ||
+                        uscita < entrata
+                      )
+                        return tot
+
+                      return tot + (uscita - entrata) / 60
+                    },
+                    0
+                  )
+
+                  if (costoCantiere <= 0) return null
+
+                  return (
+                    <div
+                      key={c.nome}
+                      style={{
+                        marginTop: 6,
+                        padding: 8,
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        background: '#f8fafc',
+                      }}
+                    >
+                      <strong>{c.nome}</strong>
+                      <br />
+                      Ore: {oreCantiere.toFixed(2)}
+                      <br />
+                      Costo maturato: {formatMoney(costoCantiere)}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div style={{ marginTop: 10 }}>
+                <strong>Storico pagamenti:</strong>
+
+                {pagamentiOperaioPeriodo.length === 0 ? (
+                  <div style={{ color: '#666', marginTop: 4 }}>
+                    Nessun pagamento registrato
+                  </div>
+                ) : (
+                  <ul style={{ marginTop: 6 }}>
+                    {pagamentiOperaioPeriodo.map((p, idx) => (
+                      <li key={p.id || idx}>
+                        {p.data_pagamento || '-'} —{' '}
+                        {formatMoney(Number(p.importo || 0))}
+                        {p.metodo ? ` — ${p.metodo}` : ''}
+                        {p.nota ? ` — ${p.nota}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )}
+  </div>
+)}
+
+{/* ================= PAGAMENTI - FORNITORI ================= */}
+{(
+  pagineAperte.includes('pagamenti-fornitori') ||
+  (!modalitaMulti &&
+    sezioneAttiva === 'pagamenti' &&
+    sottoSezionePagamenti === 'fornitori')
+) && (
+  <div style={cardStyle}>
+    <h2>Pagamenti fornitori</h2>
+
+    <p style={{ color: '#666' }}>
+      Pagina fornitori attiva.
+    </p>
+  </div>
+)}
+{/* ================= ECONOMIA GENERALE ================= */}
+{(
+  pagineAperte.includes('economia') ||
+  (!modalitaMulti && sezioneAttiva === 'economia')
+) && (
+  <div style={cardStyle}>
+    <h2>Economia generale</h2>
+
+    <div style={{ display: 'grid', gap: 10 }}>
+      <div
+        style={{
+          padding: 12,
+          border: '1px solid #ddd',
+          borderRadius: 8,
+        }}
+      >
+
+<div
+  style={{
+    display: 'grid',
+    gridTemplateColumns:
+      'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: 10,
+    marginBottom: 10,
+  }}
+>
+  <div
+    style={{
+      padding: 12,
+      border: '1px solid #ddd',
+      borderRadius: 8,
+      background: '#eff6ff',
+    }}
+  >
+
+
+    <strong>🧾 Totale fatture emesse</strong>
+
+    <div
+      style={{
+        marginTop: 6,
+        fontSize: 20,
+        fontWeight: 700,
+      }}
+    >
+      {formatMoney(
+        fattureEmesse.reduce(
+          (tot, f) =>
+            tot + Number(f.totale || 0),
+          0
+        )
+      )}
+    </div>
+  </div>
+
+  <div
+    style={{
+      padding: 12,
+      border: '1px solid #ddd',
+      borderRadius: 8,
+      background: '#f0fdf4',
+    }}
+  >
+    <strong>💰 Totale incassato</strong>
+
+    <div
+      style={{
+        marginTop: 6,
+        fontSize: 20,
+        fontWeight: 700,
+        color: 'green',
+      }}
+    >
+      {formatMoney(
+        fattureEmesse.reduce(
+          (tot, f) =>
+            tot +
+            Number(
+              f.importo_incassato || 0
+            ),
+          0
+        )
+      )}
+    </div>
+  </div>
+
+  <div
+    style={{
+      padding: 12,
+      border: '1px solid #ddd',
+      borderRadius: 8,
+      background: '#fef2f2',
+    }}
+  >
+    <strong>📄 Totale fatture fornitori</strong>
+
+    <div
+      style={{
+        marginTop: 6,
+        fontSize: 20,
+        fontWeight: 700,
+        color: '#dc2626',
+      }}
+    >
+      {formatMoney(
+        fattureFornitori.reduce(
+          (tot, f) =>
+            tot +
+            Number(
+              f.importo_totale || 0
+            ),
+          0
+        )
+      )}
+    </div>
+  </div>
+
+  <div
+    style={{
+      padding: 12,
+      border: '1px solid #ddd',
+      borderRadius: 8,
+      background: '#faf5ff',
+    }}
+  >
+    <strong>📈 Cash flow reale</strong>
+
+    <div
+      style={{
+        marginTop: 6,
+        fontSize: 20,
+        fontWeight: 700,
+        color:
+          fattureEmesse.reduce(
+            (tot, f) =>
+              tot +
+              Number(
+                f.importo_incassato || 0
+              ),
+            0
+          ) -
+            fattureFornitori.reduce(
+              (tot, f) =>
+                tot +
+                Number(
+                  f.importo_totale || 0
+                ),
+              0
+            ) >=
+          0
+            ? 'green'
+            : 'red',
+      }}
+    >
+      {formatMoney(
+        fattureEmesse.reduce(
+          (tot, f) =>
+            tot +
+            Number(
+              f.importo_incassato || 0
+            ),
+          0
+        ) -
+          fattureFornitori.reduce(
+            (tot, f) =>
+              tot +
+              Number(
+                f.importo_totale || 0
+              ),
+            0
+          )
+      )}
+    </div>
+  </div>
+</div>
+
+
+        <strong>Totale preventivi:</strong>{' '}
+        {formatMoney(totalePreventiviImpresa)}
+      </div>
+
+    
+
+           </div>
+{(() => {
+  const totaleIncassato = accontiCantiere.reduce(
+    (tot, a) => tot + Number(a.importo || 0),
+    0
+  )
+
+  const totaleCostiCantieri = cantieri.reduce(
+    (tot, c) =>
+      tot +
+      Number(
+        calcoloEconomiaCantiere(c.nome)
+          .costoTotale || 0
+      ),
+    0
+  )
+
+  const totaleCostiGenerali = speseImpresa.reduce(
+    (tot, s) => tot + Number(s.importo || 0),
+    0
+  )
+
+  const utileCantieri =
+    totaleIncassato - totaleCostiCantieri
+
+  const utileNettoImpresa =
+    utileCantieri - totaleCostiGenerali
+
+  return (
+    <div
+      style={{
+        marginTop: 20,
+        padding: 16,
+        borderRadius: 12,
+        border:
+          utileNettoImpresa >= 0
+            ? '2px solid #16a34a'
+            : '2px solid #dc2626',
+
+        background:
+          utileNettoImpresa >= 0
+            ? '#f0fdf4'
+            : '#fef2f2',
+      }}
+    >
+      <h3>💶 Utile netto impresa</h3>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 12,
+          marginTop: 12,
+        }}
+      >
+        <div>
+          <strong>💰 Totale incassato</strong>
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+            }}
+          >
+            {formatMoney(totaleIncassato)}
+          </div>
+        </div>
+
+        <div>
+          <strong>🏗 Costi cantieri</strong>
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              color: '#dc2626',
+            }}
+          >
+            {formatMoney(totaleCostiCantieri)}
+          </div>
+        </div>
+
+        <div>
+          <strong>🏢 Costi generali impresa</strong>
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              color: '#dc2626',
+            }}
+          >
+            {formatMoney(totaleCostiGenerali)}
+          </div>
+        </div>
+
+        <div>
+          <strong>📈 Utile netto</strong>
+
+          <div
+            style={{
+              fontSize: 28,
+              fontWeight: 800,
+              color:
+                utileNettoImpresa >= 0
+                  ? '#16a34a'
+                  : '#dc2626',
+            }}
+          >
+            {formatMoney(utileNettoImpresa)}
+          </div>
+        </div>
+      </div>
     </div>
   )
+})()}
+
+
+
+
+
+
+
+<h3 style={{ marginTop: 30 }}>🏢 Costi generali impresa</h3>
+
+<div
+  style={{
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: 10,
+    marginBottom: 16,
+  }}
+>
+  <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+    <strong>🛠 Attrezzi / beni ditta</strong>
+    <div style={{ marginTop: 6, fontSize: 20, fontWeight: 700 }}>
+      {formatMoney(speseImpresa.filter((s) => s.categoria === 'attrezzo_ditta').reduce((tot, s) => tot + Number(s.importo || 0), 0))}
+    </div>
+  </div>
+
+  <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+    <strong>🏬 Magazzino</strong>
+    <div style={{ marginTop: 6, fontSize: 20, fontWeight: 700 }}>
+      {formatMoney(speseImpresa.filter((s) => s.categoria === 'magazzino').reduce((tot, s) => tot + Number(s.importo || 0), 0))}
+    </div>
+  </div>
+
+  <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+    <strong>📑 Spese generali</strong>
+    <div style={{ marginTop: 6, fontSize: 20, fontWeight: 700 }}>
+      {formatMoney(speseImpresa.filter((s) => s.categoria === 'spesa_generale').reduce((tot, s) => tot + Number(s.importo || 0), 0))}
+    </div>
+  </div>
+
+  <div style={{ padding: 12, border: '2px solid #dc2626', borderRadius: 8, background: '#fef2f2' }}>
+    <strong>📉 Totale costi generali</strong>
+    <div style={{ marginTop: 6, fontSize: 20, fontWeight: 700, color: '#dc2626' }}>
+      {formatMoney(speseImpresa.reduce((tot, s) => tot + Number(s.importo || 0), 0))}
+    </div>
+  </div>
+</div>
+
+<button
+  onClick={() => setTabellaSpeseImpresaAperta(!tabellaSpeseImpresaAperta)}
+  style={{ ...buttonSecondary, marginBottom: 10 }}
+>
+  {tabellaSpeseImpresaAperta ? '🔽 Nascondi dettaglio spese' : '📋 Mostra dettaglio spese'}
+</button>
+
+{tabellaSpeseImpresaAperta && (
+  <>
+    <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+      <select
+        value={filtroSpeseImpresa}
+        onChange={(e) => setFiltroSpeseImpresa(e.target.value)}
+        style={inputStyle}
+      >
+        <option value="">Tutte le categorie</option>
+        <option value="attrezzo_ditta">Attrezzi / beni ditta</option>
+        <option value="magazzino">Magazzino</option>
+        <option value="spesa_generale">Spese generali</option>
+      </select>
+
+      <button onClick={() => setFiltroSpeseImpresa('')} style={buttonSecondary}>
+        Azzera filtro
+      </button>
+    </div>
+
+    <div
+      style={{
+        maxHeight: 360,
+        overflow: 'auto',
+        border: '1px solid #cbd5e1',
+        borderRadius: 10,
+        background: '#fff',
+        marginBottom: 20,
+      }}
+    >
+      <table
+        style={{
+          ...excelTable,
+          tableLayout: 'auto',
+          width: 'max-content',
+          minWidth: '100%',
+        }}
+      >
+        <thead>
+  <tr>
+    <th
+      style={{ ...excelTh, cursor: 'pointer' }}
+      onClick={() => ordinaSpeseImpresa('categoria')}
+    >
+      Categoria
+    </th>
+
+    <th
+      style={{ ...excelTh, cursor: 'pointer' }}
+      onClick={() => ordinaSpeseImpresa('descrizione')}
+    >
+      Descrizione
+    </th>
+
+    <th
+      style={{ ...excelTh, cursor: 'pointer' }}
+      onClick={() => ordinaSpeseImpresa('fornitore')}
+    >
+      Fornitore
+    </th>
+
+    <th
+      style={{ ...excelTh, cursor: 'pointer' }}
+      onClick={() => ordinaSpeseImpresa('data_documento')}
+    >
+      Data
+    </th>
+
+    <th
+      style={{ ...excelTh, cursor: 'pointer' }}
+      onClick={() => ordinaSpeseImpresa('importo')}
+    >
+      Importo
+    </th>
+
+    <th style={excelTh}>File</th>
+  </tr>
+</thead>
+
+        <tbody>
+         {[...speseImpresa]
+  .filter(
+    (s) =>
+      !filtroSpeseImpresa ||
+      s.categoria === filtroSpeseImpresa
+  )
+  .sort((a, b) => {
+    const valoreA =
+      a[ordineSpeseCampo] ?? ''
+
+    const valoreB =
+      b[ordineSpeseCampo] ?? ''
+
+    if (
+      typeof valoreA === 'number' &&
+      typeof valoreB === 'number'
+    ) {
+      return ordineSpeseDirezione === 'asc'
+        ? valoreA - valoreB
+        : valoreB - valoreA
+    }
+
+    return ordineSpeseDirezione === 'asc'
+      ? String(valoreA).localeCompare(String(valoreB))
+      : String(valoreB).localeCompare(String(valoreA))
+  })
+  .map((s, i) => (
+              <tr key={s.id || i}>
+                <td style={excelTd}>{s.categoria}</td>
+                <td style={excelTd}>{s.descrizione}</td>
+                <td style={excelTd}>{s.fornitore}</td>
+                <td style={excelTd}>{s.data_documento || '-'}</td>
+                <td style={excelTd}>{formatMoney(Number(s.importo || 0))}</td>
+                <td style={excelTd}>{s.nome_file || '-'}</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
+  </>
+)}
+
+
+
+
+<h3 style={{ marginTop: 30 }}>📊 Bilancio per cantiere</h3>
+
+<div
+  style={{
+    height: 420,
+    overflow: 'auto',
+    border: '1px solid #cbd5e1',
+    borderRadius: 10,
+    background: '#fff',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  }}
+>
+  <table
+    style={{
+      ...excelTable,
+      tableLayout: 'auto',
+      width: 'max-content',
+      minWidth: '100%',
+    }}
+  >
+    <thead>
+      <tr>
+        {[
+          ['nome', 'Cantiere'],
+          ['preventivo', 'Preventivo'],
+          ['incassato', 'Incassato'],
+          ['daIncassare', 'Da incassare'],
+          ['daFatturare', 'Da fatturare'],
+          ['fatturato', 'Fatturato'],
+          ['costi', 'Costi'],
+          ['utile', 'Utile'],
+          ['margine', 'Margine'],
+          ['stato', 'Stato'],
+        ].map(([campo, label]) => (
+          <th
+            key={campo}
+            style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            onClick={() => ordinaBilancioCantiere(campo)}
+          >
+            {label}
+          </th>
+        ))}
+      </tr>
+    </thead>
+
+    <tbody>
+      {cantieri
+        .map((c) => {
+          const economia = calcoloEconomiaCantiere(c.nome)
+          const preventivo = economia.preventivo
+
+          const incassato = accontiCantiere
+            .filter((a) => a.cantiere === c.nome)
+            .reduce((tot, a) => tot + Number(a.importo || 0), 0)
+
+          const fatturato = fattureEmesse
+            .filter((f) => f.cantiere === c.nome)
+            .reduce((tot, f) => tot + Number(f.totale || 0), 0)
+
+          const daIncassare = preventivo - incassato
+          const daFatturare = incassato - fatturato
+          const costi = economia.costoTotale
+          const utile = incassato - costi
+          const margine = incassato > 0 ? (utile / incassato) * 100 : 0
+
+          const stato =
+            utile < 0 ? 'perdita' : margine < 10 ? 'attenzione' : 'ok'
+
+          return {
+            id: c.id,
+            nome: c.nome,
+            preventivo,
+            incassato,
+            daIncassare,
+            daFatturare,
+            fatturato,
+            costi,
+            utile,
+            margine,
+            stato,
+          }
+        })
+        .sort((a, b) => {
+          const valoreA = a[ordineBilancioCampo as keyof typeof a] ?? ''
+          const valoreB = b[ordineBilancioCampo as keyof typeof b] ?? ''
+
+          if (typeof valoreA === 'number' && typeof valoreB === 'number') {
+            return ordineBilancioDirezione === 'asc'
+              ? valoreA - valoreB
+              : valoreB - valoreA
+          }
+
+          return ordineBilancioDirezione === 'asc'
+            ? String(valoreA).localeCompare(String(valoreB))
+            : String(valoreB).localeCompare(String(valoreA))
+        })
+        .map((c) => (
+          <tr key={c.id || c.nome}>
+            <td style={excelTd}>{c.nome}</td>
+            <td style={excelTd}>{formatMoney(c.preventivo)}</td>
+            <td style={excelTd}>{formatMoney(c.incassato)}</td>
+            <td style={excelTd}>{formatMoney(c.daIncassare)}</td>
+
+            <td
+              style={{
+                ...excelTd,
+                color: c.daFatturare > 0 ? '#dc2626' : 'green',
+                fontWeight: 700,
+              }}
+            >
+              {formatMoney(c.daFatturare)}
+            </td>
+
+            <td style={excelTd}>{formatMoney(c.fatturato)}</td>
+            <td style={excelTd}>{formatMoney(c.costi)}</td>
+
+            <td
+              style={{
+                ...excelTd,
+                color: c.utile >= 0 ? 'green' : 'red',
+                fontWeight: 700,
+              }}
+            >
+              {formatMoney(c.utile)}
+            </td>
+
+            <td style={excelTd}>{c.margine.toFixed(1)}%</td>
+
+            <td
+              style={{
+                ...excelTd,
+                fontWeight: 700,
+                color:
+                  c.stato === 'perdita'
+                    ? 'red'
+                    : c.stato === 'attenzione'
+                    ? '#f59e0b'
+                    : 'green',
+              }}
+            >
+              {c.stato === 'perdita'
+                ? '🚨 Perdita'
+                : c.stato === 'attenzione'
+                ? '⚠️ Basso margine'
+                : '✅ Utile'}
+            </td>
+          </tr>
+        ))}
+    </tbody>
+  </table>
+</div>
+
+<button
+  onClick={() => setGraficoCantieriAperto(!graficoCantieriAperto)}
+  style={{
+    ...buttonSecondary,
+    marginTop: 30,
+    marginBottom: 10,
+  }}
+>
+  {graficoCantieriAperto
+    ? '🔽 Nascondi grafico cantieri'
+    : '📈 Mostra grafico cantieri'}
+</button>
+
+{graficoCantieriAperto && (
+  <>
+    <h3 style={{ marginTop: 10 }}>📈 Bilancio grafico per cantiere</h3>
+
+    <div
+      style={{
+        width: '100%',
+        height: 420,
+        minHeight: 420,
+        border: '1px solid #cbd5e1',
+        borderRadius: 12,
+        padding: 12,
+        background: '#fff',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+      }}
+    >
+      <ResponsiveContainer width="100%" height={380}>
+        <BarChart
+          data={cantieri.map((c) => {
+            const economia = calcoloEconomiaCantiere(c.nome)
+            const preventivo = economia.preventivo
+
+            const incassato = accontiCantiere
+              .filter((a) => a.cantiere === c.nome)
+              .reduce((tot, a) => tot + Number(a.importo || 0), 0)
+
+            const daIncassare = preventivo - incassato
+            const costi = economia.costoTotale
+            const utile = incassato - costi
+
+            return {
+              nome: c.nome,
+              preventivo,
+              incassato,
+              daIncassare,
+              costi,
+              utile,
+            }
+          })}
+        >
+          <XAxis dataKey="nome" />
+          <YAxis />
+          <Tooltip formatter={(value) => formatMoney(Number(value || 0))} />
+          <Legend />
+
+          <Bar dataKey="preventivo" name="Preventivo" fill="#2563eb" />
+          <Bar dataKey="incassato" name="Incassato" fill="#16a34a" />
+          <Bar dataKey="daIncassare" name="Da incassare" fill="#f59e0b" />
+          <Bar dataKey="costi" name="Costi" fill="#dc2626" />
+          <Bar dataKey="utile" name="Utile" fill="#7c3aed" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  </>
+)}
+
+<button
+  onClick={() => setGraficoTotaliAperto(!graficoTotaliAperto)}
+  style={{
+    ...buttonSecondary,
+    marginTop: 30,
+    marginBottom: 10,
+  }}
+>
+  {graficoTotaliAperto
+    ? '🔽 Nascondi Grafico Totali economia generale'
+    : '📈 Grafico Totali economia generale'}
+</button>
+
+{graficoTotaliAperto && (
+  <>
+    <h3 style={{ marginTop: 10 }}>💶 Totali economia generale</h3>
+
+    <div
+      style={{
+        width: '100%',
+        height: 420,
+        minHeight: 420,
+        border: '1px solid #cbd5e1',
+        borderRadius: 12,
+        padding: 12,
+        background: '#fff',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+      }}
+    >
+      <ResponsiveContainer width="100%" height={380}>
+        <BarChart
+          data={[
+            {
+              nome: 'Totali impresa',
+
+              preventivo: cantieri.reduce(
+                (tot, c) =>
+                  tot + Number(calcoloEconomiaCantiere(c.nome).preventivo || 0),
+                0
+              ),
+
+              incassato: accontiCantiere.reduce(
+                (tot, a) => tot + Number(a.importo || 0),
+                0
+              ),
+
+              daIncassare:
+                cantieri.reduce(
+                  (tot, c) =>
+                    tot +
+                    Number(calcoloEconomiaCantiere(c.nome).preventivo || 0),
+                  0
+                ) -
+                accontiCantiere.reduce(
+                  (tot, a) => tot + Number(a.importo || 0),
+                  0
+                ),
+
+              costi: cantieri.reduce(
+                (tot, c) =>
+                  tot + Number(calcoloEconomiaCantiere(c.nome).costoTotale || 0),
+                0
+              ),
+
+              utile:
+                accontiCantiere.reduce(
+                  (tot, a) => tot + Number(a.importo || 0),
+                  0
+                ) -
+                cantieri.reduce(
+                  (tot, c) =>
+                    tot +
+                    Number(calcoloEconomiaCantiere(c.nome).costoTotale || 0),
+                  0
+                ),
+            },
+          ]}
+        >
+          <XAxis dataKey="nome" />
+          <YAxis />
+          <Tooltip formatter={(value) => formatMoney(Number(value || 0))} />
+          <Legend />
+
+          <Bar dataKey="preventivo" name="Preventivo" fill="#2563eb" />
+          <Bar dataKey="incassato" name="Incassato" fill="#16a34a" />
+          <Bar dataKey="daIncassare" name="Da incassare" fill="#f59e0b" />
+          <Bar dataKey="costi" name="Costi" fill="#dc2626" />
+          <Bar dataKey="utile" name="Utile" fill="#7c3aed" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  </>
+)}
+
+    <div style={{ marginTop: 30, marginBottom: 12 }}>
+      <button
+        onClick={() =>
+          setMostraValutazioneFondi(!mostraValutazioneFondi)
+        }
+        style={buttonSecondary}
+      >
+        {mostraValutazioneFondi
+          ? 'Nascondi valutazione fondi cantiere'
+          : 'Mostra valutazione fondi cantiere'}
+      </button>
+    </div>
+
+    {mostraValutazioneFondi && (
+      <>
+        {situazioneCantieri.length === 0 ? (
+          <p>Nessun cantiere presente.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {situazioneCantieri.map((c) => (
+              <div
+                key={c.nome}
+                style={{
+                  padding: 14,
+                  borderRadius: 10,
+                  background:
+                    c.stato === 'critico'
+                      ? '#fee2e2'
+                      : c.stato === 'attenzione'
+                      ? '#fef3c7'
+                      : '#f0fdf4',
+                  border:
+                    c.stato === 'critico'
+                      ? '2px solid #dc2626'
+                      : c.stato === 'attenzione'
+                      ? '2px solid #f59e0b'
+                      : '1px solid #bbf7d0',
+                }}
+              >
+                <strong>{c.nome}</strong>
+
+                <div style={{ marginTop: 8 }}>
+                  Acconti ricevuti:{' '}
+                  <strong>{formatMoney(c.acconti)}</strong>
+                </div>
+
+                <div>
+                  Operai maturati:{' '}
+                  <strong>{formatMoney(c.costoOperai)}</strong>
+                </div>
+
+                <div>
+                  Materiali:{' '}
+                  <strong>{formatMoney(c.costoMateriali)}</strong>
+                </div>
+
+                <div>
+                  Attrezzi/noli:{' '}
+                  <strong>{formatMoney(c.costoAttrezzi)}</strong>
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  Costi totali:{' '}
+                  <strong>{formatMoney(c.costiTotali)}</strong>
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  Saldo reale cantiere:{' '}
+                  <strong
+                    style={{
+                      color: c.saldo < 0 ? 'red' : 'green',
+                    }}
+                  >
+                    {formatMoney(c.saldo)}
+                  </strong>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontWeight: 700,
+                  }}
+                >
+                  {c.stato === 'critico' &&
+                    '🚨 Cantiere scoperto'}
+
+                  {c.stato === 'attenzione' &&
+                    '⚠️ Margine di sicurezza basso'}
+
+                  {c.stato === 'ok' &&
+                    '✅ Cantiere coperto'}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: 10,
+                    borderRadius: 8,
+                    background: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                  }}
+                >
+                  <strong>🧠 Stima costi mancanti</strong>
+
+                  <div style={{ marginTop: 6 }}>
+                    Preventivo:{' '}
+                    <strong>
+                      {formatMoney(c.preventivo)}
+                    </strong>
+                  </div>
+
+                  <div>
+                    Materiali stimati:{' '}
+                    <strong>
+                      {formatMoney(c.stimaMateriali)}
+                    </strong>
+                  </div>
+
+                  <div>
+                    Manodopera stimata:{' '}
+                    <strong>
+                      {formatMoney(c.stimaManodopera)}
+                    </strong>
+                  </div>
+
+                  <div>
+                    Costi stimati totali:{' '}
+                    <strong>
+                      {formatMoney(c.stimaCostiTotali)}
+                    </strong>
+                  </div>
+
+                  <div>
+                    Costi ancora da prevedere:{' '}
+                    <strong
+                      style={{
+                        color:
+                          c.differenzaCosti > 0
+                            ? '#dc2626'
+                            : 'green',
+                      }}
+                    >
+                      {formatMoney(c.differenzaCosti)}
+                    </strong>
+                  </div>
+
+                  <div style={{ marginTop: 6 }}>
+                    Utile stimato:{' '}
+                    <strong
+                      style={{
+                        color:
+                          c.utileStimato < 0
+                            ? 'red'
+                            : 'green',
+                      }}
+                    >
+                      {formatMoney(c.utileStimato)}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    )}
+  </div>
+)}
+
+{popupIncassoNonFatturato && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.45)',
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 12,
+        padding: 20,
+        width: '100%',
+        maxWidth: 700,
+      }}
+    >
+      <h3>➕ Incasso non fatturato</h3>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 10,
+          marginTop: 12,
+        }}
+      >
+        <input
+          type="date"
+          value={nuovoIncassoNonFatturato.data_incasso}
+          onChange={(e) =>
+            setNuovoIncassoNonFatturato({
+              ...nuovoIncassoNonFatturato,
+              data_incasso: e.target.value,
+            })
+          }
+          style={inputStyle}
+        />
+
+        <input
+          placeholder="Cliente"
+          value={nuovoIncassoNonFatturato.cliente}
+          onChange={(e) =>
+            setNuovoIncassoNonFatturato({
+              ...nuovoIncassoNonFatturato,
+              cliente: e.target.value,
+            })
+          }
+          style={inputStyle}
+        />
+
+        <select
+          value={nuovoIncassoNonFatturato.cantiere}
+          onChange={(e) =>
+            setNuovoIncassoNonFatturato({
+              ...nuovoIncassoNonFatturato,
+              cantiere: e.target.value,
+            })
+          }
+          style={inputStyle}
+        >
+          <option value="">Seleziona cantiere</option>
+
+          {cantieri.map((c) => (
+            <option key={c.id || c.nome} value={c.nome}>
+              {c.nome}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="number"
+          placeholder="Importo incassato"
+          value={nuovoIncassoNonFatturato.importo}
+          onChange={(e) =>
+            setNuovoIncassoNonFatturato({
+              ...nuovoIncassoNonFatturato,
+              importo: e.target.value,
+            })
+          }
+          style={inputStyle}
+        />
+
+        <input
+          placeholder="Metodo pagamento"
+          value={nuovoIncassoNonFatturato.metodo}
+          onChange={(e) =>
+            setNuovoIncassoNonFatturato({
+              ...nuovoIncassoNonFatturato,
+              metodo: e.target.value,
+            })
+          }
+          style={inputStyle}
+        />
+      </div>
+
+      <textarea
+        placeholder="Descrizione lavoro / note fiscali..."
+        value={nuovoIncassoNonFatturato.descrizione}
+        onChange={(e) =>
+          setNuovoIncassoNonFatturato({
+            ...nuovoIncassoNonFatturato,
+            descrizione: e.target.value,
+          })
+        }
+        style={{
+          ...inputStyle,
+          marginTop: 10,
+          minHeight: 80,
+          width: '100%',
+        }}
+      />
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+        <button onClick={salvaIncassoNonFatturato} style={buttonPrimary}>
+          💾 Salva incasso
+        </button>
+
+       <button
+  type="button"
+  onClick={() => {
+    setCameraRapportinoAttiva(false)
+    setPopupFotoRapportino(false)
+  }}
+  style={buttonSecondary}
+>
+  Chiudi
+</button>
+
+
+
+
+      </div>
+    </div>
+  </div>
+)}
+
+{/* ================= REGISTRO ================= */}
+{sezioneAttiva === 'registro' && (
+  <div style={cardStyle}>
+    <h2>Registro dati</h2>
+
+   <div
+  style={{
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginBottom: 20,
+    overflowX: 'auto',
+    paddingBottom: 6,
+  }}
+>
+ {[
+  ['preventivi', '📄 Preventivi'],
+  ['cantieri', '🏗️ Cantieri'],
+  ['rapportini', '📝 Rapportini'],
+  ['operai', '👷 Operai'],
+  ['timbrature', '⏱️ Timbrature'],
+  ['pagamenti-operai', '💳 Pagamenti operai'],
+  ['fatture-fornitori', '📄 Fatture fornitori'],
+  ['fatture-emesse', '🧾 Fatture emesse'],
+].map(([key, label]) => (
+        <button
+          key={key}
+          onClick={() => setRegistroTab(key)}
+          style={{
+            ...buttonSecondary,
+            backgroundColor: registroTab === key ? '#2563eb' : '#f8fafc',
+            color: registroTab === key ? '#fff' : '#111827',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+
+   <div
+  style={{
+    display: 'flex',
+    gap: 10,
+    flexWrap: 'wrap',
+    marginBottom: 20,
+    alignItems: 'center',
+  }}
+>
+  <input
+    placeholder="Ricerca libera..."
+    value={registroCerca}
+    onChange={(e) => setRegistroCerca(e.target.value)}
+    style={{
+      padding: 10,
+      borderRadius: 8,
+      border: '1px solid #cbd5e1',
+      minWidth: 220,
+    }}
+  />
+
+  <input
+   placeholder={
+  registroTab === 'preventivi'
+    ? 'Cantiere / File'
+    : registroTab === 'cantieri'
+    ? 'Nome cantiere'
+    : registroTab === 'rapportini'
+    ? 'Operai / Cantiere'
+    : registroTab === 'operai'
+    ? 'Nome operaio'
+    : registroTab === 'timbrature'
+    ? 'Operaio / Cantiere'
+    : registroTab === 'pagamenti-operai'
+    ? 'Operaio / Metodo'
+    : 'Filtro specifico'
+}
+  />
+
+  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <span>Da</span>
+
+    <input
+      type="date"
+      value={registroFiltroDataDa}
+      onChange={(e) => setRegistroFiltroDataDa(e.target.value)}
+      style={{
+        padding: 10,
+        borderRadius: 8,
+        border: '1px solid #cbd5e1',
+      }}
+    />
+  </div>
+
+  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <span>A</span>
+
+    <input
+      type="date"
+      value={registroFiltroDataA}
+      onChange={(e) => setRegistroFiltroDataA(e.target.value)}
+      style={{
+        padding: 10,
+        borderRadius: 8,
+        border: '1px solid #cbd5e1',
+      }}
+    />
+  </div>
+
+  <button
+    onClick={() => {
+      setRegistroCerca('')
+      setRegistroFiltroNome('')
+      setRegistroFiltroDataDa('')
+      setRegistroFiltroDataA('')
+    }}
+    style={buttonSecondary}
+  >
+    Reset filtri
+  </button>
+</div>
+
+    {registroTab === 'cantieri' && (
+      <div style={excelBox}>
+        <div style={excelToolbar}>
+          <strong>🏗️ Registro cantieri</strong>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={excelTable}>
+            <thead>
+              <tr>
+                <th style={excelTh}>Nome</th>
+                <th style={excelTh}>Preventivo</th>
+                <th style={excelTh}>Inizio</th>
+                <th style={excelTh}>Fine</th>
+                <th style={excelTh}>Concluso</th>
+                <th style={excelTh}>Azioni</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {cantieri
+                .filter((c) =>
+                  String(c.nome || '')
+                    .toLowerCase()
+                    .includes(registroCerca.toLowerCase())
+                )
+                .map((c, i) => (
+                  <tr
+  key={c.id || i}
+  style={{
+    backgroundColor:
+      cantiereRegistroEdit === c.id ? '#eff6ff' : '#fff',
+  }}
+>
+                    <td style={excelTd}>
+                      {cantiereRegistroEdit === c.id ? (
+                        <input
+                          value={cantiereRegistroNome}
+                          onChange={(e) => setCantiereRegistroNome(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        c.nome || '-'
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {cantiereRegistroEdit === c.id ? (
+                        <input
+                          value={cantiereRegistroPreventivo}
+                          onChange={(e) => setCantiereRegistroPreventivo(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        formatMoney(Number(c.preventivo || 0))
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {cantiereRegistroEdit === c.id ? (
+                        <input
+                          type="date"
+                          value={cantiereRegistroInizio}
+                          onChange={(e) => setCantiereRegistroInizio(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        c.data_inizio_lavori || '-'
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {cantiereRegistroEdit === c.id ? (
+                        <input
+                          type="date"
+                          value={cantiereRegistroFine}
+                          onChange={(e) => setCantiereRegistroFine(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        c.data_fine_lavori || '-'
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {cantiereRegistroEdit === c.id ? (
+                        <input
+                          type="checkbox"
+                          checked={cantiereRegistroConcluso}
+                          onChange={(e) => setCantiereRegistroConcluso(e.target.checked)}
+                        />
+                      ) : c.lavori_conclusi ? (
+                        'Sì'
+                      ) : (
+                        'No'
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {cantiereRegistroEdit === c.id ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => salvaModificaRegistroCantiere(c.id)}
+                            style={buttonPrimary}
+                          >
+                            💾
+                          </button>
+
+                          <button
+                            onClick={annullaModificaRegistroCantiere}
+                            style={buttonSecondary}
+                          >
+                            ❌
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => preparaModificaRegistroCantiere(c)}
+                            style={buttonSecondary}
+                          >
+                            ✏️
+                          </button>
+
+                          <button
+                            onClick={() => eliminaCantiere(c.nome)}
+                            style={{
+                              ...buttonSecondary,
+                              backgroundColor: '#dc2626',
+                              color: '#fff',
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+
+    {registroTab === 'preventivi' && (
+      <div style={excelBox}>
+        <div style={excelToolbar}>
+          <strong>📄 Registro preventivi caricati</strong>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={excelTable}>
+            <thead>
+              <tr>
+                <th style={excelTh}>Cantiere</th>
+                <th style={excelTh}>Nome file</th>
+                <th style={excelTh}>Importo</th>
+                <th style={excelTh}>Note</th>
+                <th style={excelTh}>Azioni</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {preventivi
+                .filter((p) =>
+                  String(p.cantiere || '')
+                    .toLowerCase()
+                    .includes(registroCerca.toLowerCase()) ||
+                  String(p.nome_file || '')
+                    .toLowerCase()
+                    .includes(registroCerca.toLowerCase())
+                )
+                .map((p, i) => (
+                 <tr
+  key={p.id || i}
+  style={{
+    backgroundColor:
+      preventivoRegistroEdit === String(p.id) ? '#eff6ff' : '#fff',
+  }}
+>
+                    <td style={excelTd}>
+                      {preventivoRegistroEdit === String(p.id) ? (
+                        <input
+                          value={preventivoRegistroCantiere}
+                          onChange={(e) => setPreventivoRegistroCantiere(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        p.cantiere || '-'
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {preventivoRegistroEdit === String(p.id) ? (
+                        <input
+                          value={preventivoRegistroNomeFile}
+                          onChange={(e) => setPreventivoRegistroNomeFile(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        p.nome_file || '-'
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {preventivoRegistroEdit === String(p.id) ? (
+                        <input
+                          value={preventivoRegistroImporto}
+                          onChange={(e) => setPreventivoRegistroImporto(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        formatMoney(parseImporto(p.importo_totale))
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {preventivoRegistroEdit === String(p.id) ? (
+                        <input
+                          value={preventivoRegistroNote}
+                          onChange={(e) => setPreventivoRegistroNote(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        p.note || '-'
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {preventivoRegistroEdit === String(p.id) ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => salvaModificaRegistroPreventivo(p.id)}
+                            style={buttonPrimary}
+                          >
+                            💾
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setPreventivoRegistroEdit(null)
+                              setPreventivoRegistroCantiere('')
+                              setPreventivoRegistroNomeFile('')
+                              setPreventivoRegistroImporto('')
+                              setPreventivoRegistroNote('')
+                            }}
+                            style={buttonSecondary}
+                          >
+                            ❌
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => {
+                              setPreventivoRegistroEdit(String(p.id))
+                              setPreventivoRegistroCantiere(p.cantiere || '')
+                              setPreventivoRegistroNomeFile(p.nome_file || '')
+                              setPreventivoRegistroImporto(String(p.importo_totale || ''))
+                              setPreventivoRegistroNote(p.note || '')
+                            }}
+                            style={buttonSecondary}
+                          >
+                            ✏️
+                          </button>
+
+                          <button
+                           onClick={() => eliminaPreventivoCantiere(p.id)}
+                            style={{
+                              ...buttonSecondary,
+                              backgroundColor: '#dc2626',
+                              color: '#fff',
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+
+{registroTab === 'rapportini' && (
+  <div style={excelBox}>
+    <div style={excelToolbar}>
+      <strong>📝 Registro rapportini</strong>
+    </div>
+
+    <div style={{ overflowX: 'auto' }}>
+      <table style={excelTable}>
+        <thead>
+          <tr>
+            <th style={excelTh}>Data</th>
+            <th style={excelTh}>Cantiere</th>
+            <th style={excelTh}>Operaio</th>
+            <th style={excelTh}>Ore</th>
+            <th style={excelTh}>Descrizione</th>
+            <th style={excelTh}>Azioni</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {rapportini
+            .filter((r) =>
+              String(r.cantiere || '')
+                .toLowerCase()
+                .includes(registroCerca.toLowerCase()) ||
+              String(r.note || '-')
+                .toLowerCase()
+                .includes(registroCerca.toLowerCase())
+            )
+            .map((r, i) => (
+             <tr
+  key={r.id || i}
+  style={{
+    backgroundColor:
+      rapportinoRegistroEdit === String(r.id) ? '#eff6ff' : '#fff',
+  }}
+>
+  <td style={excelTd}>
+    {rapportinoRegistroEdit === String(r.id) ? (
+      <input
+        type="date"
+        value={rapportinoRegistroData}
+        onChange={(e) => setRapportinoRegistroData(e.target.value)}
+        style={excelInput}
+      />
+    ) : (
+      r.data || '-'
+    )}
+  </td>
+
+  <td style={excelTd}>
+    {rapportinoRegistroEdit === String(r.id) ? (
+      <input
+        value={rapportinoRegistroCantiere}
+        onChange={(e) => setRapportinoRegistroCantiere(e.target.value)}
+        style={excelInput}
+      />
+    ) : (
+      r.cantiere || '-'
+    )}
+  </td>
+
+  <td style={excelTd}>
+    {rapportinoRegistroEdit === String(r.id) ? (
+      <input
+        value={rapportinoRegistroOperaio}
+        onChange={(e) => setRapportinoRegistroOperaio(e.target.value)}
+        style={excelInput}
+      />
+    ) : (
+      r.operai || '-'
+    )}
+  </td>
+
+  <td style={excelTd}>
+    {rapportinoRegistroEdit === String(r.id) ? (
+      <input
+        value={rapportinoRegistroOre}
+        onChange={(e) => setRapportinoRegistroOre(e.target.value)}
+        style={excelInput}
+      />
+    ) : (
+      r.ore || '-'
+    )}
+  </td>
+
+  <td style={excelTd}>
+    {rapportinoRegistroEdit === String(r.id) ? (
+      <input
+        value={rapportinoRegistroDescrizione}
+        onChange={(e) => setRapportinoRegistroDescrizione(e.target.value)}
+        style={excelInput}
+      />
+    ) : (
+      r.note || '-'
+    )}
+  </td>
+
+  <td style={excelTd}>
+    {rapportinoRegistroEdit === String(r.id) ? (
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          onClick={() => salvaModificaRegistroRapportino(r.id)}
+          style={buttonPrimary}
+        >
+          💾
+        </button>
+
+        <button
+          onClick={annullaModificaRegistroRapportino}
+          style={buttonSecondary}
+        >
+          ❌
+        </button>
+      </div>
+    ) : (
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          onClick={() => preparaModificaRegistroRapportino(r)}
+          style={buttonSecondary}
+        >
+          ✏️
+        </button>
+
+        <button
+          onClick={() => eliminaRapportino(r.id)}
+          style={{
+            ...buttonSecondary,
+            backgroundColor: '#dc2626',
+            color: '#fff',
+          }}
+        >
+          🗑️
+        </button>
+      </div>
+    )}
+  </td>
+</tr>
+            ))}
+        </tbody>
+
+      </table>
+    </div>
+  </div>
+)}
+
+
+    {registroTab === 'operai' && (
+      <div style={excelBox}>
+        <div style={excelToolbar}>
+          <strong>👷 Registro operai</strong>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={excelTable}>
+            <thead>
+              <tr>
+                <th style={excelTh}>Nome</th>
+                <th style={excelTh}>Telefono</th>
+                <th style={excelTh}>Qualifica</th>
+                <th style={excelTh}>Costo orario</th>
+                <th style={excelTh}>Stato</th>
+                <th style={excelTh}>Azioni</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {operaiAnagrafica
+                .filter((o) =>
+                  String(o.nome || '')
+                    .toLowerCase()
+                    .includes(registroCerca.toLowerCase())
+                )
+                .map((o, i) => (
+                 <tr
+  key={o.id || i}
+  style={{
+    backgroundColor:
+      operaioRegistroEdit === o.id ? '#eff6ff' : '#fff',
+  }}
+>
+                    <td style={excelTd}>
+                      {operaioRegistroEdit === o.id ? (
+                        <input
+                          value={operaioRegistroNome}
+                          onChange={(e) => setOperaioRegistroNome(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        o.nome || '-'
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {operaioRegistroEdit === o.id ? (
+                        <input
+                          value={operaioRegistroTelefono}
+                          onChange={(e) => setOperaioRegistroTelefono(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        o.telefono || '-'
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {operaioRegistroEdit === o.id ? (
+                        <input
+                          value={operaioRegistroQualifica}
+                          onChange={(e) => setOperaioRegistroQualifica(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        o.qualifica || '-'
+                      )}
+                    </td>
+
+                    <td style={excelTd}>
+                      {operaioRegistroEdit === o.id ? (
+                        <input
+                          value={operaioRegistroCosto}
+                          onChange={(e) => setOperaioRegistroCosto(e.target.value)}
+                          style={excelInput}
+                        />
+                      ) : (
+                        formatMoney(Number(o.costo_orario || 0))
+                      )}
+                    </td>
+
+                    <td style={excelTd}>{o.stato || 'attivo'}</td>
+
+                    <td style={excelTd}>
+                      {operaioRegistroEdit === o.id ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => salvaModificaRegistroOperaio(o.id)}
+                            style={buttonPrimary}
+                          >
+                            💾
+                          </button>
+
+                          <button
+                            onClick={annullaModificaRegistroOperaio}
+                            style={buttonSecondary}
+                          >
+                            ❌
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => preparaModificaRegistroOperaio(o)}
+                            style={buttonSecondary}
+                          >
+                            ✏️
+                          </button>
+
+                          <button
+                            onClick={() => eliminaOperaio(o.id)}
+                            style={{
+                              ...buttonSecondary,
+                              backgroundColor: '#dc2626',
+                              color: '#fff',
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+
+{registroTab === 'timbrature' && (
+  <div style={excelBox}>
+    <div style={excelToolbar}>
+      <strong>⏱️ Registro timbrature</strong>
+    </div>
+
+    <div style={{ overflowX: 'auto' }}>
+      <table style={excelTable}>
+        <thead>
+          <tr>
+            <th style={excelTh}>Data</th>
+            <th style={excelTh}>Operaio</th>
+            <th style={excelTh}>Cantiere</th>
+            <th style={excelTh}>Entrata</th>
+            <th style={excelTh}>Uscita</th>
+            <th style={excelTh}>Fascia oraria</th>
+            <th style={excelTh}>Azioni</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          {timbrature
+            .filter((t) =>
+              String(t.operaio_nome || '')
+                .toLowerCase()
+                .includes(registroCerca.toLowerCase()) ||
+              String(t.cantiere || '')
+                .toLowerCase()
+                .includes(registroCerca.toLowerCase())
+            )
+            .map((t, i) => (
+             <tr
+  key={t.id || i}
+  style={{
+    backgroundColor:
+      timbraturaRegistroEdit === String(t.id) ? '#eff6ff' : '#fff',
+  }}
+>
+               <td style={excelTd}>
+  {timbraturaRegistroEdit === String(t.id) ? (
+    <input
+      type="date"
+      value={timbraturaRegistroData}
+      onChange={(e) => setTimbraturaRegistroData(e.target.value)}
+      style={excelInput}
+    />
+  ) : (
+    t.data || '-'
+  )}
+</td>
+
+<td style={excelTd}>
+  {timbraturaRegistroEdit === String(t.id) ? (
+    <input
+      value={timbraturaRegistroOperaio}
+      onChange={(e) => setTimbraturaRegistroOperaio(e.target.value)}
+      style={excelInput}
+    />
+  ) : (
+    t.operaio_nome || '-'
+  )}
+</td>
+
+<td style={excelTd}>
+  {timbraturaRegistroEdit === String(t.id) ? (
+    <input
+      value={timbraturaRegistroCantiere}
+      onChange={(e) => setTimbraturaRegistroCantiere(e.target.value)}
+      style={excelInput}
+    />
+  ) : (
+    t.cantiere || '-'
+  )}
+</td>
+
+<td style={excelTd}>
+  {timbraturaRegistroEdit === String(t.id) ? (
+    <input
+      value={timbraturaRegistroEntrata}
+      onChange={(e) => setTimbraturaRegistroEntrata(e.target.value)}
+      style={excelInput}
+    />
+  ) : (
+    t.ora_entrata || '-'
+  )}
+</td>
+
+<td style={excelTd}>
+  {timbraturaRegistroEdit === String(t.id) ? (
+    <input
+      value={timbraturaRegistroUscita}
+      onChange={(e) => setTimbraturaRegistroUscita(e.target.value)}
+      style={excelInput}
+    />
+  ) : (
+    t.ora_uscita || '-'
+  )}
+</td>
+
+<td style={excelTd}>
+  {timbraturaRegistroEdit === String(t.id) ? (
+    <input
+      value={timbraturaRegistroOre}
+      onChange={(e) => setTimbraturaRegistroOre(e.target.value)}
+      style={excelInput}
+    />
+  ) : (
+   calcolaOreTimbratura(t.ora_entrata, t.ora_uscita)
+  )}
+</td>
+<td style={excelTd}>
+  {timbraturaRegistroEdit === String(t.id) ? (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button
+        onClick={() =>
+          salvaModificaRegistroTimbratura(t.id)
+        }
+        style={buttonPrimary}
+      >
+        💾
+      </button>
+
+      <button
+        onClick={annullaModificaRegistroTimbratura}
+        style={buttonSecondary}
+      >
+        ❌
+      </button>
+    </div>
+  ) : (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button
+        onClick={() =>
+          preparaModificaRegistroTimbratura(t)
+        }
+        style={buttonSecondary}
+      >
+        ✏️
+      </button>
+
+      <button
+        onClick={() => eliminaTimbratura(t.id)}
+        style={{
+          ...buttonSecondary,
+          backgroundColor: '#dc2626',
+          color: '#fff',
+        }}
+      >
+        🗑️
+      </button>
+    </div>
+  )}
+</td>              
+</tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
+
+
+    {registroTab === 'pagamenti-operai' && (
+  <div style={excelBox}>
+    <div
+      style={{
+        ...excelToolbar,
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: 4,
+      }}
+    >
+      <strong>💳 Registro pagamenti operai</strong>
+
+      <span
+        style={{
+          fontSize: 12,
+          color: '#64748b',
+          fontWeight: 500,
+        }}
+      >
+        Gestione pagamenti e movimenti operai
+      </span>
+    </div>
+
+    <div style={{ overflowX: 'auto' }}>
+          <table style={excelTable}>
+            <thead>
+              <tr>
+                <th style={excelTh}>Operaio</th>
+                <th style={excelTh}>Importo</th>
+                <th style={excelTh}>Data</th>
+                <th style={excelTh}>Metodo</th>
+                <th style={excelTh}>Nota</th>
+                <th style={excelTh}>Azioni</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {pagamentiOperai
+                .filter((p) =>
+                  String(p.operaio_nome || '')
+                    .toLowerCase()
+                    .includes(registroCerca.toLowerCase())
+                )
+                .map((p, i) => (
+                 <tr
+  key={p.id || i}
+  style={{
+    backgroundColor:
+      pagamentoOperaioRegistroEdit === String(p.id) ? '#eff6ff' : '#fff',
+  }}
+>
+                   <td style={excelTd}>
+  {pagamentoOperaioRegistroEdit === String(p.id) ? (
+    <input
+      value={pagamentoOperaioRegistroNome}
+      onChange={(e) =>
+        setPagamentoOperaioRegistroNome(e.target.value)
+      }
+      style={excelInput}
+    />
+  ) : (
+    p.operaio_nome || '-'
+  )}
+</td>
+
+<td style={excelTd}>
+  {pagamentoOperaioRegistroEdit === String(p.id) ? (
+    <input
+      value={pagamentoOperaioRegistroImporto}
+      onChange={(e) =>
+        setPagamentoOperaioRegistroImporto(e.target.value)
+      }
+      style={excelInput}
+    />
+  ) : (
+    formatMoney(Number(p.importo || 0))
+  )}
+</td>
+
+<td style={excelTd}>
+  {pagamentoOperaioRegistroEdit === String(p.id) ? (
+    <input
+      type="date"
+      value={pagamentoOperaioRegistroData}
+      onChange={(e) =>
+        setPagamentoOperaioRegistroData(e.target.value)
+      }
+      style={excelInput}
+    />
+  ) : (
+    p.data_pagamento || '-'
+  )}
+</td>
+
+<td style={excelTd}>
+  {pagamentoOperaioRegistroEdit === String(p.id) ? (
+    <input
+      value={pagamentoOperaioRegistroMetodo}
+      onChange={(e) =>
+        setPagamentoOperaioRegistroMetodo(e.target.value)
+      }
+      style={excelInput}
+    />
+  ) : (
+    p.metodo || '-'
+  )}
+</td>
+
+<td style={excelTd}>
+  {pagamentoOperaioRegistroEdit === String(p.id) ? (
+    <input
+      value={pagamentoOperaioRegistroNota}
+      onChange={(e) =>
+        setPagamentoOperaioRegistroNota(e.target.value)
+      }
+      style={excelInput}
+    />
+  ) : (
+    p.nota || '-'
+  )}
+</td>
+
+
+                   <td style={excelTd}>
+  {pagamentoOperaioRegistroEdit === String(p.id) ? (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button
+        onClick={() =>
+          salvaModificaRegistroPagamentoOperaio(p.id)
+        }
+        style={buttonPrimary}
+      >
+        💾
+      </button>
+
+      <button
+        onClick={annullaModificaRegistroPagamentoOperaio}
+        style={buttonSecondary}
+      >
+        ❌
+      </button>
+    </div>
+  ) : (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button
+        onClick={() =>
+          preparaModificaRegistroPagamentoOperaio(p)
+        }
+        style={buttonSecondary}
+      >
+        ✏️
+      </button>
+
+      <button
+        onClick={() => eliminaPagamentoOperaio(p.id)}
+        style={{
+          ...buttonSecondary,
+          backgroundColor: '#dc2626',
+          color: '#fff',
+        }}
+      >
+        🗑️
+      </button>
+    </div>
+  )}
+</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+
+{registroTab === 'fatture-fornitori' && (
+  <section style={cardStyle}>
+    <h2>📄 Fatture fornitori</h2>
+
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+      <label style={buttonPrimary}>
+        Carica XML fattura
+        <input
+          type="file"
+          accept=".xml,text/xml,application/xml"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) caricaFatturaXml(file)
+            e.currentTarget.value = ''
+          }}
+        />
+      </label>
+<label style={buttonSecondary}>
+  Carica PDF fattura
+  <input
+    type="file"
+    accept=".pdf,application/pdf"
+    style={{ display: 'none' }}
+    onChange={(e) => {
+      const file = e.target.files?.[0]
+      if (file) caricaFatturaPdf(file)
+      e.currentTarget.value = ''
+    }}
+  />
+</label>
+<label style={buttonPrimary}>
+  🔄 Aggiorna fatture Bluenext
+  <input
+    type="file"
+    multiple
+    // @ts-ignore
+    webkitdirectory="true"
+    style={{ display: 'none' }}
+    onChange={async (e) => {
+const input = e.currentTarget
+      const files = Array.from(e.target.files || [])
+
+      const fatture = files.filter((file) =>
+  file.name.toLowerCase().endsWith('.xml') ||
+  file.name.toLowerCase().endsWith('.pdf') ||
+  file.name.toLowerCase().endsWith('.zip')
+)
+
+      if (fatture.length === 0) {
+        alert('Nessun file XML o PDF trovato nella cartella selezionata.')
+        return
+      }
+
+      alert(`Trovate ${fatture.length} fatture da controllare.`)
+
+      for (const file of fatture) {
+  const nome = file.name.toLowerCase()
+
+  if (nome.endsWith('.xml')) {
+    await caricaFatturaXml(file)
+  }
+
+  if (nome.endsWith('.pdf')) {
+    await caricaFatturaPdf(file)
+  }
+
+  if (nome.endsWith('.zip')) {
+    const zip = await JSZip.loadAsync(file)
+
+    const fileZip = Object.values(zip.files).filter((f) =>
+      !f.dir &&
+      (
+        f.name.toLowerCase().endsWith('.xml') ||
+        f.name.toLowerCase().endsWith('.pdf')
+      )
+    )
+
+    if (fileZip.length === 0) {
+      alert(`Nessun XML o PDF trovato dentro ${file.name}`)
+      continue
+    }
+
+    for (const voce of fileZip) {
+      const blob = await voce.async('blob')
+      const nomeFile = voce.name.split('/').pop() || voce.name
+
+      const fileEstratto = new File([blob], nomeFile, {
+        type: nomeFile.toLowerCase().endsWith('.pdf')
+          ? 'application/pdf'
+          : 'text/xml',
+      })
+
+      if (nomeFile.toLowerCase().endsWith('.xml')) {
+        await caricaFatturaXml(fileEstratto)
+      }
+
+      if (nomeFile.toLowerCase().endsWith('.pdf')) {
+        await caricaFatturaPdf(fileEstratto)
+      }
+    }
+  }
+}
+
+      input.value = ''
+    }}
+  />
+</label>
+
+<label style={buttonSecondary}>
+  📦 Importa ZIP Bluenext
+  <input
+    type="file"
+    accept=".zip,application/zip"
+    multiple
+    style={{ display: 'none' }}
+    onChange={async (e) => {
+const input = e.currentTarget
+let importate = 0
+let duplicati = 0
+let errori = 0
+      const files = Array.from(e.target.files || [])
+
+      for (const file of files) {
+        const zip = await JSZip.loadAsync(file)
+
+        const fileZip = Object.values(zip.files).filter((f) =>
+  !f.dir &&
+  !f.name.toLowerCase().includes('metadato') &&
+  (
+    f.name.toLowerCase().endsWith('.xml') ||
+    f.name.toLowerCase().endsWith('.pdf')
+  )
+)
+
+        if (fileZip.length === 0) {
+          alert(`Nessun XML o PDF trovato dentro ${file.name}`)
+          continue
+        }
+
+        for (const voce of fileZip) {
+          const blob = await voce.async('blob')
+          const nomeFile = voce.name.split('/').pop() || voce.name
+
+          const fileEstratto = new File([blob], nomeFile, {
+            type: nomeFile.toLowerCase().endsWith('.pdf')
+              ? 'application/pdf'
+              : 'text/xml',
+          })
+
+         if (nomeFile.toLowerCase().endsWith('.xml')) {
+  const testo = await fileEstratto.text()
+  const parser = new DOMParser()
+  const xml = parser.parseFromString(testo, 'text/xml')
+
+  const datiGeneraliDocumento = xml.getElementsByTagName('DatiGeneraliDocumento')[0]
+  const cedente = xml.getElementsByTagName('CedentePrestatore')[0]
+  const datiAnagrafici = cedente?.getElementsByTagName('DatiAnagrafici')[0]
+  const idFiscaleIva = datiAnagrafici?.getElementsByTagName('IdFiscaleIVA')[0]
+
+  const fornitore =
+    datiAnagrafici?.getElementsByTagName('Denominazione')[0]?.textContent?.trim() ||
+    datiAnagrafici?.getElementsByTagName('Nome')[0]?.textContent?.trim() ||
+    'Fornitore XML'
+
+  const partitaIva =
+    idFiscaleIva?.getElementsByTagName('IdCodice')[0]?.textContent?.trim() || ''
+
+  const numero =
+    datiGeneraliDocumento?.getElementsByTagName('Numero')[0]?.textContent?.trim() ||
+    nomeFile
+
+  const data =
+    datiGeneraliDocumento?.getElementsByTagName('Data')[0]?.textContent?.trim() ||
+    new Date().toISOString().slice(0, 10)
+
+  const totale =
+    numeroXml(
+      datiGeneraliDocumento?.getElementsByTagName('ImportoTotaleDocumento')[0]?.textContent?.trim() ||
+        '0'
+    )
+
+  const dettaglioLinee = Array.from(xml.getElementsByTagName('DettaglioLinee'))
+
+  const righe = dettaglioLinee.map((riga, index) => {
+    const numeroLinea = Number(
+      riga.getElementsByTagName('NumeroLinea')[0]?.textContent?.trim() || index + 1
+    )
+
+    const descrizione =
+      riga.getElementsByTagName('Descrizione')[0]?.textContent?.trim() || ''
+
+    const quantita = numeroXml(
+      riga.getElementsByTagName('Quantita')[0]?.textContent?.trim() || '1'
+    )
+
+    const prezzoUnitario = numeroXml(
+      riga.getElementsByTagName('PrezzoUnitario')[0]?.textContent?.trim() || '0'
+    )
+
+    const prezzoTotale = numeroXml(
+      riga.getElementsByTagName('PrezzoTotale')[0]?.textContent?.trim() || '0'
+    )
+
+    return {
+      numero_riga: numeroLinea,
+      descrizione,
+      quantita,
+      prezzo_unitario: prezzoUnitario,
+      totale_riga: prezzoTotale,
+      cantiere: '',
+    }
+  })
+
+  const risultato = await importaFatturaSilenziosa(
+    {
+      fornitore,
+      partitaIva,
+      numero,
+      data,
+      totale,
+      nomeFile,
+      tipoFile: 'xml',
+      testoOriginale: testo,
+    },
+    righe
+  )
+
+  if (risultato.stato === 'importata') importate++
+  if (risultato.stato === 'duplicato') duplicati++
+  if (risultato.stato === 'errore') errori++
+}
+
+if (nomeFile.toLowerCase().endsWith('.pdf')) {
+  errori++
+}
+        }
+      }
+
+await caricaFattureFornitori()
+
+alert(
+  `Importazione completata.\n\nImportate: ${importate}\nDuplicati: ${duplicati}\nErrori: ${errori}`
+)
+
+     input.value = ''
+    }}
+  />
+</label>
+    </div>
+
+    {fatturaNomeFile && (
+      <div style={{ marginBottom: 16 }}>
+        <strong>File:</strong> {fatturaNomeFile}<br />
+        <strong>Fornitore:</strong> {fatturaFornitore || '-'}<br />
+        <strong>P.IVA:</strong> {fatturaPartitaIva || '-'}<br />
+        <strong>Numero:</strong> {fatturaNumero || '-'}<br />
+        <strong>Data:</strong> {fatturaData || '-'}<br />
+        <strong>Totale righe IVA incl.:</strong>{' '}
+{formatMoney(
+  righeFatturaDaAssegnare.reduce(
+    (tot, r) => tot + Number(r.totale_riga || 0),
+    0
+  )
+)}
+      </div>
+    )}
+
+{righeFatturaDaAssegnare.length > 0 && (
+  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+    <select
+      value={cantiereMassivoFattura}
+      onChange={(e) => setCantiereMassivoFattura(e.target.value)}
+    >
+      <option value="">Assegna tutte le righe a...</option>
+      <option value="Generale impresa">Generale impresa</option>
+      {cantieri.map((c) => (
+        <option key={c.id || c.nome} value={c.nome}>
+          {c.nome}
+        </option>
+      ))}
+    </select>
+
+
+    <button
+      onClick={() => {
+        if (!cantiereMassivoFattura) {
+          alert('Seleziona un cantiere')
+          return
+        }
+
+        setRigheFatturaDaAssegnare((righe) =>
+          righe.map((r) => ({
+            ...r,
+            cantiere: cantiereMassivoFattura,
+          }))
+        )
+      }}
+      style={buttonSecondary}
+    >
+      Applica a tutte
+    </button>
+
+    <button
+      onClick={salvaFatturaFornitore}
+      style={buttonPrimary}
+    >
+      💾 Salva fattura
+    </button>
+
+<button
+  onClick={() => {
+    setFatturaFornitore('')
+    setFatturaPartitaIva('')
+    setFatturaNumero('')
+    setFatturaData('')
+    setFatturaTotale('')
+    setFatturaNomeFile('')
+    setFatturaTipoFile('')
+    setFatturaTestoOriginale('')
+    setRigheFatturaDaAssegnare([])
+    setCantiereMassivoFattura('')
+  }}
+  style={buttonSecondary}
+>
+  🧹 Pulisci anteprima
+</button>
+
+  </div>
+)}
+
+
+
+    {righeFatturaDaAssegnare.length > 0 && (
+      <div style={{ overflowX: 'auto' }}>
+        <table style={excelTable}>
+          <thead>
+            <tr>
+  <th style={excelTh}>Riga</th>
+  <th style={excelTh}>Descrizione</th>
+  <th style={excelTh}>Quantità</th>
+  <th style={excelTh}>Prezzo unit. netto</th>
+  <th style={excelTh}>UM</th>
+  <th style={excelTh}>IVA</th>
+  <th style={excelTh}>Totale IVA incl.</th>
+  <th style={excelTh}>Cantiere</th>
+</tr>
+          </thead>
+
+          <tbody>
+            {righeFatturaDaAssegnare.map((riga, index) => (
+              <tr key={`${riga.numero_riga}-${index}`}>
+                <td style={excelTd}>{riga.numero_riga}</td>
+<td style={excelTd}>{riga.descrizione}</td>
+<td style={excelTd}>{riga.quantita}</td>
+<td style={excelTd}>{formatMoney(riga.prezzo_unitario)}</td>
+<td style={excelTd}>{riga.unita_misura || '-'}</td>
+<td style={excelTd}>{riga.aliquota_iva ? `${riga.aliquota_iva}%` : '-'}</td>
+<td style={excelTd}>{formatMoney(riga.totale_riga)}</td>
+
+<td style={excelTd}>
+  <select
+                    value={riga.cantiere}
+                    onChange={(e) => {
+                      const valore = e.target.value
+
+                      setRigheFatturaDaAssegnare((righe) =>
+                        righe.map((item, i) =>
+                          i === index
+                            ? { ...item, cantiere: valore }
+                            : item
+                        )
+                      )
+                    }}
+                  >
+                    <option value="">Da assegnare</option>
+
+                    <option value="Generale impresa">
+                      Generale impresa
+                    </option>
+
+                    {cantieri.map((c) => (
+                      <option
+                        key={c.id || c.nome}
+                        value={c.nome}
+                      >
+                        {c.nome}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+
+<hr style={{ margin: '24px 0' }} />
+
+
+
+<h3>📚 Fatture salvate</h3>
+
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+  <button
+    onClick={async () => {
+      const conferma = confirm('Eliminare tutte le fatture metaDato importate?')
+      if (!conferma) return
+
+      const daEliminare = fattureFornitori.filter((f) =>
+        String(f.nome_file || '').toLowerCase().includes('metadato')
+      )
+
+      if (daEliminare.length === 0) {
+        alert('Nessun metaDato trovato.')
+        return
+      }
+
+      for (const f of daEliminare) {
+        await supabase.from('fatture_fornitori_righe').delete().eq('fattura_id', f.id)
+        await supabase.from('fatture_fornitori').delete().eq('id', f.id)
+      }
+
+      await caricaFattureFornitori()
+      alert(`Eliminate ${daEliminare.length} fatture metaDato.`)
+    }}
+    style={{
+      ...buttonSecondary,
+      backgroundColor: '#dc2626',
+      color: '#fff',
+    }}
+  >
+    🗑 Elimina metaDato
+  </button>
+
+  <button
+    onClick={async () => {
+      const conferma = confirm('Eliminare tutte le fatture senza righe collegate?')
+      if (!conferma) return
+
+      let eliminate = 0
+
+      for (const f of fattureFornitori) {
+        const { data: righe, error } = await supabase
+          .from('fatture_fornitori_righe')
+          .select('id')
+          .eq('fattura_id', f.id)
+
+        if (error) continue
+
+        if (!righe || righe.length === 0) {
+          await supabase.from('fatture_fornitori').delete().eq('id', f.id)
+          eliminate++
+        }
+      }
+
+      await caricaFattureFornitori()
+      alert(`Eliminate ${eliminate} fatture senza righe.`)
+    }}
+    style={{
+      ...buttonSecondary,
+      backgroundColor: '#f59e0b',
+      color: '#fff',
+    }}
+  >
+    🧹 Elimina fatture senza righe
+  </button>
+</div>
+
+<div
+  style={{
+    height: '70vh',
+    width: '100%',
+    resize: 'both',
+    overflow: 'auto',
+    minWidth: 600,
+    minHeight: 300,
+    maxWidth: '95vw',
+    maxHeight: '80vh',
+    border: '1px solid #cbd5e1',
+    borderRadius: 10,
+    background: '#fff',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  }}
+>
+  <table
+    style={{
+      ...excelTable,
+      tableLayout: 'auto',
+      width: '100%',
+      borderCollapse: 'collapse',
+    }}
+  >
+    <thead>
+      <tr>
+        <th onClick={() => ordinaFatture('data_fattura')} style={{ ...excelTh, cursor: 'pointer', padding: '6px 8px', whiteSpace: 'normal' }}>
+          Data ↕
+        </th>
+        <th onClick={() => ordinaFatture('numero_fattura')} style={{ ...excelTh, cursor: 'pointer', padding: '6px 8px', whiteSpace: 'normal' }}>
+          Numero ↕
+        </th>
+        <th onClick={() => ordinaFatture('fornitore')} style={{ ...excelTh, cursor: 'pointer', padding: '6px 8px', whiteSpace: 'normal' }}>
+          Fornitore ↕
+        </th>
+        <th onClick={() => ordinaFatture('importo_totale')} style={{ ...excelTh, cursor: 'pointer', padding: '6px 8px', whiteSpace: 'normal' }}>
+          Totale ↕
+        </th>
+        <th onClick={() => ordinaFatture('stato')} style={{ ...excelTh, cursor: 'pointer', padding: '6px 8px', whiteSpace: 'normal' }}>
+          Stato ↕
+        </th>
+        <th onClick={() => ordinaFatture('nome_file')} style={{ ...excelTh, cursor: 'pointer', padding: '6px 8px', whiteSpace: 'normal' }}>
+          File ↕
+        </th>
+        <th style={{ ...excelTh, padding: '6px 8px', whiteSpace: 'normal' }}>
+          Azioni
+        </th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {fattureOrdinate
+        .filter((f) => {
+          const cerca = filtroFattureFornitore.toLowerCase()
+
+          const matchTesto =
+            String(f.fornitore || '').toLowerCase().includes(cerca) ||
+            String(f.numero_fattura || '').toLowerCase().includes(cerca) ||
+            String(f.nome_file || '').toLowerCase().includes(cerca)
+
+          const matchStato = !filtroFattureStato || f.stato === filtroFattureStato
+
+          return matchTesto && matchStato
+        })
+        .map((f, i) => (
+          <tr key={f.id || i}>
+            <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', verticalAlign: 'top' }}>
+              {f.data_fattura || '-'}
+            </td>
+
+            <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', verticalAlign: 'top' }}>
+              {f.numero_fattura || '-'}
+            </td>
+
+            <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', verticalAlign: 'top' }}>
+              {f.fornitore || '-'}
+            </td>
+
+            <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', verticalAlign: 'top' }}>
+              {formatMoney(Number(f.importo_totale || 0))}
+            </td>
+
+            <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', verticalAlign: 'top' }}>
+              {f.stato || '-'}
+            </td>
+
+            <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', verticalAlign: 'top' }}>
+              {f.nome_file || '-'}
+            </td>
+
+            <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', verticalAlign: 'top' }}>
+              <button onClick={() => apriFatturaFornitore(String(f.id))} style={buttonSecondary}>
+                👁 Apri
+              </button>
+
+              <button
+                onClick={() => eliminaFatturaFornitore(f)}
+                style={{
+                  ...buttonSecondary,
+                  backgroundColor: '#dc2626',
+                  color: '#fff',
+                  marginLeft: 6,
+                  marginTop: 4,
+                }}
+              >
+                🗑 Elimina
+              </button>
+            </td>
+          </tr>
+        ))}
+    </tbody>
+  </table>
+</div>
+
+{fatturaApertaId && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(15, 23, 42, 0.55)',
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 12,
+        padding: 20,
+        width: '95%',
+        maxWidth: 1250,
+        maxHeight: '85vh',
+        overflow: 'auto',
+        boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+      }}
+    >      <h3>👁 Righe fattura aperta</h3>
+
+<div
+  style={{
+    display: 'flex',
+    gap: 10,
+    flexWrap: 'wrap',
+    marginBottom: 12,
+    alignItems: 'center',
+  }}
+>
+  <select
+    value={cantiereMassivoFattura}
+    onChange={(e) => setCantiereMassivoFattura(e.target.value)}
+  >
+    <option value="">Assegna tutte le righe a...</option>
+    <option value="Generale impresa">Generale impresa</option>
+
+    {cantieri.map((c) => (
+      <option key={c.id || c.nome} value={c.nome}>
+        {c.nome}
+      </option>
+    ))}
+  </select>
+
+
+<select
+  value={categoriaMassivaFattura}
+  onChange={(e) => setCategoriaMassivaFattura(e.target.value)}
+>
+  <option value="">Categoria massiva...</option>
+
+  <option value="materiale_cantiere">
+    Materiale cantiere
+  </option>
+
+  <option value="attrezzo_ditta">
+    Attrezzo / bene ditta
+  </option>
+
+  <option value="magazzino">
+    Magazzino
+  </option>
+
+  <option value="spesa_generale">
+    Spesa generale
+  </option>
+</select>
+
+
+  <button
+   onClick={() => {
+  if (
+    !cantiereMassivoFattura &&
+    !categoriaMassivaFattura
+  ) {
+    alert('Seleziona almeno un valore')
+    return
+  }
+
+  setRigheFatturaAperta((righe) =>
+    righe.map((r) => ({
+      ...r,
+
+      cantiere:
+        cantiereMassivoFattura || r.cantiere,
+
+      categoria_economica:
+        categoriaMassivaFattura ||
+        r.categoria_economica,
+
+      stato:
+        cantiereMassivoFattura || r.cantiere
+          ? 'assegnata'
+          : 'da_assegnare',
+    }))
+  )
+}}
+    style={buttonSecondary}
+  >
+    Applica a tutte
+  </button>
+</div>
+
+ <div
+  style={{
+    maxHeight: '70vh',
+    overflow: 'auto',
+    border: '1px solid #cbd5e1',
+    borderRadius: 10,
+    background: '#fff',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  }}
+>
+       <table
+  style={{
+    ...excelTable,
+    tableLayout: 'auto',
+    width: 'max-content',
+    minWidth: '100%',
+  }}
+>
+
+<colgroup>
+  <col style={{ width: 60 }} />
+  <col style={{ width: 380 }} />
+  <col style={{ width: 90 }} />
+  <col style={{ width: 120 }} />
+  <col style={{ width: 120 }} />
+  <col style={{ width: 160 }} />
+  <col style={{ width: 160 }} />
+  <col style={{ width: 140 }} />
+</colgroup>
+          
+             <thead>
+  <tr>
+    <th style={excelTh}>Riga</th>
+    <th style={excelTh}>Descrizione</th>
+    <th style={excelTh}>Quantità</th>
+    <th style={excelTh}>Prezzo unit.</th>
+    <th style={excelTh}>Totale</th>
+    <th style={excelTh}>Categoria</th>
+    <th style={excelTh}>Cantiere</th>
+    <th style={excelTh}>Stato</th>
+  </tr>
+</thead>
+           
+
+          <tbody>
+            {righeFatturaAperta.map((r, i) => (
+              <tr key={r.id || i}>
+                <td style={excelTd}>{r.numero_riga}</td>
+                <td style={excelTd}>{r.descrizione}</td>
+                <td style={excelTd}>{r.quantita}</td>
+                <td style={excelTd}>{formatMoney(Number(r.prezzo_unitario || 0))}</td>
+                <td style={excelTd}>{formatMoney(Number(r.totale_riga || 0))}</td>
+
+<td style={excelTd}>
+  <select
+style={{ width: '100%' }}
+    value={r.categoria_economica || ''}
+    onChange={(e) => {
+      const valore = e.target.value
+
+      setRigheFatturaAperta((righe) =>
+        righe.map((item, index) =>
+          index === i
+            ? {
+                ...item,
+                categoria_economica: valore,
+              }
+            : item
+        )
+      )
+    }}
+  >
+    <option value="">Da classificare</option>
+
+    <option value="materiale_cantiere">
+      Materiale cantiere
+    </option>
+
+    <option value="attrezzo_ditta">
+      Attrezzo / bene ditta
+    </option>
+
+    <option value="magazzino">
+      Magazzino
+    </option>
+
+    <option value="spesa_generale">
+      Spesa generale
+    </option>
+  </select>
+</td>
+
+
+
+
+
+                <td style={excelTd}>
+                  <select
+style={{ width: '100%' }}
+                    value={r.cantiere || ''}
+                    onChange={(e) => {
+                      const valore = e.target.value
+
+                      setRigheFatturaAperta((righe) =>
+                        righe.map((item, index) =>
+                          index === i
+                            ? {
+                                ...item,
+                                cantiere: valore,
+                                stato: valore ? 'assegnata' : 'da_assegnare',
+                              }
+                            : item
+                        )
+                      )
+                    }}
+                  >
+                    <option value="">Da assegnare</option>
+                    <option value="Generale impresa">Generale impresa</option>
+
+                    {cantieri.map((c) => (
+                      <option key={c.id || c.nome} value={c.nome}>
+                        {c.nome}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+
+                <td style={excelTd}>{r.stato || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+
+<div
+  style={{
+    marginTop: 12,
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: 10,
+  }}
+>
+  {[
+    {
+      titolo: '📦 Materiali cantiere',
+      categoria: 'materiale_cantiere',
+    },
+    {
+      titolo: '🛠 Attrezzi ditta',
+      categoria: 'attrezzo_ditta',
+    },
+    {
+      titolo: '🏬 Magazzino',
+      categoria: 'magazzino',
+    },
+    {
+      titolo: '📑 Spese generali',
+      categoria: 'spesa_generale',
+    },
+  ].map((box) => {
+    const totale = righeFatturaAperta
+      .filter((r) => r.categoria_economica === box.categoria)
+      .reduce((tot, r) => tot + Number(r.totale_riga || 0), 0)
+
+    const righe = righeFatturaAperta.filter(
+      (r) => r.categoria_economica === box.categoria
+    ).length
+
+    return (
+      <div
+        key={box.categoria}
+        style={{
+          border: '1px solid #cbd5e1',
+          borderRadius: 10,
+          padding: 10,
+          background: '#f8fafc',
+        }}
+      >
+        <strong>{box.titolo}</strong>
+        <div style={{ marginTop: 6, fontSize: 18 }}>
+          {formatMoney(totale)}
+        </div>
+        <small>{righe} righe</small>
+      </div>
+    )
+  })}
+</div>
+      <button
+        onClick={salvaModificheFatturaAperta}
+        style={{ ...buttonPrimary, marginTop: 12, marginRight: 8 }}
+      >
+        💾 Salva modifiche
+      </button>
+
+      <button
+        onClick={() => {
+          setFatturaApertaId(null)
+          setRigheFatturaAperta([])
+        }}
+        style={{ ...buttonSecondary, marginTop: 12 }}
+           >
+        Chiudi fattura
+      </button>
+    </div>
+  </div>
+)}
+
+  </section>
+)}
+   </div>
+)}
+
+{registroTab === 'fatture-emesse' && (
+  <section style={cardStyle}>
+    <h3>🧾 Fatture emesse</h3>
+
+<div
+  style={{
+    display: 'flex',
+    gap: 10,
+    flexWrap: 'wrap',
+    marginBottom: 12,
+  }}
+>
+  <button style={buttonPrimary}>
+    Carica XML fattura
+  </button>
+
+ <label style={buttonSecondary}>
+  Carica PDF fattura
+
+  <input
+    type="file"
+    accept=".pdf"
+    style={{ display: 'none' }}
+    onChange={async (e) => {
+      const input = e.currentTarget
+      const file = e.target.files?.[0]
+
+      if (!file) return
+
+      await caricaFatturaEmessaPdf(file)
+
+      input.value = ''
+    }}
+  />
+</label>
+
+ <label style={buttonPrimary}>
+  🔄 Aggiorna fatture Bluenext
+
+  <input
+    type="file"
+    multiple
+    // @ts-ignore
+    webkitdirectory="true"
+    style={{ display: 'none' }}
+    onChange={async (e) => {
+      const input = e.currentTarget
+
+      const files = Array.from(e.target.files || [])
+
+      const fatture = files.filter((file) =>
+        file.name.toLowerCase().endsWith('.xml') ||
+        file.name.toLowerCase().endsWith('.pdf') ||
+        file.name.toLowerCase().endsWith('.zip')
+      )
+
+      if (fatture.length === 0) {
+        alert('Nessun file XML o PDF trovato.')
+        return
+      }
+
+      alert(
+        `Trovate ${fatture.length} fatture emesse da controllare.`
+      )
+
+      for (const file of fatture) {
+        const nome = file.name.toLowerCase()
+
+        if (nome.endsWith('.xml')) {
+          await caricaFatturaEmessaXml(file)
+        }
+
+        if (nome.endsWith('.pdf')) {
+          await caricaFatturaEmessaPdf(file)
+        }
+
+        if (nome.endsWith('.zip')) {
+          const zip = await JSZip.loadAsync(file)
+
+          const fileZip = Object.values(zip.files).filter(
+            (f) =>
+              !f.dir &&
+              (
+                f.name.toLowerCase().endsWith('.xml') ||
+                f.name.toLowerCase().endsWith('.pdf')
+              )
+          )
+
+          for (const voce of fileZip) {
+            const blob = await voce.async('blob')
+
+            const nomeFile =
+              voce.name.split('/').pop() || voce.name
+
+            const fileEstratto = new File(
+              [blob],
+              nomeFile,
+              {
+                type:
+                  nomeFile.toLowerCase().endsWith('.pdf')
+                    ? 'application/pdf'
+                    : 'text/xml',
+              }
+            )
+
+            if (
+              nomeFile.toLowerCase().endsWith('.xml')
+            ) {
+              await caricaFatturaEmessaXml(
+                fileEstratto
+              )
+            }
+
+            if (
+              nomeFile.toLowerCase().endsWith('.pdf')
+            ) {
+              await caricaFatturaEmessaPdf(
+                fileEstratto
+              )
+            }
+          }
+        }
+      }
+
+      input.value = ''
+    }}
+  />
+</label>
+
+<label style={buttonSecondary}>
+  📦 Importa ZIP Bluenext
+
+  <input
+    type="file"
+    accept=".zip,application/zip,application/x-zip-compressed"
+    style={{ display: 'none' }}
+    onChange={async (e) => {
+      const input = e.currentTarget
+      const file = e.target.files?.[0]
+
+      if (!file) return
+
+      if (!file.name.toLowerCase().endsWith('.zip')) {
+        alert('Seleziona un file ZIP Bluenext.')
+        input.value = ''
+        return
+      }
+
+      const conferma = confirm(
+        `Importare le fatture emesse contenute nello ZIP?\n\nFile: ${file.name}`
+      )
+
+      if (!conferma) {
+        input.value = ''
+        return
+      }
+
+      try {
+        const zip = await JSZip.loadAsync(file)
+
+        const fileZip = Object.values(zip.files).filter(
+          (voce) =>
+            !voce.dir &&
+            (
+              voce.name.toLowerCase().endsWith('.xml') ||
+              voce.name.toLowerCase().endsWith('.pdf')
+            )
+        )
+
+        if (fileZip.length === 0) {
+          alert('Nessun XML o PDF trovato nello ZIP.')
+          input.value = ''
+          return
+        }
+
+        const fileEstratti: File[] = []
+
+        for (const voce of fileZip) {
+          const blob = await voce.async('blob')
+          const nomeFile = voce.name.split('/').pop() || voce.name
+
+          fileEstratti.push(
+            new File([blob], nomeFile, {
+              type: nomeFile.toLowerCase().endsWith('.pdf')
+                ? 'application/pdf'
+                : 'text/xml',
+            })
+          )
+        }
+
+        let importatiXml = 0
+        let importatiPdf = 0
+
+        for (const fileEstratto of fileEstratti) {
+          if (fileEstratto.name.toLowerCase().endsWith('.xml')) {
+            await caricaFatturaEmessaXml(fileEstratto)
+            importatiXml++
+          }
+        }
+
+        await caricaFattureEmesse()
+
+        for (const fileEstratto of fileEstratti) {
+          if (fileEstratto.name.toLowerCase().endsWith('.pdf')) {
+            await caricaFatturaEmessaPdf(fileEstratto)
+            importatiPdf++
+          }
+        }
+
+        await caricaFattureEmesse()
+
+        alert(
+          `Import ZIP completato.\nXML controllati: ${importatiXml}\nPDF controllati: ${importatiPdf}`
+        )
+      } catch (errore) {
+        console.error(errore)
+        alert('Errore durante import ZIP Bluenext.')
+      }
+
+      input.value = ''
+    }}
+  />
+</label>
+
+
+
+
+</div>
+
+    <div
+      style={{
+        display: 'flex',
+        gap: 10,
+        flexWrap: 'wrap',
+        marginBottom: 12,
+      }}
+    >
+      <input
+        type="text"
+        placeholder="Numero fattura..."
+        value={filtroFattureEmesse || ''}
+        onChange={(e) => setFiltroFattureEmesse(e.target.value)}
+        style={inputStyle}
+      />
+
+      <button
+        onClick={() => {
+          setNuovaFatturaEmessa({
+            numero_fattura: '',
+            data_fattura: '',
+            cliente: '',
+            cantiere: '',
+            imponibile: 0,
+            iva: 22,
+            totale: 0,
+            importo_incassato: 0,
+            stato: 'emessa',
+            note: '',
+          })
+
+          setPopupNuovaFatturaEmessa(true)
+        }}
+        style={buttonPrimary}
+      >
+        ➕ Nuova fattura
+      </button>
+    </div>
+
+   <div
+  style={{
+    height: '70vh',
+    width: '100%',
+    resize: 'both',
+    overflow: 'auto',
+    minWidth: 600,
+    minHeight: 300,
+    maxWidth: '95vw',
+    maxHeight: '80vh',
+    border: '1px solid #cbd5e1',
+    borderRadius: 10,
+    background: '#fff',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  }}
+>
+     <table
+  style={{
+    ...excelTable,
+    tableLayout: 'auto',
+    width: 'max-content',
+    minWidth: '100%',
+  }}
+>
+        <thead>
+          <tr>
+            <th onClick={() => ordinaFattureEmesse('data_fattura')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>Data ↕</th>
+<th onClick={() => ordinaFattureEmesse('numero_fattura')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>Numero ↕</th>
+<th onClick={() => ordinaFattureEmesse('cliente')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>Cliente ↕</th>
+<th onClick={() => ordinaFattureEmesse('cantiere')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>Cantiere ↕</th>
+<th onClick={() => ordinaFattureEmesse('totale')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>Totale ↕</th>
+<th onClick={() => ordinaFattureEmesse('importo_incassato')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>Incassato ↕</th>
+<th onClick={() => ordinaFattureEmesse('stato')} style={{ ...excelTh, cursor: 'pointer', whiteSpace: 'normal' }}>Stato ↕</th>
+<th style={{ ...excelTh, whiteSpace: 'normal' }}>PDF</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {fattureEmesseOrdinate
+            .filter((f) => {
+              const cerca = (filtroFattureEmesse || '').toLowerCase()
+
+              return (
+                String(f.numero_fattura || '')
+                  .toLowerCase()
+                  .includes(cerca) ||
+                String(f.cliente || '')
+                  .toLowerCase()
+                  .includes(cerca)
+              )
+            })
+            .map((f, i) => (
+            <tr
+  key={f.id || i}
+  onClick={() => setFatturaEmessaAperta(f)}
+  style={{
+    cursor: 'pointer',
+  }}
+>
+                <td style={excelTd}>{f.data_fattura}</td>
+                <td style={excelTd}>{f.numero_fattura}</td>
+                <td style={excelTd}>{f.cliente}</td>
+                <td style={excelTd}>{f.cantiere}</td>
+
+                <td style={excelTd}>
+                  {formatMoney(Number(f.totale || 0))}
+                </td>
+
+                <td style={excelTd}>
+                  {formatMoney(Number(f.importo_incassato || 0))}
+                </td>
+
+                <td style={excelTd}>
+                  {f.stato || 'emessa'}
+                </td>
+<td style={excelTd}>
+  {f.pdf_url ? (
+    <a
+      href={f.pdf_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        ...buttonSecondary,
+        display: 'inline-block',
+        textDecoration: 'none',
+        padding: '5px 8px',
+      }}
+    >
+      📕 PDF
+    </a>
+  ) : (
+    '-'
+  )}
+</td>
+
+
+
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+)}
+
+{popupNuovaFatturaEmessa && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.45)',
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 12,
+        padding: 20,
+        width: '100%',
+        maxWidth: 700,
+      }}
+    >
+      <h3>🧾 Nuova fattura emessa</h3>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 10,
+          marginTop: 12,
+        }}
+      >
+        <input
+          placeholder="Numero fattura"
+          value={nuovaFatturaEmessa.numero_fattura}
+          onChange={(e) =>
+            setNuovaFatturaEmessa({
+              ...nuovaFatturaEmessa,
+              numero_fattura: e.target.value,
+            })
+          }
+          style={inputStyle}
+        />
+
+        <input
+          type="date"
+          value={nuovaFatturaEmessa.data_fattura}
+          onChange={(e) =>
+            setNuovaFatturaEmessa({
+              ...nuovaFatturaEmessa,
+              data_fattura: e.target.value,
+            })
+          }
+          style={inputStyle}
+        />
+
+        <input
+          placeholder="Cliente"
+          value={nuovaFatturaEmessa.cliente}
+          onChange={(e) =>
+            setNuovaFatturaEmessa({
+              ...nuovaFatturaEmessa,
+              cliente: e.target.value,
+            })
+          }
+          style={inputStyle}
+        />
+
+        <select
+          value={nuovaFatturaEmessa.cantiere}
+          onChange={(e) =>
+            setNuovaFatturaEmessa({
+              ...nuovaFatturaEmessa,
+              cantiere: e.target.value,
+            })
+          }
+          style={inputStyle}
+        >
+          <option value="">Seleziona cantiere</option>
+
+          {cantieri.map((c) => (
+            <option
+              key={c.id || c.nome}
+              value={c.nome}
+            >
+              {c.nome}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="number"
+          placeholder="Imponibile"
+          value={nuovaFatturaEmessa.imponibile}
+          onChange={(e) =>
+            setNuovaFatturaEmessa({
+              ...nuovaFatturaEmessa,
+              imponibile: e.target.value,
+            })
+          }
+          style={inputStyle}
+        />
+
+        <input
+          type="number"
+          placeholder="IVA %"
+          value={nuovaFatturaEmessa.iva}
+          onChange={(e) =>
+            setNuovaFatturaEmessa({
+              ...nuovaFatturaEmessa,
+              iva: e.target.value,
+            })
+          }
+          style={inputStyle}
+        />
+
+        <input
+          type="number"
+          placeholder="Importo incassato"
+          value={
+            nuovaFatturaEmessa.importo_incassato
+          }
+          onChange={(e) =>
+            setNuovaFatturaEmessa({
+              ...nuovaFatturaEmessa,
+              importo_incassato:
+                e.target.value,
+            })
+          }
+          style={inputStyle}
+        />
+
+        <select
+          value={nuovaFatturaEmessa.stato}
+          onChange={(e) =>
+            setNuovaFatturaEmessa({
+              ...nuovaFatturaEmessa,
+              stato: e.target.value,
+            })
+          }
+          style={inputStyle}
+        >
+          <option value="emessa">Emessa</option>
+          <option value="parziale">Parziale</option>
+          <option value="incassata">Incassata</option>
+          <option value="scaduta">Scaduta</option>
+        </select>
+      </div>
+
+      <textarea
+        placeholder="Note..."
+        value={nuovaFatturaEmessa.note}
+        onChange={(e) =>
+          setNuovaFatturaEmessa({
+            ...nuovaFatturaEmessa,
+            note: e.target.value,
+          })
+        }
+        style={{
+          ...inputStyle,
+          marginTop: 10,
+          minHeight: 80,
+          width: '100%',
+        }}
+      />
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          marginTop: 16,
+        }}
+      >
+        <button
+          onClick={salvaNuovaFatturaEmessa}
+          style={buttonPrimary}
+        >
+          💾 Salva fattura
+        </button>
+
+        <button
+          onClick={() =>
+            setPopupNuovaFatturaEmessa(false)
+          }
+          style={buttonSecondary}
+        >
+          Chiudi
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{fatturaEmessaAperta && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.45)',
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 12,
+        padding: 20,
+        width: '100%',
+        maxWidth: 750,
+        maxHeight: '85vh',
+        overflow: 'auto',
+      }}
+    >
+      <h3>🧾 Dettaglio fattura emessa</h3>
+
+      <p><strong>Numero:</strong> {fatturaEmessaAperta.numero_fattura}</p>
+      <p><strong>Data:</strong> {fatturaEmessaAperta.data_fattura}</p>
+      <p><strong>Cliente:</strong> {fatturaEmessaAperta.cliente}</p>
+      <div style={{ marginTop: 10 }}>
+  <strong>Cantiere collegato</strong>
+
+  <select
+    value={fatturaEmessaAperta.cantiere || ''}
+    onChange={(e) =>
+      setFatturaEmessaAperta({
+        ...fatturaEmessaAperta,
+        cantiere: e.target.value,
+      })
+    }
+    style={{
+      ...inputStyle,
+      marginTop: 6,
+      width: '100%',
+    }}
+  >
+    <option value="">Nessun cantiere collegato</option>
+
+    {cantieri.map((c) => (
+      <option key={c.id || c.nome} value={c.nome}>
+        {c.nome}
+      </option>
+    ))}
+  </select>
+</div>
+      <p><strong>Imponibile:</strong> {formatMoney(Number(fatturaEmessaAperta.imponibile || 0))}</p>
+      <p><strong>IVA:</strong> {formatMoney(Number(fatturaEmessaAperta.iva || 0))}</p>
+      <p><strong>Totale:</strong> {formatMoney(Number(fatturaEmessaAperta.totale || 0))}</p>
+     <div style={{ marginTop: 10 }}>
+  <strong>Importo incassato</strong>
+
+  <input
+    type="number"
+    value={
+      fatturaEmessaAperta.importo_incassato || 0
+    }
+    onChange={(e) =>
+      setFatturaEmessaAperta({
+        ...fatturaEmessaAperta,
+        importo_incassato: e.target.value,
+      })
+    }
+    style={{
+      ...inputStyle,
+      marginTop: 6,
+      width: '100%',
+    }}
+  />
+</div>
+
+      <p><strong>Stato:</strong> {fatturaEmessaAperta.stato}</p>
+
+      {fatturaEmessaAperta.note && (
+        <div style={{ marginTop: 12 }}>
+          <strong>Note</strong>
+          <div
+            style={{
+              marginTop: 6,
+              padding: 10,
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              background: '#f8fafc',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+
+            {fatturaEmessaAperta.note}
+          </div>
+        </div>
+      )}
+
+{fatturaEmessaAperta.xml_url && (
+  <div style={{ marginTop: 12 }}>
+    <a
+      href={fatturaEmessaAperta.xml_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        ...buttonSecondary,
+        display: 'inline-block',
+        textDecoration: 'none',
+      }}
+    >
+      📄 Apri XML
+    </a>
+  </div>
+)}
+
+{fatturaEmessaAperta.pdf_url && (
+  <div style={{ marginTop: 12 }}>
+    <a
+      href={fatturaEmessaAperta.pdf_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        ...buttonPrimary,
+        display: 'inline-block',
+        textDecoration: 'none',
+      }}
+    >
+      📕 Apri PDF fattura
+    </a>
+  </div>
+)}
+
+      <div
+  style={{
+    display: 'flex',
+    gap: 10,
+    marginTop: 16,
+  }}
+>
+  <button
+    onClick={async () => {
+      const totale = Number(
+        fatturaEmessaAperta.totale || 0
+      )
+
+      const incassato = Number(
+        fatturaEmessaAperta.importo_incassato || 0
+      )
+
+      const stato =
+        incassato <= 0
+          ? 'emessa'
+          : incassato >= totale
+          ? 'incassata'
+          : 'parziale'
+
+      const { error } = await supabase
+        .from('fatture_emesse')
+       .update({
+  importo_incassato: incassato,
+  stato,
+  cantiere: fatturaEmessaAperta.cantiere || null,
+})
+        .eq('id', fatturaEmessaAperta.id)
+
+      if (error) {
+        alert(
+          'Errore aggiornamento: ' +
+            error.message
+        )
+        return
+      }
+
+      await caricaFattureEmesse()
+
+      setFatturaEmessaAperta(null)
+
+      alert('Fattura aggiornata')
+    }}
+    style={buttonPrimary}
+  >
+    💾 Salva modifiche
+  </button>
+
+
+<button
+  onClick={async () => {
+    const conferma = confirm(
+      `Vuoi eliminare la fattura emessa n. ${fatturaEmessaAperta.numero_fattura}?`
+    )
+
+    if (!conferma) return
+
+    const { error } = await supabase
+      .from('fatture_emesse')
+      .delete()
+      .eq('id', fatturaEmessaAperta.id)
+
+    if (error) {
+      alert('Errore eliminazione fattura: ' + error.message)
+      return
+    }
+
+    await caricaFattureEmesse()
+
+    setFatturaEmessaAperta(null)
+
+    alert('Fattura eliminata')
+  }}
+  style={{
+    ...buttonSecondary,
+    backgroundColor: '#dc2626',
+    color: '#fff',
+  }}
+>
+  🗑 Elimina
+</button>
+
+
+  <button
+    onClick={() =>
+      setFatturaEmessaAperta(null)
+    }
+    style={buttonSecondary}
+  >
+    Chiudi
+  </button>
+</div>
+
+            </div>
+    </div>
+  
+)}
+
+{/* ================= ATTIVITÀ ================= */}
+{(
+  pagineAperte.includes('attivita') ||
+  (!modalitaMulti && sezioneAttiva === 'attivita')
+) && (
+  <div style={cardStyle}>
+    <h2>Attività</h2>
+
+    <div style={{ display: 'grid', gap: 10 }}>
+      <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+        <strong>Attività in programma</strong>
+        <p style={{ color: '#666', marginTop: 5 }}>
+          Qui potrai gestire appuntamenti, lavori futuri e scadenze.
+        </p>
+      </div>
+
+      <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+        <strong>Prossimo sviluppo</strong>
+
+        <ul style={{ color: '#666', marginTop: 5, paddingLeft: 16 }}>
+          <li>Agenda cantieri</li>
+          <li>Scadenze pagamenti</li>
+          <li>Promemoria operai</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+)}
+</main>
+</div>
+)
 }

@@ -10,22 +10,36 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.3",
+    "autoprefixer": "^10.5.0",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
     "jspdf": "^4.2.1",
+    "jszip": "^3.10.1",
+    "leaflet": "^1.9.4",
     "next": "16.2.4",
+    "openai": "^6.37.0",
     "pdfjs-dist": "^5.6.205",
+    "postcss": "^8.5.12",
     "react": "19.2.4",
+    "react-calendar": "^6.0.1",
     "react-dom": "19.2.4",
+    "react-leaflet": "^5.0.0",
+    "react-signature-canvas": "^1.1.0-alpha.2",
+    "react-webcam": "^7.2.0",
+    "recharts": "^3.8.1",
     "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.2.4",
+    "@types/file-saver": "^2.0.7",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
-    "tailwindcss": "^4",
+    "tailwindcss": "^4.2.4",
     "typescript": "^5"
   }
 }
