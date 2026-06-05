@@ -31,6 +31,7 @@ import PopupModificaOperaio from './components/PopupModificaOperaio'
 import FiltroPeriodoEconomia from './components/FiltroPeriodoEconomia'
 import UploadPreventivoBox from './components/UploadPreventivoBox'
 import FotoFullscreenModal from './components/FotoFullscreenModal'
+import AttrezzatureCaricatePanel from './components/AttrezzatureCaricatePanel'
 import type {
   Cantiere,
   Rapportino,
@@ -14291,126 +14292,17 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   supabase={supabase}
 />
 
-         {/* ================= ATTREZZI CON ANTEPRIMA ================= */}
-<div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-  <strong>Attrezzature / noli caricati:</strong>
-
-  <button
-    onClick={() => setMostraAttrezziCantiere(!mostraAttrezziCantiere)}
-    style={{ ...buttonSecondary, marginLeft: 10 }}
-  >
-    {mostraAttrezziCantiere ? 'Nascondi anteprima' : 'Vedi anteprima attrezzature'}
-  </button>
-
-  {attrezziCantiere.filter((a) => a.cantiere === cantiereScheda).length === 0 ? (
-    <p>Nessuna attrezzatura caricata.</p>
-  ) : (
-    mostraAttrezziCantiere && (
-      <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-       {attrezziCantiere
-  .filter((a) => a.cantiere === cantiereScheda)
-
-  .sort((a, b) =>
-    String(b.data_documento || '').localeCompare(
-      String(a.data_documento || '')
-    )
-  )
-
-  .map((a, i) => (
-            <div
-              key={a.id || i}
-              style={{
-                padding: 12,
-                border: '1px solid #ddd',
-                borderRadius: 8,
-                background: '#fff',
-              }}
-            >
-              <strong>{a.nome_file || a.descrizione || `Attrezzatura ${i + 1}`}</strong>
-              <br />
-
-              <div style={{ marginTop: 8 }}>
-                <strong>Importo:</strong> {formatMoney(Number(a.totale || 0))}
-              </div>
-
-              <br />
-              Fornitore: {a.fornitore || '-'}
-              <br />
-              Data: {a.data_documento || '-'}
-              <br />
-              Nota: {a.nota || '-'}
-
-              {a.file_tipo === 'pdf' && a.file_url && (
-                <div
-                  style={{
-                    width: 700,
-                    height: 500,
-                    minWidth: 300,
-                    minHeight: 250,
-                    resize: 'both',
-                    overflow: 'auto',
-                    border: '1px solid #ddd',
-                    borderRadius: 8,
-                    marginTop: 10,
-                  }}
-                >
-                  <iframe
-                    src={a.file_url}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      border: 'none',
-                    }}
-                  />
-                </div>
-              )}
-
-              {a.file_tipo === 'img' && a.file_url && (
-                <div
-                  style={{
-                    width: 700,
-                    height: 500,
-                    minWidth: 300,
-                    minHeight: 250,
-                    resize: 'both',
-                    overflow: 'auto',
-                    border: '1px solid #ddd',
-                    borderRadius: 8,
-                    marginTop: 10,
-                  }}
-                >
-                  <img
-                    src={a.file_url}
-                    style={{
-                      width: '100%',
-                      display: 'block',
-                    }}
-                  />
-                </div>
-              )}
-
-              <div style={{ marginTop: 10 }}>
-               <button
-  onClick={() => eliminaAttrezzatura(a)}
-  style={{
-    backgroundColor: '#d9534f',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 6,
-    padding: '6px 10px',
-    cursor: 'pointer',
-    fontWeight: 600,
-  }}
->
-  Elimina attrezzatura
-</button>
-              </div>
-            </div>
-          ))}
-      </div>
-    )
-  )}
-</div>
+   {/* ================= ATTREZZI CON ANTEPRIMA ================= */}
+<AttrezzatureCaricatePanel
+  mostraAttrezziCantiere={mostraAttrezziCantiere}
+  setMostraAttrezziCantiere={setMostraAttrezziCantiere}
+  attrezziCantiere={attrezziCantiere}
+  cantiereScheda={cantiereScheda}
+  buttonSecondary={buttonSecondary}
+  formatMoney={formatMoney}
+  onElimina={eliminaAttrezzatura}
+/>
+             
   </div>
       </div>
     )}
@@ -14419,53 +14311,10 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
 
 
-{fotoFullscreen && (
-  <div
-    onClick={() => setFotoFullscreen(null)}
-    style={{
-      position: 'fixed',
-      inset: 0,
-      backgroundColor: 'rgba(0,0,0,0.92)',
-      zIndex: 99999,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 20,
-      cursor: 'pointer',
-    }}
-  >
-    <div
-      style={{
-        maxWidth: '95vw',
-        maxHeight: '95vh',
-        position: 'relative',
-      }}
-    >
-      <img
-        src={fotoFullscreen.immagine_base64}
-        alt="Fullscreen"
-        style={{
-          maxWidth: '95vw',
-          maxHeight: '90vh',
-          borderRadius: 10,
-          boxShadow: '0 0 30px rgba(0,0,0,0.5)',
-        }}
-      />
-
-      <div
-        style={{
-          marginTop: 10,
-          color: '#fff',
-          textAlign: 'center',
-          whiteSpace: 'pre-wrap',
-        }}
-      >
-        {fotoFullscreen.nota}
-      </div>
-    </div>
-  </div>
-)}
-
+<FotoFullscreenModal
+  fotoFullscreen={fotoFullscreen}
+  setFotoFullscreen={setFotoFullscreen}
+/>
 {/* ================= OPERAI - ANAGRAFICA ================= */}
 
 {/* ================= OPERAI - ANAGRAFICA ================= */}

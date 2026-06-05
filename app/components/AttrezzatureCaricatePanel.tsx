@@ -9,9 +9,7 @@ type Props = {
   cantiereScheda: string
   buttonSecondary: CSSProperties
   formatMoney: (v: number) => string
-  eliminaFileDaStorage: (path?: string | null) => Promise<void>
-  caricaEconomia: () => Promise<void>
-  supabase: any
+ onElimina: (a: any) => void | Promise<void>
 }
 
 export default function AttrezzatureCaricatePanel({
@@ -21,9 +19,7 @@ export default function AttrezzatureCaricatePanel({
   cantiereScheda,
   buttonSecondary,
   formatMoney,
-  eliminaFileDaStorage,
-  caricaEconomia,
-  supabase,
+ onElimina,
 }: Props) {
   return (
     <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
@@ -127,30 +123,7 @@ export default function AttrezzatureCaricatePanel({
 
                   <div style={{ marginTop: 10 }}>
                     <button
-                      onClick={async () => {
-                        if (!a.id) return
-
-                        if (!confirm('Sei sicuro di eliminare questa attrezzatura?')) return
-
-                        try {
-                          await eliminaFileDaStorage(a.file_path)
-                        } catch {
-                          alert('Errore cancellazione file da Storage')
-                          return
-                        }
-
-                        const { error } = await supabase
-                          .from('attrezzi_cantiere')
-                          .delete()
-                          .eq('id', a.id)
-
-                        if (error) {
-                          alert('Errore eliminazione: ' + error.message)
-                          return
-                        }
-
-                        await caricaEconomia()
-                      }}
+                      onClick={() => onElimina(a)}
                       style={{
                         backgroundColor: '#d9534f',
                         color: '#fff',
