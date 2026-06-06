@@ -1589,8 +1589,7 @@ const generaExcelDaPreventivoAi = async (p: any) => {
     }
 
     const workbook = new ExcelJS.Workbook()
-workbook.calcProperties.fullCalcOnLoad = true
-
+    workbook.calcProperties.fullCalcOnLoad = true
 
     const templateResponse = await fetch('/templates/preventivo-template.xlsx')
 
@@ -1642,11 +1641,13 @@ workbook.calcProperties.fullCalcOnLoad = true
       ws.getCell(`C${rigaExcel}`).value = um
       ws.getCell(`D${rigaExcel}`).value = quantita
       ws.getCell(`E${rigaExcel}`).value = prezzo
+
       ws.getCell(`F${rigaExcel}`).value = {
-  formula: `D${rigaExcel}*E${rigaExcel}`,
-  result: totale,
-}
-ws.getCell(`F${rigaExcel}`).numFmt = '#,##0.00 €'
+        formula: `D${rigaExcel}*E${rigaExcel}`,
+        result: totale,
+      }
+      ws.getCell(`F${rigaExcel}`).numFmt = '#,##0.00 €'
+
       ws.getRow(rigaExcel).height = Math.max(
         25,
         String(voce.descrizione || '').length * 0.35
@@ -1660,16 +1661,15 @@ ws.getCell(`F${rigaExcel}`).numFmt = '#,##0.00 €'
     }
 
     ws.getCell('F48').value = {
-  formula: `SUM(F22:F${rigaExcel - 1})`,
-  result: totalePreventivo,
-}
-const giorniStimati = Math.max(
-  2,
-  Math.ceil(vociAi.length * 1.5)
-)
+      formula: `SUM(F22:F${rigaExcel - 1})`,
+      result: totalePreventivo,
+    }
+    ws.getCell('F48').numFmt = '#,##0.00 €'
 
-const testoCronoprogramma =
-  `Durata stimata lavori: circa ${giorniStimati} giorni lavorativi.
+    const giorniStimati = Math.max(2, Math.ceil(vociAi.length * 1.5))
+
+    const testoCronoprogramma =
+      `Durata stimata lavori: circa ${giorniStimati} giorni lavorativi.
 
 Le lavorazioni verranno eseguite secondo la seguente sequenza operativa:
 - preparazione e protezione delle aree interessate
@@ -1678,39 +1678,59 @@ Le lavorazioni verranno eseguite secondo la seguente sequenza operativa:
 - posa dei materiali e realizzazione delle lavorazioni previste
 - finiture, controllo finale e pulizia dell’area di lavoro.`
 
-const acconto = totalePreventivo * 0.30
-
-const saldo = totalePreventivo * 0.05
-
-const avanzamento =
-  totalePreventivo - acconto - saldo
-
-const testoPagamenti =
-  `Acconto iniziale 30%: € ${acconto.toFixed(2)}
-Stato avanzamento lavori 65%: € ${avanzamento.toFixed(2)}
-Saldo finale 5% a fine lavori: € ${saldo.toFixed(2)}
-
-Pagamenti tramite bonifico bancario o modalità concordata.`
-
-const testoGaranzia =
-  `ARTECNA garantisce le lavorazioni eseguite a regola d’arte e secondo le normative vigenti.
+    const testoGaranzia =
+      `ARTECNA garantisce le lavorazioni eseguite a regola d’arte e secondo le normative vigenti.
 
 La garanzia copre esclusivamente eventuali difetti derivanti dall’esecuzione delle opere indicate nel presente preventivo.
 
 Restano escluse problematiche dovute a supporti preesistenti, infiltrazioni pregresse, movimenti strutturali, materiali forniti dal committente o cause non rilevabili in fase di sopralluogo.`
 
-ws.getCell('A53').value = testoCronoprogramma
-ws.getCell('A59').value = testoPagamenti
-ws.getCell('A65').value = testoGaranzia
+    ws.getCell('A53').value = testoCronoprogramma
 
-ws.getRow(53).height =
-  Math.max(45, testoCronoprogramma.length * 0.35)
+    // SCHEMA PAGAMENTI DINAMICO
+    // Sblocca le celle unite del template, così gli importi possono diventare formule vere
+    try {
+      ws.unMergeCells('A59:F59')
+      ws.unMergeCells('A60:F60')
+      ws.unMergeCells('A61:F61')
+      ws.unMergeCells('A62:F62')
+      ws.unMergeCells('A63:F63')
+    } catch (e) {
+      console.warn('Alcune celle pagamenti non erano unite')
+    }
 
-ws.getRow(59).height =
-  Math.max(45, testoPagamenti.length * 0.35)
+    ws.getCell('A59').value = 'Acconto iniziale 30%'
+    ws.getCell('F59').value = {
+      formula: 'F48*0.30',
+      result: totalePreventivo * 0.30,
+    }
+    ws.getCell('F59').numFmt = '#,##0.00 €'
 
-ws.getRow(65).height =
-  Math.max(45, testoGaranzia.length * 0.35)
+    ws.getCell('A60').value = 'Stato avanzamento lavori 65%'
+    ws.getCell('F60').value = {
+      formula: 'F48*0.65',
+      result: totalePreventivo * 0.65,
+    }
+    ws.getCell('F60').numFmt = '#,##0.00 €'
+
+    ws.getCell('A61').value = 'Saldo finale 5% a fine lavori'
+    ws.getCell('F61').value = {
+      formula: 'F48*0.05',
+      result: totalePreventivo * 0.05,
+    }
+    ws.getCell('F61').numFmt = '#,##0.00 €'
+
+    ws.getCell('A63').value =
+      'Pagamenti tramite bonifico bancario o modalità concordata.'
+
+    ws.getCell('A65').value = testoGaranzia
+
+    ws.getRow(53).height = Math.max(45, testoCronoprogramma.length * 0.35)
+    ws.getRow(59).height = 24
+    ws.getRow(60).height = 24
+    ws.getRow(61).height = 24
+    ws.getRow(63).height = 30
+    ws.getRow(65).height = Math.max(45, testoGaranzia.length * 0.35)
 
     const buffer = await workbook.xlsx.writeBuffer()
 
@@ -1719,19 +1739,18 @@ ws.getRow(65).height =
     })
 
     const nomeFile = String(
-  preventivoAiGenerato?.cliente_ai ||
-  preventivoAiGenerato?.nome_file ||
-  preventivoAiGenerato?.cantiere ||
-  'Cliente'
-)
-  .replace('Preventivo_AI_', '')
-  .replace('Preventivo_', '')
-  .split(' - ')[0]
-  .replace(/[\\/:*?"<>|]/g, '')
-  .trim()
+      preventivoAiGenerato?.cliente_ai ||
+        preventivoAiGenerato?.nome_file ||
+        preventivoAiGenerato?.cantiere ||
+        'Cliente'
+    )
+      .replace('Preventivo_AI_', '')
+      .replace('Preventivo_', '')
+      .split(' - ')[0]
+      .replace(/[\\/:*?"<>|]/g, '')
+      .trim()
 
-saveAs(blob, `${nomeFile}.xlsx`)
-
+    saveAs(blob, `${nomeFile}.xlsx`)
   } catch (errore: any) {
     console.error('Errore generazione Excel AI:', errore)
     alert(
@@ -1739,7 +1758,6 @@ saveAs(blob, `${nomeFile}.xlsx`)
     )
   }
 }
-
 
 const generaPreventivoDaSopralluogo = async (s: Sopralluogo) => {
   if (!s.id) {
