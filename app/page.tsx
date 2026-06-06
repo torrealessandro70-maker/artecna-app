@@ -32,6 +32,7 @@ import FiltroPeriodoEconomia from './components/FiltroPeriodoEconomia'
 import UploadPreventivoBox from './components/UploadPreventivoBox'
 import FotoFullscreenModal from './components/FotoFullscreenModal'
 import AttrezzatureCaricatePanel from './components/AttrezzatureCaricatePanel'
+import OperaioForm from './components/OperaioForm'
 import type {
   Cantiere,
   Rapportino,
@@ -14367,47 +14368,21 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     buttonSecondary={buttonSecondary}
     buttonPrimary={buttonPrimary}
   />
-)}<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
-      <input
-        placeholder="Nome operaio"
-        value={nomeOperaio || ''}
-        onChange={(e) => setNomeOperaio(e.target.value)}
-        style={{ padding: 8, width: 220 }}
-      />
-
-      <input
-        placeholder="Telefono"
-        value={telefonoOperaio || ''}
-        onChange={(e) => setTelefonoOperaio(e.target.value)}
-        style={{ padding: 8, width: 160 }}
-      />
-
-      <input
-        placeholder="Qualifica"
-        value={qualificaOperaio || ''}
-        onChange={(e) => setQualificaOperaio(e.target.value)}
-        style={{ padding: 8, width: 160 }}
-      />
-
-      <input
-        placeholder="PIN"
-        value={pinOperaio || ''}
-        onChange={(e) => setPinOperaio(e.target.value)}
-        style={{ padding: 8, width: 120 }}
-      />
-
-      <input
-        placeholder="Costo orario €"
-        value={costoOrarioOperaio || ''}
-        onChange={(e) => setCostoOrarioOperaio(e.target.value)}
-        style={{ padding: 8, width: 140 }}
-      />
-
-      <button onClick={aggiungiOperaio} style={buttonPrimary}>
-        Aggiungi operaio
-      </button>
-    </div>
-
+)}
+<OperaioForm
+  nomeOperaio={nomeOperaio}
+  setNomeOperaio={setNomeOperaio}
+  telefonoOperaio={telefonoOperaio}
+  setTelefonoOperaio={setTelefonoOperaio}
+  qualificaOperaio={qualificaOperaio}
+  setQualificaOperaio={setQualificaOperaio}
+  pinOperaio={pinOperaio}
+  setPinOperaio={setPinOperaio}
+  costoOrarioOperaio={costoOrarioOperaio}
+  setCostoOrarioOperaio={setCostoOrarioOperaio}
+  aggiungiOperaio={aggiungiOperaio}
+  buttonPrimary={buttonPrimary}
+/>
     {operaiFiltrati.length === 0 ? (
       <p>Nessun operaio presente</p>
     ) : (
