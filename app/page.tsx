@@ -33,6 +33,7 @@ import UploadPreventivoBox from './components/UploadPreventivoBox'
 import FotoFullscreenModal from './components/FotoFullscreenModal'
 import AttrezzatureCaricatePanel from './components/AttrezzatureCaricatePanel'
 import OperaioForm from './components/OperaioForm'
+import OperaioCard from './components/OperaioCard'
 import type {
   Cantiere,
   Rapportino,
@@ -14387,70 +14388,20 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
       <p>Nessun operaio presente</p>
     ) : (
       <div style={{ display: 'grid', gap: 10 }}>
-        {operaiFiltrati.map((o, i) => (
-          <div
-            key={o.id || i}
-            style={{
-              padding: 12,
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              background: '#fff',
-            }}
-          >
-            <strong>{o.nome}</strong>
-            <span style={badgeStyle(o.stato)}>{o.stato || 'attivo'}</span>
-            <br />
-            Qualifica: {o.qualifica || '-'}
-            <br />
-            Telefono: {o.telefono || '-'}
-            <br />
-            PIN: {o.pin || '-'}
-            <br />
-            Costo orario: {formatMoney(Number(o.costo_orario || 0))}
-            <br />
-            Nota: {o.nota || '-'}
-
-            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => preparaModificaOperaio(o)}
-                style={buttonSecondary}
-              >
-                Modifica
-              </button>
-
-              {o.stato === 'sospeso' ? (
-                <button
-                  onClick={() => cambiaStatoOperaio(o, 'attivo')}
-                  style={buttonPrimary}
-                >
-                  Riattiva
-                </button>
-              ) : (
-                <button
-                  onClick={() => cambiaStatoOperaio(o, 'sospeso')}
-                  style={buttonSecondary}
-                >
-                  Sospendi
-                </button>
-              )}
-
-              <button
-                onClick={() => eliminaOperaio(o.id)}
-                style={{
-                  padding: '10px 14px',
-                  backgroundColor: '#d9534f',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                }}
-              >
-                Elimina
-              </button>
-            </div>
-          </div>
-        ))}
+       {operaiFiltrati.map((o, i) => (
+  <OperaioCard
+    key={o.id || i}
+    operaio={o}
+    index={i}
+    badgeStyle={badgeStyle}
+    formatMoney={formatMoney}
+    preparaModificaOperaio={preparaModificaOperaio}
+    cambiaStatoOperaio={cambiaStatoOperaio}
+    eliminaOperaio={eliminaOperaio}
+    buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
+  />
+))}
       </div>
     )}
   </div>
