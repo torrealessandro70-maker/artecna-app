@@ -35,6 +35,7 @@ import AttrezzatureCaricatePanel from './components/AttrezzatureCaricatePanel'
 import OperaioForm from './components/OperaioForm'
 import OperaioCard from './components/OperaioCard'
 import OperaiList from './components/OperaiList'
+import RapportiniList from './components/RapportiniList'
 import type {
   Cantiere,
   Rapportino,
@@ -16689,86 +16690,21 @@ setUltimoSopralluogo(s)
 
 
 
-    <h3 style={{ marginTop: 30 }}>Storico rapportini</h3>
 
-    {rapportiniFiltrati.length === 0 ? (
-      <p>Nessun rapportino presente</p>
-    ) : (
-      <div style={{ display: 'grid', gap: 10 }}>
-        {rapportiniFiltrati.map((r, i) => (
-          <div
-            key={r.id || i}
-            style={{
-              padding: 12,
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              background: '#fff',
-            }}
-          >
-            <strong>{r.cantiere}</strong> — {r.data} — {r.ore} ore
-            <br />
-            {r.note}
 
-            <div style={{ marginTop: 8 }}>
-              <button
-                onClick={() => preparaModificaRapportino(r)}
-                style={buttonSecondary}
-              >
-                Modifica
-              </button>
 
-<button
-  onClick={() => {
-    const fotoCollegate = fotoCantiere.filter(
-      (f) =>
-        f.cantiere === r.cantiere &&
-        String(f.data_foto || '') === String(r.data || '')
-    )
 
-    setFotoRapportinoAperte(fotoCollegate)
-  }}
-  style={{
-    ...buttonSecondary,
-    marginLeft: 6,
-    backgroundColor: '#0f172a',
-    color: '#fff',
-  }}
->
-  📸 Apri foto
-</button>
+  <h3 style={{ marginTop: 30 }}>Storico rapportini</h3>
 
-              <button
-                onClick={() => eliminaRapportino(r.id)}
-                style={{
-                  marginLeft: 8,
-                  padding: '10px 14px',
-                  backgroundColor: '#d9534f',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                }}
-              >
-                Elimina
-              </button>
-
-<button
-  onClick={() => generaPdfRapportinoFotografico(r)}
-  style={{
-    ...buttonSecondary,
-    marginLeft: 6,
-    backgroundColor: '#2563eb',
-    color: '#fff',
-  }}
->
-  📄 PDF foto
-</button>
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
+<RapportiniList
+  rapportiniFiltrati={rapportiniFiltrati}
+  fotoCantiere={fotoCantiere}
+  setFotoRapportinoAperte={setFotoRapportinoAperte}
+  preparaModificaRapportino={preparaModificaRapportino}
+  eliminaRapportino={eliminaRapportino}
+  generaPdfRapportinoFotografico={generaPdfRapportinoFotografico}
+  buttonSecondary={buttonSecondary}
+/>
   </div>
 )}
 {/* ================= PAGAMENTI - OPERAI ================= */}
