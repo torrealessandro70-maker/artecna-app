@@ -34,6 +34,7 @@ import FotoFullscreenModal from './components/FotoFullscreenModal'
 import AttrezzatureCaricatePanel from './components/AttrezzatureCaricatePanel'
 import OperaioForm from './components/OperaioForm'
 import OperaioCard from './components/OperaioCard'
+import OperaiList from './components/OperaiList'
 import type {
   Cantiere,
   Rapportino,
@@ -14914,40 +14915,16 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
       >
         <strong>👷 Operai inclusi nel filtro</strong>
 
-        {operaiFiltrati.length === 0 ? (
-          <p style={{ marginBottom: 0 }}>
-            Nessun operaio trovato per il periodo/cantiere selezionato.
-          </p>
-        ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-              gap: 10,
-              marginTop: 12,
-            }}
-          >
-            {operaiFiltrati.map((o) => (
-              <div
-                key={o.nome}
-                style={{
-                  padding: 10,
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 8,
-                  background: '#f8fafc',
-                }}
-              >
-                <strong>{o.nome}</strong>
-                <br />
-                Ore: {o.ore.toFixed(2)}
-                <br />
-                Costo: {formatMoney(o.costo)}
-                <br />
-                Presenze: {o.presenze}
-              </div>
-            ))}
-          </div>
-        )}
+       <OperaiList
+  operaiFiltrati={operaiFiltrati}
+  badgeStyle={badgeStyle}
+  formatMoney={formatMoney}
+  preparaModificaOperaio={preparaModificaOperaio}
+  cambiaStatoOperaio={cambiaStatoOperaio}
+  eliminaOperaio={eliminaOperaio}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+/>
       </div>
     </div>
   )
