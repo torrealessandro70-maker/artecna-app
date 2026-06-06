@@ -14385,26 +14385,16 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   aggiungiOperaio={aggiungiOperaio}
   buttonPrimary={buttonPrimary}
 />
-    {operaiFiltrati.length === 0 ? (
-      <p>Nessun operaio presente</p>
-    ) : (
-      <div style={{ display: 'grid', gap: 10 }}>
-       {operaiFiltrati.map((o, i) => (
-  <OperaioCard
-    key={o.id || i}
-    operaio={o}
-    index={i}
-    badgeStyle={badgeStyle}
-    formatMoney={formatMoney}
-    preparaModificaOperaio={preparaModificaOperaio}
-    cambiaStatoOperaio={cambiaStatoOperaio}
-    eliminaOperaio={eliminaOperaio}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-))}
-      </div>
-    )}
+   <OperaiList
+  operaiFiltrati={operaiFiltrati}
+  badgeStyle={badgeStyle}
+  formatMoney={formatMoney}
+  preparaModificaOperaio={preparaModificaOperaio}
+  cambiaStatoOperaio={cambiaStatoOperaio}
+  eliminaOperaio={eliminaOperaio}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+/>
   </div>
 )}
 
