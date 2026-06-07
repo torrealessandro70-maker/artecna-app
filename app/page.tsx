@@ -53,6 +53,7 @@ import SopralluogoAppunti from './components/SopralluogoAppunti'
 import SopralluogoFotoGallery from './components/SopralluogoFotoGallery'
 import PopupFotoSopralluogo from './components/PopupFotoSopralluogo'
 import SopralluogoAzioniPreventivo from './components/SopralluogoAzioniPreventivo'
+import SopralluogoFotoPreventivo from './components/SopralluogoFotoPreventivo'
 import type {
   Cantiere,
   Rapportino,
@@ -14923,85 +14924,12 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
               </div>
             )}
 
-            {mostraFotoPreventivoSopralluogo && (
-              <div style={{ marginTop: 20 }}>
-                <h4>🖼 Foto da usare nel preventivo</h4>
 
-                {fotoSopralluoghi.filter(
-                  (f) =>
-                    f.sopralluogo_id === sopralluogoAperto.id &&
-                    f.includi_preventivo
-                ).length === 0 ? (
-                  <p>Nessuna foto selezionata per il preventivo</p>
-                ) : (
-                  <div>
-                    {fotoSopralluoghi
-                      .filter(
-                        (f) =>
-                          f.sopralluogo_id === sopralluogoAperto.id &&
-                          f.includi_preventivo
-                      )
-                      .map((foto, i) => (
-                        <div
-                          key={foto.id || i}
-                          style={{
-                            display: 'inline-block',
-                            width: 180,
-                            marginRight: 12,
-                            marginBottom: 12,
-                            border: '1px solid #ddd',
-                            borderRadius: 12,
-                            overflow: 'hidden',
-                            background: '#fff',
-                            verticalAlign: 'top',
-                          }}
-                        >
-                          <img
-                            src={foto.immagine_base64}
-                            alt="Foto preventivo"
-                            style={{
-                              width: '100%',
-                              height: 140,
-                              objectFit: 'cover',
-                            }}
-                          />
-
-                          <div
-                            style={{
-                              padding: 8,
-                              fontSize: 12,
-                              whiteSpace: 'pre-wrap',
-                            }}
-                          >
-                            {foto.nota || 'Foto selezionata'}
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              gap: 10,
-              flexWrap: 'wrap',
-              marginTop: 24,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => generaPreventivoDaSopralluogo(sopralluogoAperto)}
-              style={{
-                ...buttonPrimary,
-                backgroundColor: '#7c3aed',
-              }}
-            >
-              🧾 Genera preventivo
-            </button>
-
+<SopralluogoFotoPreventivo
+  mostraFotoPreventivoSopralluogo={mostraFotoPreventivoSopralluogo}
+  sopralluogoAperto={sopralluogoAperto}
+  fotoSopralluoghi={fotoSopralluoghi}
+/>
 
           <SopralluogoAzioniPreventivo
             sopralluogoAperto={sopralluogoAperto}
