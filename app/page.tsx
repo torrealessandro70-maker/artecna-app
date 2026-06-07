@@ -51,6 +51,7 @@ import SopralluogoDettaglioHeader from './components/SopralluogoDettaglioHeader'
 import SopralluogoFirmaCliente from './components/SopralluogoFirmaCliente'
 import SopralluogoAppunti from './components/SopralluogoAppunti'
 import SopralluogoFotoGallery from './components/SopralluogoFotoGallery'
+import PopupFotoSopralluogo from './components/PopupFotoSopralluogo'
 import type {
   Cantiere,
   Rapportino,
@@ -15052,216 +15053,25 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
       </div>
     )}
 
-    {popupFotoSopralluogo && (
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(15,23,42,0.55)',
-          zIndex: 10000,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 20,
-        }}
-      >
-        <div
-          style={{
-            background: '#fff',
-            borderRadius: 14,
-            width: '100%',
-            maxWidth: 900,
-            maxHeight: '90vh',
-            overflow: 'auto',
-            padding: 20,
-            paddingBottom: 80,
-          }}
-        >
-          <h2>📸 Foto sopralluogo</h2>
 
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              type="button"
-              onClick={() =>
-                setCameraSopralluogoAttiva(!cameraSopralluogoAttiva)
-              }
-              style={buttonPrimary}
-            >
-              {cameraSopralluogoAttiva ? 'Chiudi fotocamera' : '📷 Apri fotocamera'}
-            </button>
-          </div>
 
-        <input
-  type="file"
-  accept="image/*"
-  multiple
-  onChange={async (e) => {
-    const files = Array.from(e.target.files || [])
-
-    if (files.length === 0) return
-
-    const fotoConvertite = await Promise.all(
-      files.map(
-        (file) =>
-          new Promise<string>((resolve) => {
-            const reader = new FileReader()
-
-            reader.onload = () => {
-              resolve(String(reader.result || ''))
-            }
-
-            reader.readAsDataURL(file)
-          })
-      )
-    )
-
-    setFotoSopralluogoTemp((prev) => [
-      ...prev,
-      ...fotoConvertite,
-    ])
-
-    e.target.value = ''
-  }}
+  <PopupFotoSopralluogo
+  popupFotoSopralluogo={popupFotoSopralluogo}
+  setPopupFotoSopralluogo={setPopupFotoSopralluogo}
+  cameraSopralluogoAttiva={cameraSopralluogoAttiva}
+  setCameraSopralluogoAttiva={setCameraSopralluogoAttiva}
+  cameraSopralluogoFullscreen={cameraSopralluogoFullscreen}
+  setCameraSopralluogoFullscreen={setCameraSopralluogoFullscreen}
+  webcamSopralluogoRef={webcamSopralluogoRef}
+  scattaFotoSopralluogo={scattaFotoSopralluogo}
+  fotoSopralluogoTemp={fotoSopralluogoTemp}
+  setFotoSopralluogoTemp={setFotoSopralluogoTemp}
+  notaFotoSopralluogo={notaFotoSopralluogo}
+  setNotaFotoSopralluogo={setNotaFotoSopralluogo}
+  salvaFotoSopralluogo={salvaFotoSopralluogo}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
 />
-
-          {cameraSopralluogoAttiva && (
-            <div
-              style={{
-                marginTop: cameraSopralluogoFullscreen ? 0 : 15,
-                position: cameraSopralluogoFullscreen ? 'fixed' : 'relative',
-                inset: cameraSopralluogoFullscreen ? 0 : 'auto',
-                zIndex: cameraSopralluogoFullscreen ? 20000 : 'auto',
-                background: cameraSopralluogoFullscreen ? '#000' : 'transparent',
-                padding: cameraSopralluogoFullscreen ? 10 : 0,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setCameraSopralluogoFullscreen((v) => !v)}
-                style={{
-                  position: 'absolute',
-                  bottom: 16,
-                  right: 16,
-                  zIndex: 40,
-                  width: 52,
-                  height: 52,
-                  borderRadius: '50%',
-                  border: '2px solid white',
-                  background: 'rgba(0,0,0,0.55)',
-                  color: '#fff',
-                  fontSize: 24,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
-                }}
-              >
-                {cameraSopralluogoFullscreen ? '↙️' : '↗️'}
-              </button>
-
-              <Webcam
-                ref={webcamSopralluogoRef}
-                audio={false}
-                screenshotFormat="image/jpeg"
-                videoConstraints={{
-                  facingMode: 'environment',
-                }}
-                style={{
-                  width: '100%',
-                  height: cameraSopralluogoFullscreen ? '100vh' : 'auto',
-                  objectFit: cameraSopralluogoFullscreen ? 'contain' : 'cover',
-                  borderRadius: cameraSopralluogoFullscreen ? 0 : 12,
-                }}
-              />
-
-              <button
-                type="button"
-                onClick={scattaFotoSopralluogo}
-                style={{
-                  position: 'absolute',
-                  bottom: 16,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 80,
-                  height: 80,
-                  borderRadius: '50%',
-                  border: '4px solid white',
-                  background: '#2563eb',
-                  color: '#fff',
-                  fontSize: 28,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
-                  zIndex: 30,
-                }}
-              >
-                📸
-              </button>
-            </div>
-          )}
-
-          <textarea
-            placeholder="Note foto sopralluogo"
-            value={notaFotoSopralluogo}
-            onChange={(e) => setNotaFotoSopralluogo(e.target.value)}
-            style={{
-              width: '100%',
-              minHeight: 80,
-              marginTop: 15,
-              padding: 10,
-            }}
-          />
-
-          {fotoSopralluogoTemp.length > 0 && (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                gap: 10,
-                marginTop: 15,
-              }}
-            >
-              {fotoSopralluogoTemp.map((foto, i) => (
-                <img
-                  key={i}
-                  src={foto}
-                  alt="Anteprima foto sopralluogo"
-                  style={{
-                    width: '100%',
-                    borderRadius: 10,
-                  }}
-                />
-              ))}
-            </div>
-          )}
-
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 10,
-              marginTop: 20,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setPopupFotoSopralluogo(false)
-                setCameraSopralluogoAttiva(false)
-              }}
-              style={buttonSecondary}
-            >
-              Chiudi
-            </button>
-
-            <button
-              type="button"
-              onClick={salvaFotoSopralluogo}
-              style={buttonPrimary}
-            >
-              💾 Salva foto
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
   </div>
 )}
 {(
