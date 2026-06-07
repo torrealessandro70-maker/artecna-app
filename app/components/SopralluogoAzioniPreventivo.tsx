@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 type Props = {
   sopralluogoAperto: any
   preventivoAiGenerato: any
+  generaPreventivoDaSopralluogo: (s: any) => void | Promise<void>
   generaPreventivoAiDaSopralluogo: (s: any) => void | Promise<void>
   apriPreventivoAiGeneratoInModifica: () => void
   convertiSopralluogoInCantiere: (s: any) => void | Promise<void>
@@ -15,6 +16,7 @@ type Props = {
 export default function SopralluogoAzioniPreventivo({
   sopralluogoAperto,
   preventivoAiGenerato,
+  generaPreventivoDaSopralluogo,
   generaPreventivoAiDaSopralluogo,
   apriPreventivoAiGeneratoInModifica,
   convertiSopralluogoInCantiere,
@@ -25,9 +27,18 @@ export default function SopralluogoAzioniPreventivo({
     <>
       <button
         type="button"
-        onClick={() =>
-          generaPreventivoAiDaSopralluogo(sopralluogoAperto)
-        }
+        onClick={() => generaPreventivoDaSopralluogo(sopralluogoAperto)}
+        style={{
+          ...buttonPrimary,
+          backgroundColor: '#7c3aed',
+        }}
+      >
+        🧾 Genera preventivo
+      </button>
+
+      <button
+        type="button"
+        onClick={() => generaPreventivoAiDaSopralluogo(sopralluogoAperto)}
         style={{
           ...buttonPrimary,
           backgroundColor: '#9333ea',
@@ -51,9 +62,7 @@ export default function SopralluogoAzioniPreventivo({
 
       <button
         type="button"
-        onClick={() =>
-          convertiSopralluogoInCantiere(sopralluogoAperto)
-        }
+        onClick={() => convertiSopralluogoInCantiere(sopralluogoAperto)}
         style={{
           ...buttonPrimary,
           backgroundColor: '#15803d',
@@ -64,9 +73,7 @@ export default function SopralluogoAzioniPreventivo({
 
       <button
         type="button"
-        onClick={() =>
-          generaPdfSopralluogo(sopralluogoAperto)
-        }
+        onClick={() => generaPdfSopralluogo(sopralluogoAperto)}
         style={{
           ...buttonPrimary,
           backgroundColor: '#2563eb',
