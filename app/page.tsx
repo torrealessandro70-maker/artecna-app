@@ -46,6 +46,7 @@ import type { Dispatch, RefObject, SetStateAction } from 'react'
 import FotoCantiereFiltri from './components/FotoCantiereFiltri'
 import FotoCantiereForm from './components/FotoCantiereForm'
 import SopralluogoForm from './components/SopralluogoForm'
+import SopralluoghiList from './components/SopralluoghiList'
 import type {
   Cantiere,
   Rapportino,
@@ -14567,122 +14568,24 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
 
 
-   <div
-  style={{
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  }}
->
-  <h3>Sopralluoghi</h3>
-
-  <button
-    onClick={() =>
-      setMostraElencoSopralluoghi(
-        !mostraElencoSopralluoghi
-      )
-    }
-    style={buttonSecondary}
-  >
-    {mostraElencoSopralluoghi
-      ? 'Nascondi elenco'
-      : 'Mostra elenco'}
-  </button>
-</div>
-
-
-
-{sopralluoghi.length === 0 ? (
-  <p>Nessun sopralluogo salvato</p>
-) : (
-  <div style={{ display: 'grid', gap: 10 }}>
-    {[...sopralluoghi]
-      .slice(
-        0,
-        mostraElencoSopralluoghi ? undefined : 1
-      )
-      .map((s, i) => (
-          <div
-            key={s.id || i}
-            style={{
-              padding: 12,
-              border: '1px solid #ddd',
-              borderRadius: 10,
-              background: '#fff',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                width: 'auto',
-                marginBottom: 8,
-              }}
-            >
-              <button
-                type="button"
-                onClick={async () => {
-setUltimoSopralluogo(s)
-                  setSopralluogoAperto(s)
-
-
-                  setMostraElencoSopralluoghi(false)
-                  setFirmaCliente(s.firma_cliente || '')
-                  setMostraGestioneFotoSopralluogo(false)
-                  setMostraFotoPreventivoSopralluogo(false)
-
-                  const { data } = await supabase
-                    .from('foto_sopralluogo')
-                    .select('*')
-                    .eq('sopralluogo_id', s.id)
-                    .order('created_at', { ascending: false })
-
-                  setFotoSopralluoghi(data || [])
-                }}
-                style={{
-                  ...buttonPrimary,
-                  width: 'auto',
-                  minWidth: 0,
-                  padding: '8px 12px',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                🔍 Apri sopralluogo
-              </button>
-
-              <button
-                type="button"
-                onClick={() => eliminaSopralluogo(s.id)}
-                style={{
-                  ...buttonPrimary,
-                  width: 'auto',
-                  minWidth: 0,
-                  padding: '8px 12px',
-                  whiteSpace: 'nowrap',
-                  backgroundColor: '#dc2626',
-                }}
-              >
-                🗑 Elimina
-              </button>
-            </div>
-
-            <strong>{s.cliente}</strong>
-            <br />
-            {s.indirizzo || '-'}
-            <br />
-            Data: {s.data_sopralluogo || '-'}
-            <br />
-            Tipo lavoro: {s.tipo_lavoro || '-'}
-            <br />
-            Stato: {s.stato || '-'}
-          </div>
-        ))}
-           </div>
-    )}
+  <SopralluoghiList
+  sopralluoghi={sopralluoghi}
+  mostraElencoSopralluoghi={mostraElencoSopralluoghi}
+  setMostraElencoSopralluoghi={setMostraElencoSopralluoghi}
+  setUltimoSopralluogo={setUltimoSopralluogo}
+  setSopralluogoAperto={setSopralluogoAperto}
+  setFirmaCliente={setFirmaCliente}
+  setMostraGestioneFotoSopralluogo={setMostraGestioneFotoSopralluogo}
+  setMostraFotoPreventivoSopralluogo={setMostraFotoPreventivoSopralluogo}
+  setFotoSopralluoghi={setFotoSopralluoghi}
+  eliminaSopralluogo={eliminaSopralluogo}
+  supabase={supabase}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+/>
  
+
+
 
     {sopralluogoAperto && (
       <div
@@ -14708,6 +14611,10 @@ setUltimoSopralluogo(s)
             padding: 20,
           }}
         >
+
+
+
+
           <div
             style={{
               display: 'flex',
