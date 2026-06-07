@@ -54,6 +54,7 @@ import SopralluogoFotoGallery from './components/SopralluogoFotoGallery'
 import PopupFotoSopralluogo from './components/PopupFotoSopralluogo'
 import SopralluogoAzioniPreventivo from './components/SopralluogoAzioniPreventivo'
 import SopralluogoFotoPreventivo from './components/SopralluogoFotoPreventivo'
+import SopralluogoToolbar from './components/SopralluogoToolbar'
 import type {
   Cantiere,
   Rapportino,
@@ -14687,62 +14688,14 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
           <div style={{ marginTop: 25 }}>
             <h3>📸 Galleria sopralluogo</h3>
 
-            <div
-              style={{
-                display: 'flex',
-                gap: 10,
-                flexWrap: 'wrap',
-                marginTop: 16,
-                marginBottom: 16,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setPopupFotoSopralluogo(true)}
-                style={{
-                  ...buttonPrimary,
-                  backgroundColor: '#0f172a',
-                }}
-              >
-                📸 Carica foto sopralluogo
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setMostraGestioneFotoSopralluogo(
-                    !mostraGestioneFotoSopralluogo
-                  )
-                  setMostraFotoPreventivoSopralluogo(false)
-                }}
-                style={{
-                  ...buttonPrimary,
-                  backgroundColor: '#16a34a',
-                }}
-              >
-                {mostraGestioneFotoSopralluogo
-                  ? 'Nascondi gestione foto'
-                  : '🗑 Gestisci / elimina foto'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setMostraFotoPreventivoSopralluogo(
-                    !mostraFotoPreventivoSopralluogo
-                  )
-                  setMostraGestioneFotoSopralluogo(false)
-                }}
-                style={{
-                  ...buttonPrimary,
-                  backgroundColor: '#2563eb',
-                }}
-              >
-                {mostraFotoPreventivoSopralluogo
-                  ? 'Nascondi foto preventivo'
-                  : '🖼 Foto da usare nel preventivo'}
-              </button>
-            </div>
+           <SopralluogoToolbar
+  mostraGestioneFotoSopralluogo={mostraGestioneFotoSopralluogo}
+  setMostraGestioneFotoSopralluogo={setMostraGestioneFotoSopralluogo}
+  mostraFotoPreventivoSopralluogo={mostraFotoPreventivoSopralluogo}
+  setMostraFotoPreventivoSopralluogo={setMostraFotoPreventivoSopralluogo}
+  setPopupFotoSopralluogo={setPopupFotoSopralluogo}
+  buttonPrimary={buttonPrimary}
+/>
 
 
 
