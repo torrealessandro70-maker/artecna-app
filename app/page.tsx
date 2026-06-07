@@ -52,6 +52,7 @@ import SopralluogoFirmaCliente from './components/SopralluogoFirmaCliente'
 import SopralluogoAppunti from './components/SopralluogoAppunti'
 import SopralluogoFotoGallery from './components/SopralluogoFotoGallery'
 import PopupFotoSopralluogo from './components/PopupFotoSopralluogo'
+import SopralluogoAzioniPreventivo from './components/SopralluogoAzioniPreventivo'
 import type {
   Cantiere,
   Rapportino,
@@ -15001,77 +15002,42 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
               🧾 Genera preventivo
             </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                generaPreventivoAiDaSopralluogo(sopralluogoAperto)
-              }
-              style={{
-                ...buttonPrimary,
-                backgroundColor: '#9333ea',
-              }}
-            >
-              🤖 Genera preventivo AI
-            </button>
 
-            {preventivoAiGenerato && (
-              <button
-                type="button"
-                onClick={apriPreventivoAiGeneratoInModifica}
-                style={{
-                  ...buttonPrimary,
-                  backgroundColor: '#059669',
-                }}
-              >
-                📂 Apri preventivo AI generato
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => convertiSopralluogoInCantiere(sopralluogoAperto)}
-              style={{
-                ...buttonPrimary,
-                backgroundColor: '#15803d',
-              }}
-            >
-              🏗 Converti in cantiere
-            </button>
-
-            <button
-              type="button"
-              onClick={() => generaPdfSopralluogo(sopralluogoAperto)}
-              style={{
-                ...buttonPrimary,
-                backgroundColor: '#2563eb',
-              }}
-            >
-              📄 Genera PDF
-            </button>
+          <SopralluogoAzioniPreventivo
+            sopralluogoAperto={sopralluogoAperto}
+            preventivoAiGenerato={preventivoAiGenerato}
+            generaPreventivoAiDaSopralluogo={generaPreventivoAiDaSopralluogo}
+            apriPreventivoAiGeneratoInModifica={
+              apriPreventivoAiGeneratoInModifica
+            }
+            convertiSopralluogoInCantiere={
+              convertiSopralluogoInCantiere
+            }
+            generaPdfSopralluogo={generaPdfSopralluogo}
+            buttonPrimary={buttonPrimary}
+          />
           </div>
         </div>
       </div>
     )}
 
-
-
-  <PopupFotoSopralluogo
-  popupFotoSopralluogo={popupFotoSopralluogo}
-  setPopupFotoSopralluogo={setPopupFotoSopralluogo}
-  cameraSopralluogoAttiva={cameraSopralluogoAttiva}
-  setCameraSopralluogoAttiva={setCameraSopralluogoAttiva}
-  cameraSopralluogoFullscreen={cameraSopralluogoFullscreen}
-  setCameraSopralluogoFullscreen={setCameraSopralluogoFullscreen}
-  webcamSopralluogoRef={webcamSopralluogoRef}
-  scattaFotoSopralluogo={scattaFotoSopralluogo}
-  fotoSopralluogoTemp={fotoSopralluogoTemp}
-  setFotoSopralluogoTemp={setFotoSopralluogoTemp}
-  notaFotoSopralluogo={notaFotoSopralluogo}
-  setNotaFotoSopralluogo={setNotaFotoSopralluogo}
-  salvaFotoSopralluogo={salvaFotoSopralluogo}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
+    <PopupFotoSopralluogo
+      popupFotoSopralluogo={popupFotoSopralluogo}
+      setPopupFotoSopralluogo={setPopupFotoSopralluogo}
+      cameraSopralluogoAttiva={cameraSopralluogoAttiva}
+      setCameraSopralluogoAttiva={setCameraSopralluogoAttiva}
+      cameraSopralluogoFullscreen={cameraSopralluogoFullscreen}
+      setCameraSopralluogoFullscreen={setCameraSopralluogoFullscreen}
+      webcamSopralluogoRef={webcamSopralluogoRef}
+      scattaFotoSopralluogo={scattaFotoSopralluogo}
+      fotoSopralluogoTemp={fotoSopralluogoTemp}
+      setFotoSopralluogoTemp={setFotoSopralluogoTemp}
+      notaFotoSopralluogo={notaFotoSopralluogo}
+      setNotaFotoSopralluogo={setNotaFotoSopralluogo}
+      salvaFotoSopralluogo={salvaFotoSopralluogo}
+      buttonPrimary={buttonPrimary}
+      buttonSecondary={buttonSecondary}
+    />
   </div>
 )}
 {(
