@@ -49,6 +49,8 @@ import SopralluogoForm from './components/SopralluogoForm'
 import SopralluoghiList from './components/SopralluoghiList'
 import SopralluogoDettaglioHeader from './components/SopralluogoDettaglioHeader'
 import SopralluogoFirmaCliente from './components/SopralluogoFirmaCliente'
+import SopralluogoAppunti from './components/SopralluogoAppunti'
+import SopralluogoFotoGallery from './components/SopralluogoFotoGallery'
 import type {
   Cantiere,
   Rapportino,
@@ -14658,289 +14660,26 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
 
 
-          <button
-            type="button"
-            onClick={() =>
-              setMostraAppuntiSopralluogo(!mostraAppuntiSopralluogo)
-            }
-            style={{ ...buttonPrimary, marginTop: 16 }}
-          >
-            📝 Appunti / Disegni sopralluogo
-          </button>
+<SopralluogoAppunti
+  mostraAppuntiSopralluogo={mostraAppuntiSopralluogo}
+  setMostraAppuntiSopralluogo={setMostraAppuntiSopralluogo}
+  pagineAppunti={pagineAppunti}
+  setPagineAppunti={setPagineAppunti}
+  paginaFullscreen={paginaFullscreen}
+  setPaginaFullscreen={setPaginaFullscreen}
+  appuntiRefs={appuntiRefs}
+  mostraTavolozzaFirma={mostraTavolozzaFirma}
+  setMostraTavolozzaFirma={setMostraTavolozzaFirma}
+  coloreFirma={coloreFirma}
+  setColoreFirma={setColoreFirma}
+  spessoreFirma={spessoreFirma}
+  setSpessoreFirma={setSpessoreFirma}
+  sopralluogoAperto={sopralluogoAperto}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+/>
 
-          {mostraAppuntiSopralluogo && (
-            <div style={{ marginTop: 16 }}>
-              <h4>Appunti a penna</h4>
 
-              {pagineAppunti.map((pagina, index) => (
-                <div key={index} style={{ marginBottom: 20 }}>
-                  <div
-                    style={{
-                      width: paginaFullscreen === index ? '100vw' : 794,
-                      height: paginaFullscreen === index ? '100vh' : 1123,
-                      maxWidth: '100%',
-                      border: '1px solid #cbd5e1',
-                      background: '#fff',
-                      overflow: 'hidden',
-                      position:
-                        paginaFullscreen === index ? 'fixed' : 'relative',
-                      inset: paginaFullscreen === index ? 0 : 'auto',
-                      zIndex: paginaFullscreen === index ? 30000 : 'auto',
-                      padding: paginaFullscreen === index ? 10 : 0,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPaginaFullscreen(
-                          paginaFullscreen === index ? null : index
-                        )
-                      }
-                      style={{
-                        position: 'absolute',
-                        bottom: 16,
-                        right: 16,
-                        zIndex: 1000,
-                        width: 52,
-                        height: 52,
-                        borderRadius: '50%',
-                        border: '2px solid white',
-                        background: 'rgba(0,0,0,0.55)',
-                        color: '#fff',
-                        fontSize: 24,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {paginaFullscreen === index ? '↙️' : '↗️'}
-                    </button>
-
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: 12,
-                        right: 72,
-                        bottom: 12,
-                        zIndex: 999,
-                        display: 'flex',
-                        gap: 8,
-                        flexWrap: 'wrap',
-                        alignItems: 'center',
-                        background: 'rgba(255,255,255,0.95)',
-                        padding: 8,
-                        borderRadius: 10,
-                        border: '1px solid #cbd5e1',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const ref = appuntiRefs.current[index]
-                          const data = ref?.toData()
-
-                          if (data && data.length > 0) {
-                            data.pop()
-                            ref.fromData(data)
-                          }
-                        }}
-                        style={buttonSecondary}
-                      >
-                        ↩️ Annulla tratto
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => appuntiRefs.current[index]?.clear()}
-                        style={buttonSecondary}
-                      >
-                        🗑 Cancella pagina
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setMostraTavolozzaFirma(!mostraTavolozzaFirma)
-                        }
-                        style={buttonSecondary}
-                      >
-                        🎨 Penna
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPagineAppunti((p) => [...p, ''])}
-                        style={buttonPrimary}
-                      >
-                        ➕ Aggiungi pagina
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (pagineAppunti.length === 1) {
-                            alert('Deve rimanere almeno una pagina')
-                            return
-                          }
-
-                          setPagineAppunti((p) => {
-                            const nuovePagine = [...p]
-                            nuovePagine.pop()
-                            return nuovePagine.length > 0 ? nuovePagine : ['']
-                          })
-
-                          appuntiRefs.current.pop()
-                        }}
-                        style={buttonSecondary}
-                      >
-                        ➖ Togli ultima pagina
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const pagineSalvate = appuntiRefs.current
-                            .map(
-                              (ref) =>
-                                ref?.getCanvas()?.toDataURL('image/png') || ''
-                            )
-                            .filter(Boolean)
-
-                          setPagineAppunti(pagineSalvate)
-                          alert('Appunti salvati')
-                        }}
-                        style={buttonPrimary}
-                      >
-                        💾 Salva appunti
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const pdf = new jsPDF('p', 'mm', 'a4')
-
-                          appuntiRefs.current.forEach((ref, idx) => {
-                            const img =
-                              ref?.getCanvas()?.toDataURL('image/png')
-                            if (!img) return
-
-                            if (idx > 0) pdf.addPage()
-
-                            pdf.setFontSize(14)
-                            pdf.text(
-                              `Appunti sopralluogo - Pagina ${idx + 1}`,
-                              20,
-                              15
-                            )
-                            pdf.addImage(img, 'PNG', 10, 25, 190, 267)
-                          })
-
-                          pdf.save(
-                            `Appunti_${
-                              sopralluogoAperto?.cliente || 'sopralluogo'
-                            }.pdf`
-                          )
-                        }}
-                        style={{
-                          ...buttonPrimary,
-                          backgroundColor: '#2563eb',
-                        }}
-                      >
-                        🖨️ Stampa appunti
-                      </button>
-                    </div>
-
-                    {mostraTavolozzaFirma && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: 16,
-                          left: 16,
-                          zIndex: 1000,
-                          background: 'rgba(255,255,255,0.95)',
-                          padding: 10,
-                          borderRadius: 12,
-                          display: 'flex',
-                          gap: 10,
-                          flexWrap: 'wrap',
-                          alignItems: 'center',
-                        }}
-                      >
-                        {[
-                          { nome: 'Nero', colore: 'black' },
-                          { nome: 'Blu', colore: 'blue' },
-                          { nome: 'Rosso', colore: 'red' },
-                          { nome: '🧽 Gomma', colore: '#ffffff' },
-                        ].map((c) => (
-                          <button
-                            type="button"
-                            key={c.colore}
-                            onClick={() => {
-                              setColoreFirma(c.colore)
-
-                              if (c.colore === '#ffffff') {
-                                setSpessoreFirma(14)
-                              } else if (spessoreFirma > 6) {
-                                setSpessoreFirma(2)
-                              }
-                            }}
-                            style={{
-                              ...buttonSecondary,
-                              border:
-                                coloreFirma === c.colore
-                                  ? '2px solid #111827'
-                                  : '1px solid #cbd5e1',
-                            }}
-                          >
-                            {c.nome}
-                          </button>
-                        ))}
-
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                          }}
-                        >
-                          <span>Spessore</span>
-
-                          <input
-                            type="range"
-                            min="1"
-                            max="20"
-                            value={spessoreFirma}
-                            onChange={(e) =>
-                              setSpessoreFirma(Number(e.target.value))
-                            }
-                          />
-
-                          <strong>{spessoreFirma}</strong>
-                        </div>
-                      </div>
-                    )}
-
-                    <SignatureCanvas
-                      ref={(ref) => {
-                        appuntiRefs.current[index] = ref
-                      }}
-                      penColor={coloreFirma}
-                      minWidth={spessoreFirma}
-                      maxWidth={spessoreFirma}
-                      canvasProps={{
-                        width: 794,
-                        height: 1123,
-                        style: {
-                          width: '100%',
-                          height: '100%',
-                          background: '#fff',
-                          touchAction: 'none',
-                        },
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
 
           <div style={{ marginTop: 25 }}>
             <h3>📸 Galleria sopralluogo</h3>
@@ -15002,108 +14741,20 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
               </button>
             </div>
 
-            {fotoSopralluoghi.filter(
-              (f) => f.sopralluogo_id === sopralluogoAperto.id
-            ).length === 0 ? (
-              <p>Nessuna foto caricata</p>
-            ) : (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                  gap: 12,
-                }}
-              >
-                {fotoSopralluoghi
-                  .filter((f) => f.sopralluogo_id === sopralluogoAperto.id)
-                  .map((foto, i) => (
-                    <div
-                      key={foto.id || i}
-                      style={{
-                        border: '1px solid #ddd',
-                        borderRadius: 12,
-                        overflow: 'hidden',
-                        background: '#fff',
-                      }}
-                    >
-                      <img
-                        src={foto.immagine_base64}
-                        alt="Foto sopralluogo"
-                        onClick={() =>
-                          setFotoFullscreen({
-                            id: foto.id,
-                            cantiere: '',
-                            nota: foto.nota || '',
-                            immagine_base64: foto.immagine_base64,
-                            created_at: foto.created_at,
-                          })
-                        }
-                        style={{
-                          width: '100%',
-                          height: 180,
-                          objectFit: 'cover',
-                          cursor: 'pointer',
-                        }}
-                      />
 
-                      <div style={{ padding: 10 }}>
-                        <div
-                          style={{
-                            fontSize: 13,
-                            whiteSpace: 'pre-wrap',
-                          }}
-                        >
-                          {foto.nota || 'Nessuna nota'}
-                        </div>
 
-                        <label
-                          style={{
-                            display: 'flex',
-                            gap: 6,
-                            alignItems: 'center',
-                            marginTop: 10,
-                            fontSize: 13,
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={Boolean(foto.includi_preventivo)}
-                            onChange={async (e) => {
-                              const nuovoValore = e.target.checked
 
-                              setFotoSopralluoghi((prev) =>
-                                prev.map((f) =>
-                                  f.id === foto.id
-                                    ? {
-                                        ...f,
-                                        includi_preventivo: nuovoValore,
-                                      }
-                                    : f
-                                )
-                              )
+           <SopralluogoFotoGallery
+  sopralluogoAperto={sopralluogoAperto}
+  fotoSopralluoghi={fotoSopralluoghi}
+  setFotoSopralluoghi={setFotoSopralluoghi}
+  setFotoFullscreen={setFotoFullscreen}
+  supabase={supabase}
+/>
 
-                              const { error } = await supabase
-                                .from('foto_sopralluogo')
-                                .update({
-                                  includi_preventivo: nuovoValore,
-                                })
-                                .eq('id', foto.id)
 
-                              if (error) {
-                                alert(
-                                  'Errore aggiornamento foto: ' + error.message
-                                )
-                              }
-                            }}
-                          />
 
-                          Usa nel preventivo
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            )}
+
 
             {mostraGestioneFotoSopralluogo && (
               <div style={{ marginTop: 20 }}>
@@ -15156,6 +14807,9 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
                     gap: 12,
                   }}
                 >
+
+
+
                   {fotoSopralluoghi
                     .filter((f) => f.sopralluogo_id === sopralluogoAperto.id)
                     .map((foto, i) => (
