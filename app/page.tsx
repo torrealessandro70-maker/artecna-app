@@ -37,6 +37,8 @@ import OperaioCard from './components/OperaioCard'
 import OperaiList from './components/OperaiList'
 import RapportiniList from './components/RapportiniList'
 import PagamentiOperaiPanel from './components/PagamentiOperaiPanel'
+import FotoCantiereAnteprime from './components/FotoCantiereAnteprime'
+import FotoCantiereCategoriaModal from './components/FotoCantiereCategoriaModal'
 import type {
   Cantiere,
   Rapportino,
@@ -12509,139 +12511,23 @@ background: '#f8fafc',
     </div>
   )}
 
- {fotoDaCaricare.length > 0 && (
-  <div
-    style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-      gap: 10,
-      marginBottom: 15,
-    }}
-  >
-    {fotoDaCaricare.map((foto, i) => (
-      <div key={i} style={{ position: 'relative' }}>
-        <img
-          src={foto}
-          alt={`Anteprima ${i + 1}`}
-          style={{
-            width: '100%',
-            height: 120,
-            objectFit: 'contain',
-            background: '#f8fafc',
-            borderRadius: 10,
-            border: '1px solid #cbd5e1',
-          }}
-        />
+ <FotoCantiereAnteprime
+  fotoDaCaricare={fotoDaCaricare}
+  setFotoDaCaricare={setFotoDaCaricare}
+/>
 
-        <button
-          type="button"
-          onClick={() =>
-            setFotoDaCaricare((lista) =>
-              lista.filter((_, index) => index !== i)
-            )
-          }
-          style={{
-            position: 'absolute',
-            top: 5,
-            right: 5,
-            background: '#dc2626',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 6,
-            padding: '3px 6px',
-            cursor: 'pointer',
-            fontWeight: 700,
-          }}
-        >
-          ×
-        </button>
-      </div>
-    ))}
-  </div>
-)}
-
-{popupCategoriaFotoCantiere && (
-  <div
-    style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(15,23,42,0.55)',
-      zIndex: 30000,
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-    }}
-  >
-    <div
-      style={{
-        background: '#fff',
-        borderRadius: 14,
-        width: '100%',
-        maxWidth: 420,
-        padding: 20,
-        boxShadow: '0 20px 45px rgba(0,0,0,0.25)',
-      }}
-    >
-      <h3 style={{ marginTop: 0 }}>Classifica foto cantiere</h3>
-
-      <p style={{ color: '#475569' }}>
-        Stai per salvare {fotoDaCaricare.length} foto.
-        Scegli dove inserirle.
-      </p>
-
-      <select
-        value={categoriaFotoDaSalvare}
-        onChange={(e) => setCategoriaFotoDaSalvare(e.target.value)}
-        style={{
-          width: '100%',
-          padding: 10,
-          borderRadius: 8,
-          border: '1px solid #cbd5e1',
-          marginTop: 10,
-        }}
-      >
-        <option value="prima">📷 Prima</option>
-        <option value="durante">🔨 Durante</option>
-        <option value="dopo">✅ Dopo</option>
-        <option value="problema">⚠ Problema</option>
-      </select>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: 10,
-          marginTop: 20,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setPopupCategoriaFotoCantiere(false)}
-          style={buttonSecondary}
-        >
-          Annulla
-        </button>
-
-
-
-
-        <button
-          type="button"
-          onClick={async () => {
-            setCategoriaFoto(categoriaFotoDaSalvare)
-            await salvaFotoCantiere()
-            setPopupCategoriaFotoCantiere(false)
-          }}
-          style={buttonPrimary}
-        >
-          Conferma e salva
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-</div>
+       
+<FotoCantiereCategoriaModal
+  popupCategoriaFotoCantiere={popupCategoriaFotoCantiere}
+  fotoDaCaricare={fotoDaCaricare}
+  categoriaFotoDaSalvare={categoriaFotoDaSalvare}
+  setCategoriaFotoDaSalvare={setCategoriaFotoDaSalvare}
+  setPopupCategoriaFotoCantiere={setPopupCategoriaFotoCantiere}
+  setCategoriaFoto={setCategoriaFoto}
+  salvaFotoCantiere={salvaFotoCantiere}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+/></div>
           </div>
         )
       })()
