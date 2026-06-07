@@ -41,6 +41,7 @@ import FotoCantiereAnteprime from './components/FotoCantiereAnteprime'
 import FotoCantiereCategoriaModal from './components/FotoCantiereCategoriaModal'
 import FotoCantiereGallery from './components/FotoCantiereGallery'
 import FotoCantiereToolbar from './components/FotoCantiereToolbar'
+import FotoCantiereCamera from './components/FotoCantiereCamera'
 import type {
   Cantiere,
   Rapportino,
@@ -12049,79 +12050,13 @@ onChange={(e) => {
 
 
 
-{cameraFotoCantiereAttiva && (
-  <div
-    style={{
-      marginTop: cameraFotoCantiereFullscreen ? 0 : 15,
-      position: cameraFotoCantiereFullscreen ? 'fixed' : 'relative',
-      inset: cameraFotoCantiereFullscreen ? 0 : 'auto',
-      zIndex: cameraFotoCantiereFullscreen ? 20000 : 'auto',
-      background: cameraFotoCantiereFullscreen ? '#000' : 'transparent',
-      padding: cameraFotoCantiereFullscreen ? 10 : 0,
-    }}
-  >
-    <button
-      type="button"
-      onClick={() =>
-        setCameraFotoCantiereFullscreen((v) => !v)
-      }
-      style={{
-        position: 'absolute',
-        bottom: 16,
-        right: 16,
-        zIndex: 40,
-        width: 52,
-        height: 52,
-        borderRadius: '50%',
-        border: '2px solid white',
-        background: 'rgba(0,0,0,0.55)',
-        color: '#fff',
-        fontSize: 24,
-        cursor: 'pointer',
-      }}
-    >
-      {cameraFotoCantiereFullscreen ? '↙️' : '↗️'}
-    </button>
-
-   <Webcam
-  ref={webcamFotoCantiereRef}
-  audio={false}
-  screenshotFormat="image/jpeg"
-  screenshotQuality={0.9}
-  videoConstraints={{
-    facingMode: 'environment',
-  }}
-  style={{
-    width: '100%',
-    height: cameraFotoCantiereFullscreen ? '100vh' : 'auto',
-    objectFit: cameraFotoCantiereFullscreen ? 'contain' : 'cover',
-    borderRadius: cameraFotoCantiereFullscreen ? 0 : 12,
-  }}
+<FotoCantiereCamera
+  cameraFotoCantiereAttiva={cameraFotoCantiereAttiva}
+  cameraFotoCantiereFullscreen={cameraFotoCantiereFullscreen}
+  setCameraFotoCantiereFullscreen={setCameraFotoCantiereFullscreen}
+  webcamFotoCantiereRef={webcamFotoCantiereRef}
+  scattaFotoCantiere={scattaFotoCantiere}
 />
-
-    <button
-      type="button"
-      onClick={scattaFotoCantiere}
-      style={{
-        position: 'absolute',
-        bottom: 16,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: 80,
-        height: 80,
-        borderRadius: '50%',
-        border: '4px solid white',
-        background: '#2563eb',
-        color: '#fff',
-        fontSize: 28,
-        cursor: 'pointer',
-        zIndex: 30,
-      }}
-    >
-      📸
-    </button>
-  </div>
-)}
 
 
   <textarea
