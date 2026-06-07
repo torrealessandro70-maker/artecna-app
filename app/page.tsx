@@ -47,6 +47,8 @@ import FotoCantiereFiltri from './components/FotoCantiereFiltri'
 import FotoCantiereForm from './components/FotoCantiereForm'
 import SopralluogoForm from './components/SopralluogoForm'
 import SopralluoghiList from './components/SopralluoghiList'
+import SopralluogoDettaglioHeader from './components/SopralluogoDettaglioHeader'
+import SopralluogoFirmaCliente from './components/SopralluogoFirmaCliente'
 import type {
   Cantiere,
   Rapportino,
@@ -14615,246 +14617,46 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
 
 
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 10,
-              flexWrap: 'wrap',
-              marginBottom: 20,
-            }}
-          >
-            <h2>📍 {sopralluogoAperto.cliente}</h2>
+         <SopralluogoDettaglioHeader
+  sopralluogoAperto={sopralluogoAperto}
+  setSopralluogoAperto={setSopralluogoAperto}
+  setSopralluogoModificaId={setSopralluogoModificaId}
+  setClienteSopralluogo={setClienteSopralluogo}
+  setTelefonoSopralluogo={setTelefonoSopralluogo}
+  setIndirizzoSopralluogo={setIndirizzoSopralluogo}
+  setDataSopralluogo={setDataSopralluogo}
+  setOraSopralluogo={setOraSopralluogo}
+  setTipoLavoroSopralluogo={setTipoLavoroSopralluogo}
+  setNoteSopralluogo={setNoteSopralluogo}
+  setPromemoriaSopralluogo={setPromemoriaSopralluogo}
+  setGeolocalizzazioneSopralluogo={setGeolocalizzazioneSopralluogo}
+  coloreStatoSopralluogo={coloreStatoSopralluogo}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+/>
 
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => setSopralluogoAperto(null)}
-                style={buttonSecondary}
-              >
-                Chiudi
-              </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setSopralluogoModificaId(sopralluogoAperto.id || null)
-                  setClienteSopralluogo(sopralluogoAperto.cliente || '')
-                  setTelefonoSopralluogo(sopralluogoAperto.telefono || '')
-                  setIndirizzoSopralluogo(sopralluogoAperto.indirizzo || '')
-                  setDataSopralluogo(
-                    sopralluogoAperto.data_sopralluogo ||
-                      new Date().toISOString().slice(0, 10)
-                  )
-                  setOraSopralluogo(sopralluogoAperto.ora_appuntamento || '')
-                  setTipoLavoroSopralluogo(sopralluogoAperto.tipo_lavoro || '')
-                  setNoteSopralluogo(sopralluogoAperto.note || '')
-                  setPromemoriaSopralluogo(sopralluogoAperto.promemoria || '')
-                  setGeolocalizzazioneSopralluogo(
-                    sopralluogoAperto.geolocalizzazione || ''
-                  )
-                  setSopralluogoAperto(null)
-                }}
-                style={{
-                  ...buttonPrimary,
-                  backgroundColor: '#f59e0b',
-                }}
-              >
-                ✏️ Modifica sopralluogo
-              </button>
-            </div>
-          </div>
 
-          <div style={{ display: 'grid', gap: 8 }}>
-            <div>
-              <strong>Telefono:</strong> {sopralluogoAperto.telefono || '-'}
-            </div>
 
-            <div>
-              <strong>Indirizzo:</strong> {sopralluogoAperto.indirizzo || '-'}
-            </div>
+       <SopralluogoFirmaCliente
+  sopralluogoAperto={sopralluogoAperto}
+  firmaRef={firmaRef}
+  mostraFirmaCliente={mostraFirmaCliente}
+  setMostraFirmaCliente={setMostraFirmaCliente}
+  altezzaFirma={altezzaFirma}
+  setAltezzaFirma={setAltezzaFirma}
+  coloreFirma={coloreFirma}
+  spessoreFirma={spessoreFirma}
+  setFirmaCliente={setFirmaCliente}
+  supabase={supabase}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+/>
 
-            <div>
-              <strong>Data sopralluogo:</strong>{' '}
-              {sopralluogoAperto.data_sopralluogo || '-'}
-            </div>
 
-            <div>
-              <strong>Tipo lavoro:</strong>{' '}
-              {sopralluogoAperto.tipo_lavoro || '-'}
-            </div>
 
-            <div>
-              <strong>Stato:</strong>
-              <span
-                style={{
-                  background: coloreStatoSopralluogo(sopralluogoAperto.stato),
-                  color: '#fff',
-                  padding: '4px 10px',
-                  borderRadius: 999,
-                  fontSize: 12,
-                  marginLeft: 8,
-                }}
-              >
-                {sopralluogoAperto.stato || '-'}
-              </span>
-            </div>
 
-            <div>
-              <strong>Note:</strong>
-              <div
-                style={{
-                  marginTop: 6,
-                  padding: 10,
-                  background: '#f8fafc',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 8,
-                  whiteSpace: 'pre-wrap',
-                }}
-              >
-                {sopralluogoAperto.note || 'Nessuna nota inserita'}
-              </div>
-            </div>
-          </div>
 
-          <div style={{ marginTop: 20 }}>
-            <button
-              type="button"
-              onClick={() => setMostraFirmaCliente(!mostraFirmaCliente)}
-              style={{
-                ...buttonPrimary,
-                backgroundColor: '#0f172a',
-              }}
-            >
-              {mostraFirmaCliente ? 'Nascondi firma cliente' : '✍️ Firma cliente'}
-            </button>
-
-            {mostraFirmaCliente && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 14,
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 12,
-                  background: '#f8fafc',
-                }}
-              >
-                <h4 style={{ marginTop: 0 }}>Firma cliente</h4>
-
-                <div
-                  style={{
-                    resize: 'both',
-                    overflow: 'hidden',
-                    minWidth: 320,
-                    minHeight: 220,
-                    width: 700,
-                    height: altezzaFirma,
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 8,
-                    background: '#fff',
-                  }}
-                >
-                  <SignatureCanvas
-                    ref={firmaRef}
-                    penColor={coloreFirma}
-                    minWidth={spessoreFirma}
-                    maxWidth={spessoreFirma}
-                    canvasProps={{
-                      width: 700,
-                      height: altezzaFirma,
-                      style: {
-                        width: '100%',
-                        height: '100%',
-                        background: '#fff',
-                        touchAction: 'none',
-                      },
-                    }}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 10,
-                    flexWrap: 'wrap',
-                    marginTop: 10,
-                    alignItems: 'center',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const firma =
-                        firmaRef.current?.getCanvas().toDataURL('image/png') ||
-                        ''
-
-                      setFirmaCliente(firma)
-
-                      if (sopralluogoAperto?.id) {
-                        const { error } = await supabase
-                          .from('sopralluoghi')
-                          .update({ firma_cliente: firma })
-                          .eq('id', sopralluogoAperto.id)
-
-                        if (error) {
-                          alert('Errore salvataggio firma: ' + error.message)
-                          return
-                        }
-                      }
-
-                      alert('Firma salvata')
-                    }}
-                    style={buttonPrimary}
-                  >
-                    💾 Salva firma
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const data = firmaRef.current?.toData()
-
-                      if (data && data.length > 0) {
-                        data.pop()
-                        firmaRef.current?.fromData(data)
-                      }
-                    }}
-                    style={buttonSecondary}
-                  >
-                    ↩️ Annulla ultimo tratto
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      firmaRef.current?.clear()
-                      setFirmaCliente('')
-                    }}
-                    style={buttonSecondary}
-                  >
-                    🗑 Cancella firma
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setAltezzaFirma((h) => Math.max(180, h - 40))}
-                    style={buttonSecondary}
-                  >
-                    ➖ Riduci firma
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setAltezzaFirma((h) => h + 40)}
-                    style={buttonSecondary}
-                  >
-                    ➕ Allarga firma
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
 
           <button
             type="button"
