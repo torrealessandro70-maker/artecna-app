@@ -40,6 +40,7 @@ import PagamentiOperaiPanel from './components/PagamentiOperaiPanel'
 import FotoCantiereAnteprime from './components/FotoCantiereAnteprime'
 import FotoCantiereCategoriaModal from './components/FotoCantiereCategoriaModal'
 import FotoCantiereGallery from './components/FotoCantiereGallery'
+import FotoCantiereToolbar from './components/FotoCantiereToolbar'
 import type {
   Cantiere,
   Rapportino,
@@ -10725,6 +10726,8 @@ textarea:not(.impostazioni-input) {
         }}
       />
 
+
+
       <div
         style={{
           display: 'flex',
@@ -10794,6 +10797,9 @@ textarea:not(.impostazioni-input) {
           📄 Esporta PDF foto
         </button>
       </div>
+
+
+
 
       {cameraRapportinoAttiva && (
         <div
@@ -12021,68 +12027,27 @@ onChange={(e) => {
     background: '#fff',
   }}
 >
-  <h3 style={{ marginTop: 0 }}>
-    📸 Foto cantiere
-  </h3>
 
-  <div
-    style={{
-      display: 'flex',
-      gap: 10,
-      flexWrap: 'wrap',
-      marginBottom: 12,
-      alignItems: 'center',
-    }}
-  >
-  <input
-  type="file"
-  accept="image/*"
-  multiple
-  onChange={caricaFotoDaInput}
+
+
+
+ <FotoCantiereToolbar
+  caricaFotoDaInput={caricaFotoDaInput}
+  cameraFotoCantiereAttiva={cameraFotoCantiereAttiva}
+  setCameraFotoCantiereAttiva={setCameraFotoCantiereAttiva}
+  rilevaPosizioneFoto={rilevaPosizioneFoto}
+  fotoDaCaricare={fotoDaCaricare}
+  categoriaFoto={categoriaFoto}
+  setCategoriaFotoDaSalvare={setCategoriaFotoDaSalvare}
+  setPopupCategoriaFotoCantiere={setPopupCategoriaFotoCantiere}
+  esportaPdfFotoCantiere={esportaPdfFotoCantiere}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
 />
 
-<button
-  type="button"
-  onClick={() =>
-    setCameraFotoCantiereAttiva(!cameraFotoCantiereAttiva)
-  }
-  style={buttonSecondary}
->
-  {cameraFotoCantiereAttiva
-    ? 'Chiudi fotocamera'
-    : '📷 Apri fotocamera'}
-</button>
 
-    <button
-      onClick={rilevaPosizioneFoto}
-      style={buttonSecondary}
-    >
-      📍 Geolocalizza
-    </button>
 
-   <button
-  type="button"
-  onClick={() => {
-    if (fotoDaCaricare.length === 0) {
-      alert('Carica o scatta almeno una foto')
-      return
-    }
 
-    setCategoriaFotoDaSalvare(categoriaFoto || 'durante')
-    setPopupCategoriaFotoCantiere(true)
-  }}
-  style={buttonPrimary}
->
-  💾 Salva foto
-</button>
-
-<button
-  onClick={esportaPdfFotoCantiere}
-  style={buttonSecondary}
->
-  📄 Esporta PDF foto
-</button>
-  </div>
 
 {cameraFotoCantiereAttiva && (
   <div
