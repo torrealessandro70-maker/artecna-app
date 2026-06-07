@@ -42,6 +42,8 @@ import FotoCantiereCategoriaModal from './components/FotoCantiereCategoriaModal'
 import FotoCantiereGallery from './components/FotoCantiereGallery'
 import FotoCantiereToolbar from './components/FotoCantiereToolbar'
 import FotoCantiereCamera from './components/FotoCantiereCamera'
+import type { Dispatch, RefObject, SetStateAction } from 'react'
+import FotoCantiereFiltri from './components/FotoCantiereFiltri'
 import type {
   Cantiere,
   Rapportino,
@@ -12135,97 +12137,20 @@ onChange={(e) => {
   </strong>
 </div>
 
-<div
-  style={{
-    display: 'flex',
-    gap: 8,
-    flexWrap: 'wrap',
-    marginTop: 10,
-    marginBottom: 15,
-  }}
->
- {[
-  'tutte',
-  'prima',
-  'durante',
-  'dopo',
-  'problema',
-  'rapportino',
-  'sal',
-  'extra',
-].map((tipo) => (
-    <button
-      key={tipo}
-      onClick={() => setFiltroFotoCantiere(tipo)}
-      style={{
-        padding: '6px 12px',
-        borderRadius: 8,
-        border: 'none',
-        cursor: 'pointer',
-        background:
-          filtroFotoCantiere === tipo ? '#2563eb' : '#e2e8f0',
-        color:
-          filtroFotoCantiere === tipo ? '#fff' : '#111',
-      }}
-    >
-      {tipo.toUpperCase()}
-    </button>
-  ))}
-</div>
-
-<div
-  style={{
-    display: 'flex',
-    gap: 8,
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 15,
-    padding: 10,
-    borderRadius: 10,
-    background: '#f1f5f9',
-  }}
->
-  <strong>
-    Selezionate: {fotoCantiereSelezionate.length}
-  </strong>
-
-  <select
-    value={categoriaFotoMultipla}
-    onChange={(e) =>
-      setCategoriaFotoMultipla(e.target.value)
-    }
-    style={{
-      padding: 8,
-      borderRadius: 8,
-      border: '1px solid #cbd5e1',
-    }}
-  >
-    <option value="prima">📷 Prima</option>
-    <option value="durante">🔨 Durante</option>
-    <option value="dopo">✅ Dopo</option>
-    <option value="problema">⚠️ Problema</option>
-    <option value="rapportino">📝 Rapportino</option>
-    <option value="sal">📊 SAL</option>
-    <option value="extra">📁 Extra</option>
-  </select>
-
-  <button
-    onClick={aggiornaCategoriaFotoSelezionate}
-    style={buttonPrimary}
-  >
-    Applica categoria
-  </button>
-
-  <button
-    onClick={() => setFotoCantiereSelezionate([])}
-    style={buttonSecondary}
-  >
-    Deseleziona
-  </button>
-</div>
 
 
+
+<FotoCantiereFiltri
+  filtroFotoCantiere={filtroFotoCantiere}
+  setFiltroFotoCantiere={setFiltroFotoCantiere}
+  fotoCantiereSelezionate={fotoCantiereSelezionate}
+  setFotoCantiereSelezionate={setFotoCantiereSelezionate}
+  categoriaFotoMultipla={categoriaFotoMultipla}
+  setCategoriaFotoMultipla={setCategoriaFotoMultipla}
+  aggiornaCategoriaFotoSelezionate={aggiornaCategoriaFotoSelezionate}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+/>
 
 
 
