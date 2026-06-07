@@ -44,6 +44,7 @@ import FotoCantiereToolbar from './components/FotoCantiereToolbar'
 import FotoCantiereCamera from './components/FotoCantiereCamera'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import FotoCantiereFiltri from './components/FotoCantiereFiltri'
+import FotoCantiereForm from './components/FotoCantiereForm'
 import type {
   Cantiere,
   Rapportino,
@@ -12061,67 +12062,16 @@ onChange={(e) => {
 />
 
 
-  <textarea
-    value={notaFotoCantiere}
-    onChange={(e) =>
-      setNotaFotoCantiere(e.target.value)
-    }
-    placeholder="Descrivi il lavoro eseguito..."
-    style={{
-      width: '100%',
-      minHeight: 70,
-      padding: 10,
-      borderRadius: 8,
-      border: '1px solid #cbd5e1',
-      marginBottom: 12,
-    }}
-  />
- <select
-  value={categoriaFoto}
-  onChange={(e) =>
-    setCategoriaFoto(e.target.value)
-  }
-  style={{
-    padding: 10,
-    borderRadius: 8,
-    border: '1px solid #cbd5e1',
-    marginBottom: 12,
-    marginTop: 10,
-  }}
->
-  <option value="prima">📷 Prima</option>
-  <option value="durante">🔨 Durante</option>
-  <option value="dopo">✅ Dopo</option>
-  <option value="problema">⚠ Problema</option>
-</select>
-
-
-<textarea
-  value={note}
-  onChange={(e) => setNote(e.target.value)}
-  placeholder="Descrivi il lavoro eseguito..."
-  style={{
-    width: '100%',
-    minHeight: 120,
-  }}
+ <FotoCantiereForm
+  notaFotoCantiere={notaFotoCantiere}
+  setNotaFotoCantiere={setNotaFotoCantiere}
+  categoriaFoto={categoriaFoto}
+  setCategoriaFoto={setCategoriaFoto}
+  note={note}
+  setNote={setNote}
+  avviaDettatura={avviaDettatura}
+  buttonSecondary={buttonSecondary}
 />
-
-<button
-  type="button"
- onClick={() =>
-  avviaDettatura((testo) =>
-    setNotaFotoCantiere((prev) =>
-      prev ? prev + ' ' + testo : testo
-    )
-  )
-}
-  style={{
-    ...buttonSecondary,
-    marginTop: 8,
-  }}
->
-  🎤 Avvia dettatura
-</button>
 
 
 
