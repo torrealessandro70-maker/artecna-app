@@ -45,6 +45,7 @@ import FotoCantiereCamera from './components/FotoCantiereCamera'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import FotoCantiereFiltri from './components/FotoCantiereFiltri'
 import FotoCantiereForm from './components/FotoCantiereForm'
+import SopralluogoForm from './components/SopralluogoForm'
 import type {
   Cantiere,
   Rapportino,
@@ -14536,86 +14537,35 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   <div style={cardStyle}>
     <h2>📍 Sopralluoghi</h2>
 
-    <div style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
-      <input
-        placeholder="Cliente"
-        value={clienteSopralluogo}
-        onChange={(e) => setClienteSopralluogo(e.target.value)}
-      />
+ <SopralluogoForm
+  clienteSopralluogo={clienteSopralluogo}
+  setClienteSopralluogo={setClienteSopralluogo}
+  telefonoSopralluogo={telefonoSopralluogo}
+  setTelefonoSopralluogo={setTelefonoSopralluogo}
+  indirizzoSopralluogo={indirizzoSopralluogo}
+  setIndirizzoSopralluogo={setIndirizzoSopralluogo}
+  geolocalizzazioneSopralluogo={geolocalizzazioneSopralluogo}
+  setGeolocalizzazioneSopralluogo={setGeolocalizzazioneSopralluogo}
+  rilevaGeolocalizzazioneSopralluogo={rilevaGeolocalizzazioneSopralluogo}
+  dataSopralluogo={dataSopralluogo}
+  setDataSopralluogo={setDataSopralluogo}
+  oraSopralluogo={oraSopralluogo}
+  setOraSopralluogo={setOraSopralluogo}
+  promemoriaSopralluogo={promemoriaSopralluogo}
+  setPromemoriaSopralluogo={setPromemoriaSopralluogo}
+  tipoLavoroSopralluogo={tipoLavoroSopralluogo}
+  setTipoLavoroSopralluogo={setTipoLavoroSopralluogo}
+  noteSopralluogo={noteSopralluogo}
+  setNoteSopralluogo={setNoteSopralluogo}
+  salvaSopralluogo={salvaSopralluogo}
+  inputStyle={inputStyle}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+/>
 
-      <input
-        placeholder="Telefono"
-        value={telefonoSopralluogo}
-        onChange={(e) => setTelefonoSopralluogo(e.target.value)}
-      />
 
-      <input
-        placeholder="Indirizzo"
-        value={indirizzoSopralluogo}
-        onChange={(e) => setIndirizzoSopralluogo(e.target.value)}
-      />
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <input
-          placeholder="Geolocalizzazione"
-          value={geolocalizzazioneSopralluogo}
-          onChange={(e) => setGeolocalizzazioneSopralluogo(e.target.value)}
-          style={{ flex: 1 }}
-        />
 
-        <button
-          type="button"
-          onClick={rilevaGeolocalizzazioneSopralluogo}
-          style={buttonSecondary}
-        >
-          📍 Usa posizione attuale
-        </button>
-      </div>
-
-      <input
-        type="date"
-        value={dataSopralluogo}
-        onChange={(e) => setDataSopralluogo(e.target.value)}
-      />
-
-      <div>
-        <label>Ora appuntamento</label>
-        <input
-          type="time"
-          value={oraSopralluogo}
-          onChange={(e) => setOraSopralluogo(e.target.value)}
-          style={inputStyle}
-        />
-      </div>
-
-      <div>
-        <label>Promemoria</label>
-        <input
-          type="text"
-          placeholder="Es: chiamare cliente prima"
-          value={promemoriaSopralluogo}
-          onChange={(e) => setPromemoriaSopralluogo(e.target.value)}
-          style={inputStyle}
-        />
-      </div>
-
-      <input
-        placeholder="Tipo lavoro"
-        value={tipoLavoroSopralluogo}
-        onChange={(e) => setTipoLavoroSopralluogo(e.target.value)}
-      />
-
-      <textarea
-        placeholder="Note sopralluogo"
-        value={noteSopralluogo}
-        onChange={(e) => setNoteSopralluogo(e.target.value)}
-        style={{ minHeight: 100 }}
-      />
-
-      <button onClick={salvaSopralluogo} style={buttonPrimary}>
-        💾 Salva sopralluogo
-      </button>
-    </div>
 
    <div
   style={{
@@ -15952,6 +15902,11 @@ setUltimoSopralluogo(s)
   </div>
 )}
 {(
+
+
+
+
+
   pagineAperte.includes('rapportini') ||
   (!modalitaMulti && sezioneAttiva === 'rapportini')
 ) && (
