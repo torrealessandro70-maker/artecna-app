@@ -56,6 +56,7 @@ import SopralluogoAzioniPreventivo from './components/SopralluogoAzioniPreventiv
 import SopralluogoFotoPreventivo from './components/SopralluogoFotoPreventivo'
 import SopralluogoToolbar from './components/SopralluogoToolbar'
 import SopralluogoGestioneFoto from './components/SopralluogoGestioneFoto'
+import SopralluogoDettaglio from './components/SopralluogoDettaglio'
 import type {
   Cantiere,
   Rapportino,
@@ -14596,35 +14597,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
 
 
-    {sopralluogoAperto && (
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(15,23,42,0.55)',
-          zIndex: 9999,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 20,
-        }}
-      >
-        <div
-          style={{
-            background: '#fff',
-            borderRadius: 14,
-            width: '100%',
-            maxWidth: 1000,
-            maxHeight: '90vh',
-            overflow: 'auto',
-            padding: 20,
-          }}
-        >
-
-
-
-
-         <SopralluogoDettaglioHeader
+<SopralluogoDettaglio
   sopralluogoAperto={sopralluogoAperto}
   setSopralluogoAperto={setSopralluogoAperto}
   setSopralluogoModificaId={setSopralluogoModificaId}
@@ -14638,15 +14611,6 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   setPromemoriaSopralluogo={setPromemoriaSopralluogo}
   setGeolocalizzazioneSopralluogo={setGeolocalizzazioneSopralluogo}
   coloreStatoSopralluogo={coloreStatoSopralluogo}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
-
-
-
-
-       <SopralluogoFirmaCliente
-  sopralluogoAperto={sopralluogoAperto}
   firmaRef={firmaRef}
   mostraFirmaCliente={mostraFirmaCliente}
   setMostraFirmaCliente={setMostraFirmaCliente}
@@ -14655,17 +14619,6 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   coloreFirma={coloreFirma}
   spessoreFirma={spessoreFirma}
   setFirmaCliente={setFirmaCliente}
-  supabase={supabase}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
-
-
-
-
-
-
-<SopralluogoAppunti
   mostraAppuntiSopralluogo={mostraAppuntiSopralluogo}
   setMostraAppuntiSopralluogo={setMostraAppuntiSopralluogo}
   pagineAppunti={pagineAppunti}
@@ -14675,234 +14628,30 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   appuntiRefs={appuntiRefs}
   mostraTavolozzaFirma={mostraTavolozzaFirma}
   setMostraTavolozzaFirma={setMostraTavolozzaFirma}
-  coloreFirma={coloreFirma}
   setColoreFirma={setColoreFirma}
-  spessoreFirma={spessoreFirma}
   setSpessoreFirma={setSpessoreFirma}
-  sopralluogoAperto={sopralluogoAperto}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
-
-
-
-          <div style={{ marginTop: 25 }}>
-            <h3>📸 Galleria sopralluogo</h3>
-
-           <SopralluogoToolbar
   mostraGestioneFotoSopralluogo={mostraGestioneFotoSopralluogo}
   setMostraGestioneFotoSopralluogo={setMostraGestioneFotoSopralluogo}
   mostraFotoPreventivoSopralluogo={mostraFotoPreventivoSopralluogo}
   setMostraFotoPreventivoSopralluogo={setMostraFotoPreventivoSopralluogo}
   setPopupFotoSopralluogo={setPopupFotoSopralluogo}
-  buttonPrimary={buttonPrimary}
-/>
-
-
-
-
-           <SopralluogoFotoGallery
-  sopralluogoAperto={sopralluogoAperto}
   fotoSopralluoghi={fotoSopralluoghi}
   setFotoSopralluoghi={setFotoSopralluoghi}
+  fotoSopralluogoSelezionate={fotoSopralluogoSelezionate}
+  setFotoSopralluogoSelezionate={setFotoSopralluogoSelezionate}
   setFotoFullscreen={setFotoFullscreen}
+  caricaFotoSopralluoghi={caricaFotoSopralluoghi}
+  preventivoAiGenerato={preventivoAiGenerato}
+  generaPreventivoAiDaSopralluogo={generaPreventivoAiDaSopralluogo}
+  generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo}
+  apriPreventivoAiGeneratoInModifica={apriPreventivoAiGeneratoInModifica}
+  convertiSopralluogoInCantiere={convertiSopralluogoInCantiere}
+  generaPdfSopralluogo={generaPdfSopralluogo}
   supabase={supabase}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
 />
-
-
-
-
-
-            {mostraGestioneFotoSopralluogo && (
-              <div style={{ marginTop: 20 }}>
-                <h4>Gestione foto sopralluogo</h4>
-
-                {fotoSopralluogoSelezionate.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (
-                        !confirm(
-                          `Eliminare ${fotoSopralluogoSelezionate.length} foto?`
-                        )
-                      ) {
-                        return
-                      }
-
-                      const { error } = await supabase
-                        .from('foto_sopralluogo')
-                        .delete()
-                        .in('id', fotoSopralluogoSelezionate)
-
-                      if (error) {
-                        alert('Errore eliminazione foto: ' + error.message)
-                        return
-                      }
-
-                      setFotoSopralluogoSelezionate([])
-                      await caricaFotoSopralluoghi()
-                    }}
-                    style={{
-                      marginBottom: 12,
-                      background: '#dc2626',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '8px 12px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    🗑 Elimina foto selezionate
-                  </button>
-                )}
-
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns:
-                      'repeat(auto-fill, minmax(140px, 1fr))',
-                    gap: 12,
-                  }}
-                >
-
-
-
-                  {fotoSopralluoghi
-                    .filter((f) => f.sopralluogo_id === sopralluogoAperto.id)
-                    .map((foto, i) => (
-                      <div
-                        key={foto.id || i}
-                        style={{
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 10,
-                          padding: 8,
-                          background: '#fff',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={
-                            !!foto.id &&
-                            fotoSopralluogoSelezionate.includes(foto.id)
-                          }
-                          onChange={(e) => {
-                            if (!foto.id) return
-
-                            setFotoSopralluogoSelezionate((prev) =>
-                              e.target.checked
-                                ? [...prev, foto.id!]
-                                : prev.filter((id) => id !== foto.id)
-                            )
-                          }}
-                          style={{
-                            marginBottom: 6,
-                            transform: 'scale(1.2)',
-                          }}
-                        />
-
-                        <img
-                          src={foto.immagine_base64}
-                          alt="Foto sopralluogo"
-                          onClick={() =>
-                            setFotoFullscreen({
-                              id: foto.id,
-                              cantiere: '',
-                              nota: foto.nota || '',
-                              immagine_base64: foto.immagine_base64,
-                              created_at: foto.created_at,
-                            })
-                          }
-                          style={{
-                            width: '100%',
-                            height: 130,
-                            objectFit: 'cover',
-                            borderRadius: 8,
-                            cursor: 'pointer',
-                          }}
-                        />
-
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const conferma = confirm('Eliminare questa foto?')
-
-                            if (!conferma) return
-
-                            const { error } = await supabase
-                              .from('foto_sopralluogo')
-                              .delete()
-                              .eq('id', foto.id)
-
-                            if (error) {
-                              alert('Errore eliminazione foto: ' + error.message)
-                              return
-                            }
-
-                            setFotoSopralluogoSelezionate((prev) =>
-                              prev.filter((id) => id !== foto.id)
-                            )
-
-                            await caricaFotoSopralluoghi()
-
-                            alert('Foto eliminata')
-                          }}
-                          style={{
-                            marginTop: 8,
-                            width: '100%',
-                            background: '#dc2626',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: 6,
-                            padding: '6px 8px',
-                            cursor: 'pointer',
-                            fontSize: 12,
-                          }}
-                        >
-                          🗑 Elimina
-                        </button>
-
-                        {foto.nota && (
-                          <div
-                            style={{
-                              marginTop: 6,
-                              fontSize: 12,
-                              color: '#374151',
-                            }}
-                          >
-                            {foto.nota}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-
-
-<SopralluogoFotoPreventivo
-  mostraFotoPreventivoSopralluogo={mostraFotoPreventivoSopralluogo}
-  sopralluogoAperto={sopralluogoAperto}
-  fotoSopralluoghi={fotoSopralluoghi}
-/>
-
-          <SopralluogoAzioniPreventivo
-            sopralluogoAperto={sopralluogoAperto}
-            preventivoAiGenerato={preventivoAiGenerato}
-            generaPreventivoAiDaSopralluogo={generaPreventivoAiDaSopralluogo}
-            generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo}
-            apriPreventivoAiGeneratoInModifica={
-              apriPreventivoAiGeneratoInModifica
-            }
-            convertiSopralluogoInCantiere={
-              convertiSopralluogoInCantiere
-            }
-            generaPdfSopralluogo={generaPdfSopralluogo}
-            buttonPrimary={buttonPrimary}
-          />
-          </div>
-        </div>
-      </div>
-    )}
+         
 
     <PopupFotoSopralluogo
       popupFotoSopralluogo={popupFotoSopralluogo}
