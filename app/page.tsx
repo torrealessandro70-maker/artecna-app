@@ -55,6 +55,7 @@ import PopupFotoSopralluogo from './components/PopupFotoSopralluogo'
 import SopralluogoAzioniPreventivo from './components/SopralluogoAzioniPreventivo'
 import SopralluogoFotoPreventivo from './components/SopralluogoFotoPreventivo'
 import SopralluogoToolbar from './components/SopralluogoToolbar'
+import SopralluogoGestioneFoto from './components/SopralluogoGestioneFoto'
 import type {
   Cantiere,
   Rapportino,

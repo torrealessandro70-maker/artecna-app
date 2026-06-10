@@ -1,3 +1,5 @@
+
+
 'use client'
 
 import type { Dispatch, SetStateAction } from 'react'
@@ -146,6 +148,7 @@ export default function SopralluogoGestioneFoto({
               type="button"
               onClick={async () => {
                 const conferma = confirm('Eliminare questa foto?')
+
                 if (!conferma) return
 
                 const { error } = await supabase
