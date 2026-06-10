@@ -57,6 +57,7 @@ import SopralluogoFotoPreventivo from './components/SopralluogoFotoPreventivo'
 import SopralluogoToolbar from './components/SopralluogoToolbar'
 import SopralluogoGestioneFoto from './components/SopralluogoGestioneFoto'
 import SopralluogoDettaglio from './components/SopralluogoDettaglio'
+import RegistroTimbraturePanel from './components/RegistroTimbraturePanel'
 import type {
   Cantiere,
   Rapportino,
@@ -17564,337 +17565,42 @@ const valoreB =
     )}
 
 {registroTab === 'timbrature' && (
-  <div style={excelBox}>
-    <div style={excelToolbar}>
-      <strong>⏱️ Registro timbrature</strong>
-    </div>
-
-<div
-  style={{
-    marginTop: 12,
-    marginBottom: 15,
-    padding: 14,
-    border: '1px solid #cbd5e1',
-    borderRadius: 10,
-    background: '#f8fafc',
-  }}
->
-  <h3 style={{ marginTop: 0 }}>🔎 Filtri timbrature</h3>
-
-  <div
-    style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-      gap: 10,
-    }}
-  >
-    <label>
-      <strong>Dal</strong>
-      <input
-        type="date"
-        value={filtroTimbratureDal}
-        onChange={(e) => setFiltroTimbratureDal(e.target.value)}
-        style={{ ...inputStyle, width: '100%', marginTop: 6 }}
-      />
-    </label>
-
-    <label>
-      <strong>Al</strong>
-      <input
-        type="date"
-        value={filtroTimbratureAl}
-        onChange={(e) => setFiltroTimbratureAl(e.target.value)}
-        style={{ ...inputStyle, width: '100%', marginTop: 6 }}
-      />
-    </label>
-
-    <label>
-      <strong>Cantiere</strong>
-      <select
-        value={filtroTimbratureCantiere}
-        onChange={(e) => setFiltroTimbratureCantiere(e.target.value)}
-        style={{ ...inputStyle, width: '100%', marginTop: 6 }}
-      >
-        <option value="">Tutti i cantieri</option>
-        {cantieri.map((c, i) => (
-          <option key={c.id || i} value={c.nome}>
-            {c.nome}
-          </option>
-        ))}
-      </select>
-    </label>
-
-    <label>
-      <strong>Operaio</strong>
-      <select
-        value={filtroTimbratureOperaio}
-        onChange={(e) => setFiltroTimbratureOperaio(e.target.value)}
-        style={{ ...inputStyle, width: '100%', marginTop: 6 }}
-      >
-        <option value="">Tutti gli operai</option>
-        {operaiAnagrafica.map((o, i) => (
-          <option key={o.id || i} value={o.nome}>
-            {o.nome}
-          </option>
-        ))}
-      </select>
-    </label>
-  </div>
-</div>
-
-
-<div
-  style={{
-    marginTop: 15,
-    padding: 12,
-    border: '1px solid #d1d5db',
-    borderRadius: 10,
-    background: '#fff',
-  }}
->
-  <strong>📊 Riepilogo filtro</strong>
-
-  <div style={{ marginTop: 8 }}>
-    Timbrature: {timbratureFiltrateRegistro.length}
-    <br />
-    Operai coinvolti:{' '}
-    {
-      [
-        ...new Set(
-          timbratureFiltrateRegistro
-            .map((t) => t.operaio_nome)
-            .filter(Boolean)
-        ),
-      ].length
-    }
-  </div>
-
-  <div
-    style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-      gap: 10,
-      marginTop: 12,
-    }}
-  >
-    {[
-      ...new Set(
-        timbratureFiltrateRegistro
-          .map((t) => t.operaio_nome)
-          .filter(Boolean)
-      ),
-    ].map((nome) => {
-      const righeOperaio = timbratureFiltrateRegistro.filter(
-        (t) => t.operaio_nome === nome
-      )
-
-      const oreTotaliOperaio = righeOperaio.reduce(
-        (tot, t) => tot + calcolaOre(t),
-        0
-      )
-
-      const costoTotaleOperaio = righeOperaio.reduce(
-        (tot, t) => tot + calcolaCostoTimbratura(t),
-        0
-      )
-
-      return (
-        <div
-          key={nome}
-          style={{
-            padding: 10,
-            border: '1px solid #e5e7eb',
-            borderRadius: 8,
-            background: '#f8fafc',
-          }}
-        >
-          <strong>👷 {nome}</strong>
-          <br />
-          Ore: {oreTotaliOperaio.toFixed(2)} h
-          <br />
-          Costo: {formatMoney(costoTotaleOperaio)}
-          <br />
-          Presenze: {righeOperaio.length}
-        </div>
-      )
-    })}
-  </div>
-</div>
-
-
-
-
-    <div style={{ overflowX: 'auto' }}>
-      <table style={excelTable}>
-        <thead>
-          <tr>
-            <th style={{ ...excelTh, cursor: 'pointer' }} onClick={() => ordinaRegistro('data', setOrdinaTimbratureCampo, setOrdinaTimbratureDirezione, ordinaTimbratureCampo)}>Data ↕</th>
-            <th style={{ ...excelTh, cursor: 'pointer' }} onClick={() => ordinaRegistro('operaio_nome', setOrdinaTimbratureCampo, setOrdinaTimbratureDirezione, ordinaTimbratureCampo)}>Operaio ↕</th>
-            <th style={{ ...excelTh, cursor: 'pointer' }} onClick={() => ordinaRegistro('cantiere', setOrdinaTimbratureCampo, setOrdinaTimbratureDirezione, ordinaTimbratureCampo)}>Cantiere ↕</th>
-            <th style={{ ...excelTh, cursor: 'pointer' }} onClick={() => ordinaRegistro('ora_entrata', setOrdinaTimbratureCampo, setOrdinaTimbratureDirezione, ordinaTimbratureCampo)}>Entrata ↕</th>
-            <th style={{ ...excelTh, cursor: 'pointer' }} onClick={() => ordinaRegistro('ora_uscita', setOrdinaTimbratureCampo, setOrdinaTimbratureDirezione, ordinaTimbratureCampo)}>Uscita ↕</th>
-            <th style={excelTh}>Fascia oraria</th>
-            <th style={excelTh}>Azioni</th>
-          </tr>
-        </thead>
-
-  <tbody>
-  {[...timbratureFiltrateRegistro]
-
-
-            .sort((a, b) => {
-              const valoreA = (a as any)[ordinaTimbratureCampo] || ''
-              const valoreB = (b as any)[ordinaTimbratureCampo] || ''
-
-              return ordinaTimbratureDirezione === 'asc'
-                ? String(valoreA).localeCompare(String(valoreB))
-                : String(valoreB).localeCompare(String(valoreA))
-            })
-            .map((t, i) => (
-              <tr
-                key={t.id || i}
-                style={{
-                  backgroundColor:
-                    timbraturaRegistroEdit === String(t.id) ? '#eff6ff' : '#fff',
-                }}
-              >
-                <td style={excelTd}>
-                  {timbraturaRegistroEdit === String(t.id) ? (
-                    <input
-                      type="date"
-                      value={timbraturaRegistroData}
-                      onChange={(e) => setTimbraturaRegistroData(e.target.value)}
-                      style={excelInput}
-                    />
-                  ) : (
-                    t.data || '-'
-                  )}
-                </td>
-
-                <td style={excelTd}>
-                  {timbraturaRegistroEdit === String(t.id) ? (
-                    <select
-                      value={timbraturaRegistroOperaio}
-                      onChange={(e) => setTimbraturaRegistroOperaio(e.target.value)}
-                      style={excelInput}
-                    >
-                      <option value="">Seleziona operaio</option>
-                      {operaiAnagrafica
-                        .filter((o) => o.stato !== 'inattivo')
-                        .map((o) => (
-                          <option key={o.id || o.nome} value={o.nome}>
-                            {o.nome}
-                          </option>
-                        ))}
-                    </select>
-                  ) : (
-                    t.operaio_nome || '-'
-                  )}
-                </td>
-
-                <td style={excelTd}>
-                  {timbraturaRegistroEdit === String(t.id) ? (
-                    <select
-                      value={timbraturaRegistroCantiere}
-                      onChange={(e) => setTimbraturaRegistroCantiere(e.target.value)}
-                      style={excelInput}
-                    >
-                      <option value="">Seleziona cantiere</option>
-                      {cantieri
-                        .filter((c) => !c.lavori_conclusi)
-                        .map((c) => (
-                          <option key={c.id || c.nome} value={c.nome}>
-                            {c.nome}
-                          </option>
-                        ))}
-                    </select>
-                  ) : (
-                    t.cantiere || '-'
-                  )}
-                </td>
-
-                <td style={excelTd}>
-                  {timbraturaRegistroEdit === String(t.id) ? (
-                    <input
-                      type="time"
-                      value={timbraturaRegistroEntrata}
-                      onChange={(e) => setTimbraturaRegistroEntrata(e.target.value)}
-                      style={excelInput}
-                    />
-                  ) : (
-                    t.ora_entrata || '-'
-                  )}
-                </td>
-
-                <td style={excelTd}>
-                  {timbraturaRegistroEdit === String(t.id) ? (
-                    <input
-                      type="time"
-                      value={timbraturaRegistroUscita}
-                      onChange={(e) => setTimbraturaRegistroUscita(e.target.value)}
-                      style={excelInput}
-                    />
-                  ) : (
-                    t.ora_uscita || '-'
-                  )}
-                </td>
-
-                <td style={excelTd}>
-                  {timbraturaRegistroEdit === String(t.id)
-                    ? calcolaOreTimbratura(
-                        timbraturaRegistroEntrata,
-                        timbraturaRegistroUscita
-                      )
-                    : calcolaOreTimbratura(t.ora_entrata, t.ora_uscita)}
-                </td>
-
-                <td style={excelTd}>
-                  {timbraturaRegistroEdit === String(t.id) ? (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        onClick={() => salvaModificaRegistroTimbratura(t.id)}
-                        style={buttonPrimary}
-                      >
-                        💾
-                      </button>
-
-                      <button
-                        onClick={annullaModificaRegistroTimbratura}
-                        style={buttonSecondary}
-                      >
-                        ❌
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        onClick={() => preparaModificaRegistroTimbratura(t)}
-                        style={buttonSecondary}
-                      >
-                        ✏️
-                      </button>
-
-                      <button
-                        onClick={() => eliminaTimbratura(t.id)}
-                        style={{
-                          ...buttonSecondary,
-                          backgroundColor: '#dc2626',
-                          color: '#fff',
-                        }}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
+  <RegistroTimbraturePanel
+    timbratureFiltrateRegistro={timbratureFiltrateRegistro}
+    calcolaOre={calcolaOre}
+    calcolaCostoTimbratura={calcolaCostoTimbratura}
+    formatMoney={formatMoney}
+    excelTable={excelTable}
+    excelTh={excelTh}
+    excelTd={excelTd}
+    excelInput={excelInput}
+    ordinaRegistro={ordinaRegistro}
+    setOrdinaTimbratureCampo={setOrdinaTimbratureCampo}
+    setOrdinaTimbratureDirezione={setOrdinaTimbratureDirezione}
+    ordinaTimbratureCampo={ordinaTimbratureCampo}
+    ordinaTimbratureDirezione={ordinaTimbratureDirezione}
+    timbraturaRegistroEdit={timbraturaRegistroEdit}
+    timbraturaRegistroData={timbraturaRegistroData}
+    setTimbraturaRegistroData={setTimbraturaRegistroData}
+    timbraturaRegistroOperaio={timbraturaRegistroOperaio}
+    setTimbraturaRegistroOperaio={setTimbraturaRegistroOperaio}
+    timbraturaRegistroCantiere={timbraturaRegistroCantiere}
+    setTimbraturaRegistroCantiere={setTimbraturaRegistroCantiere}
+    timbraturaRegistroEntrata={timbraturaRegistroEntrata}
+    setTimbraturaRegistroEntrata={setTimbraturaRegistroEntrata}
+    timbraturaRegistroUscita={timbraturaRegistroUscita}
+    setTimbraturaRegistroUscita={setTimbraturaRegistroUscita}
+    operaiAnagrafica={operaiAnagrafica}
+    cantieri={cantieri}
+    calcolaOreTimbratura={calcolaOreTimbratura}
+    salvaModificaRegistroTimbratura={salvaModificaRegistroTimbratura}
+    annullaModificaRegistroTimbratura={annullaModificaRegistroTimbratura}
+    preparaModificaRegistroTimbratura={preparaModificaRegistroTimbratura}
+    eliminaTimbratura={eliminaTimbratura}
+    buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
+  />
 )}
-
     {registroTab === 'pagamenti-operai' && (
   <div style={excelBox}>
     <div
