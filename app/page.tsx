@@ -17124,38 +17124,41 @@ setVociPreventivoAiOriginali(originali)
 
 
 
-<RegistroRapportiniPanel
-  rapportini={rapportini}
-  registroCerca={registroCerca}
-  ordinaRegistro={ordinaRegistro}
-  ordinaRapportiniCampo={ordinaRapportiniCampo}
-  ordinaRapportiniDirezione={ordinaRapportiniDirezione}
-  setOrdinaRapportiniCampo={setOrdinaRapportiniCampo}
-  setOrdinaRapportiniDirezione={setOrdinaRapportiniDirezione}
-  rapportinoRegistroEdit={rapportinoRegistroEdit}
-  rapportinoRegistroData={rapportinoRegistroData}
-  setRapportinoRegistroData={setRapportinoRegistroData}
-  rapportinoRegistroCantiere={rapportinoRegistroCantiere}
-  setRapportinoRegistroCantiere={setRapportinoRegistroCantiere}
-  rapportinoRegistroOperaio={rapportinoRegistroOperaio}
-  setRapportinoRegistroOperaio={setRapportinoRegistroOperaio}
-  rapportinoRegistroOre={rapportinoRegistroOre}
-  setRapportinoRegistroOre={setRapportinoRegistroOre}
-  rapportinoRegistroDescrizione={rapportinoRegistroDescrizione}
-  setRapportinoRegistroDescrizione={setRapportinoRegistroDescrizione}
-  salvaModificaRegistroRapportino={salvaModificaRegistroRapportino}
-  annullaModificaRegistroRapportino={annullaModificaRegistroRapportino}
-  preparaModificaRegistroRapportino={preparaModificaRegistroRapportino}
-  eliminaRapportino={eliminaRapportino}
-  excelBox={excelBox}
-  excelToolbar={excelToolbar}
-  excelTable={excelTable}
-  excelTh={excelTh}
-  excelTd={excelTd}
-  excelInput={excelInput}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
+{registroTab === 'rapportini' && (
+  <RegistroRapportiniPanel
+    rapportini={rapportini}
+    registroCerca={registroCerca}
+    ordinaRegistro={ordinaRegistro}
+    ordinaRapportiniCampo={ordinaRapportiniCampo}
+    ordinaRapportiniDirezione={ordinaRapportiniDirezione}
+    setOrdinaRapportiniCampo={setOrdinaRapportiniCampo}
+    setOrdinaRapportiniDirezione={setOrdinaRapportiniDirezione}
+    rapportinoRegistroEdit={rapportinoRegistroEdit}
+    rapportinoRegistroData={rapportinoRegistroData}
+    setRapportinoRegistroData={setRapportinoRegistroData}
+    rapportinoRegistroCantiere={rapportinoRegistroCantiere}
+    setRapportinoRegistroCantiere={setRapportinoRegistroCantiere}
+    rapportinoRegistroOperaio={rapportinoRegistroOperaio}
+    setRapportinoRegistroOperaio={setRapportinoRegistroOperaio}
+    rapportinoRegistroOre={rapportinoRegistroOre}
+    setRapportinoRegistroOre={setRapportinoRegistroOre}
+    rapportinoRegistroDescrizione={rapportinoRegistroDescrizione}
+    setRapportinoRegistroDescrizione={setRapportinoRegistroDescrizione}
+    salvaModificaRegistroRapportino={salvaModificaRegistroRapportino}
+    annullaModificaRegistroRapportino={annullaModificaRegistroRapportino}
+    preparaModificaRegistroRapportino={preparaModificaRegistroRapportino}
+    eliminaRapportino={eliminaRapportino}
+    excelBox={excelBox}
+    excelToolbar={excelToolbar}
+    excelTable={excelTable}
+    excelTh={excelTh}
+    excelTd={excelTd}
+    excelInput={excelInput}
+    buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
+  />
+)}
+
 {registroTab === 'timbrature' && (
   <RegistroTimbraturePanel
     timbratureFiltrateRegistro={timbratureFiltrateRegistro}
