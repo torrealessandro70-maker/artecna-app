@@ -60,6 +60,7 @@ import SopralluogoDettaglio from './components/SopralluogoDettaglio'
 import RegistroTimbraturePanel from './components/RegistroTimbraturePanel'
 import RegistroPagamentiOperaiPanel from './components/RegistroPagamentiOperaiPanel'
 import RegistroRapportiniPanel from './components/RegistroRapportiniPanel'
+import RegistroCantieriPanel from './components/RegistroCantieriPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -16252,203 +16253,41 @@ const economia = calcoloEconomiaCantiere(nomeCantiere)
   </button>
 </div>
 
-    {registroTab === 'cantieri' && (
-      <div style={excelBox}>
-        <div style={excelToolbar}>
-          <strong>🏗️ Registro cantieri</strong>
-        </div>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table style={excelTable}>
-            <thead>
-              <tr>
-  <th
-    style={{ ...excelTh, cursor: 'pointer' }}
-    onClick={() =>
-      ordinaRegistro(
-        'nome',
-        setOrdinaOperaiCampo,
-        setOrdinaOperaiDirezione,
-        ordinaOperaiCampo
-      )
-    }
-  >
-    Nome ↕
-  </th>
-
-  <th
-    style={{ ...excelTh, cursor: 'pointer' }}
-    onClick={() =>
-      ordinaRegistro(
-        'telefono',
-        setOrdinaOperaiCampo,
-        setOrdinaOperaiDirezione,
-        ordinaOperaiCampo
-      )
-    }
-  >
-    Telefono ↕
-  </th>
-
-  <th
-    style={{ ...excelTh, cursor: 'pointer' }}
-    onClick={() =>
-      ordinaRegistro(
-        'qualifica',
-        setOrdinaOperaiCampo,
-        setOrdinaOperaiDirezione,
-        ordinaOperaiCampo
-      )
-    }
-  >
-    Qualifica ↕
-  </th>
-
-  <th
-    style={{ ...excelTh, cursor: 'pointer' }}
-    onClick={() =>
-      ordinaRegistro(
-        'costo_orario',
-        setOrdinaOperaiCampo,
-        setOrdinaOperaiDirezione,
-        ordinaOperaiCampo
-      )
-    }
-  >
-    Costo orario ↕
-  </th>
-
-  <th style={excelTh}>Stato</th>
-
-  <th style={excelTh}>Azioni</th>
-</tr>
-            </thead>
-
-            <tbody>
-              {cantieri
-                .filter((c) =>
-                  String(c.nome || '')
-                    .toLowerCase()
-                    .includes(registroCerca.toLowerCase())
-                )
-                .map((c, i) => (
-                  <tr
-  key={c.id || i}
-  style={{
-    backgroundColor:
-      cantiereRegistroEdit === c.id ? '#eff6ff' : '#fff',
-  }}
->
-                    <td style={excelTd}>
-                      {cantiereRegistroEdit === c.id ? (
-                        <input
-                          value={cantiereRegistroNome}
-                          onChange={(e) => setCantiereRegistroNome(e.target.value)}
-                          style={excelInput}
-                        />
-                      ) : (
-                        c.nome || '-'
-                      )}
-                    </td>
-
-                    <td style={excelTd}>
-                      {cantiereRegistroEdit === c.id ? (
-                        <input
-                          value={cantiereRegistroPreventivo}
-                          onChange={(e) => setCantiereRegistroPreventivo(e.target.value)}
-                          style={excelInput}
-                        />
-                      ) : (
-                        formatMoney(Number(c.preventivo || 0))
-                      )}
-                    </td>
-
-                    <td style={excelTd}>
-                      {cantiereRegistroEdit === c.id ? (
-                        <input
-                          type="date"
-                          value={cantiereRegistroInizio}
-                          onChange={(e) => setCantiereRegistroInizio(e.target.value)}
-                          style={excelInput}
-                        />
-                      ) : (
-                        c.data_inizio_lavori || '-'
-                      )}
-                    </td>
-
-                    <td style={excelTd}>
-                      {cantiereRegistroEdit === c.id ? (
-                        <input
-                          type="date"
-                          value={cantiereRegistroFine}
-                          onChange={(e) => setCantiereRegistroFine(e.target.value)}
-                          style={excelInput}
-                        />
-                      ) : (
-                        c.data_fine_lavori || '-'
-                      )}
-                    </td>
-
-                    <td style={excelTd}>
-                      {cantiereRegistroEdit === c.id ? (
-                        <input
-                          type="checkbox"
-                          checked={cantiereRegistroConcluso}
-                          onChange={(e) => setCantiereRegistroConcluso(e.target.checked)}
-                        />
-                      ) : c.lavori_conclusi ? (
-                        'Sì'
-                      ) : (
-                        'No'
-                      )}
-                    </td>
-
-                    <td style={excelTd}>
-                      {cantiereRegistroEdit === c.id ? (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => salvaModificaRegistroCantiere(c.id)}
-                            style={buttonPrimary}
-                          >
-                            💾
-                          </button>
-
-                          <button
-                            onClick={annullaModificaRegistroCantiere}
-                            style={buttonSecondary}
-                          >
-                            ❌
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => preparaModificaRegistroCantiere(c)}
-                            style={buttonSecondary}
-                          >
-                            ✏️
-                          </button>
-
-                          <button
-                           onClick={() => eliminaCantiere(String(c.nome || ''))}
-                            style={{
-                              ...buttonSecondary,
-                              backgroundColor: '#dc2626',
-                              color: '#fff',
-                            }}
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    )}
+   {registroTab === 'cantieri' && (
+  <RegistroCantieriPanel
+    cantieri={cantieri}
+    registroCerca={registroCerca}
+    formatMoney={formatMoney}
+    ordinaRegistro={ordinaRegistro}
+    ordinaCantieriCampo={ordinaCantieriCampo}
+    ordinaCantieriDirezione={ordinaCantieriDirezione}
+    setOrdinaCantieriCampo={setOrdinaCantieriCampo}
+    setOrdinaCantieriDirezione={setOrdinaCantieriDirezione}
+    cantiereRegistroEdit={cantiereRegistroEdit}
+    cantiereRegistroNome={cantiereRegistroNome}
+    setCantiereRegistroNome={setCantiereRegistroNome}
+    cantiereRegistroPreventivo={cantiereRegistroPreventivo}
+    setCantiereRegistroPreventivo={setCantiereRegistroPreventivo}
+    cantiereRegistroInizio={cantiereRegistroInizio}
+    setCantiereRegistroInizio={setCantiereRegistroInizio}
+    cantiereRegistroFine={cantiereRegistroFine}
+    setCantiereRegistroFine={setCantiereRegistroFine}
+    cantiereRegistroConcluso={cantiereRegistroConcluso}
+    setCantiereRegistroConcluso={setCantiereRegistroConcluso}
+    salvaModificaRegistroCantiere={salvaModificaRegistroCantiere}
+    annullaModificaRegistroCantiere={annullaModificaRegistroCantiere}
+    preparaModificaRegistroCantiere={preparaModificaRegistroCantiere}
+    eliminaCantiere={eliminaCantiere}
+    excelBox={excelBox}
+    excelToolbar={excelToolbar}
+    excelTable={excelTable}
+    excelTh={excelTh}
+    excelTd={excelTd}
+    excelInput={excelInput}
+    buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
+  />
+)}
 
     {registroTab === 'preventivi' && (
       <div style={excelBox}>
