@@ -58,7 +58,7 @@ import SopralluogoToolbar from './components/SopralluogoToolbar'
 import SopralluogoGestioneFoto from './components/SopralluogoGestioneFoto'
 import SopralluogoDettaglio from './components/SopralluogoDettaglio'
 import RegistroTimbraturePanel from './components/RegistroTimbraturePanel'
-
+import RegistroPagamentiOperaiPanel from './components/RegistroPagamentiOperaiPanel'
 import RegistroRapportiniPanel from './components/RegistroRapportiniPanel'
 import type {
   Cantiere,
@@ -17196,260 +17196,48 @@ setVociPreventivoAiOriginali(originali)
     buttonSecondary={buttonSecondary}
   />
 )}
-    {registroTab === 'pagamenti-operai' && (
-  <div style={excelBox}>
-    <div
-      style={{
-        ...excelToolbar,
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        gap: 4,
-      }}
-    >
-      <strong>💳 Registro pagamenti operai</strong>
 
-      <span
-        style={{
-          fontSize: 12,
-          color: '#64748b',
-          fontWeight: 500,
-        }}
-      >
-        Gestione pagamenti e movimenti operai
-      </span>
-    </div>
-
-    <div style={{ overflowX: 'auto' }}>
-          <table style={excelTable}>
-           <thead>
-  <tr>
-    <th
-      style={{ ...excelTh, cursor: 'pointer' }}
-      onClick={() =>
-        ordinaRegistro(
-          'operaio_nome',
-          setOrdinaPagamentiCampo,
-          setOrdinaPagamentiDirezione,
-          ordinaPagamentiCampo
-        )
-      }
-    >
-      Operaio ↕
-    </th>
-
-    <th
-      style={{ ...excelTh, cursor: 'pointer' }}
-      onClick={() =>
-        ordinaRegistro(
-          'importo',
-          setOrdinaPagamentiCampo,
-          setOrdinaPagamentiDirezione,
-          ordinaPagamentiCampo
-        )
-      }
-    >
-      Importo ↕
-    </th>
-
-    <th
-      style={{ ...excelTh, cursor: 'pointer' }}
-      onClick={() =>
-        ordinaRegistro(
-          'data_pagamento',
-          setOrdinaPagamentiCampo,
-          setOrdinaPagamentiDirezione,
-          ordinaPagamentiCampo
-        )
-      }
-    >
-      Data ↕
-    </th>
-
-    <th
-      style={{ ...excelTh, cursor: 'pointer' }}
-      onClick={() =>
-        ordinaRegistro(
-          'metodo',
-          setOrdinaPagamentiCampo,
-          setOrdinaPagamentiDirezione,
-          ordinaPagamentiCampo
-        )
-      }
-    >
-      Metodo ↕
-    </th>
-
-    <th
-      style={{ ...excelTh, cursor: 'pointer' }}
-      onClick={() =>
-        ordinaRegistro(
-          'nota',
-          setOrdinaPagamentiCampo,
-          setOrdinaPagamentiDirezione,
-          ordinaPagamentiCampo
-        )
-      }
-    >
-      Nota ↕
-    </th>
-
-    <th style={excelTh}>Azioni</th>
-  </tr>
-</thead>
-
-            <tbody>
-             {[...pagamentiOperai]
-  .filter((p) =>
-                  String(p.operaio_nome || '')
-                    .toLowerCase()
-                    .includes(registroCerca.toLowerCase())
-                )
-.sort((a, b) => {
- const valoreA =
-  (a as any)[ordinaPagamentiCampo] || ''
-
-const valoreB =
-  (b as any)[ordinaPagamentiCampo] || ''
-  if (typeof valoreA === 'number') {
-    return ordinaPagamentiDirezione === 'asc'
-      ? valoreA - valoreB
-      : valoreB - valoreA
-  }
-
-  return ordinaPagamentiDirezione === 'asc'
-    ? String(valoreA).localeCompare(String(valoreB))
-    : String(valoreB).localeCompare(String(valoreA))
-})
-                .map((p, i) => (
-                 <tr
-  key={p.id || i}
-  style={{
-    backgroundColor:
-      pagamentoOperaioRegistroEdit === String(p.id) ? '#eff6ff' : '#fff',
-  }}
->
-                   <td style={excelTd}>
-  {pagamentoOperaioRegistroEdit === String(p.id) ? (
-    <input
-      value={pagamentoOperaioRegistroNome}
-      onChange={(e) =>
-        setPagamentoOperaioRegistroNome(e.target.value)
-      }
-      style={excelInput}
-    />
-  ) : (
-    p.operaio_nome || '-'
-  )}
-</td>
-
-<td style={excelTd}>
-  {pagamentoOperaioRegistroEdit === String(p.id) ? (
-    <input
-      value={pagamentoOperaioRegistroImporto}
-      onChange={(e) =>
-        setPagamentoOperaioRegistroImporto(e.target.value)
-      }
-      style={excelInput}
-    />
-  ) : (
-    formatMoney(Number(p.importo || 0))
-  )}
-</td>
-
-<td style={excelTd}>
-  {pagamentoOperaioRegistroEdit === String(p.id) ? (
-    <input
-      type="date"
-      value={pagamentoOperaioRegistroData}
-      onChange={(e) =>
-        setPagamentoOperaioRegistroData(e.target.value)
-      }
-      style={excelInput}
-    />
-  ) : (
-    p.data_pagamento || '-'
-  )}
-</td>
-
-<td style={excelTd}>
-  {pagamentoOperaioRegistroEdit === String(p.id) ? (
-    <input
-      value={pagamentoOperaioRegistroMetodo}
-      onChange={(e) =>
-        setPagamentoOperaioRegistroMetodo(e.target.value)
-      }
-      style={excelInput}
-    />
-  ) : (
-    p.metodo || '-'
-  )}
-</td>
-
-<td style={excelTd}>
-  {pagamentoOperaioRegistroEdit === String(p.id) ? (
-    <input
-      value={pagamentoOperaioRegistroNota}
-      onChange={(e) =>
-        setPagamentoOperaioRegistroNota(e.target.value)
-      }
-      style={excelInput}
-    />
-  ) : (
-    p.nota || '-'
-  )}
-</td>
-
-
-                   <td style={excelTd}>
-  {pagamentoOperaioRegistroEdit === String(p.id) ? (
-    <div style={{ display: 'flex', gap: 6 }}>
-      <button
-        onClick={() =>
-          salvaModificaRegistroPagamentoOperaio(p.id)
-        }
-        style={buttonPrimary}
-      >
-        💾
-      </button>
-
-      <button
-        onClick={annullaModificaRegistroPagamentoOperaio}
-        style={buttonSecondary}
-      >
-        ❌
-      </button>
-    </div>
-  ) : (
-    <div style={{ display: 'flex', gap: 6 }}>
-      <button
-        onClick={() =>
-          preparaModificaRegistroPagamentoOperaio(p)
-        }
-        style={buttonSecondary}
-      >
-        ✏️
-      </button>
-
-      <button
-        onClick={() => eliminaPagamentoOperaio(p.id)}
-        style={{
-          ...buttonSecondary,
-          backgroundColor: '#dc2626',
-          color: '#fff',
-        }}
-      >
-        🗑️
-      </button>
-    </div>
-  )}
-</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    )}
+  {registroTab === 'pagamenti-operai' && (
+  <RegistroPagamentiOperaiPanel
+    pagamentiOperai={pagamentiOperai}
+    registroCerca={registroCerca}
+    formatMoney={formatMoney}
+    ordinaRegistro={ordinaRegistro}
+    ordinaPagamentiCampo={ordinaPagamentiCampo}
+    ordinaPagamentiDirezione={ordinaPagamentiDirezione}
+    setOrdinaPagamentiCampo={setOrdinaPagamentiCampo}
+    setOrdinaPagamentiDirezione={setOrdinaPagamentiDirezione}
+    pagamentoOperaioRegistroEdit={pagamentoOperaioRegistroEdit}
+    pagamentoOperaioRegistroNome={pagamentoOperaioRegistroNome}
+    setPagamentoOperaioRegistroNome={setPagamentoOperaioRegistroNome}
+    pagamentoOperaioRegistroImporto={pagamentoOperaioRegistroImporto}
+    setPagamentoOperaioRegistroImporto={setPagamentoOperaioRegistroImporto}
+    pagamentoOperaioRegistroData={pagamentoOperaioRegistroData}
+    setPagamentoOperaioRegistroData={setPagamentoOperaioRegistroData}
+    pagamentoOperaioRegistroMetodo={pagamentoOperaioRegistroMetodo}
+    setPagamentoOperaioRegistroMetodo={setPagamentoOperaioRegistroMetodo}
+    pagamentoOperaioRegistroNota={pagamentoOperaioRegistroNota}
+    setPagamentoOperaioRegistroNota={setPagamentoOperaioRegistroNota}
+    salvaModificaRegistroPagamentoOperaio={
+      salvaModificaRegistroPagamentoOperaio
+    }
+    annullaModificaRegistroPagamentoOperaio={
+      annullaModificaRegistroPagamentoOperaio
+    }
+    preparaModificaRegistroPagamentoOperaio={
+      preparaModificaRegistroPagamentoOperaio
+    }
+    eliminaPagamentoOperaio={eliminaPagamentoOperaio}
+    excelBox={excelBox}
+    excelToolbar={excelToolbar}
+    excelTable={excelTable}
+    excelTh={excelTh}
+    excelTd={excelTd}
+    excelInput={excelInput}
+    buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
+  />
+)}
 
 {registroTab === 'fatture-fornitori' && (
   <section style={cardStyle}>
