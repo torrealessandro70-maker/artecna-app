@@ -72,6 +72,7 @@ import PopupOperaiRapportino from './components/PopupOperaiRapportino'
 import PopupFotoRapportinoAperte from './components/PopupFotoRapportinoAperte'
 import PopupIncassoNonFatturato from './components/PopupIncassoNonFatturato'
 import ValutazioneFondiPanel from './components/ValutazioneFondiPanel'
+import TabellaSpeseImpresaPanel from './components/TabellaSpeseImpresaPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -14845,132 +14846,22 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 >
   {tabellaSpeseImpresaAperta ? '🔽 Nascondi dettaglio spese' : '📋 Mostra dettaglio spese'}
 </button>
-
-{tabellaSpeseImpresaAperta && (
-  <>
-    <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-      <select
-        value={filtroSpeseImpresa}
-        onChange={(e) => setFiltroSpeseImpresa(e.target.value)}
-        style={inputStyle}
-      >
-        <option value="">Tutte le categorie</option>
-        <option value="attrezzo_ditta">Attrezzi / beni ditta</option>
-        <option value="magazzino">Magazzino</option>
-        <option value="spesa_generale">Spese generali</option>
-<option value="storno_escluso">
-  🚫 Storni esclusi
-</option>
-
-      </select>
-
-      <button onClick={() => setFiltroSpeseImpresa('')} style={buttonSecondary}>
-        Azzera filtro
-      </button>
-    </div>
-
-    <div
-      style={{
-        maxHeight: 360,
-        overflow: 'auto',
-        border: '1px solid #cbd5e1',
-        borderRadius: 10,
-        background: '#fff',
-        marginBottom: 20,
-      }}
-    >
-      <table
-        style={{
-          ...excelTable,
-          tableLayout: 'auto',
-          width: 'max-content',
-          minWidth: '100%',
-        }}
-      >
-        <thead>
-  <tr>
-    <th
-      style={{ ...excelTh, cursor: 'pointer' }}
-      onClick={() => ordinaSpeseImpresa('categoria')}
-    >
-      Categoria
-    </th>
-
-    <th
-      style={{ ...excelTh, cursor: 'pointer' }}
-      onClick={() => ordinaSpeseImpresa('descrizione')}
-    >
-      Descrizione
-    </th>
-
-    <th
-      style={{ ...excelTh, cursor: 'pointer' }}
-      onClick={() => ordinaSpeseImpresa('fornitore')}
-    >
-      Fornitore
-    </th>
-
-    <th
-      style={{ ...excelTh, cursor: 'pointer' }}
-      onClick={() => ordinaSpeseImpresa('data_documento')}
-    >
-      Data
-    </th>
-
-    <th
-      style={{ ...excelTh, cursor: 'pointer' }}
-      onClick={() => ordinaSpeseImpresa('importo')}
-    >
-      Importo
-    </th>
-
-    <th style={excelTh}>File</th>
-  </tr>
-</thead>
-
-        <tbody>
-         {[...speseImpresa]
-  .filter(
-    (s) =>
-      !filtroSpeseImpresa ||
-      s.categoria === filtroSpeseImpresa
-  )
-  .sort((a, b) => {
-    const valoreA =
-      a[ordineSpeseCampo] ?? ''
-
-    const valoreB =
-      b[ordineSpeseCampo] ?? ''
-
-    if (
-      typeof valoreA === 'number' &&
-      typeof valoreB === 'number'
-    ) {
-      return ordineSpeseDirezione === 'asc'
-        ? valoreA - valoreB
-        : valoreB - valoreA
-    }
-
-    return ordineSpeseDirezione === 'asc'
-      ? String(valoreA).localeCompare(String(valoreB))
-      : String(valoreB).localeCompare(String(valoreA))
-  })
-  .map((s, i) => (
-              <tr key={s.id || i}>
-                <td style={excelTd}>{s.categoria}</td>
-                <td style={excelTd}>{s.descrizione}</td>
-                <td style={excelTd}>{s.fornitore}</td>
-                <td style={excelTd}>{s.data_documento || '-'}</td>
-                <td style={excelTd}>{formatMoney(Number(s.importo || 0))}</td>
-                <td style={excelTd}>{s.nome_file || '-'}</td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
-    </div>
-  </>
-)}
-
+<TabellaSpeseImpresaPanel
+  speseImpresa={speseImpresa}
+  filtroSpeseImpresa={filtroSpeseImpresa}
+  setFiltroSpeseImpresa={setFiltroSpeseImpresa}
+  tabellaSpeseImpresaAperta={tabellaSpeseImpresaAperta}
+  setTabellaSpeseImpresaAperta={setTabellaSpeseImpresaAperta}
+  ordineSpeseCampo={ordineSpeseCampo}
+  ordineSpeseDirezione={ordineSpeseDirezione}
+  ordinaSpeseImpresa={ordinaSpeseImpresa}
+  formatMoney={formatMoney}
+  inputStyle={inputStyle}
+  buttonSecondary={buttonSecondary}
+  excelTable={excelTable}
+  excelTh={excelTh}
+  excelTd={excelTd}
+/>
 
 
 
