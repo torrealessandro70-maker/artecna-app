@@ -11288,7 +11288,14 @@ WebkitOverflowScrolling: 'touch',
     sezioneAttiva === 'cantieri' &&
     sottoSezioneCantieri === 'analisi')
 ) && (
-  <CantieriAnalisiDocumentoPanel cardStyle={cardStyle} />
+  <CantieriAnalisiDocumentoPanel
+  cardStyle={cardStyle}
+  cantieri={cantieri}
+  cantiereAnalisiDocumento={cantiereScheda || ''}
+  setCantiereAnalisiDocumento={setCantiereScheda}
+  inputStyle={inputStyle}
+  buttonSecondary={buttonSecondary}
+/>
 )}
 
  {/* ================= CANTIERI - ECONOMIA CANTIERE ================= */}
