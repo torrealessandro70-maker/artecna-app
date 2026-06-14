@@ -91,6 +91,7 @@ import EconomiaSelezioneCantierePanel from './components/EconomiaSelezioneCantie
 import DashboardEconomiaPanel from './components/DashboardEconomiaPanel'
 import PreventiviEconomiaPanel from './components/PreventiviEconomiaPanel'
 import PresenzeCostiOperaiPanel from './components/PresenzeCostiOperaiPanel'
+import PresenzaManualePanel from './components/PresenzaManualePanel'
 import type {
   Cantiere,
   Rapportino,
@@ -12303,8 +12304,10 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     sezioneAttiva === 'operai' &&
     sottoSezioneOperai === 'presenze')
 ) && (
-  <div style={cardStyle}>
-    <h2>Presenze / costi operai</h2>
+ <PresenzeCostiOperaiPanel
+  cardStyle={cardStyle}
+>
+    
 
 {timbraturaInModifica && (
   <PopupModificaTimbratura
@@ -12322,56 +12325,22 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     buttonPrimary={buttonPrimary}
   />
 )}
-<div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8, background: '#fff', marginBottom: 20 }}>
-  <h3>Inserisci presenza manuale</h3>
-
-  <input
-    type="date"
-    value={dataPresenzaManuale}
-    onChange={(e) => setDataPresenzaManuale(e.target.value)}
-  />
-
-  <select
-    value={operaioPresenzaManuale}
-    onChange={(e) => setOperaioPresenzaManuale(e.target.value)}
-  >
-    <option value="">Seleziona operaio</option>
-    {operaiAnagrafica.map((o, i) => (
-      <option key={o.id || i} value={o.nome}>
-        {o.nome}
-      </option>
-    ))}
-  </select>
-
-  <select
-    value={cantierePresenzaManuale}
-    onChange={(e) => setCantierePresenzaManuale(e.target.value)}
-  >
-    <option value="">Seleziona cantiere</option>
-    {cantieri.map((c, i) => (
-      <option key={c.id || i} value={c.nome}>
-        {c.nome}
-      </option>
-    ))}
-  </select>
-
-  <input
-    type="time"
-    value={oraEntrataManuale}
-    onChange={(e) => setOraEntrataManuale(e.target.value)}
-  />
-
-  <input
-    type="time"
-    value={oraUscitaManuale}
-    onChange={(e) => setOraUscitaManuale(e.target.value)}
-  />
-
-  <button onClick={aggiungiPresenzaManuale} style={buttonPrimary}>
-    Aggiungi presenza
-  </button>
-</div>
-
+<PresenzaManualePanel
+  dataPresenzaManuale={dataPresenzaManuale}
+  setDataPresenzaManuale={setDataPresenzaManuale}
+  operaioPresenzaManuale={operaioPresenzaManuale}
+  setOperaioPresenzaManuale={setOperaioPresenzaManuale}
+  cantierePresenzaManuale={cantierePresenzaManuale}
+  setCantierePresenzaManuale={setCantierePresenzaManuale}
+  oraEntrataManuale={oraEntrataManuale}
+  setOraEntrataManuale={setOraEntrataManuale}
+  oraUscitaManuale={oraUscitaManuale}
+  setOraUscitaManuale={setOraUscitaManuale}
+  operaiAnagrafica={operaiAnagrafica}
+  cantieri={cantieri}
+  aggiungiPresenzaManuale={aggiungiPresenzaManuale}
+  buttonPrimary={buttonPrimary}
+/>
 
 
 
@@ -12617,10 +12586,10 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 </button>
 </div>
           </div>
-        ))}
+               ))}
       </div>
     )}
-  </div>
+</PresenzeCostiOperaiPanel>
 )}
 
 
