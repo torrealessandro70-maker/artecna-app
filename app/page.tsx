@@ -77,6 +77,7 @@ import BilancioCantieriTable from './components/BilancioCantieriTable'
 import GraficiEconomiaPanel from './components/GraficiEconomiaPanel'
 import UtileNettoImpresaPanel from './components/UtileNettoImpresaPanel'
 import CostiGeneraliImpresaSummary from './components/CostiGeneraliImpresaSummary'
+import ValutazioneFondiTogglePanel from './components/ValutazioneFondiTogglePanel'
 import type {
   Cantiere,
   Rapportino,
