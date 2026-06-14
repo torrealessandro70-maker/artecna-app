@@ -94,6 +94,7 @@ import PresenzeCostiOperaiPanel from './components/PresenzeCostiOperaiPanel'
 import PresenzaManualePanel from './components/PresenzaManualePanel'
 import FiltroPresenzeCostiPanel from './components/FiltroPresenzeCostiPanel'
 import PresenzePeriodoSummaryPanel from './components/PresenzePeriodoSummaryPanel'
+import DettaglioPresenzeOggiPanel from './components/DettaglioPresenzeOggiPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -12387,74 +12388,19 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   formatMoney={formatMoney}
 />
 
-    <h3>Dettaglio presenze oggi</h3>
-
-    {timbratureOggi.length === 0 ? (
-      <p>Nessuna presenza registrata oggi.</p>
-    ) : (
-      <div style={{ display: 'grid', gap: 10 }}>
-        {timbratureOggi.map((t, i) => (
-          <div
-            key={t.id || i}
-            style={{
-              padding: 12,
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              background: '#fff',
-            }}
-          >
-            <strong>{t.operaio_nome}</strong>
-            <br />
-            Cantiere: {t.cantiere || '-'}
-            <br />
-            Entrata: {t.ora_entrata || '-'} | Uscita: {t.ora_uscita || '-'}
-            <br />
-            Stato: {t.stato || '-'}
-            <br />
-            <strong>Costo:</strong> {formatMoney(calcolaCostoTimbratura(t))}
-{erroreTimbratura(t) && (
-  <div
-    style={{
-      marginTop: 8,
-      padding: 8,
-      borderRadius: 8,
-      background: '#fee2e2',
-      color: '#991b1b',
-      fontWeight: 700,
-    }}
-  >
-    {erroreTimbratura(t)}
-  </div>
-)}
-<div style={{ marginTop: 8 }}>
-  <button
-    onClick={() => {
-      setTimbraturaInModifica(t.id || null)
-      setDataTimbraturaModifica(t.data || '')
-      setOraEntrataModifica(t.ora_entrata || '')
-      setOraUscitaModifica(t.ora_uscita || '')
-      setStatoTimbraturaModifica(t.stato || 'aperto')
-    }}
-    style={buttonSecondary}
-  >
-    ✏️ Modifica
-  </button>
-<button
-  onClick={() => eliminaTimbratura(t.id)}
-  style={{
-    ...buttonSecondary,
-    marginLeft: 8,
-    backgroundColor: '#d9534f',
-    color: 'white',
-  }}
->
-  Elimina
-</button>
-</div>
-          </div>
-               ))}
-      </div>
-    )}
+   <DettaglioPresenzeOggiPanel
+  timbratureOggi={timbratureOggi}
+  formatMoney={formatMoney}
+  calcolaCostoTimbratura={calcolaCostoTimbratura}
+  erroreTimbratura={erroreTimbratura}
+  setTimbraturaInModifica={setTimbraturaInModifica}
+  setDataTimbraturaModifica={setDataTimbraturaModifica}
+  setOraEntrataModifica={setOraEntrataModifica}
+  setOraUscitaModifica={setOraUscitaModifica}
+  setStatoTimbraturaModifica={setStatoTimbraturaModifica}
+  eliminaTimbratura={eliminaTimbratura}
+  buttonSecondary={buttonSecondary}
+/>
 </PresenzeCostiOperaiPanel>
 )}
 
