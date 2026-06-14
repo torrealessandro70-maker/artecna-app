@@ -75,6 +75,7 @@ import ValutazioneFondiPanel from './components/ValutazioneFondiPanel'
 import TabellaSpeseImpresaPanel from './components/TabellaSpeseImpresaPanel'
 import BilancioCantieriTable from './components/BilancioCantieriTable'
 import GraficiEconomiaPanel from './components/GraficiEconomiaPanel'
+import UtileNettoImpresaPanel from './components/UtileNettoImpresaPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -14693,8 +14694,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     (tot, c) =>
       tot +
       Number(
-        calcoloEconomiaCantiere(String(c.nome || ''))
-          .costoTotale || 0
+        calcoloEconomiaCantiere(String(c.nome || '')).costoTotale || 0
       ),
     0
   )
@@ -14704,100 +14704,19 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     0
   )
 
-  const utileCantieri =
-    totaleIncassato - totaleCostiCantieri
-
   const utileNettoImpresa =
-    utileCantieri - totaleCostiGenerali
+    totaleIncassato - totaleCostiCantieri - totaleCostiGenerali
 
   return (
-    <div
-      style={{
-        marginTop: 20,
-        padding: 16,
-        borderRadius: 12,
-        border:
-          utileNettoImpresa >= 0
-            ? '2px solid #16a34a'
-            : '2px solid #dc2626',
-
-        background:
-          utileNettoImpresa >= 0
-            ? '#f0fdf4'
-            : '#fef2f2',
-      }}
-    >
-      <h3>💶 Utile netto impresa</h3>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns:
-            'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 12,
-          marginTop: 12,
-        }}
-      >
-        <div>
-          <strong>💰 Totale incassato</strong>
-          <div
-            style={{
-              fontSize: 22,
-              fontWeight: 700,
-            }}
-          >
-            {formatMoney(totaleIncassato)}
-          </div>
-        </div>
-
-        <div>
-          <strong>🏗 Costi cantieri</strong>
-          <div
-            style={{
-              fontSize: 22,
-              fontWeight: 700,
-              color: '#dc2626',
-            }}
-          >
-            {formatMoney(totaleCostiCantieri)}
-          </div>
-        </div>
-
-        <div>
-          <strong>🏢 Costi generali impresa</strong>
-          <div
-            style={{
-              fontSize: 22,
-              fontWeight: 700,
-              color: '#dc2626',
-            }}
-          >
-            {formatMoney(totaleCostiGenerali)}
-          </div>
-        </div>
-
-        <div>
-          <strong>📈 Utile netto</strong>
-
-          <div
-            style={{
-              fontSize: 28,
-              fontWeight: 800,
-              color:
-                utileNettoImpresa >= 0
-                  ? '#16a34a'
-                  : '#dc2626',
-            }}
-          >
-            {formatMoney(utileNettoImpresa)}
-          </div>
-        </div>
-      </div>
-    </div>
+    <UtileNettoImpresaPanel
+      totaleIncassato={totaleIncassato}
+      totaleCostiCantieri={totaleCostiCantieri}
+      totaleCostiGenerali={totaleCostiGenerali}
+      utileNettoImpresa={utileNettoImpresa}
+      formatMoney={formatMoney}
+    />
   )
 })()}
-
-
 
 
 
