@@ -93,6 +93,7 @@ import PreventiviEconomiaPanel from './components/PreventiviEconomiaPanel'
 import PresenzeCostiOperaiPanel from './components/PresenzeCostiOperaiPanel'
 import PresenzaManualePanel from './components/PresenzaManualePanel'
 import FiltroPresenzeCostiPanel from './components/FiltroPresenzeCostiPanel'
+import PresenzePeriodoSummaryPanel from './components/PresenzePeriodoSummaryPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -12358,92 +12359,24 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
 
 
-    {(() => {
-  const presenzeFiltrate = timbrature.filter((t) => {
-    if (dataDa && String(t.data || '') < dataDa) return false
-    if (dataA && String(t.data || '') > dataA) return false
-    if (cantiereGrafico && t.cantiere !== cantiereGrafico) return false
-    return true
-  })
-
-  const operaiFiltrati = operaiAnagrafica
-    .map((o) => {
-      const presenzeOperaio = presenzeFiltrate.filter(
-        (t) => t.operaio_nome === o.nome
-      )
-
-      const ore = presenzeOperaio.reduce(
-        (tot, t) => tot + calcolaOre(t),
-        0
-      )
-
-      const costo = presenzeOperaio.reduce(
-        (tot, t) => tot + calcolaCostoTimbratura(t),
-        0
-      )
-
-      return {
-        nome: o.nome,
-        ore,
-        costo,
-        presenze: presenzeOperaio.length,
-      }
-    })
-    .filter((o) => o.presenze > 0)
-
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gap: 12,
-        marginBottom: 20,
-      }}
-    >
-      <div
-        style={{
-          padding: 12,
-          border: '1px solid #ddd',
-          borderRadius: 8,
-          background: '#fff',
-        }}
-      >
-        <strong>Periodo selezionato</strong>
-        <br />
-        Dal: {dataDa || 'inizio'} — Al: {dataA || 'oggi'}
-        <br />
-        Cantiere: {cantiereGrafico || 'Tutti'}
-        <br />
-        <strong>Totale periodo:</strong> {formatMoney(totaleCostoPeriodo)}
-        <br />
-        <strong>Ore totali:</strong> {totaleOrePeriodo.toFixed(2)}
-        <br />
-        <strong>Presenze filtrate:</strong> {presenzeFiltrate.length}
-      </div>
-
-      <div
-        style={{
-          padding: 12,
-          border: '1px solid #cbd5e1',
-          borderRadius: 10,
-          background: '#ffffff',
-        }}
-      >
-        <strong>👷 Operai inclusi nel filtro</strong>
-
-       <OperaiList
-  operaiFiltrati={operaiFiltrati}
-  badgeStyle={badgeStyle}
+   <PresenzePeriodoSummaryPanel
+  timbrature={timbrature}
+  operaiAnagrafica={operaiAnagrafica}
+  dataDa={dataDa}
+  dataA={dataA}
+  cantiereGrafico={cantiereGrafico}
+  totaleCostoPeriodo={totaleCostoPeriodo}
+  totaleOrePeriodo={totaleOrePeriodo}
+  calcolaOre={calcolaOre}
+  calcolaCostoTimbratura={calcolaCostoTimbratura}
   formatMoney={formatMoney}
+  badgeStyle={badgeStyle}
   preparaModificaOperaio={preparaModificaOperaio}
   cambiaStatoOperaio={cambiaStatoOperaio}
   eliminaOperaio={eliminaOperaio}
   buttonPrimary={buttonPrimary}
   buttonSecondary={buttonSecondary}
 />
-      </div>
-    </div>
-  )
-})()}
 
 
 
