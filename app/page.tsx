@@ -79,6 +79,7 @@ import UtileNettoImpresaPanel from './components/UtileNettoImpresaPanel'
 import CostiGeneraliImpresaSummary from './components/CostiGeneraliImpresaSummary'
 import ValutazioneFondiTogglePanel from './components/ValutazioneFondiTogglePanel'
 import RegistroHeaderToolbar from './components/RegistroHeaderToolbar'
+import AttivitaPanel from './components/AttivitaPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -15148,31 +15149,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 {(
   pagineAperte.includes('attivita') ||
   (!modalitaMulti && sezioneAttiva === 'attivita')
-) && (
-  <div style={cardStyle}>
-    <h2>Attività</h2>
-
-    <div style={{ display: 'grid', gap: 10 }}>
-      <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-        <strong>Attività in programma</strong>
-        <p style={{ color: '#666', marginTop: 5 }}>
-          Qui potrai gestire appuntamenti, lavori futuri e scadenze.
-        </p>
-      </div>
-
-      <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-        <strong>Prossimo sviluppo</strong>
-
-        <ul style={{ color: '#666', marginTop: 5, paddingLeft: 16 }}>
-          <li>Agenda cantieri</li>
-          <li>Scadenze pagamenti</li>
-          <li>Promemoria operai</li>
-        </ul>
-      </div>
-    </div>
-  </div>
- 
-)}
+) && <AttivitaPanel cardStyle={cardStyle} />}
  </main>
     </div>
   )
