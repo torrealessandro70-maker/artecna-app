@@ -82,6 +82,7 @@ import RegistroHeaderToolbar from './components/RegistroHeaderToolbar'
 import AttivitaPanel from './components/AttivitaPanel'
 import SopralluoghiPanel from './components/SopralluoghiPanel'
 import FattureEmessePopupLayer from './components/FattureEmessePopupLayer'
+import RegistroPanel from './components/RegistroPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -14488,8 +14489,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 )}
 
 {/* ================= REGISTRO ================= */}
-
-<RegistroHeaderToolbar
+<RegistroPanel
   registroTab={registroTab}
   setRegistroTab={setRegistroTab}
   registroCerca={registroCerca}
@@ -14499,330 +14499,222 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   registroFiltroDataA={registroFiltroDataA}
   setRegistroFiltroDataA={setRegistroFiltroDataA}
   setRegistroFiltroNome={setRegistroFiltroNome}
-  buttonSecondary={buttonSecondary}
-/>
 
-{registroTab === 'cantieri' && (
-  <RegistroCantieriPanel
-    cantieri={cantieri}
-    registroCerca={registroCerca}
-    formatMoney={formatMoney}
-    ordinaRegistro={ordinaRegistro}
-    ordinaCantieriCampo={ordinaCantieriCampo}
-    ordinaCantieriDirezione={ordinaCantieriDirezione}
-    setOrdinaCantieriCampo={setOrdinaCantieriCampo}
-    setOrdinaCantieriDirezione={setOrdinaCantieriDirezione}
-    cantiereRegistroEdit={cantiereRegistroEdit}
-    cantiereRegistroNome={cantiereRegistroNome}
-    setCantiereRegistroNome={setCantiereRegistroNome}
-    cantiereRegistroPreventivo={cantiereRegistroPreventivo}
-    setCantiereRegistroPreventivo={setCantiereRegistroPreventivo}
-    cantiereRegistroInizio={cantiereRegistroInizio}
-    setCantiereRegistroInizio={setCantiereRegistroInizio}
-    cantiereRegistroFine={cantiereRegistroFine}
-    setCantiereRegistroFine={setCantiereRegistroFine}
-    cantiereRegistroConcluso={cantiereRegistroConcluso}
-    setCantiereRegistroConcluso={setCantiereRegistroConcluso}
-    salvaModificaRegistroCantiere={salvaModificaRegistroCantiere}
-    annullaModificaRegistroCantiere={annullaModificaRegistroCantiere}
-    preparaModificaRegistroCantiere={preparaModificaRegistroCantiere}
-    eliminaCantiere={eliminaCantiere}
-    excelBox={excelBox}
-    excelToolbar={excelToolbar}
-    excelTable={excelTable}
-    excelTh={excelTh}
-    excelTd={excelTd}
-    excelInput={excelInput}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}
+  cantieri={cantieri}
+  preventivi={preventivi}
+  rapportini={rapportini}
+  timbratureFiltrateRegistro={timbratureFiltrateRegistro}
+  pagamentiOperai={pagamentiOperai}
 
-  {registroTab === 'preventivi' && (
-  <RegistroPreventiviPanel
-    preventivi={preventivi}
-    registroCerca={registroCerca}
-    mostraRegistroPreventiviCaricati={mostraRegistroPreventiviCaricati}
-    setMostraRegistroPreventiviCaricati={setMostraRegistroPreventiviCaricati}
-    preventivoRegistroEdit={preventivoRegistroEdit}
-    setPreventivoRegistroEdit={setPreventivoRegistroEdit}
-    preventivoRegistroCantiere={preventivoRegistroCantiere}
-    setPreventivoRegistroCantiere={setPreventivoRegistroCantiere}
-    preventivoRegistroNomeFile={preventivoRegistroNomeFile}
-    setPreventivoRegistroNomeFile={setPreventivoRegistroNomeFile}
-    preventivoRegistroImporto={preventivoRegistroImporto}
-    setPreventivoRegistroImporto={setPreventivoRegistroImporto}
-    preventivoRegistroNote={preventivoRegistroNote}
-    setPreventivoRegistroNote={setPreventivoRegistroNote}
-    ordinaPreventiviCampo={ordinaPreventiviCampo}
-    ordinaPreventiviDirezione={ordinaPreventiviDirezione}
-    setOrdinaPreventiviCampo={setOrdinaPreventiviCampo}
-    setOrdinaPreventiviDirezione={setOrdinaPreventiviDirezione}
-    ordinaRegistro={ordinaRegistro}
-    parseImporto={parseImporto}
-    formatMoney={formatMoney}
-    generaExcelDaPreventivoAi={generaExcelDaPreventivoAi}
-    approvaPreventivoAiECreaCantiere={approvaPreventivoAiECreaCantiere}
-    salvaModificaRegistroPreventivo={salvaModificaRegistroPreventivo}
-    eliminaPreventivoCantiere={eliminaPreventivoCantiere}
-    setVociPreventivoAi={setVociPreventivoAi}
-    setVociPreventivoAiOriginali={setVociPreventivoAiOriginali}
-    setDescrizionePreventivoAi={setDescrizionePreventivoAi}
-    setMostraRevisionePreventivoAi={setMostraRevisionePreventivoAi}
-    excelBox={excelBox}
-    excelToolbar={excelToolbar}
-    excelTable={excelTable}
-    excelTh={excelTh}
-    excelTd={excelTd}
-    excelInput={excelInput}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}
+  fattureFornitori={fattureFornitori}
+  fattureOrdinate={fattureOrdinate}
+  righeFatturaDaAssegnare={righeFatturaDaAssegnare}
+  righeFatturaAperta={righeFatturaAperta}
+ 
 
+  mostraRevisionePreventivoAi={mostraRevisionePreventivoAi}
+  mostraRegistroPreventiviCaricati={mostraRegistroPreventiviCaricati}
+  setMostraRegistroPreventiviCaricati={setMostraRegistroPreventiviCaricati}
 
-{mostraRevisionePreventivoAi && (
-  <RevisionePreventivoAiPanel
-    messaggioAi={messaggioAi}
-    descrizionePreventivoAi={descrizionePreventivoAi}
-    setDescrizionePreventivoAi={setDescrizionePreventivoAi}
-    vociPreventivoAi={vociPreventivoAi}
-    setVociPreventivoAi={setVociPreventivoAi}
-    vociPreventivoAiOriginali={vociPreventivoAiOriginali}
-    calcolaMediaPrezziSimili={calcolaMediaPrezziSimili}
-    verificaPrezzoAnomalo={verificaPrezzoAnomalo}
-    formatMoney={formatMoney}
-    miglioraVocePreventivoAi={miglioraVocePreventivoAi}
-    salvaInMemoriaPrezzi={salvaInMemoriaPrezzi}
-    generaExcelDefinitivoPreventivoAi={generaExcelDefinitivoPreventivoAi}
-    preventivoRegistroCantiere={preventivoRegistroCantiere}
-    setMostraRevisionePreventivoAi={setMostraRevisionePreventivoAi}
-    excelTable={excelTable}
-    excelTh={excelTh}
-    excelTd={excelTd}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}
-      </div>
-    )}
+  cantiereRegistroEdit={cantiereRegistroEdit}
+  cantiereRegistroNome={cantiereRegistroNome}
+  setCantiereRegistroNome={setCantiereRegistroNome}
+  cantiereRegistroPreventivo={cantiereRegistroPreventivo}
+  setCantiereRegistroPreventivo={setCantiereRegistroPreventivo}
+  cantiereRegistroInizio={cantiereRegistroInizio}
+  setCantiereRegistroInizio={setCantiereRegistroInizio}
+  cantiereRegistroFine={cantiereRegistroFine}
+  setCantiereRegistroFine={setCantiereRegistroFine}
+  cantiereRegistroConcluso={cantiereRegistroConcluso}
+  setCantiereRegistroConcluso={setCantiereRegistroConcluso}
 
+  preventivoRegistroEdit={preventivoRegistroEdit}
+  setPreventivoRegistroEdit={setPreventivoRegistroEdit}
+  preventivoRegistroCantiere={preventivoRegistroCantiere}
+  setPreventivoRegistroCantiere={setPreventivoRegistroCantiere}
+  preventivoRegistroNomeFile={preventivoRegistroNomeFile}
+  setPreventivoRegistroNomeFile={setPreventivoRegistroNomeFile}
+  preventivoRegistroImporto={preventivoRegistroImporto}
+  setPreventivoRegistroImporto={setPreventivoRegistroImporto}
+  preventivoRegistroNote={preventivoRegistroNote}
+  setPreventivoRegistroNote={setPreventivoRegistroNote}
 
+  rapportinoRegistroEdit={rapportinoRegistroEdit}
+  rapportinoRegistroData={rapportinoRegistroData}
+  setRapportinoRegistroData={setRapportinoRegistroData}
+  rapportinoRegistroCantiere={rapportinoRegistroCantiere}
+  setRapportinoRegistroCantiere={setRapportinoRegistroCantiere}
+  rapportinoRegistroOperaio={rapportinoRegistroOperaio}
+  setRapportinoRegistroOperaio={setRapportinoRegistroOperaio}
+  rapportinoRegistroOre={rapportinoRegistroOre}
+  setRapportinoRegistroOre={setRapportinoRegistroOre}
+  rapportinoRegistroDescrizione={rapportinoRegistroDescrizione}
+  setRapportinoRegistroDescrizione={setRapportinoRegistroDescrizione}
 
+  timbraturaRegistroEdit={timbraturaRegistroEdit}
+  timbraturaRegistroData={timbraturaRegistroData}
+  setTimbraturaRegistroData={setTimbraturaRegistroData}
+  timbraturaRegistroOperaio={timbraturaRegistroOperaio}
+  setTimbraturaRegistroOperaio={setTimbraturaRegistroOperaio}
+  timbraturaRegistroCantiere={timbraturaRegistroCantiere}
+  setTimbraturaRegistroCantiere={setTimbraturaRegistroCantiere}
+  timbraturaRegistroEntrata={timbraturaRegistroEntrata}
+  setTimbraturaRegistroEntrata={setTimbraturaRegistroEntrata}
+  timbraturaRegistroUscita={timbraturaRegistroUscita}
+  setTimbraturaRegistroUscita={setTimbraturaRegistroUscita}
 
+  pagamentoOperaioRegistroEdit={pagamentoOperaioRegistroEdit}
+  pagamentoOperaioRegistroNome={pagamentoOperaioRegistroNome}
+  setPagamentoOperaioRegistroNome={setPagamentoOperaioRegistroNome}
+  pagamentoOperaioRegistroImporto={pagamentoOperaioRegistroImporto}
+  setPagamentoOperaioRegistroImporto={setPagamentoOperaioRegistroImporto}
+  pagamentoOperaioRegistroData={pagamentoOperaioRegistroData}
+  setPagamentoOperaioRegistroData={setPagamentoOperaioRegistroData}
+  pagamentoOperaioRegistroMetodo={pagamentoOperaioRegistroMetodo}
+  setPagamentoOperaioRegistroMetodo={setPagamentoOperaioRegistroMetodo}
+  pagamentoOperaioRegistroNota={pagamentoOperaioRegistroNota}
+  setPagamentoOperaioRegistroNota={setPagamentoOperaioRegistroNota}
 
+  ordinaRegistro={ordinaRegistro}
+  ordinaCantieriCampo={ordinaCantieriCampo}
+  ordinaCantieriDirezione={ordinaCantieriDirezione}
+  setOrdinaCantieriCampo={setOrdinaCantieriCampo}
+  setOrdinaCantieriDirezione={setOrdinaCantieriDirezione}
+  ordinaPreventiviCampo={ordinaPreventiviCampo}
+  ordinaPreventiviDirezione={ordinaPreventiviDirezione}
+  setOrdinaPreventiviCampo={setOrdinaPreventiviCampo}
+  setOrdinaPreventiviDirezione={setOrdinaPreventiviDirezione}
+  ordinaRapportiniCampo={ordinaRapportiniCampo}
+  ordinaRapportiniDirezione={ordinaRapportiniDirezione}
+  setOrdinaRapportiniCampo={setOrdinaRapportiniCampo}
+  setOrdinaRapportiniDirezione={setOrdinaRapportiniDirezione}
+  ordinaTimbratureCampo={ordinaTimbratureCampo}
+  ordinaTimbratureDirezione={ordinaTimbratureDirezione}
+  setOrdinaTimbratureCampo={setOrdinaTimbratureCampo}
+  setOrdinaTimbratureDirezione={setOrdinaTimbratureDirezione}
+  ordinaPagamentiCampo={ordinaPagamentiCampo}
+  ordinaPagamentiDirezione={ordinaPagamentiDirezione}
+  setOrdinaPagamentiCampo={setOrdinaPagamentiCampo}
+  setOrdinaPagamentiDirezione={setOrdinaPagamentiDirezione}
 
-{registroTab === 'rapportini' && (
-  <RegistroRapportiniPanel
-    rapportini={rapportini}
-    registroCerca={registroCerca}
-    ordinaRegistro={ordinaRegistro}
-    ordinaRapportiniCampo={ordinaRapportiniCampo}
-    ordinaRapportiniDirezione={ordinaRapportiniDirezione}
-    setOrdinaRapportiniCampo={setOrdinaRapportiniCampo}
-    setOrdinaRapportiniDirezione={setOrdinaRapportiniDirezione}
-    rapportinoRegistroEdit={rapportinoRegistroEdit}
-    rapportinoRegistroData={rapportinoRegistroData}
-    setRapportinoRegistroData={setRapportinoRegistroData}
-    rapportinoRegistroCantiere={rapportinoRegistroCantiere}
-    setRapportinoRegistroCantiere={setRapportinoRegistroCantiere}
-    rapportinoRegistroOperaio={rapportinoRegistroOperaio}
-    setRapportinoRegistroOperaio={setRapportinoRegistroOperaio}
-    rapportinoRegistroOre={rapportinoRegistroOre}
-    setRapportinoRegistroOre={setRapportinoRegistroOre}
-    rapportinoRegistroDescrizione={rapportinoRegistroDescrizione}
-    setRapportinoRegistroDescrizione={setRapportinoRegistroDescrizione}
-    salvaModificaRegistroRapportino={salvaModificaRegistroRapportino}
-    annullaModificaRegistroRapportino={annullaModificaRegistroRapportino}
-    preparaModificaRegistroRapportino={preparaModificaRegistroRapportino}
-    eliminaRapportino={eliminaRapportino}
-    excelBox={excelBox}
-    excelToolbar={excelToolbar}
-    excelTable={excelTable}
-    excelTh={excelTh}
-    excelTd={excelTd}
-    excelInput={excelInput}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}
+  operaiAnagrafica={operaiAnagrafica}
+  calcolaOre={calcolaOre}
+  calcolaCostoTimbratura={calcolaCostoTimbratura}
+  calcolaOreTimbratura={calcolaOreTimbratura}
+  parseImporto={parseImporto}
+  formatMoney={formatMoney}
 
-{registroTab === 'timbrature' && (
-  <RegistroTimbraturePanel
-    timbratureFiltrateRegistro={timbratureFiltrateRegistro}
-    calcolaOre={calcolaOre}
-    calcolaCostoTimbratura={calcolaCostoTimbratura}
-    formatMoney={formatMoney}
-    excelTable={excelTable}
-    excelTh={excelTh}
-    excelTd={excelTd}
-    excelInput={excelInput}
-    ordinaRegistro={ordinaRegistro}
-    setOrdinaTimbratureCampo={setOrdinaTimbratureCampo}
-    setOrdinaTimbratureDirezione={setOrdinaTimbratureDirezione}
-    ordinaTimbratureCampo={ordinaTimbratureCampo}
-    ordinaTimbratureDirezione={ordinaTimbratureDirezione}
-    timbraturaRegistroEdit={timbraturaRegistroEdit}
-    timbraturaRegistroData={timbraturaRegistroData}
-    setTimbraturaRegistroData={setTimbraturaRegistroData}
-    timbraturaRegistroOperaio={timbraturaRegistroOperaio}
-    setTimbraturaRegistroOperaio={setTimbraturaRegistroOperaio}
-    timbraturaRegistroCantiere={timbraturaRegistroCantiere}
-    setTimbraturaRegistroCantiere={setTimbraturaRegistroCantiere}
-    timbraturaRegistroEntrata={timbraturaRegistroEntrata}
-    setTimbraturaRegistroEntrata={setTimbraturaRegistroEntrata}
-    timbraturaRegistroUscita={timbraturaRegistroUscita}
-    setTimbraturaRegistroUscita={setTimbraturaRegistroUscita}
-    operaiAnagrafica={operaiAnagrafica}
-    cantieri={cantieri}
-    calcolaOreTimbratura={calcolaOreTimbratura}
-    salvaModificaRegistroTimbratura={salvaModificaRegistroTimbratura}
-    annullaModificaRegistroTimbratura={annullaModificaRegistroTimbratura}
-    preparaModificaRegistroTimbratura={preparaModificaRegistroTimbratura}
-    eliminaTimbratura={eliminaTimbratura}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}
+  salvaModificaRegistroCantiere={salvaModificaRegistroCantiere}
+  annullaModificaRegistroCantiere={annullaModificaRegistroCantiere}
+  preparaModificaRegistroCantiere={preparaModificaRegistroCantiere}
+  eliminaCantiere={eliminaCantiere}
 
-  {registroTab === 'pagamenti-operai' && (
-  <RegistroPagamentiOperaiPanel
-    pagamentiOperai={pagamentiOperai}
-    registroCerca={registroCerca}
-    formatMoney={formatMoney}
-    ordinaRegistro={ordinaRegistro}
-    ordinaPagamentiCampo={ordinaPagamentiCampo}
-    ordinaPagamentiDirezione={ordinaPagamentiDirezione}
-    setOrdinaPagamentiCampo={setOrdinaPagamentiCampo}
-    setOrdinaPagamentiDirezione={setOrdinaPagamentiDirezione}
-    pagamentoOperaioRegistroEdit={pagamentoOperaioRegistroEdit}
-    pagamentoOperaioRegistroNome={pagamentoOperaioRegistroNome}
-    setPagamentoOperaioRegistroNome={setPagamentoOperaioRegistroNome}
-    pagamentoOperaioRegistroImporto={pagamentoOperaioRegistroImporto}
-    setPagamentoOperaioRegistroImporto={setPagamentoOperaioRegistroImporto}
-    pagamentoOperaioRegistroData={pagamentoOperaioRegistroData}
-    setPagamentoOperaioRegistroData={setPagamentoOperaioRegistroData}
-    pagamentoOperaioRegistroMetodo={pagamentoOperaioRegistroMetodo}
-    setPagamentoOperaioRegistroMetodo={setPagamentoOperaioRegistroMetodo}
-    pagamentoOperaioRegistroNota={pagamentoOperaioRegistroNota}
-    setPagamentoOperaioRegistroNota={setPagamentoOperaioRegistroNota}
-    salvaModificaRegistroPagamentoOperaio={
-      salvaModificaRegistroPagamentoOperaio
-    }
-    annullaModificaRegistroPagamentoOperaio={
-      annullaModificaRegistroPagamentoOperaio
-    }
-    preparaModificaRegistroPagamentoOperaio={
-      preparaModificaRegistroPagamentoOperaio
-    }
-    eliminaPagamentoOperaio={eliminaPagamentoOperaio}
-    excelBox={excelBox}
-    excelToolbar={excelToolbar}
-    excelTable={excelTable}
-    excelTh={excelTh}
-    excelTd={excelTd}
-    excelInput={excelInput}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}
+  generaExcelDaPreventivoAi={generaExcelDaPreventivoAi}
+  approvaPreventivoAiECreaCantiere={approvaPreventivoAiECreaCantiere}
+  salvaModificaRegistroPreventivo={salvaModificaRegistroPreventivo}
+  eliminaPreventivoCantiere={eliminaPreventivoCantiere}
 
+  salvaModificaRegistroRapportino={salvaModificaRegistroRapportino}
+  annullaModificaRegistroRapportino={annullaModificaRegistroRapportino}
+  preparaModificaRegistroRapportino={preparaModificaRegistroRapportino}
+  eliminaRapportino={eliminaRapportino}
 
+  salvaModificaRegistroTimbratura={salvaModificaRegistroTimbratura}
+  annullaModificaRegistroTimbratura={annullaModificaRegistroTimbratura}
+  preparaModificaRegistroTimbratura={preparaModificaRegistroTimbratura}
+  eliminaTimbratura={eliminaTimbratura}
 
-{registroTab === 'fatture-fornitori' && (
-  <RegistroFattureFornitoriPanel
-    cardStyle={cardStyle}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-    excelTable={excelTable}
-    excelTh={excelTh}
-    excelTd={excelTd}
-    excelBox={excelBox}
-    cantieri={cantieri}
-    fattureFornitori={fattureFornitori}
-    fattureOrdinate={fattureOrdinate}
-    righeFatturaDaAssegnare={righeFatturaDaAssegnare}
-    righeFatturaAperta={righeFatturaAperta}
-    fatturaNomeFile={fatturaNomeFile}
-    fatturaFornitore={fatturaFornitore}
-    fatturaPartitaIva={fatturaPartitaIva}
-    fatturaNumero={fatturaNumero}
-    fatturaData={fatturaData}
-    cantiereMassivoFattura={cantiereMassivoFattura}
-    categoriaMassivaFattura={categoriaMassivaFattura}
-    filtroFattureFornitore={filtroFattureFornitore}
-    filtroFattureStato={filtroFattureStato}
-    fatturaApertaId={fatturaApertaId}
-    nascondiCantieriConclusiFatture={nascondiCantieriConclusiFatture}
-    larghezzaDescrizioneFattura={larghezzaDescrizioneFattura}
-    setFatturaFornitore={setFatturaFornitore}
-    setFatturaPartitaIva={setFatturaPartitaIva}
-    setFatturaNumero={setFatturaNumero}
-    setFatturaData={setFatturaData}
-    setFatturaTotale={setFatturaTotale}
-    setFatturaNomeFile={setFatturaNomeFile}
-    setFatturaTipoFile={setFatturaTipoFile}
-    setFatturaTestoOriginale={setFatturaTestoOriginale}
-    setRigheFatturaDaAssegnare={setRigheFatturaDaAssegnare}
-    setRigheFatturaAperta={setRigheFatturaAperta}
-    setCantiereMassivoFattura={setCantiereMassivoFattura}
-    setCategoriaMassivaFattura={setCategoriaMassivaFattura}
-    setFatturaApertaId={setFatturaApertaId}
-    setNascondiCantieriConclusiFatture={setNascondiCantieriConclusiFatture}
-    setLarghezzaDescrizioneFattura={setLarghezzaDescrizioneFattura}
-    caricaFatturaXml={caricaFatturaXml}
-    caricaFatturaPdf={caricaFatturaPdf}
-    caricaFattureFornitori={caricaFattureFornitori}
-    importaFatturaSilenziosa={importaFatturaSilenziosa}
-    numeroXml={numeroXml}
-    formatMoney={formatMoney}
-    salvaFatturaFornitore={salvaFatturaFornitore}
-    ordinaFatture={ordinaFatture}
-    apriFatturaFornitore={apriFatturaFornitore}
-    eliminaFatturaFornitore={eliminaFatturaFornitore}
-    salvaModificheFatturaAperta={salvaModificheFatturaAperta}
-  />
-)}
-  
-{registroTab === 'fatture-emesse' && (
-  <FattureEmessePanel
-    fattureEmesseOrdinate={fattureEmesseOrdinate}
-    filtroFattureEmesse={filtroFattureEmesse}
-    setFiltroFattureEmesse={setFiltroFattureEmesse}
-    setNuovaFatturaEmessa={setNuovaFatturaEmessa}
-    setPopupNuovaFatturaEmessa={setPopupNuovaFatturaEmessa}
-    setFatturaEmessaAperta={setFatturaEmessaAperta}
-    caricaFatturaEmessaPdf={caricaFatturaEmessaPdf}
-    caricaFatturaEmessaXml={caricaFatturaEmessaXml}
-    caricaFattureEmesse={caricaFattureEmesse}
-    ordinaFattureEmesse={ordinaFattureEmesse}
-    formatMoney={formatMoney}
-    cardStyle={cardStyle}
-    inputStyle={inputStyle}
-    excelTable={excelTable}
-    excelTh={excelTh}
-    excelTd={excelTd}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}
+  salvaModificaRegistroPagamentoOperaio={salvaModificaRegistroPagamentoOperaio}
+  annullaModificaRegistroPagamentoOperaio={annullaModificaRegistroPagamentoOperaio}
+  preparaModificaRegistroPagamentoOperaio={preparaModificaRegistroPagamentoOperaio}
+  eliminaPagamentoOperaio={eliminaPagamentoOperaio}
 
-<FattureEmessePopupLayer
-  popupNuovaFatturaEmessa={popupNuovaFatturaEmessa}
-  nuovaFatturaEmessa={nuovaFatturaEmessa}
+  messaggioAi={messaggioAi}
+  descrizionePreventivoAi={descrizionePreventivoAi}
+  setDescrizionePreventivoAi={setDescrizionePreventivoAi}
+  vociPreventivoAi={vociPreventivoAi}
+  setVociPreventivoAi={setVociPreventivoAi}
+  vociPreventivoAiOriginali={vociPreventivoAiOriginali}
+  setVociPreventivoAiOriginali={setVociPreventivoAiOriginali}
+  calcolaMediaPrezziSimili={calcolaMediaPrezziSimili}
+  verificaPrezzoAnomalo={verificaPrezzoAnomalo}
+  miglioraVocePreventivoAi={miglioraVocePreventivoAi}
+  salvaInMemoriaPrezzi={salvaInMemoriaPrezzi}
+  generaExcelDefinitivoPreventivoAi={generaExcelDefinitivoPreventivoAi}
+  setMostraRevisionePreventivoAi={setMostraRevisionePreventivoAi}
+
+  fatturaNomeFile={fatturaNomeFile}
+  fatturaFornitore={fatturaFornitore}
+  fatturaPartitaIva={fatturaPartitaIva}
+  fatturaNumero={fatturaNumero}
+  fatturaData={fatturaData}
+  cantiereMassivoFattura={cantiereMassivoFattura}
+  categoriaMassivaFattura={categoriaMassivaFattura}
+  filtroFattureFornitore={filtroFattureFornitore}
+  filtroFattureStato={filtroFattureStato}
+  fatturaApertaId={fatturaApertaId}
+  nascondiCantieriConclusiFatture={nascondiCantieriConclusiFatture}
+  larghezzaDescrizioneFattura={larghezzaDescrizioneFattura}
+
+  setFatturaFornitore={setFatturaFornitore}
+  setFatturaPartitaIva={setFatturaPartitaIva}
+  setFatturaNumero={setFatturaNumero}
+  setFatturaData={setFatturaData}
+  setFatturaTotale={setFatturaTotale}
+  setFatturaNomeFile={setFatturaNomeFile}
+  setFatturaTipoFile={setFatturaTipoFile}
+  setFatturaTestoOriginale={setFatturaTestoOriginale}
+  setRigheFatturaDaAssegnare={setRigheFatturaDaAssegnare}
+  setRigheFatturaAperta={setRigheFatturaAperta}
+  setCantiereMassivoFattura={setCantiereMassivoFattura}
+  setCategoriaMassivaFattura={setCategoriaMassivaFattura}
+  setFatturaApertaId={setFatturaApertaId}
+  setNascondiCantieriConclusiFatture={setNascondiCantieriConclusiFatture}
+  setLarghezzaDescrizioneFattura={setLarghezzaDescrizioneFattura}
+
+  caricaFatturaXml={caricaFatturaXml}
+  caricaFatturaPdf={caricaFatturaPdf}
+  caricaFattureFornitori={caricaFattureFornitori}
+  importaFatturaSilenziosa={importaFatturaSilenziosa}
+  numeroXml={numeroXml}
+  salvaFatturaFornitore={salvaFatturaFornitore}
+  ordinaFatture={ordinaFatture}
+  apriFatturaFornitore={apriFatturaFornitore}
+  eliminaFatturaFornitore={eliminaFatturaFornitore}
+  salvaModificheFatturaAperta={salvaModificheFatturaAperta}
+
+  fattureEmesseOrdinate={fattureEmesseOrdinate}
+  filtroFattureEmesse={filtroFattureEmesse}
+  setFiltroFattureEmesse={setFiltroFattureEmesse}
   setNuovaFatturaEmessa={setNuovaFatturaEmessa}
   setPopupNuovaFatturaEmessa={setPopupNuovaFatturaEmessa}
+  setFatturaEmessaAperta={setFatturaEmessaAperta}
+  caricaFatturaEmessaPdf={caricaFatturaEmessaPdf}
+  caricaFatturaEmessaXml={caricaFatturaEmessaXml}
+  caricaFattureEmesse={caricaFattureEmesse}
+  ordinaFattureEmesse={ordinaFattureEmesse}
+
+  popupNuovaFatturaEmessa={popupNuovaFatturaEmessa}
+  nuovaFatturaEmessa={nuovaFatturaEmessa}
   salvaNuovaFatturaEmessa={salvaNuovaFatturaEmessa}
   fatturaEmessaAperta={fatturaEmessaAperta}
-  setFatturaEmessaAperta={setFatturaEmessaAperta}
   aggiornaFatturaEmessa={aggiornaFatturaEmessa}
   eliminaFatturaEmessa={eliminaFatturaEmessa}
-  cantieri={cantieri}
-  formatMoney={formatMoney}
+
+  cardStyle={cardStyle}
   inputStyle={inputStyle}
+  excelBox={excelBox}
+  excelToolbar={excelToolbar}
+  excelTable={excelTable}
+  excelTh={excelTh}
+  excelTd={excelTd}
+  excelInput={excelInput}
   buttonPrimary={buttonPrimary}
   buttonSecondary={buttonSecondary}
-/>{/* ================= ATTIVITÀ ================= */}
+/>
+  </div>
+)}
+{/* ================= ATTIVITÀ ================= */}
 {(
   pagineAperte.includes('attivita') ||
   (!modalitaMulti && sezioneAttiva === 'attivita')
