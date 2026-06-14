@@ -12863,6 +12863,8 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     setPopupIncassoNonFatturato={setPopupIncassoNonFatturato}
   />
 )}
+  </div>
+)}
 
 {/* ================= REGISTRO ================= */}
 {sezioneAttiva === 'registro' && (
@@ -13090,8 +13092,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   buttonSecondary={buttonSecondary}
 />
 )}
-  </div>
-)}
+  
 {/* ================= ATTIVITÀ ================= */}
 {(
   pagineAperte.includes('attivita') ||
