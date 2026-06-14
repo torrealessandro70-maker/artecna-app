@@ -81,6 +81,7 @@ import ValutazioneFondiTogglePanel from './components/ValutazioneFondiTogglePane
 import RegistroHeaderToolbar from './components/RegistroHeaderToolbar'
 import AttivitaPanel from './components/AttivitaPanel'
 import SopralluoghiPanel from './components/SopralluoghiPanel'
+import FattureEmessePopupLayer from './components/FattureEmessePopupLayer'
 import type {
   Cantiere,
   Rapportino,
@@ -14806,33 +14807,22 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   />
 )}
 
-{popupNuovaFatturaEmessa && (
-  <PopupNuovaFatturaEmessa
-    nuovaFatturaEmessa={nuovaFatturaEmessa}
-    setNuovaFatturaEmessa={setNuovaFatturaEmessa}
-    setPopupNuovaFatturaEmessa={setPopupNuovaFatturaEmessa}
-    salvaNuovaFatturaEmessa={salvaNuovaFatturaEmessa}
-    cantieri={cantieri}
-    inputStyle={inputStyle}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}
-
-{fatturaEmessaAperta && (
-  <PopupDettaglioFatturaEmessa
-    fatturaEmessaAperta={fatturaEmessaAperta}
-    setFatturaEmessaAperta={setFatturaEmessaAperta}
-    cantieri={cantieri}
-    formatMoney={formatMoney}
-    aggiornaFatturaEmessa={aggiornaFatturaEmessa}
-    eliminaFatturaEmessa={eliminaFatturaEmessa}
-    inputStyle={inputStyle}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}
-{/* ================= ATTIVITÀ ================= */}
+<FattureEmessePopupLayer
+  popupNuovaFatturaEmessa={popupNuovaFatturaEmessa}
+  nuovaFatturaEmessa={nuovaFatturaEmessa}
+  setNuovaFatturaEmessa={setNuovaFatturaEmessa}
+  setPopupNuovaFatturaEmessa={setPopupNuovaFatturaEmessa}
+  salvaNuovaFatturaEmessa={salvaNuovaFatturaEmessa}
+  fatturaEmessaAperta={fatturaEmessaAperta}
+  setFatturaEmessaAperta={setFatturaEmessaAperta}
+  aggiornaFatturaEmessa={aggiornaFatturaEmessa}
+  eliminaFatturaEmessa={eliminaFatturaEmessa}
+  cantieri={cantieri}
+  formatMoney={formatMoney}
+  inputStyle={inputStyle}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+/>{/* ================= ATTIVITÀ ================= */}
 {(
   pagineAperte.includes('attivita') ||
   (!modalitaMulti && sezioneAttiva === 'attivita')
