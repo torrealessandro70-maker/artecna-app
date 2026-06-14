@@ -84,6 +84,7 @@ import SopralluoghiPanel from './components/SopralluoghiPanel'
 import FattureEmessePopupLayer from './components/FattureEmessePopupLayer'
 import RegistroPanel from './components/RegistroPanel'
 import CantieriElencoPanel from './components/CantieriElencoPanel'
+import CantieriSchedaPanel from './components/CantieriSchedaPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -11216,234 +11217,59 @@ WebkitOverflowScrolling: 'touch',
     sezioneAttiva === 'cantieri' &&
     sottoSezioneCantieri === 'scheda')
 ) && (
-  <div style={cardStyle}>
-    <h2>Scheda cantiere</h2>
-<div
-  style={{
-    display: 'flex',
-    gap: 8,
-    marginBottom: 10,
-    flexWrap: 'wrap',
-  }}
->
-  <input
-    placeholder="Cerca cantiere..."
-    value={ricercaCantiereEconomia}
-    onChange={(e) =>
-      setRicercaCantiereEconomia(e.target.value)
-    }
-    style={inputStyle}
+  <CantieriSchedaPanel
+    cardStyle={cardStyle}
+    cantieri={cantieri}
+    cantiereScheda={cantiereScheda}
+    setCantiereScheda={setCantiereScheda}
+    ricercaCantiereEconomia={ricercaCantiereEconomia}
+    setRicercaCantiereEconomia={setRicercaCantiereEconomia}
+    mostraConclusiEconomia={mostraConclusiEconomia}
+    setMostraConclusiEconomia={setMostraConclusiEconomia}
+    calcoloEconomiaCantiere={calcoloEconomiaCantiere}
+    formatMoney={formatMoney}
+    inputStyle={inputStyle}
+    buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
+    caricaFotoDaInput={caricaFotoDaInput}
+    cameraFotoCantiereAttiva={cameraFotoCantiereAttiva}
+    setCameraFotoCantiereAttiva={setCameraFotoCantiereAttiva}
+    cameraFotoCantiereFullscreen={cameraFotoCantiereFullscreen}
+    setCameraFotoCantiereFullscreen={setCameraFotoCantiereFullscreen}
+    webcamFotoCantiereRef={webcamFotoCantiereRef}
+    scattaFotoCantiere={scattaFotoCantiere}
+    rilevaPosizioneFoto={rilevaPosizioneFoto}
+    fotoDaCaricare={fotoDaCaricare}
+    setFotoDaCaricare={setFotoDaCaricare}
+    categoriaFoto={categoriaFoto}
+    setCategoriaFoto={setCategoriaFoto}
+    categoriaFotoDaSalvare={categoriaFotoDaSalvare}
+    setCategoriaFotoDaSalvare={setCategoriaFotoDaSalvare}
+    popupCategoriaFotoCantiere={popupCategoriaFotoCantiere}
+    setPopupCategoriaFotoCantiere={setPopupCategoriaFotoCantiere}
+    esportaPdfFotoCantiere={esportaPdfFotoCantiere}
+    notaFotoCantiere={notaFotoCantiere}
+    setNotaFotoCantiere={setNotaFotoCantiere}
+    note={note}
+    setNote={setNote}
+    avviaDettatura={avviaDettatura}
+    fotoCantiere={fotoCantiere}
+    setFotoCantiere={setFotoCantiere}
+    filtroFotoCantiere={filtroFotoCantiere}
+    setFiltroFotoCantiere={setFiltroFotoCantiere}
+    fotoCantiereSelezionate={fotoCantiereSelezionate}
+    setFotoCantiereSelezionate={setFotoCantiereSelezionate}
+    categoriaFotoMultipla={categoriaFotoMultipla}
+    setCategoriaFotoMultipla={setCategoriaFotoMultipla}
+    aggiornaCategoriaFotoSelezionate={aggiornaCategoriaFotoSelezionate}
+    setFotoFullscreen={setFotoFullscreen}
+    supabase={supabase}
+    caricaFotoCantiere={caricaFotoCantiere}
+    eliminaFotoCantiere={eliminaFotoCantiere}
+    geolocalizzazioneFoto={geolocalizzazioneFoto}
+    salvaFotoCantiere={salvaFotoCantiere}
   />
-
-  <button
-    onClick={() =>
-      setMostraConclusiEconomia(!mostraConclusiEconomia)
-    }
-    style={buttonSecondary}
-  >
-    {mostraConclusiEconomia
-      ? 'Nascondi conclusi'
-      : 'Mostra conclusi'}
-  </button>
-</div>
-    <SelectCantiere
-  cantieri={cantieri}
-  value={cantiereScheda || ''}
-  onChange={setCantiereScheda}
-  inputStyle={{
-    padding: 8,
-    width: 260,
-    marginBottom: 15,
-  }}
-  buttonSecondary={buttonSecondary}
-/>
-
-    {!cantiereScheda ? (
-      <p>Seleziona un cantiere per vedere i dettagli.</p>
-    ) : (
-      (() => {
-        const dati = calcoloEconomiaCantiere(cantiereScheda)
-
-        const margine =
-          dati.preventivo > 0
-            ? ((dati.utileReale / dati.preventivo) * 100).toFixed(1)
-            : 0
-
-        return (
-          <div>
-            <h3>{cantiereScheda}</h3>
-
-            {/* STATO */}
-            <div style={{ marginTop: 15, padding: 15, border: '1px solid #ddd', borderRadius: 10 }}>
-              <h3 style={{ marginTop: 0 }}>Stato cantiere</h3>
-
-              <p>Preventivo: {formatMoney(dati.preventivo)}</p>
-              <p>Manodopera: {formatMoney(dati.costoManodopera)}</p>
-              <p>Fornitori: {formatMoney(dati.costoFornitori)}</p>
-
-              <p>
-                <strong>Costo totale: {formatMoney(dati.costoTotale)}</strong>
-              </p>
-
-              <p>
-                <strong style={{ color: dati.utileReale >= 0 ? 'green' : 'red' }}>
-                  Utile: {formatMoney(dati.utileReale)}
-                </strong>
-              </p>
-
-              <p>
-                <strong>Margine: {margine}%</strong>
-              </p>
-            </div>
-
-            {/* MESSAGGIO STATO */}
-            <div style={{ marginTop: 15 }}>
-              {dati.utileReale < 0 ? (
-                <strong style={{ color: 'red' }}>🚨 Cantiere in perdita</strong>
-              ) : Number(margine) < 10 ? (
-                <strong style={{ color: '#f59e0b' }}>⚠️ Margine basso</strong>
-              ) : (
-                <strong style={{ color: 'green' }}>✅ Cantiere in utile</strong>
-              )}
-            </div>
-
-<div
-  style={{
-    marginTop: 20,
-    padding: 15,
-    border: '1px solid #d1d5db',
-    borderRadius: 12,
-    background: '#fff',
-  }}
->
-
-
-
-
- <FotoCantiereToolbar
-  caricaFotoDaInput={caricaFotoDaInput}
-  cameraFotoCantiereAttiva={cameraFotoCantiereAttiva}
-  setCameraFotoCantiereAttiva={setCameraFotoCantiereAttiva}
-  rilevaPosizioneFoto={rilevaPosizioneFoto}
-  fotoDaCaricare={fotoDaCaricare}
-  categoriaFoto={categoriaFoto}
-  setCategoriaFotoDaSalvare={setCategoriaFotoDaSalvare}
-  setPopupCategoriaFotoCantiere={setPopupCategoriaFotoCantiere}
-  esportaPdfFotoCantiere={esportaPdfFotoCantiere}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
-
-
-
-
-
-<FotoCantiereCamera
-  cameraFotoCantiereAttiva={cameraFotoCantiereAttiva}
-  cameraFotoCantiereFullscreen={cameraFotoCantiereFullscreen}
-  setCameraFotoCantiereFullscreen={setCameraFotoCantiereFullscreen}
-  webcamFotoCantiereRef={webcamFotoCantiereRef}
-  scattaFotoCantiere={scattaFotoCantiere}
-/>
-
-
- <FotoCantiereForm
-  notaFotoCantiere={notaFotoCantiere}
-  setNotaFotoCantiere={setNotaFotoCantiere}
-  categoriaFoto={categoriaFoto}
-  setCategoriaFoto={setCategoriaFoto}
-  note={note}
-  setNote={setNote}
-  avviaDettatura={avviaDettatura}
-  buttonSecondary={buttonSecondary}
-/>
-
-
-
-
-<div style={{ marginTop: 15 }}>
-  <strong>
-    Foto salvate per questo cantiere:{' '}
-    {
-      fotoCantiere.filter(
-        (f) => f.cantiere === cantiereScheda
-      ).length
-    }
-  </strong>
-</div>
-
-
-
-
-<FotoCantiereFiltri
-  filtroFotoCantiere={filtroFotoCantiere}
-  setFiltroFotoCantiere={setFiltroFotoCantiere}
-  fotoCantiereSelezionate={fotoCantiereSelezionate}
-  setFotoCantiereSelezionate={setFotoCantiereSelezionate}
-  categoriaFotoMultipla={categoriaFotoMultipla}
-  setCategoriaFotoMultipla={setCategoriaFotoMultipla}
-  aggiornaCategoriaFotoSelezionate={aggiornaCategoriaFotoSelezionate}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
-
-
-
-<FotoCantiereGallery
-  fotoCantiere={fotoCantiere}
-  setFotoCantiere={setFotoCantiere}
-  cantiereScheda={cantiereScheda}
-  filtroFotoCantiere={filtroFotoCantiere}
-  fotoCantiereSelezionate={fotoCantiereSelezionate}
-  setFotoCantiereSelezionate={setFotoCantiereSelezionate}
-  setFotoFullscreen={setFotoFullscreen}
-  supabase={supabase}
-  caricaFotoCantiere={caricaFotoCantiere}
-  eliminaFotoCantiere={eliminaFotoCantiere}
-  buttonSecondary={buttonSecondary}
-/>
-
-
-
-
-
-  {geolocalizzazioneFoto && (
-    <div
-      style={{
-        marginBottom: 10,
-        fontSize: 13,
-        color: '#475569',
-      }}
-    >
-      📍 {geolocalizzazioneFoto}
-    </div>
-  )}
-
- <FotoCantiereAnteprime
-  fotoDaCaricare={fotoDaCaricare}
-  setFotoDaCaricare={setFotoDaCaricare}
-/>
-
-       
-<FotoCantiereCategoriaModal
-  popupCategoriaFotoCantiere={popupCategoriaFotoCantiere}
-  fotoDaCaricare={fotoDaCaricare}
-  categoriaFotoDaSalvare={categoriaFotoDaSalvare}
-  setCategoriaFotoDaSalvare={setCategoriaFotoDaSalvare}
-  setPopupCategoriaFotoCantiere={setPopupCategoriaFotoCantiere}
-  setCategoriaFoto={setCategoriaFoto}
-  salvaFotoCantiere={salvaFotoCantiere}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/></div>
-          </div>
-        )
-      })()
-    )}
-  </div>
 )}
-     
-
 
  <FotoFullscreenModal
   fotoFullscreen={fotoFullscreen}
