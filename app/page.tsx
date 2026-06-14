@@ -80,6 +80,7 @@ import CostiGeneraliImpresaSummary from './components/CostiGeneraliImpresaSummar
 import ValutazioneFondiTogglePanel from './components/ValutazioneFondiTogglePanel'
 import RegistroHeaderToolbar from './components/RegistroHeaderToolbar'
 import AttivitaPanel from './components/AttivitaPanel'
+import SopralluoghiPanel from './components/SopralluoghiPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -14028,405 +14029,91 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
 {/* ================= SOPRALLUOGHI ================= */}
 {sezioneAttiva === 'sopralluoghi' && (
-  <div style={cardStyle}>
-    <h2>📍 Sopralluoghi</h2>
-
- <SopralluogoForm
-  clienteSopralluogo={clienteSopralluogo}
-  setClienteSopralluogo={setClienteSopralluogo}
-  telefonoSopralluogo={telefonoSopralluogo}
-  setTelefonoSopralluogo={setTelefonoSopralluogo}
-  indirizzoSopralluogo={indirizzoSopralluogo}
-  setIndirizzoSopralluogo={setIndirizzoSopralluogo}
-  geolocalizzazioneSopralluogo={geolocalizzazioneSopralluogo}
-  setGeolocalizzazioneSopralluogo={setGeolocalizzazioneSopralluogo}
-  rilevaGeolocalizzazioneSopralluogo={rilevaGeolocalizzazioneSopralluogo}
-  dataSopralluogo={dataSopralluogo}
-  setDataSopralluogo={setDataSopralluogo}
-  oraSopralluogo={oraSopralluogo}
-  setOraSopralluogo={setOraSopralluogo}
-  promemoriaSopralluogo={promemoriaSopralluogo}
-  setPromemoriaSopralluogo={setPromemoriaSopralluogo}
-  tipoLavoroSopralluogo={tipoLavoroSopralluogo}
-  setTipoLavoroSopralluogo={setTipoLavoroSopralluogo}
-  noteSopralluogo={noteSopralluogo}
-  setNoteSopralluogo={setNoteSopralluogo}
-  salvaSopralluogo={salvaSopralluogo}
-  inputStyle={inputStyle}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
-
-
-
-
-
-  <SopralluoghiList
-  sopralluoghi={sopralluoghi}
-  mostraElencoSopralluoghi={mostraElencoSopralluoghi}
-  setMostraElencoSopralluoghi={setMostraElencoSopralluoghi}
-  setUltimoSopralluogo={setUltimoSopralluogo}
-  setSopralluogoAperto={setSopralluogoAperto}
-  setFirmaCliente={setFirmaCliente}
-  setMostraGestioneFotoSopralluogo={setMostraGestioneFotoSopralluogo}
-  setMostraFotoPreventivoSopralluogo={setMostraFotoPreventivoSopralluogo}
-  setFotoSopralluoghi={setFotoSopralluoghi}
-  eliminaSopralluogo={eliminaSopralluogo}
-  supabase={supabase}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
- 
-
-
-
-<SopralluogoDettaglio
-  sopralluogoAperto={sopralluogoAperto}
-  setSopralluogoAperto={setSopralluogoAperto}
-  setSopralluogoModificaId={setSopralluogoModificaId}
-  setClienteSopralluogo={setClienteSopralluogo}
-  setTelefonoSopralluogo={setTelefonoSopralluogo}
-  setIndirizzoSopralluogo={setIndirizzoSopralluogo}
-  setDataSopralluogo={setDataSopralluogo}
-  setOraSopralluogo={setOraSopralluogo}
-  setTipoLavoroSopralluogo={setTipoLavoroSopralluogo}
-  setNoteSopralluogo={setNoteSopralluogo}
-  setPromemoriaSopralluogo={setPromemoriaSopralluogo}
-  setGeolocalizzazioneSopralluogo={setGeolocalizzazioneSopralluogo}
-  coloreStatoSopralluogo={coloreStatoSopralluogo}
-  firmaRef={firmaRef}
-  mostraFirmaCliente={mostraFirmaCliente}
-  setMostraFirmaCliente={setMostraFirmaCliente}
-  altezzaFirma={altezzaFirma}
-  setAltezzaFirma={setAltezzaFirma}
-  coloreFirma={coloreFirma}
-  spessoreFirma={spessoreFirma}
-  setFirmaCliente={setFirmaCliente}
-  mostraAppuntiSopralluogo={mostraAppuntiSopralluogo}
-  setMostraAppuntiSopralluogo={setMostraAppuntiSopralluogo}
-  pagineAppunti={pagineAppunti}
-  setPagineAppunti={setPagineAppunti}
-  paginaFullscreen={paginaFullscreen}
-  setPaginaFullscreen={setPaginaFullscreen}
-  appuntiRefs={appuntiRefs}
-  mostraTavolozzaFirma={mostraTavolozzaFirma}
-  setMostraTavolozzaFirma={setMostraTavolozzaFirma}
-  setColoreFirma={setColoreFirma}
-  setSpessoreFirma={setSpessoreFirma}
-  mostraGestioneFotoSopralluogo={mostraGestioneFotoSopralluogo}
-  setMostraGestioneFotoSopralluogo={setMostraGestioneFotoSopralluogo}
-  mostraFotoPreventivoSopralluogo={mostraFotoPreventivoSopralluogo}
-  setMostraFotoPreventivoSopralluogo={setMostraFotoPreventivoSopralluogo}
-  setPopupFotoSopralluogo={setPopupFotoSopralluogo}
-  fotoSopralluoghi={fotoSopralluoghi}
-  setFotoSopralluoghi={setFotoSopralluoghi}
-  fotoSopralluogoSelezionate={fotoSopralluogoSelezionate}
-  setFotoSopralluogoSelezionate={setFotoSopralluogoSelezionate}
-  setFotoFullscreen={setFotoFullscreen}
-  caricaFotoSopralluoghi={caricaFotoSopralluoghi}
-  preventivoAiGenerato={preventivoAiGenerato}
-  generaPreventivoAiDaSopralluogo={generaPreventivoAiDaSopralluogo}
-  generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo}
-  apriPreventivoAiGeneratoInModifica={apriPreventivoAiGeneratoInModifica}
-  convertiSopralluogoInCantiere={convertiSopralluogoInCantiere}
-  generaPdfSopralluogo={generaPdfSopralluogo}
-  supabase={supabase}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
-         
-
-    <PopupFotoSopralluogo
-      popupFotoSopralluogo={popupFotoSopralluogo}
-      setPopupFotoSopralluogo={setPopupFotoSopralluogo}
-      cameraSopralluogoAttiva={cameraSopralluogoAttiva}
-      setCameraSopralluogoAttiva={setCameraSopralluogoAttiva}
-      cameraSopralluogoFullscreen={cameraSopralluogoFullscreen}
-      setCameraSopralluogoFullscreen={setCameraSopralluogoFullscreen}
-      webcamSopralluogoRef={webcamSopralluogoRef}
-      scattaFotoSopralluogo={scattaFotoSopralluogo}
-      fotoSopralluogoTemp={fotoSopralluogoTemp}
-      setFotoSopralluogoTemp={setFotoSopralluogoTemp}
-      notaFotoSopralluogo={notaFotoSopralluogo}
-      setNotaFotoSopralluogo={setNotaFotoSopralluogo}
-      salvaFotoSopralluogo={salvaFotoSopralluogo}
-      buttonPrimary={buttonPrimary}
-      buttonSecondary={buttonSecondary}
-    />
-  </div>
-)}
-{(
-
-
-
-
-
-  pagineAperte.includes('rapportini') ||
-  (!modalitaMulti && sezioneAttiva === 'rapportini')
-) && (
-  <div style={cardStyle}>
-    <h2>{rapportinoInModifica ? 'Modifica rapportino' : 'Rapportino giornaliero'}</h2>
-<div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-  {!ascoltoRapportino ? (
-    <button
-      onClick={avviaDettaturaRapportino}
-      style={{
-        ...buttonPrimary,
-        backgroundColor: '#111827',
-      }}
-    >
-      🎙️ Avvia dettatura
-    </button>
-  ) : (
-    <button
-      onClick={fermaDettaturaRapportino}
-      style={{
-        ...buttonPrimary,
-        backgroundColor: '#dc2626',
-      }}
-    >
-      ⏹️ Stop dettatura
-    </button>
-  )}
-</div>
-{testoVoceRapportino && (
-  <div
-    style={{
-      padding: 10,
-      background: '#f8fafc',
-      border: '1px solid #cbd5e1',
-      borderRadius: 8,
-      marginBottom: 12,
-    }}
-  >
-    <strong>Testo rilevato:</strong>
-    <br />
-    {testoVoceRapportino}
-  </div>
-)}
-
-<button
-  onClick={compilaRapportinoConAI}
-  style={{
-    ...buttonSecondary,
-    marginBottom: 12,
-    marginLeft: 10,
-    backgroundColor: '#7c3aed',
-    color: '#fff',
-  }}
->
-  🤖 Compila con AI
-</button>
-
-    <select
-      value={cantiereRapporto || ''}
-      onChange={(e) => setCantiereRapporto(e.target.value)}
-      style={{ padding: 8, width: 260, marginBottom: 10 }}
-    >
-      <option value="">Seleziona cantiere</option>
-      {cantieri.map((c, i) => (
-        <option key={c.id || i} value={c.nome}>
-          {c.nome}
-        </option>
-      ))}
-    </select>
-
-    <div style={{ marginBottom: 10 }}>
-      <input
-        type="date"
-        value={data || ''}
-        onChange={(e) => setData(e.target.value)}
-        style={{ padding: 8, marginRight: 8 }}
-      />
-
-         </div>
-
-
-<button
-  type="button"
-  onClick={() => setPopupFotoRapportino(true)}
-  style={{
-    ...buttonSecondary,
-    marginBottom: 10,
-    backgroundColor: '#0f172a',
-    color: '#fff',
-  }}
->
-  📸 Aggiungi foto lavoro
-</button>
-
-
-
-    <textarea
-      placeholder="Note lavoro"
-      value={note || ''}
-      onChange={(e) => setNote(e.target.value)}
-      style={{ padding: 8, width: '100%', minHeight: 90 }}
-    />
-
-
-<button
-  type="button"
-  onClick={() =>
-    setPopupOperaiRapportino(true)
-  }
-  style={{
-    ...buttonSecondary,
-    marginBottom: 10,
-    marginLeft: 10,
-    backgroundColor: '#14532d',
-    color: '#fff',
-  }}
->
-  👷 Operai presenti
-</button>
-
-    <h3>Operai presenti</h3>
-
-    <textarea
-      placeholder="Nomi operai presenti"
-      value={operai || ''}
-      onChange={(e) => setOperai(e.target.value)}
-      style={{ padding: 8, width: '100%', minHeight: 70 }}
-    />
-
-    <h3>Materiali usati</h3>
-
-<textarea
-  placeholder="Materiali usati"
-  value={materiali || ''}
-  onChange={(e) => setMateriali(e.target.value)}
-  style={{ padding: 8, width: '100%', minHeight: 70 }}
-/>
-
-<div style={{ marginTop: 8 }}>
-  {!ascoltoMateriali ? (
-    <button
-      type="button"
-      onClick={avviaDettaturaMateriali}
-      style={buttonSecondary}
-    >
-      🎤 Avvia dettatura materiali
-    </button>
-  ) : (
-    <button
-      type="button"
-      onClick={fermaDettaturaMateriali}
-      style={{
-        ...buttonSecondary,
-        backgroundColor: '#dc2626',
-        color: '#fff',
-      }}
-    >
-      ⏹ Stop dettatura
-    </button>
-  )}
-</div>
-
-<div style={{ marginTop: 10 }}>
-  <input
-    placeholder="Costo materiali €"
-    value={costoMateriali || ''}
-    onChange={(e) => setCostoMateriali(e.target.value)}
-    style={{ padding: 8, width: 180 }}
+  <SopralluoghiPanel
+    cardStyle={cardStyle}
+    clienteSopralluogo={clienteSopralluogo}
+    setClienteSopralluogo={setClienteSopralluogo}
+    telefonoSopralluogo={telefonoSopralluogo}
+    setTelefonoSopralluogo={setTelefonoSopralluogo}
+    indirizzoSopralluogo={indirizzoSopralluogo}
+    setIndirizzoSopralluogo={setIndirizzoSopralluogo}
+    geolocalizzazioneSopralluogo={geolocalizzazioneSopralluogo}
+    setGeolocalizzazioneSopralluogo={setGeolocalizzazioneSopralluogo}
+    rilevaGeolocalizzazioneSopralluogo={rilevaGeolocalizzazioneSopralluogo}
+    dataSopralluogo={dataSopralluogo}
+    setDataSopralluogo={setDataSopralluogo}
+    oraSopralluogo={oraSopralluogo}
+    setOraSopralluogo={setOraSopralluogo}
+    promemoriaSopralluogo={promemoriaSopralluogo}
+    setPromemoriaSopralluogo={setPromemoriaSopralluogo}
+    tipoLavoroSopralluogo={tipoLavoroSopralluogo}
+    setTipoLavoroSopralluogo={setTipoLavoroSopralluogo}
+    noteSopralluogo={noteSopralluogo}
+    setNoteSopralluogo={setNoteSopralluogo}
+    salvaSopralluogo={salvaSopralluogo}
+    inputStyle={inputStyle}
+    buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
+    sopralluoghi={sopralluoghi}
+    mostraElencoSopralluoghi={mostraElencoSopralluoghi}
+    setMostraElencoSopralluoghi={setMostraElencoSopralluoghi}
+    setUltimoSopralluogo={setUltimoSopralluogo}
+    setSopralluogoAperto={setSopralluogoAperto}
+    setFirmaCliente={setFirmaCliente}
+    setMostraGestioneFotoSopralluogo={setMostraGestioneFotoSopralluogo}
+    setMostraFotoPreventivoSopralluogo={setMostraFotoPreventivoSopralluogo}
+    setFotoSopralluoghi={setFotoSopralluoghi}
+    eliminaSopralluogo={eliminaSopralluogo}
+    supabase={supabase}
+    sopralluogoAperto={sopralluogoAperto}
+    setSopralluogoModificaId={setSopralluogoModificaId}
+    coloreStatoSopralluogo={coloreStatoSopralluogo}
+    firmaRef={firmaRef}
+    mostraFirmaCliente={mostraFirmaCliente}
+    setMostraFirmaCliente={setMostraFirmaCliente}
+    altezzaFirma={altezzaFirma}
+    setAltezzaFirma={setAltezzaFirma}
+    coloreFirma={coloreFirma}
+    spessoreFirma={spessoreFirma}
+    mostraAppuntiSopralluogo={mostraAppuntiSopralluogo}
+    setMostraAppuntiSopralluogo={setMostraAppuntiSopralluogo}
+    pagineAppunti={pagineAppunti}
+    setPagineAppunti={setPagineAppunti}
+    paginaFullscreen={paginaFullscreen}
+    setPaginaFullscreen={setPaginaFullscreen}
+    appuntiRefs={appuntiRefs}
+    mostraTavolozzaFirma={mostraTavolozzaFirma}
+    setMostraTavolozzaFirma={setMostraTavolozzaFirma}
+    setColoreFirma={setColoreFirma}
+    setSpessoreFirma={setSpessoreFirma}
+    mostraGestioneFotoSopralluogo={mostraGestioneFotoSopralluogo}
+    mostraFotoPreventivoSopralluogo={mostraFotoPreventivoSopralluogo}
+    setPopupFotoSopralluogo={setPopupFotoSopralluogo}
+    fotoSopralluoghi={fotoSopralluoghi}
+    fotoSopralluogoSelezionate={fotoSopralluogoSelezionate}
+    setFotoSopralluogoSelezionate={setFotoSopralluogoSelezionate}
+    setFotoFullscreen={setFotoFullscreen}
+    caricaFotoSopralluoghi={caricaFotoSopralluoghi}
+    preventivoAiGenerato={preventivoAiGenerato}
+    generaPreventivoAiDaSopralluogo={generaPreventivoAiDaSopralluogo}
+    generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo}
+    apriPreventivoAiGeneratoInModifica={apriPreventivoAiGeneratoInModifica}
+    convertiSopralluogoInCantiere={convertiSopralluogoInCantiere}
+    generaPdfSopralluogo={generaPdfSopralluogo}
+    popupFotoSopralluogo={popupFotoSopralluogo}
+    cameraSopralluogoAttiva={cameraSopralluogoAttiva}
+    setCameraSopralluogoAttiva={setCameraSopralluogoAttiva}
+    cameraSopralluogoFullscreen={cameraSopralluogoFullscreen}
+    setCameraSopralluogoFullscreen={setCameraSopralluogoFullscreen}
+    webcamSopralluogoRef={webcamSopralluogoRef}
+    scattaFotoSopralluogo={scattaFotoSopralluogo}
+    fotoSopralluogoTemp={fotoSopralluogoTemp}
+    setFotoSopralluogoTemp={setFotoSopralluogoTemp}
+    notaFotoSopralluogo={notaFotoSopralluogo}
+    setNotaFotoSopralluogo={setNotaFotoSopralluogo}
+    salvaFotoSopralluogo={salvaFotoSopralluogo}
   />
-</div>
-
-<div style={{ marginTop: 15 }}>
-  {rapportinoInModifica ? (
-    <>
-      <button onClick={aggiornaRapportino} style={buttonPrimary}>
-        Aggiorna
-      </button>
-
-      <button
-        onClick={resetFormRapportino}
-        style={{ ...buttonSecondary, marginLeft: 10 }}
-      >
-        Annulla
-      </button>
-    </>
-  ) : (
-    <button onClick={salvaRapportino} style={buttonPrimary}>
-      Salva
-    </button>
-  )}
-
-  <button
-    onClick={generaPDF}
-    style={{ ...buttonSecondary, marginLeft: 10 }}
-  >
-    PDF
-  </button>
-</div>
-
-
-<div
-  style={{
-    marginTop: 20,
-    padding: 15,
-    border: '1px solid #cbd5e1',
-    borderRadius: 12,
-    background: '#f8fafc',
-  }}
->
-  <h3>📄 SAL fotografico cantiere</h3>
-
-  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-    <select
-      value={salFotoCantiere}
-      onChange={(e) => setSalFotoCantiere(e.target.value)}
-      style={{ maxWidth: 260 }}
-    >
-      <option value="">Seleziona cantiere</option>
-      {cantieri.map((c, i) => (
-        <option key={c.id || i} value={c.nome}>
-          {c.nome}
-        </option>
-      ))}
-    </select>
-
-    <input
-      type="month"
-      value={salFotoMese}
-      onChange={(e) => setSalFotoMese(e.target.value)}
-      style={{ maxWidth: 180 }}
-    />
-
-    <button
-      type="button"
-      onClick={generaPdfSalFotografico}
-      style={{
-        ...buttonPrimary,
-        backgroundColor: '#2563eb',
-      }}
-    >
-      📄 Genera SAL fotografico
-    </button>
-  </div>
-</div>
-
-
-
-
-
-
-
-
-  <h3 style={{ marginTop: 30 }}>Storico rapportini</h3>
-
-<RapportiniList
-  rapportiniFiltrati={rapportiniFiltrati}
-  fotoCantiere={fotoCantiere}
-  setFotoRapportinoAperte={setFotoRapportinoAperte}
-  preparaModificaRapportino={preparaModificaRapportino}
-  eliminaRapportino={eliminaRapportino}
-  generaPdfRapportinoFotografico={generaPdfRapportinoFotografico}
-  buttonSecondary={buttonSecondary}
-/>
-  </div>
-)}
-{/* ================= PAGAMENTI - OPERAI ================= */}
+)}{/* ================= PAGAMENTI - OPERAI ================= */}
 {(
   pagineAperte.includes('pagamenti-operai') ||
   (!modalitaMulti &&
