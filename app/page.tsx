@@ -29,7 +29,7 @@ import MaterialiEconomiaPanel from './components/MaterialiEconomiaPanel'
 import DettaglioManodoperaPanel from './components/DettaglioManodoperaPanel'
 import PopupModificaOperaio from './components/PopupModificaOperaio'
 import FiltroPeriodoEconomia from './components/FiltroPeriodoEconomia'
-
+import CostoPerCantiereOggiPanel from './components/CostoPerCantiereOggiPanel'
 import FotoFullscreenModal from './components/FotoFullscreenModal'
 import AttrezzatureCaricatePanel from './components/AttrezzatureCaricatePanel'
 import OperaioForm from './components/OperaioForm'
@@ -12382,29 +12382,10 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
 
 
-    <h3>Costo per cantiere oggi</h3>
-
-    {Object.keys(costoPerCantiereOggi()).length === 0 ? (
-      <p>Nessun costo disponibile oggi.</p>
-    ) : (
-      <div style={{ display: 'grid', gap: 10, marginBottom: 25 }}>
-        {Object.entries(costoPerCantiereOggi()).map(([cantiere, totale]) => (
-          <div
-            key={cantiere}
-            style={{
-              padding: 12,
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              background: '#fff',
-            }}
-          >
-            <strong>{cantiere}</strong>
-            <br />
-            Manodopera oggi: {formatMoney(Number(totale || 0))}
-          </div>
-        ))}
-      </div>
-    )}
+  <CostoPerCantiereOggiPanel
+  costoPerCantiereOggi={costoPerCantiereOggi}
+  formatMoney={formatMoney}
+/>
 
     <h3>Dettaglio presenze oggi</h3>
 
