@@ -76,6 +76,7 @@ import TabellaSpeseImpresaPanel from './components/TabellaSpeseImpresaPanel'
 import BilancioCantieriTable from './components/BilancioCantieriTable'
 import GraficiEconomiaPanel from './components/GraficiEconomiaPanel'
 import UtileNettoImpresaPanel from './components/UtileNettoImpresaPanel'
+import CostiGeneraliImpresaSummary from './components/CostiGeneraliImpresaSummary'
 import type {
   Cantiere,
   Rapportino,
@@ -14722,44 +14723,10 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
 
 
-<h3 style={{ marginTop: 30 }}>🏢 Costi generali impresa</h3>
-
-<div
-  style={{
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: 10,
-    marginBottom: 16,
-  }}
->
-  <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-    <strong>🛠 Attrezzi / beni ditta</strong>
-    <div style={{ marginTop: 6, fontSize: 20, fontWeight: 700 }}>
-      {formatMoney(speseImpresa.filter((s) => s.categoria === 'attrezzo_ditta').reduce((tot, s) => tot + Number(s.importo || 0), 0))}
-    </div>
-  </div>
-
-  <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-    <strong>🏬 Magazzino</strong>
-    <div style={{ marginTop: 6, fontSize: 20, fontWeight: 700 }}>
-      {formatMoney(speseImpresa.filter((s) => s.categoria === 'magazzino').reduce((tot, s) => tot + Number(s.importo || 0), 0))}
-    </div>
-  </div>
-
-  <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-    <strong>📑 Spese generali</strong>
-    <div style={{ marginTop: 6, fontSize: 20, fontWeight: 700 }}>
-      {formatMoney(speseImpresa.filter((s) => s.categoria === 'spesa_generale').reduce((tot, s) => tot + Number(s.importo || 0), 0))}
-    </div>
-  </div>
-
-  <div style={{ padding: 12, border: '2px solid #dc2626', borderRadius: 8, background: '#fef2f2' }}>
-    <strong>📉 Totale costi generali</strong>
-    <div style={{ marginTop: 6, fontSize: 20, fontWeight: 700, color: '#dc2626' }}>
-      {formatMoney(speseImpresa.reduce((tot, s) => tot + Number(s.importo || 0), 0))}
-    </div>
-  </div>
-</div>
+<CostiGeneraliImpresaSummary
+  speseImpresa={speseImpresa}
+  formatMoney={formatMoney}
+/>
 
 <button
   onClick={() => setTabellaSpeseImpresaAperta(!tabellaSpeseImpresaAperta)}
