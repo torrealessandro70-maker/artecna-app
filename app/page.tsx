@@ -12865,7 +12865,8 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 )}
 
 {/* ================= REGISTRO ================= */}
-<RegistroPanel
+{sezioneAttiva === 'registro' && (
+  <RegistroPanel
   registroTab={registroTab}
   setRegistroTab={setRegistroTab}
   registroCerca={registroCerca}
@@ -13088,6 +13089,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   buttonPrimary={buttonPrimary}
   buttonSecondary={buttonSecondary}
 />
+)}
   </div>
 )}
 {/* ================= ATTIVITÀ ================= */}
