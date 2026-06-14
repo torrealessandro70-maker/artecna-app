@@ -86,6 +86,7 @@ import RegistroPanel from './components/RegistroPanel'
 import CantieriElencoPanel from './components/CantieriElencoPanel'
 import CantieriSchedaPanel from './components/CantieriSchedaPanel'
 import CantieriAnalisiDocumentoPanel from './components/CantieriAnalisiDocumentoPanel'
+import EconomiaGraficiPanel from './components/EconomiaGraficiPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -11288,13 +11289,20 @@ WebkitOverflowScrolling: 'touch',
     sezioneAttiva === 'cantieri' &&
     sottoSezioneCantieri === 'analisi')
 ) && (
-  <CantieriAnalisiDocumentoPanel
+ <CantieriAnalisiDocumentoPanel
   cardStyle={cardStyle}
   cantieri={cantieri}
   cantiereAnalisiDocumento={cantiereScheda || ''}
   setCantiereAnalisiDocumento={setCantiereScheda}
   inputStyle={inputStyle}
   buttonSecondary={buttonSecondary}
+  buttonPrimary={buttonPrimary}
+  caricaFileAnalisiDocumento={caricaFileAnalisiDocumento}
+  fileAnalisiDocumento={fileAnalisiDocumento}
+  nomeFileAnalisiDocumento={nomeFileAnalisiDocumento}
+  testoEstrattoDocumento={testoEstrattoDocumento}
+  importoRilevatoDocumento={importoRilevatoDocumento}
+  vociAnalizzate={vociAnalizzate}
 />
 )}
 
@@ -11308,109 +11316,24 @@ WebkitOverflowScrolling: 'touch',
   <div style={cardStyle}>
     <h2>Economia cantiere</h2>
 
-{cantiereScheda && (
-  <div
-    style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: 15,
-      marginBottom: 20,
-    }}
-  >
-    {/* GRAFICO COLONNE */}
-    <div
-      style={{
-        height: 260,
-        background: '#fff',
-        border: '1px solid #ddd',
-        borderRadius: 12,
-        padding: 10,
-      }}
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={[
-            { nome: 'Preventivo', valore: preventivoCantiere },
-            { nome: 'Costi', valore: totaleCostiCantiere },
-            { nome: 'Acconti', valore: totaleAccontiCantiere },
-            { nome: 'Residuo', valore: residuoDaIncassare },
-            { nome: 'Utile', valore: utileCantiere },
-          ]}
-          barCategoryGap="40%"
-          barGap={4}
-        >
-          <XAxis dataKey="nome" />
-          <YAxis />
-          <Tooltip />
-          <Bar dataKey="valore" barSize={30} radius={[6, 6, 0, 0]}>
-            {[0, 1, 2, 3, 4].map((_, index) => {
-              const colori = ['#3b82f6', '#ef4444', '#06b6d4', '#f59e0b', '#22c55e']
-              return <Cell key={index} fill={colori[index]} />
-            })}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
 
-    {/* GRAFICO CIAMBELLA */}
-    <div
-      style={{
-        height: 260,
-        background: '#fff',
-        border: '1px solid #ddd',
-        borderRadius: 12,
-        padding: 10,
-      }}
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-         <Pie
-  data={[
-    { nome: 'Manodopera', valore: totaleManodoperaCantiere || 0 },
-    { nome: 'Materiali', valore: totaleMaterialiEconomia || 0 },
-    { nome: 'Attrezzi', valore: totaleAttrezziEconomia || 0 },
-  ]}
-  dataKey="valore"
-  nameKey="nome"
-  innerRadius={60}
-  outerRadius={90}
-  paddingAngle={3}
-  label={({ percent }) =>
-    `${((percent || 0) * 100).toFixed(0)}%`
-  }
-  labelLine={false}
-  onClick={(data: any) => {
-    if (data?.nome === 'Manodopera') {
-      setMostraDettaglioManodopera(true)
-      setMostraDettaglioMateriali(false)
-      setMostraDettaglioAttrezzi(false)
-    }
 
-    if (data?.nome === 'Materiali') {
-      setMostraDettaglioMateriali(true)
-      setMostraDettaglioManodopera(false)
-      setMostraDettaglioAttrezzi(false)
-    }
 
-    if (data?.nome === 'Attrezzi') {
-      setMostraDettaglioAttrezzi(true)
-      setMostraDettaglioManodopera(false)
-      setMostraDettaglioMateriali(false)
-    }
-  }}
-  style={{ cursor: 'pointer' }}
->
-  <Cell fill="#ef4444" />
-  <Cell fill="#f59e0b" />
-  <Cell fill="#3b82f6" />
-</Pie>
-          <Tooltip />
-<Legend />
-        </PieChart>
-      </ResponsiveContainer>
-    </div>
-  </div>
-)}
+
+<EconomiaGraficiPanel
+  cantiereScheda={cantiereScheda}
+  preventivoCantiere={preventivoCantiere}
+  totaleCostiCantiere={totaleCostiCantiere}
+  totaleAccontiCantiere={totaleAccontiCantiere}
+  residuoDaIncassare={residuoDaIncassare}
+  utileCantiere={utileCantiere}
+  totaleManodoperaCantiere={totaleManodoperaCantiere}
+  totaleMaterialiEconomia={totaleMaterialiEconomia}
+  totaleAttrezziEconomia={totaleAttrezziEconomia}
+  setMostraDettaglioManodopera={setMostraDettaglioManodopera}
+  setMostraDettaglioMateriali={setMostraDettaglioMateriali}
+  setMostraDettaglioAttrezzi={setMostraDettaglioAttrezzi}
+/>
 
 <div
   style={{
