@@ -7,6 +7,24 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
+
+
+
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: 'OPENAI_API_KEY mancante su Vercel' },
+        { status: 500 }
+      )
+    }
+
+
+
+    if (!process.env.OPENAI_API_KEY.startsWith('sk-proj-')) {
+      return NextResponse.json(
+        { error: 'OPENAI_API_KEY presente ma formato non valido' },
+        { status: 500 }
+      )
+    }
    const {
   sopralluogo,
   foto,
@@ -26,9 +44,14 @@ export async function POST(req: Request) {
       )
       .join('\n')
 
-    const response = await openai.responses.create({
-      model: 'gpt-4.1-mini',
-      input: [
+   const response = await openai.responses.create({
+  model: 'gpt-4.1-mini',
+  text: {
+    format: {
+      type: 'json_object',
+    },
+  },
+  input: [
         {
           role: 'user',
           content: [
