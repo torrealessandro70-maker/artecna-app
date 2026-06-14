@@ -90,6 +90,7 @@ import EconomiaGraficiPanel from './components/EconomiaGraficiPanel'
 import EconomiaSelezioneCantierePanel from './components/EconomiaSelezioneCantierePanel'
 import DashboardEconomiaPanel from './components/DashboardEconomiaPanel'
 import PreventiviEconomiaPanel from './components/PreventiviEconomiaPanel'
+import PresenzeCostiOperaiPanel from './components/PresenzeCostiOperaiPanel'
 import type {
   Cantiere,
   Rapportino,
