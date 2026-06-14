@@ -10,7 +10,7 @@ import jsPDF from 'jspdf'
 import * as XLSX from 'xlsx'
 import Tesseract from 'tesseract.js'
 import JSZip from 'jszip'
-
+import PopupModificaTimbratura from './components/PopupModificaTimbratura'
 import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
 import SalSummaryCards from './components/SalSummaryCards'
@@ -12181,105 +12181,21 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     <h2>Timbrature operai</h2>
 
     {timbraturaInModifica && (
-      <div
-        onClick={() => setTimbraturaInModifica(null)}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.55)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: 20,
-        }}
-      >
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: '100%',
-            maxWidth: 700,
-            background: '#fff',
-            borderRadius: 14,
-            padding: 20,
-            boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
-          }}
-        >
-          <h3 style={{ marginTop: 0 }}>Modifica timbratura</h3>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 10,
-            }}
-          >
-            <input
-              type="date"
-              value={dataTimbraturaModifica}
-              onChange={(e) => setDataTimbraturaModifica(e.target.value)}
-            />
-
-            <input
-              type="time"
-              value={oraEntrataModifica}
-              onChange={(e) => setOraEntrataModifica(e.target.value)}
-            />
-
-            <input
-              type="time"
-              value={oraUscitaModifica}
-              onChange={(e) => setOraUscitaModifica(e.target.value)}
-            />
-          </div>
-
-          <div
-            style={{
-              marginTop: 15,
-              padding: 12,
-              borderRadius: 10,
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-            }}
-          >
-            <strong>Ore lavorate:</strong>{' '}
-            {(() => {
-              const entrata = parseOra(oraEntrataModifica)
-              const uscita = parseOra(oraUscitaModifica)
-
-              if (entrata === null || uscita === null || uscita < entrata) {
-                return '0.00'
-              }
-
-              return ((uscita - entrata) / 60).toFixed(2)
-            })()}
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 10,
-              marginTop: 15,
-            }}
-          >
-            <button
-              onClick={() => setTimbraturaInModifica(null)}
-              style={buttonSecondary}
-            >
-              Annulla
-            </button>
-
-            <button
-              onClick={salvaModificaTimbratura}
-              style={buttonPrimary}
-            >
-              Salva modifica
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
+  <PopupModificaTimbratura
+    titolo="Modifica timbratura"
+    dataTimbraturaModifica={dataTimbraturaModifica}
+    setDataTimbraturaModifica={setDataTimbraturaModifica}
+    oraEntrataModifica={oraEntrataModifica}
+    setOraEntrataModifica={setOraEntrataModifica}
+    oraUscitaModifica={oraUscitaModifica}
+    setOraUscitaModifica={setOraUscitaModifica}
+    parseOra={parseOra}
+    onChiudi={() => setTimbraturaInModifica(null)}
+    onSalva={salvaModificaTimbratura}
+    buttonSecondary={buttonSecondary}
+    buttonPrimary={buttonPrimary}
+  />
+)}
 
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
       <select
@@ -12390,106 +12306,21 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     <h2>Presenze / costi operai</h2>
 
 {timbraturaInModifica && (
-  <div
-    onClick={() => setTimbraturaInModifica(null)}
-    style={{
-      position: 'fixed',
-      inset: 0,
-      backgroundColor: 'rgba(15, 23, 42, 0.55)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999,
-      padding: 20,
-    }}
-  >
-    <div
-      onClick={(e) => e.stopPropagation()}
-      style={{
-        width: '100%',
-        maxWidth: 700,
-        background: '#fff',
-        borderRadius: 14,
-        padding: 20,
-        boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
-      }}
-    >
-      <h3 style={{ marginTop: 0 }}>Modifica presenza</h3>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 10,
-        }}
-      >
-        <input
-          type="date"
-          value={dataTimbraturaModifica}
-          onChange={(e) => setDataTimbraturaModifica(e.target.value)}
-        />
-
-        <input
-          type="time"
-          value={oraEntrataModifica}
-          onChange={(e) => setOraEntrataModifica(e.target.value)}
-        />
-
-        <input
-          type="time"
-          value={oraUscitaModifica}
-          onChange={(e) => setOraUscitaModifica(e.target.value)}
-        />
-      </div>
-
-      <div
-        style={{
-          marginTop: 15,
-          padding: 12,
-          borderRadius: 10,
-          background: '#f8fafc',
-          border: '1px solid #e2e8f0',
-        }}
-      >
-        <strong>Ore lavorate:</strong>{' '}
-        {(() => {
-          const entrata = parseOra(oraEntrataModifica)
-          const uscita = parseOra(oraUscitaModifica)
-
-          if (entrata === null || uscita === null || uscita < entrata) {
-            return '0.00'
-          }
-
-          return ((uscita - entrata) / 60).toFixed(2)
-        })()}
-      </div>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: 10,
-          marginTop: 15,
-        }}
-      >
-        <button
-          onClick={() => setTimbraturaInModifica(null)}
-          style={buttonSecondary}
-        >
-          Annulla
-        </button>
-
-        <button
-          onClick={salvaModificaTimbratura}
-          style={buttonPrimary}
-        >
-          Salva modifica
-        </button>
-      </div>
-    </div>
-  </div>
+  <PopupModificaTimbratura
+    titolo="Modifica presenza"
+    dataTimbraturaModifica={dataTimbraturaModifica}
+    setDataTimbraturaModifica={setDataTimbraturaModifica}
+    oraEntrataModifica={oraEntrataModifica}
+    setOraEntrataModifica={setOraEntrataModifica}
+    oraUscitaModifica={oraUscitaModifica}
+    setOraUscitaModifica={setOraUscitaModifica}
+    parseOra={parseOra}
+    onChiudi={() => setTimbraturaInModifica(null)}
+    onSalva={salvaModificaTimbratura}
+    buttonSecondary={buttonSecondary}
+    buttonPrimary={buttonPrimary}
+  />
 )}
-
 <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8, background: '#fff', marginBottom: 20 }}>
   <h3>Inserisci presenza manuale</h3>
 
