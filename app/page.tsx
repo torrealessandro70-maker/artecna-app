@@ -106,6 +106,7 @@ import OperaiAnagraficaPanel from './components/OperaiAnagraficaPanel'
 import OperaiTimbraturePanel from './components/OperaiTimbraturePanel'
 import PagamentiFornitoriPanel from './components/PagamentiFornitoriPanel'
 import EconomiaGeneraleKpiPanel from './components/EconomiaGeneraleKpiPanel'
+import UtileNettoImpresaContainer from './components/UtileNettoImpresaContainer'
 import type {
   Cantiere,
   Rapportino,
@@ -12445,40 +12446,13 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   />
 </div>
 
-{(() => {
-  const totaleIncassato = accontiCantiere.reduce(
-    (tot, a) => tot + Number(a.importo || 0),
-    0
-  )
-
-  const totaleCostiCantieri = cantieri.reduce(
-    (tot, c) =>
-      tot +
-      Number(
-        calcoloEconomiaCantiere(String(c.nome || '')).costoTotale || 0
-      ),
-    0
-  )
-
-  const totaleCostiGenerali = speseImpresa.reduce(
-    (tot, s) => tot + Number(s.importo || 0),
-    0
-  )
-
-  const utileNettoImpresa =
-    totaleIncassato - totaleCostiCantieri - totaleCostiGenerali
-
-  return (
-    <UtileNettoImpresaPanel
-      totaleIncassato={totaleIncassato}
-      totaleCostiCantieri={totaleCostiCantieri}
-      totaleCostiGenerali={totaleCostiGenerali}
-      utileNettoImpresa={utileNettoImpresa}
-      formatMoney={formatMoney}
-    />
-  )
-})()}
-
+<UtileNettoImpresaContainer
+  accontiCantiere={accontiCantiere}
+  cantieri={cantieri}
+  speseImpresa={speseImpresa}
+  calcoloEconomiaCantiere={calcoloEconomiaCantiere}
+  formatMoney={formatMoney}
+/>
 
 
 
