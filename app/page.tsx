@@ -13,7 +13,7 @@ import JSZip from 'jszip'
 import PopupModificaTimbratura from './components/PopupModificaTimbratura'
 import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
-
+import EconomiaGeneralePanel from './components/EconomiaGeneralePanel'
 
 
 
@@ -11653,48 +11653,30 @@ WebkitOverflowScrolling: 'touch',
   pagineAperte.includes('economia') ||
   (!modalitaMulti && sezioneAttiva === 'economia')
 ) && (
-  <div style={cardStyle}>
-    <h2>Economia generale</h2>
-
-    <div style={{ display: 'grid', gap: 10 }}>
-  <EconomiaGeneraleKpiPanel
+  <EconomiaGeneralePanel
+    cardStyle={cardStyle}
     fattureEmesse={fattureEmesse}
     fattureFornitori={fattureFornitori}
     totalePreventiviImpresa={totalePreventiviImpresa}
+    accontiCantiere={accontiCantiere}
+    cantieri={cantieri}
+    speseImpresa={speseImpresa}
+    calcoloEconomiaCantiere={calcoloEconomiaCantiere}
     formatMoney={formatMoney}
+    filtroSpeseImpresa={filtroSpeseImpresa}
+    setFiltroSpeseImpresa={setFiltroSpeseImpresa}
+    tabellaSpeseImpresaAperta={tabellaSpeseImpresaAperta}
+    setTabellaSpeseImpresaAperta={setTabellaSpeseImpresaAperta}
+    ordineSpeseCampo={ordineSpeseCampo}
+    ordineSpeseDirezione={ordineSpeseDirezione}
+    ordinaSpeseImpresa={ordinaSpeseImpresa}
+    inputStyle={inputStyle}
+    buttonSecondary={buttonSecondary}
+    excelTable={excelTable}
+    excelTh={excelTh}
+    excelTd={excelTd}
   />
-</div>
-
-<UtileNettoImpresaContainer
-  accontiCantiere={accontiCantiere}
-  cantieri={cantieri}
-  speseImpresa={speseImpresa}
-  calcoloEconomiaCantiere={calcoloEconomiaCantiere}
-  formatMoney={formatMoney}
-/>
-
-
-
-
-<EconomiaSpeseImpresaPanel
-  speseImpresa={speseImpresa}
-  filtroSpeseImpresa={filtroSpeseImpresa}
-  setFiltroSpeseImpresa={setFiltroSpeseImpresa}
-  tabellaSpeseImpresaAperta={tabellaSpeseImpresaAperta}
-  setTabellaSpeseImpresaAperta={setTabellaSpeseImpresaAperta}
-  ordineSpeseCampo={ordineSpeseCampo}
-  ordineSpeseDirezione={ordineSpeseDirezione}
-  ordinaSpeseImpresa={ordinaSpeseImpresa}
-  formatMoney={formatMoney}
-  inputStyle={inputStyle}
-  buttonSecondary={buttonSecondary}
-  excelTable={excelTable}
-  excelTh={excelTh}
-  excelTd={excelTd}
-/>
-  </div>
 )}
-
 {/* ================= REGISTRO ================= */}
 {sezioneAttiva === 'registro' && (
   <RegistroPanel
