@@ -100,6 +100,7 @@ import HomeTimbratureCard from './components/HomeTimbratureCard'
 import HomeAnagraficaOperaiCard from './components/HomeAnagraficaOperaiCard'
 import HomeRapportiniCard from './components/HomeRapportiniCard'
 import HomePagamentiOperaiCard from './components/HomePagamentiOperaiCard'
+import HomePagamentiFornitoriCard from './components/HomePagamentiFornitoriCard'
 import type {
   Cantiere,
   Rapportino,
@@ -10978,20 +10979,13 @@ WebkitOverflowScrolling: 'touch',
   />
 )}
       {pagineAperte.includes('pagamenti-fornitori') && (
-      <div style={cardStyle}>
-        <h3>🧾 Pagamenti fornitori</h3>
-        <p>Fornitori registrati: {pagamentiFornitori.length}</p>
-        <p>
-          Totale fornitori:{' '}
-          {formatMoney(
-            pagamentiFornitori.reduce(
-              (tot, p) => tot + parseImporto(p.importo_totale),
-              0
-            )
-          )}
-        </p>
-      </div>
-    )}
+  <HomePagamentiFornitoriCard
+    cardStyle={cardStyle}
+    pagamentiFornitori={pagamentiFornitori}
+    parseImporto={parseImporto}
+    formatMoney={formatMoney}
+  />
+)}
 
     {pagineAperte.includes('economia') && (
       <div style={cardStyle}>
