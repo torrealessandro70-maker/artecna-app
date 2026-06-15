@@ -97,6 +97,7 @@ import PresenzePeriodoSummaryPanel from './components/PresenzePeriodoSummaryPane
 import DettaglioPresenzeOggiPanel from './components/DettaglioPresenzeOggiPanel'
 import HomePresenzeCostiCard from './components/HomePresenzeCostiCard'
 import HomeTimbratureCard from './components/HomeTimbratureCard'
+import HomeAnagraficaOperaiCard from './components/HomeAnagraficaOperaiCard'
 import type {
   Cantiere,
   Rapportino,
@@ -10959,22 +10960,11 @@ WebkitOverflowScrolling: 'touch',
       </div>
     )}
 
-    {pagineAperte.includes('operai-anagrafica') && (
-      <div style={cardStyle}>
-        <h3>👷 Anagrafica operai</h3>
-        <p>Operai registrati: {operaiAnagrafica.length}</p>
-        {operaiAnagrafica.slice(0, 5).map((o, i) => (
-          <div key={o.id || i}>
-            {o.nome} — {o.qualifica || '-'} — {formatMoney(Number(o.costo_orario || 0))}
-          </div>
-        ))}
-      </div>
-    )}
-
-  {pagineAperte.includes('operai-timbrature') && (
-  <HomeTimbratureCard
+   {pagineAperte.includes('operai-anagrafica') && (
+  <HomeAnagraficaOperaiCard
     cardStyle={cardStyle}
-    timbratureOggi={timbratureOggi}
+    operaiAnagrafica={operaiAnagrafica}
+    formatMoney={formatMoney}
   />
 )}
 
