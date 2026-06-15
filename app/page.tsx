@@ -3264,14 +3264,6 @@ setCantiereMassivoFattura('')
 
 alert('Modifiche fattura salvate')
 
-
-  await caricaFattureFornitori()
-
-setFatturaApertaId(null)
-setRigheFatturaAperta([])
-setCantiereMassivoFattura('')
-
-alert('Modifiche fattura salvate')
 }
 
 
