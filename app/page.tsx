@@ -101,6 +101,7 @@ import HomeAnagraficaOperaiCard from './components/HomeAnagraficaOperaiCard'
 import HomeRapportiniCard from './components/HomeRapportiniCard'
 import HomePagamentiOperaiCard from './components/HomePagamentiOperaiCard'
 import HomePagamentiFornitoriCard from './components/HomePagamentiFornitoriCard'
+import HomeEconomiaGeneraleCard from './components/HomeEconomiaGeneraleCard'
 import type {
   Cantiere,
   Rapportino,
@@ -10927,19 +10928,16 @@ WebkitOverflowScrolling: 'touch',
       </div>
     )}
 
-    {pagineAperte.includes('economia') && (
-      <div style={{ ...cardStyle, minWidth: 420, maxWidth: 480 }}>
-        <h3>💶 Economia generale</h3>
-        <p>Totale preventivi: {formatMoney(totalePreventiviImpresa)}</p>
-        <p>Totale costi: {formatMoney(totaleCostiImpresa)}</p>
-        <p>
-          <strong style={{ color: utileTotaleImpresa >= 0 ? 'green' : 'red' }}>
-            Utile totale: {formatMoney(utileTotaleImpresa)}
-          </strong>
-        </p>
-        <p>Margine medio: {margineMedioImpresa.toFixed(1)}%</p>
-      </div>
-    )}
+   {pagineAperte.includes('economia') && (
+  <HomeEconomiaGeneraleCard
+    cardStyle={cardStyle}
+    totalePreventiviImpresa={totalePreventiviImpresa}
+    totaleCostiImpresa={totaleCostiImpresa}
+    utileTotaleImpresa={utileTotaleImpresa}
+    margineMedioImpresa={margineMedioImpresa}
+    formatMoney={formatMoney}
+  />
+)}
 
     {pagineAperte.includes('attivita') && (
       <div style={{ ...cardStyle, minWidth: 360, maxWidth: 420 }}>
