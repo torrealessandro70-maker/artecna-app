@@ -102,6 +102,7 @@ import UtileNettoImpresaContainer from './components/UtileNettoImpresaContainer'
 import EconomiaSpeseImpresaPanel from './components/EconomiaSpeseImpresaPanel'
 import SalDettagliatoPanel from './components/SalDettagliatoPanel'
 import AccontiEconomiaPanel from './components/AccontiEconomiaPanel'
+import RiepilogoCostiEconomiaPanel from './components/RiepilogoCostiEconomiaPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -11441,8 +11442,7 @@ WebkitOverflowScrolling: 'touch',
   modificaAcconto={modificaAcconto}
   eliminaAcconto={eliminaAcconto}
 />
-          {/* ================= RIEPILOGO COSTI ================= */}
-          <DettaglioManodoperaPanel
+       <RiepilogoCostiEconomiaPanel
   mostraDettaglioManodopera={mostraDettaglioManodopera}
   setMostraDettaglioManodopera={setMostraDettaglioManodopera}
   timbrature={timbrature}
@@ -11462,16 +11462,10 @@ WebkitOverflowScrolling: 'touch',
   calcolaOre={calcolaOre}
   calcolaOreNumero={calcolaOreNumero}
   calcolaCostoTimbratura={calcolaCostoTimbratura}
-/>
-
-      <MaterialiEconomiaPanel
   mostraDettaglioMateriali={mostraDettaglioMateriali}
   setMostraDettaglioMateriali={setMostraDettaglioMateriali}
   totaleMaterialiEconomia={totaleMaterialiEconomia}
   materialiCantiere={materialiCantiere}
-  cantiereScheda={cantiereScheda}
-  economiaDataDa={economiaDataDa}
-  economiaDataA={economiaDataA}
   cercaMaterialeManuale={cercaMaterialeManuale}
   setCercaMaterialeManuale={setCercaMaterialeManuale}
   materialeManualeDescrizione={materialeManualeDescrizione}
@@ -11489,48 +11483,20 @@ WebkitOverflowScrolling: 'touch',
   ordinaMateriali={ordinaMateriali}
   ordineMaterialiCampo={ordineMaterialiCampo}
   ordineMaterialiDirezione={ordineMaterialiDirezione}
-  excelTable={excelTable}
-  excelTh={excelTh}
-  excelTd={excelTd}
   inputStyle={inputStyle}
   buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-  formatMoney={formatMoney}
-/>
-
-          <RiepilogoUtilePanel
   totaleCostiCantiere={totaleCostiCantiere}
   utileCantiere={utileCantiere}
   margineCantiere={margineCantiere}
-  formatMoney={formatMoney}
-/>
-
-
-         {/* ================= MATERIALI CON ANTEPRIMA ================= */}
-
-<MaterialiCaricatiPanel
   mostraMaterialiCantiere={mostraMaterialiCantiere}
   setMostraMaterialiCantiere={setMostraMaterialiCantiere}
-  materialiCantiere={materialiCantiere}
-  cantiereScheda={cantiereScheda}
-  economiaDataDa={economiaDataDa}
-  economiaDataA={economiaDataA}
-  buttonSecondary={buttonSecondary}
-  formatMoney={formatMoney}
   eliminaFileDaStorage={eliminaFileDaStorage}
   caricaEconomia={caricaEconomia}
   supabase={supabase}
-/>
-
-   {/* ================= ATTREZZI CON ANTEPRIMA ================= */}
-<AttrezzatureCaricatePanel
   mostraAttrezziCantiere={mostraAttrezziCantiere}
   setMostraAttrezziCantiere={setMostraAttrezziCantiere}
   attrezziCantiere={attrezziCantiere}
-  cantiereScheda={cantiereScheda}
-  buttonSecondary={buttonSecondary}
-  formatMoney={formatMoney}
-  onElimina={eliminaAttrezzatura}
+  eliminaAttrezzatura={eliminaAttrezzatura}
 />
              
   </div>
