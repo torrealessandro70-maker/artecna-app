@@ -99,6 +99,7 @@ import HomePresenzeCostiCard from './components/HomePresenzeCostiCard'
 import HomeTimbratureCard from './components/HomeTimbratureCard'
 import HomeAnagraficaOperaiCard from './components/HomeAnagraficaOperaiCard'
 import HomeRapportiniCard from './components/HomeRapportiniCard'
+import HomePagamentiOperaiCard from './components/HomePagamentiOperaiCard'
 import type {
   Cantiere,
   Rapportino,
@@ -10902,15 +10903,13 @@ WebkitOverflowScrolling: 'touch',
     formatMoney={formatMoney}
   />
 )}
-
-    {pagineAperte.includes('pagamenti-operai') && (
-      <div style={{ ...cardStyle, minWidth: 380, maxWidth: 440 }}>
-        <h3>💳 Pagamenti operai</h3>
-        <p>Pagamenti registrati: {pagamentiOperai.length}</p>
-        <p>Operai: {operaiAnagrafica.length}</p>
-      </div>
-    )}
-
+{pagineAperte.includes('pagamenti-operai') && (
+  <HomePagamentiOperaiCard
+    cardStyle={cardStyle}
+    pagamentiOperai={pagamentiOperai}
+    operaiAnagrafica={operaiAnagrafica}
+  />
+)}
     {pagineAperte.includes('pagamenti-fornitori') && (
       <div style={{ ...cardStyle, minWidth: 380, maxWidth: 440 }}>
         <h3>🧾 Pagamenti fornitori</h3>
@@ -10978,15 +10977,7 @@ WebkitOverflowScrolling: 'touch',
     oreTotaliOggi={oreTotaliOggi}
   />
 )}
-    {pagineAperte.includes('pagamenti-operai') && (
-      <div style={cardStyle}>
-        <h3>💳 Pagamenti operai</h3>
-        <p>Pagamenti registrati: {pagamentiOperai.length}</p>
-        <p>Operai: {operaiAnagrafica.length}</p>
-      </div>
-    )}
-
-    {pagineAperte.includes('pagamenti-fornitori') && (
+      {pagineAperte.includes('pagamenti-fornitori') && (
       <div style={cardStyle}>
         <h3>🧾 Pagamenti fornitori</h3>
         <p>Fornitori registrati: {pagamentiFornitori.length}</p>
@@ -12464,7 +12455,9 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     setNotaFotoSopralluogo={setNotaFotoSopralluogo}
     salvaFotoSopralluogo={salvaFotoSopralluogo}
   />
-)}{/* ================= PAGAMENTI - OPERAI ================= */}
+)}
+
+{/* ================= PAGAMENTI - OPERAI ================= */}
 {(
   pagineAperte.includes('pagamenti-operai') ||
   (!modalitaMulti &&
