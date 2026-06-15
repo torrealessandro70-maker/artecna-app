@@ -107,6 +107,7 @@ import OperaiTimbraturePanel from './components/OperaiTimbraturePanel'
 import PagamentiFornitoriPanel from './components/PagamentiFornitoriPanel'
 import EconomiaGeneraleKpiPanel from './components/EconomiaGeneraleKpiPanel'
 import UtileNettoImpresaContainer from './components/UtileNettoImpresaContainer'
+import EconomiaSpeseImpresaPanel from './components/EconomiaSpeseImpresaPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -12457,18 +12458,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
 
 
-<CostiGeneraliImpresaSummary
-  speseImpresa={speseImpresa}
-  formatMoney={formatMoney}
-/>
-
-<button
-  onClick={() => setTabellaSpeseImpresaAperta(!tabellaSpeseImpresaAperta)}
-  style={{ ...buttonSecondary, marginBottom: 10 }}
->
-  {tabellaSpeseImpresaAperta ? '🔽 Nascondi dettaglio spese' : '📋 Mostra dettaglio spese'}
-</button>
-<TabellaSpeseImpresaPanel
+<EconomiaSpeseImpresaPanel
   speseImpresa={speseImpresa}
   filtroSpeseImpresa={filtroSpeseImpresa}
   setFiltroSpeseImpresa={setFiltroSpeseImpresa}
@@ -12484,51 +12474,6 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   excelTh={excelTh}
   excelTd={excelTd}
 />
-
-
-
-<BilancioCantieriTable
-  cantieri={cantieri}
-  accontiCantiere={accontiCantiere}
-  fattureEmesse={fattureEmesse}
-  ordineBilancioCampo={ordineBilancioCampo}
-  ordineBilancioDirezione={ordineBilancioDirezione}
-  ordinaBilancioCantiere={ordinaBilancioCantiere}
-  calcoloEconomiaCantiere={calcoloEconomiaCantiere}
-  formatMoney={formatMoney}
-  excelTable={excelTable}
-  excelTh={excelTh}
-  excelTd={excelTd}
-/>
-<GraficiEconomiaPanel
-  graficoCantieriAperto={graficoCantieriAperto}
-  setGraficoCantieriAperto={setGraficoCantieriAperto}
-  graficoTotaliAperto={graficoTotaliAperto}
-  setGraficoTotaliAperto={setGraficoTotaliAperto}
-  cantieri={cantieri}
-  accontiCantiere={accontiCantiere}
-  calcoloEconomiaCantiere={calcoloEconomiaCantiere}
-  formatMoney={formatMoney}
-  buttonSecondary={buttonSecondary}
-/>
-   <ValutazioneFondiTogglePanel
-  mostraValutazioneFondi={mostraValutazioneFondi}
-  setMostraValutazioneFondi={setMostraValutazioneFondi}
-  situazioneCantieri={situazioneCantieri}
-  buttonSecondary={buttonSecondary}
-/>
-{popupIncassoNonFatturato && (
-  <PopupIncassoNonFatturato
-    nuovoIncassoNonFatturato={nuovoIncassoNonFatturato}
-    setNuovoIncassoNonFatturato={setNuovoIncassoNonFatturato}
-    cantieri={cantieri}
-    inputStyle={inputStyle}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-    salvaIncassoNonFatturato={salvaIncassoNonFatturato}
-    setPopupIncassoNonFatturato={setPopupIncassoNonFatturato}
-  />
-)}
   </div>
 )}
 
