@@ -105,6 +105,7 @@ import HomeEconomiaGeneraleCard from './components/HomeEconomiaGeneraleCard'
 import OperaiAnagraficaPanel from './components/OperaiAnagraficaPanel'
 import OperaiTimbraturePanel from './components/OperaiTimbraturePanel'
 import PagamentiFornitoriPanel from './components/PagamentiFornitoriPanel'
+import EconomiaGeneraleKpiPanel from './components/EconomiaGeneraleKpiPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -11073,6 +11074,9 @@ WebkitOverflowScrolling: 'touch',
     {classificaCantieri.length === 0 ? (
       <p>Nessun cantiere presente</p>
     ) : (
+
+
+
       <div style={{ display: 'grid', gap: 10 }}>
         {classificaCantieri.map((c, i) => (
           <div
@@ -12433,181 +12437,14 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     <h2>Economia generale</h2>
 
     <div style={{ display: 'grid', gap: 10 }}>
-      <div
-        style={{
-          padding: 12,
-          border: '1px solid #ddd',
-          borderRadius: 8,
-        }}
-      >
-
-<div
-  style={{
-    display: 'grid',
-    gridTemplateColumns:
-      'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: 10,
-    marginBottom: 10,
-  }}
->
-  <div
-    style={{
-      padding: 12,
-      border: '1px solid #ddd',
-      borderRadius: 8,
-      background: '#eff6ff',
-    }}
-  >
-
-
-    <strong>🧾 Totale fatture emesse</strong>
-
-    <div
-      style={{
-        marginTop: 6,
-        fontSize: 20,
-        fontWeight: 700,
-      }}
-    >
-      {formatMoney(
-        fattureEmesse.reduce(
-          (tot, f) =>
-            tot + Number(f.totale || 0),
-          0
-        )
-      )}
-    </div>
-  </div>
-
-  <div
-    style={{
-      padding: 12,
-      border: '1px solid #ddd',
-      borderRadius: 8,
-      background: '#f0fdf4',
-    }}
-  >
-    <strong>💰 Totale incassato</strong>
-
-    <div
-      style={{
-        marginTop: 6,
-        fontSize: 20,
-        fontWeight: 700,
-        color: 'green',
-      }}
-    >
-      {formatMoney(
-        fattureEmesse.reduce(
-          (tot, f) =>
-            tot +
-            Number(
-              f.importo_incassato || 0
-            ),
-          0
-        )
-      )}
-    </div>
-  </div>
-
-  <div
-    style={{
-      padding: 12,
-      border: '1px solid #ddd',
-      borderRadius: 8,
-      background: '#fef2f2',
-    }}
-  >
-    <strong>📄 Totale fatture fornitori</strong>
-
-    <div
-      style={{
-        marginTop: 6,
-        fontSize: 20,
-        fontWeight: 700,
-        color: '#dc2626',
-      }}
-    >
-      {formatMoney(
-        fattureFornitori.reduce(
-          (tot, f) =>
-            tot +
-            Number(
-              f.importo_totale || 0
-            ),
-          0
-        )
-      )}
-    </div>
-  </div>
-
-  <div
-    style={{
-      padding: 12,
-      border: '1px solid #ddd',
-      borderRadius: 8,
-      background: '#faf5ff',
-    }}
-  >
-    <strong>📈 Cash flow reale</strong>
-
-    <div
-      style={{
-        marginTop: 6,
-        fontSize: 20,
-        fontWeight: 700,
-        color:
-          fattureEmesse.reduce(
-            (tot, f) =>
-              tot +
-              Number(
-                f.importo_incassato || 0
-              ),
-            0
-          ) -
-            fattureFornitori.reduce(
-              (tot, f) =>
-                tot +
-                Number(
-                  f.importo_totale || 0
-                ),
-              0
-            ) >=
-          0
-            ? 'green'
-            : 'red',
-      }}
-    >
-      {formatMoney(
-        fattureEmesse.reduce(
-          (tot, f) =>
-            tot +
-            Number(
-              f.importo_incassato || 0
-            ),
-          0
-        ) -
-          fattureFornitori.reduce(
-            (tot, f) =>
-              tot +
-              Number(
-                f.importo_totale || 0
-              ),
-            0
-          )
-      )}
-    </div>
-  </div>
+  <EconomiaGeneraleKpiPanel
+    fattureEmesse={fattureEmesse}
+    fattureFornitori={fattureFornitori}
+    totalePreventiviImpresa={totalePreventiviImpresa}
+    formatMoney={formatMoney}
+  />
 </div>
 
-
-        <strong>Totale preventivi:</strong>{' '}
-        {formatMoney(totalePreventiviImpresa)}
-      </div>
-
-    
-
-           </div>
 {(() => {
   const totaleIncassato = accontiCantiere.reduce(
     (tot, a) => tot + Number(a.importo || 0),
