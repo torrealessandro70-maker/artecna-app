@@ -98,6 +98,7 @@ import DettaglioPresenzeOggiPanel from './components/DettaglioPresenzeOggiPanel'
 import HomePresenzeCostiCard from './components/HomePresenzeCostiCard'
 import HomeTimbratureCard from './components/HomeTimbratureCard'
 import HomeAnagraficaOperaiCard from './components/HomeAnagraficaOperaiCard'
+import HomeRapportiniCard from './components/HomeRapportiniCard'
 import type {
   Cantiere,
   Rapportino,
@@ -10969,15 +10970,14 @@ WebkitOverflowScrolling: 'touch',
 )}
 
    
-    {pagineAperte.includes('rapportini') && (
-      <div style={cardStyle}>
-        <h3>📄 Rapportini</h3>
-        <p>Totale rapportini: {totaleRapportini}</p>
-        <p>Rapportini oggi: {totaleRapportiniOggi}</p>
-        <p>Ore oggi: {oreTotaliOggi}</p>
-      </div>
-    )}
-
+  {pagineAperte.includes('rapportini') && (
+  <HomeRapportiniCard
+    cardStyle={cardStyle}
+    totaleRapportini={totaleRapportini}
+    totaleRapportiniOggi={totaleRapportiniOggi}
+    oreTotaliOggi={oreTotaliOggi}
+  />
+)}
     {pagineAperte.includes('pagamenti-operai') && (
       <div style={cardStyle}>
         <h3>💳 Pagamenti operai</h3>
