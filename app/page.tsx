@@ -101,6 +101,7 @@ import EconomiaGeneraleKpiPanel from './components/EconomiaGeneraleKpiPanel'
 import UtileNettoImpresaContainer from './components/UtileNettoImpresaContainer'
 import EconomiaSpeseImpresaPanel from './components/EconomiaSpeseImpresaPanel'
 import SalDettagliatoPanel from './components/SalDettagliatoPanel'
+import AccontiEconomiaPanel from './components/AccontiEconomiaPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -11412,35 +11413,23 @@ WebkitOverflowScrolling: 'touch',
   buttonSecondary={buttonSecondary}
 />
 
-{/* ================= ACCONTI / SAL ================= */}
-<div>
-  <AccontiSalPanel
-    totaleAccontiCantiere={totaleAccontiCantiere}
-    residuoDaIncassare={residuoDaIncassare}
-    mostraAcconti={mostraAcconti}
-    buttonSecondary={buttonSecondary}
-    formatMoney={formatMoney}
-    setMostraAcconti={setMostraAcconti}
-  />
-
-  {mostraAcconti && (
-    <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-     <AccontoForm
-  descrizione={descrizioneAcconto}
-  setDescrizione={setDescrizioneAcconto}
-  importo={importoAcconto}
-  setImporto={setImportoAcconto}
-  data={dataAcconto}
-  setData={setDataAcconto}
-  metodo={metodoAcconto}
-  setMetodo={setMetodoAcconto}
-  nota={notaAcconto}
-  setNota={setNotaAcconto}
-  onSalva={salvaAcconto}
-/>
-
- <AccontiTable
-  acconti={accontiCantiere}
+<AccontiEconomiaPanel
+  totaleAccontiCantiere={totaleAccontiCantiere}
+  residuoDaIncassare={residuoDaIncassare}
+  mostraAcconti={mostraAcconti}
+  setMostraAcconti={setMostraAcconti}
+  descrizioneAcconto={descrizioneAcconto}
+  setDescrizioneAcconto={setDescrizioneAcconto}
+  importoAcconto={importoAcconto}
+  setImportoAcconto={setImportoAcconto}
+  dataAcconto={dataAcconto}
+  setDataAcconto={setDataAcconto}
+  metodoAcconto={metodoAcconto}
+  setMetodoAcconto={setMetodoAcconto}
+  notaAcconto={notaAcconto}
+  setNotaAcconto={setNotaAcconto}
+  salvaAcconto={salvaAcconto}
+  accontiCantiere={accontiCantiere}
   cantiereScheda={cantiereScheda}
   economiaDataDa={economiaDataDa}
   economiaDataA={economiaDataA}
@@ -11449,13 +11438,9 @@ WebkitOverflowScrolling: 'touch',
   excelTd={excelTd}
   buttonSecondary={buttonSecondary}
   formatMoney={formatMoney}
-  onModifica={modificaAcconto}
-  onElimina={eliminaAcconto}
+  modificaAcconto={modificaAcconto}
+  eliminaAcconto={eliminaAcconto}
 />
-    </div>
-  )}
-</div>
-
           {/* ================= RIEPILOGO COSTI ================= */}
           <DettaglioManodoperaPanel
   mostraDettaglioManodopera={mostraDettaglioManodopera}
