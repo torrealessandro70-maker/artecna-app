@@ -847,23 +847,25 @@ alert(
     return
   }
 
-  setRigheFatturaAperta((righe) =>
-    righe.map((r) => ({
+ setRigheFatturaAperta((righe) =>
+  righe.map((r) => {
+    const nuovoCantiere =
+      cantiereMassivoFattura || r.cantiere
+
+    const nuovaCategoria =
+      categoriaMassivaFattura || r.categoria_economica
+
+    return {
       ...r,
-
-      cantiere:
-        cantiereMassivoFattura || r.cantiere,
-
-      categoria_economica:
-        categoriaMassivaFattura ||
-        r.categoria_economica,
-
+      cantiere: nuovoCantiere,
+      categoria_economica: nuovaCategoria,
       stato:
-        cantiereMassivoFattura || r.cantiere
+        nuovoCantiere || nuovaCategoria
           ? 'assegnata'
           : 'da_assegnare',
-    }))
-  )
+    }
+  })
+)
 }}
     style={buttonSecondary}
   >
