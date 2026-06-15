@@ -10982,14 +10982,7 @@ WebkitOverflowScrolling: 'touch',
       </div>
     )}
 
-    {pagineAperte.includes('operai-presenze') && (
-      <div style={cardStyle}>
-        <h3>📋 Presenze / costi</h3>
-        <p>Manodopera oggi: {formatMoney(costoTotaleTimbratureOggi)}</p>
-        <p>Presenze oggi: {timbratureOggi.length}</p>
-      </div>
-    )}
-
+   
     {pagineAperte.includes('rapportini') && (
       <div style={cardStyle}>
         <h3>📄 Rapportini</h3>
