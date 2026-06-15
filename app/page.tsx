@@ -103,6 +103,7 @@ import HomePagamentiOperaiCard from './components/HomePagamentiOperaiCard'
 import HomePagamentiFornitoriCard from './components/HomePagamentiFornitoriCard'
 import HomeEconomiaGeneraleCard from './components/HomeEconomiaGeneraleCard'
 import OperaiAnagraficaPanel from './components/OperaiAnagraficaPanel'
+import OperaiTimbraturePanel from './components/OperaiTimbraturePanel'
 import type {
   Cantiere,
   Rapportino,
@@ -12126,125 +12127,37 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     sezioneAttiva === 'operai' &&
     sottoSezioneOperai === 'timbrature')
 ) && (
-  <div style={cardStyle}>
-    <h2>Timbrature operai</h2>
-
-    {timbraturaInModifica && (
-  <PopupModificaTimbratura
-    titolo="Modifica timbratura"
+  <OperaiTimbraturePanel
+    cardStyle={cardStyle}
+    timbraturaInModifica={timbraturaInModifica}
     dataTimbraturaModifica={dataTimbraturaModifica}
     setDataTimbraturaModifica={setDataTimbraturaModifica}
     oraEntrataModifica={oraEntrataModifica}
     setOraEntrataModifica={setOraEntrataModifica}
     oraUscitaModifica={oraUscitaModifica}
     setOraUscitaModifica={setOraUscitaModifica}
+    setTimbraturaInModifica={setTimbraturaInModifica}
+    setStatoTimbraturaModifica={setStatoTimbraturaModifica}
     parseOra={parseOra}
-    onChiudi={() => setTimbraturaInModifica(null)}
-    onSalva={salvaModificaTimbratura}
-    buttonSecondary={buttonSecondary}
+    salvaModificaTimbratura={salvaModificaTimbratura}
+    operaioTimbratura={operaioTimbratura}
+    setOperaioTimbratura={setOperaioTimbratura}
+    cantiereTimbratura={cantiereTimbratura}
+    setCantiereTimbratura={setCantiereTimbratura}
+    pinTimbratura={pinTimbratura}
+    setPinTimbratura={setPinTimbratura}
+    operaiAttivi={operaiAttivi}
+    cantieri={cantieri}
+    timbratureOggi={timbratureOggi}
+    timbraEntrataConPin={timbraEntrataConPin}
+    timbraUscitaConPin={timbraUscitaConPin}
+    eliminaTimbratura={eliminaTimbratura}
+    calcolaCostoTimbratura={calcolaCostoTimbratura}
+    formatMoney={formatMoney}
     buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
   />
-)}
-
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
-      <select
-        value={operaioTimbratura || ''}
-        onChange={(e) => setOperaioTimbratura(e.target.value)}
-        style={{ padding: 8, width: 220 }}
-      >
-        <option value="">Seleziona operaio</option>
-        {operaiAttivi.map((o, i) => (
-          <option key={o.id || i} value={o.nome}>
-            {o.nome}
-          </option>
-        ))}
-      </select>
-
-      <select
-        value={cantiereTimbratura || ''}
-        onChange={(e) => setCantiereTimbratura(e.target.value)}
-        style={{ padding: 8, width: 240 }}
-      >
-        <option value="">Seleziona cantiere</option>
-        {cantieri.map((c, i) => (
-          <option key={c.id || i} value={c.nome}>
-            {c.nome}
-          </option>
-        ))}
-      </select>
-
-      <input
-        placeholder="PIN"
-        value={pinTimbratura || ''}
-        onChange={(e) => setPinTimbratura(e.target.value)}
-        style={{ padding: 8, width: 140 }}
-      />
-
-      <button onClick={timbraEntrataConPin} style={buttonPrimary}>
-        Entrata
-      </button>
-
-      <button onClick={timbraUscitaConPin} style={buttonSecondary}>
-        Uscita
-      </button>
-    </div>
-
-    <h3>Timbrature di oggi</h3>
-
-    {timbratureOggi.length === 0 ? (
-      <p>Nessuna timbratura presente oggi</p>
-    ) : (
-      <div style={{ display: 'grid', gap: 10 }}>
-        {timbratureOggi.map((t, i) => (
-          <div
-            key={t.id || i}
-            style={{
-              padding: 12,
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              background: '#fff',
-            }}
-          >
-            <strong>{t.operaio_nome}</strong> — {t.cantiere}
-            <br />
-            Entrata: {t.ora_entrata || '-'} | Uscita: {t.ora_uscita || '-'}
-            <br />
-            Stato: {t.stato || '-'}
-            <br />
-            Costo: {formatMoney(calcolaCostoTimbratura(t))}
-
-            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => {
-                  setTimbraturaInModifica(t.id || null)
-                  setDataTimbraturaModifica(t.data || '')
-                  setOraEntrataModifica(t.ora_entrata || '')
-                  setOraUscitaModifica(t.ora_uscita || '')
-                  setStatoTimbraturaModifica(t.stato || 'aperto')
-                }}
-                style={buttonSecondary}
-              >
-                Modifica
-              </button>
-
-              <button
-                onClick={() => eliminaTimbratura(t.id)}
-                style={{
-                  ...buttonSecondary,
-                  backgroundColor: '#d9534f',
-                  color: 'white',
-                }}
-              >
-                Elimina
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
-{/* ================= OPERAI - PRESENZE / COSTI ================= */}
+)}{/* ================= OPERAI - PRESENZE / COSTI ================= */}
 {(
   pagineAperte.includes('operai-presenze') ||
   (!modalitaMulti &&
