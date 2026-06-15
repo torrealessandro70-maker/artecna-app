@@ -95,6 +95,7 @@ import PresenzaManualePanel from './components/PresenzaManualePanel'
 import FiltroPresenzeCostiPanel from './components/FiltroPresenzeCostiPanel'
 import PresenzePeriodoSummaryPanel from './components/PresenzePeriodoSummaryPanel'
 import DettaglioPresenzeOggiPanel from './components/DettaglioPresenzeOggiPanel'
+import HomePresenzeCostiCard from './components/HomePresenzeCostiCard'
 import type {
   Cantiere,
   Rapportino,
@@ -10890,13 +10891,14 @@ WebkitOverflowScrolling: 'touch',
       </div>
     )}
 
-    {pagineAperte.includes('operai-presenze') && (
-      <div style={{ ...cardStyle, minWidth: 380, maxWidth: 440 }}>
-        <h3>📋 Presenze / costi</h3>
-        <p>Timbrature oggi: {timbratureOggi.length}</p>
-        <p><strong>Manodopera oggi:</strong> {formatMoney(costoTotaleTimbratureOggi)}</p>
-      </div>
-    )}
+  {pagineAperte.includes('operai-presenze') && (
+  <HomePresenzeCostiCard
+    cardStyle={cardStyle}
+    costoTotaleTimbratureOggi={costoTotaleTimbratureOggi}
+    presenzeOggi={timbratureOggi.length}
+    formatMoney={formatMoney}
+  />
+)}
 
     {pagineAperte.includes('pagamenti-operai') && (
       <div style={{ ...cardStyle, minWidth: 380, maxWidth: 440 }}>
