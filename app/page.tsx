@@ -13,25 +13,19 @@ import JSZip from 'jszip'
 import PopupModificaTimbratura from './components/PopupModificaTimbratura'
 import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
-import SalSummaryCards from './components/SalSummaryCards'
-import AccontiSalPanel from './components/AccontiSalPanel'
-import AccontoForm from './components/AccontoForm'
-import AccontiTable from './components/AccontiTable'
-import SalForm from './components/SalForm'
-import SalTable from './components/SalTable'
-import PreventivoLavorazioniForm from './components/PreventivoLavorazioniForm'
-import PreventiviCaricatiList from './components/PreventiviCaricatiList'
-import ConfrontoPdfSalPanel from './components/ConfrontoPdfSalPanel'
-import PulisciPreventivoSalButton from './components/PulisciPreventivoSalButton'
-import MaterialiCaricatiPanel from './components/MaterialiCaricatiPanel'
-import RiepilogoUtilePanel from './components/RiepilogoUtilePanel'
-import MaterialiEconomiaPanel from './components/MaterialiEconomiaPanel'
-import DettaglioManodoperaPanel from './components/DettaglioManodoperaPanel'
+
+
+
+
+
+
+
+
 import PopupModificaOperaio from './components/PopupModificaOperaio'
 import FiltroPeriodoEconomia from './components/FiltroPeriodoEconomia'
 import CostoPerCantiereOggiPanel from './components/CostoPerCantiereOggiPanel'
 import FotoFullscreenModal from './components/FotoFullscreenModal'
-import AttrezzatureCaricatePanel from './components/AttrezzatureCaricatePanel'
+
 import OperaioForm from './components/OperaioForm'
 import OperaioCard from './components/OperaioCard'
 import OperaiList from './components/OperaiList'
@@ -78,10 +72,10 @@ import RegistroPanel from './components/RegistroPanel'
 import CantieriElencoPanel from './components/CantieriElencoPanel'
 import CantieriSchedaPanel from './components/CantieriSchedaPanel'
 import CantieriAnalisiDocumentoPanel from './components/CantieriAnalisiDocumentoPanel'
-import EconomiaGraficiPanel from './components/EconomiaGraficiPanel'
-import EconomiaSelezioneCantierePanel from './components/EconomiaSelezioneCantierePanel'
-import DashboardEconomiaPanel from './components/DashboardEconomiaPanel'
-import PreventiviEconomiaPanel from './components/PreventiviEconomiaPanel'
+
+
+
+
 import PresenzeCostiOperaiPanel from './components/PresenzeCostiOperaiPanel'
 import PresenzaManualePanel from './components/PresenzaManualePanel'
 import FiltroPresenzeCostiPanel from './components/FiltroPresenzeCostiPanel'
@@ -11010,144 +11004,20 @@ WebkitOverflowScrolling: 'touch',
   pagineAperte.includes('home') ||
   (!modalitaMulti && sezioneAttiva === 'home')
 ) && (
-  
-<div style={cardStyle}>
-
-  <h2 style={{ margin: 0 }}>Dashboard impresa</h2>
-
-  <div style={{ marginTop: 15, marginBottom: 20 }}>
-    {!assistenteAttivo ? (
-      <button
-        onClick={avviaAssistenteVocale}
-        style={{
-          ...buttonPrimary,
-          backgroundColor: '#2563eb',
-        }}
-      >
-        🎧 Avvia assistente vocale Artecna
-      </button>
-    ) : (
-      <button
-        onClick={fermaAssistenteVocale}
-        style={{
-          ...buttonPrimary,
-          backgroundColor: '#dc2626',
-        }}
-      >
-        ⛔ Ferma assistente vocale
-      </button>
-    )}
-
-    {assistenteAttivo && (
-      <div
-        style={{
-          marginTop: 10,
-          padding: 10,
-          borderRadius: 10,
-          background: '#eff6ff',
-          border: '1px solid #bfdbfe',
-        }}
-      >
-        🎧 Assistente Artecna attivo
-        <br />
-        Comandi disponibili:
-        <ul style={{ marginTop: 8 }}>
-          <li>“Hey Artecna apri rapportino”</li>
-          <li>“Hey Artecna apri economia”</li>
-          <li>“Hey Artecna apri presenze”</li>
-          <li>“Hey Artecna apri timbrature”</li>
-        </ul>
-      </div>
-    )}
-  </div>
-
-  
-    {/* HEADER HOME */}
-    {/* lascia qui tutto il tuo header */}
-
-    {/* GRID DASHBOARD */}
-    {/* lascia qui tutta la tua grid */}
-
-    <h3 style={{ marginTop: 25 }}>Classifica cantieri</h3>
-
-    {classificaCantieri.length === 0 ? (
-      <p>Nessun cantiere presente</p>
-    ) : (
-
-
-
-      <div style={{ display: 'grid', gap: 10 }}>
-        {classificaCantieri.map((c, i) => (
-          <div
-            key={c.nome || i}
-            style={{
-              padding: 12,
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              background: '#fff',
-            }}
-          >
-            <strong>#{i + 1} — {c.nome}</strong>
-            <br />
-            Utile:{' '}
-            <strong style={{ color: c.utile >= 0 ? 'green' : 'red' }}>
-              {formatMoney(c.utile)}
-            </strong>
-            <br />
-            Margine: {c.margine.toFixed(1)}%
-          </div>
-        ))}
-      </div>
-    )}
-
-  <div style={{ marginTop: 25 }}>
-  <button
-    onClick={() => setMostraCantieriConclusi(!mostraCantieriConclusi)}
-    style={buttonSecondary}
-  >
-    {mostraCantieriConclusi ? 'Nascondi cantieri conclusi' : 'Mostra cantieri conclusi'}
-  </button>
-</div>
-
-{mostraCantieriConclusi && (
-  <>
-    {cantieri.filter((c) => c.lavori_conclusi).length === 0 ? (
-      <p>Nessun cantiere concluso</p>
-    ) : (
-      <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-        {cantieri
-          .filter((c) => c.lavori_conclusi)
-.map((c, i) => {
-  const nomeCantiere = String(c.nome || '')
-  const utile = calcoloEconomiaCantiere(nomeCantiere).utileReale
-
-  return (
-              <div
-                key={c.nome || i}
-                style={{
-                  padding: 12,
-                  border: '1px solid #ddd',
-                  borderRadius: 8,
-                  background: '#f1f5f9',
-                  opacity: 0.9,
-                }}
-              >
-                <strong>{c.nome}</strong>
-                <br />
-                Fine lavori: {c.data_fine_lavori || '-'}
-                <br />
-                Utile:{' '}
-                <strong style={{ color: utile >= 0 ? 'green' : 'red' }}>
-                  {formatMoney(utile)}
-                </strong>
-              </div>
-            )
-          })}
-      </div>
-    )}
-  </>
-)}
-  </div>
+  <HomeDashboardPanel
+    cardStyle={cardStyle}
+    buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
+    assistenteAttivo={assistenteAttivo}
+    avviaAssistenteVocale={avviaAssistenteVocale}
+    fermaAssistenteVocale={fermaAssistenteVocale}
+    classificaCantieri={classificaCantieri}
+    formatMoney={formatMoney}
+    mostraCantieriConclusi={mostraCantieriConclusi}
+    setMostraCantieriConclusi={setMostraCantieriConclusi}
+    cantieri={cantieri}
+    calcoloEconomiaCantiere={calcoloEconomiaCantiere}
+  />
 )}
 
 {/* ================= CANTIERI - ELENCO ================= */}
@@ -11182,6 +11052,7 @@ WebkitOverflowScrolling: 'touch',
     buttonSecondary={buttonSecondary}
   />
 )}
+
 {/* ================= CANTIERI - SCHEDA ================= */}
 {(
   pagineAperte.includes('cantieri-scheda') ||
