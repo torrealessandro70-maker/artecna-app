@@ -102,6 +102,7 @@ import HomeRapportiniCard from './components/HomeRapportiniCard'
 import HomePagamentiOperaiCard from './components/HomePagamentiOperaiCard'
 import HomePagamentiFornitoriCard from './components/HomePagamentiFornitoriCard'
 import HomeEconomiaGeneraleCard from './components/HomeEconomiaGeneraleCard'
+import OperaiAnagraficaPanel from './components/OperaiAnagraficaPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -12071,18 +12072,14 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 />
 
 
-{/* ================= OPERAI - ANAGRAFICA ================= */}
 {(
   pagineAperte.includes('operai-anagrafica') ||
   (!modalitaMulti &&
     sezioneAttiva === 'operai' &&
     sottoSezioneOperai === 'anagrafica')
 ) && (
-  <div style={cardStyle}>
-   <h2>Anagrafica operai</h2>
-
-{operaioInModifica && (
-  <PopupModificaOperaio
+  <OperaiAnagraficaPanel
+    cardStyle={cardStyle}
     operaioInModifica={operaioInModifica}
     annullaModificaOperaio={annullaModificaOperaio}
     salvaModificaOperaio={salvaModificaOperaio}
@@ -12100,35 +12097,26 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     setStatoOperaioModifica={setStatoOperaioModifica}
     notaOperaioModifica={notaOperaioModifica}
     setNotaOperaioModifica={setNotaOperaioModifica}
-    buttonSecondary={buttonSecondary}
+    nomeOperaio={nomeOperaio}
+    setNomeOperaio={setNomeOperaio}
+    telefonoOperaio={telefonoOperaio}
+    setTelefonoOperaio={setTelefonoOperaio}
+    qualificaOperaio={qualificaOperaio}
+    setQualificaOperaio={setQualificaOperaio}
+    pinOperaio={pinOperaio}
+    setPinOperaio={setPinOperaio}
+    costoOrarioOperaio={costoOrarioOperaio}
+    setCostoOrarioOperaio={setCostoOrarioOperaio}
+    aggiungiOperaio={aggiungiOperaio}
+    operaiFiltrati={operaiFiltrati}
+    badgeStyle={badgeStyle}
+    formatMoney={formatMoney}
+    preparaModificaOperaio={preparaModificaOperaio}
+    cambiaStatoOperaio={cambiaStatoOperaio}
+    eliminaOperaio={eliminaOperaio}
     buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
   />
-)}
-<OperaioForm
-  nomeOperaio={nomeOperaio}
-  setNomeOperaio={setNomeOperaio}
-  telefonoOperaio={telefonoOperaio}
-  setTelefonoOperaio={setTelefonoOperaio}
-  qualificaOperaio={qualificaOperaio}
-  setQualificaOperaio={setQualificaOperaio}
-  pinOperaio={pinOperaio}
-  setPinOperaio={setPinOperaio}
-  costoOrarioOperaio={costoOrarioOperaio}
-  setCostoOrarioOperaio={setCostoOrarioOperaio}
-  aggiungiOperaio={aggiungiOperaio}
-  buttonPrimary={buttonPrimary}
-/>
-   <OperaiList
-  operaiFiltrati={operaiFiltrati}
-  badgeStyle={badgeStyle}
-  formatMoney={formatMoney}
-  preparaModificaOperaio={preparaModificaOperaio}
-  cambiaStatoOperaio={cambiaStatoOperaio}
-  eliminaOperaio={eliminaOperaio}
-  buttonPrimary={buttonPrimary}
-  buttonSecondary={buttonSecondary}
-/>
-  </div>
 )}
 
 {/* ================= OPERAI - TIMBRATURE ================= */}
