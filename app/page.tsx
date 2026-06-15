@@ -104,6 +104,7 @@ import HomePagamentiFornitoriCard from './components/HomePagamentiFornitoriCard'
 import HomeEconomiaGeneraleCard from './components/HomeEconomiaGeneraleCard'
 import OperaiAnagraficaPanel from './components/OperaiAnagraficaPanel'
 import OperaiTimbraturePanel from './components/OperaiTimbraturePanel'
+import PagamentiFornitoriPanel from './components/PagamentiFornitoriPanel'
 import type {
   Cantiere,
   Rapportino,
@@ -12420,14 +12421,9 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     sezioneAttiva === 'pagamenti' &&
     sottoSezionePagamenti === 'fornitori')
 ) && (
-  <div style={cardStyle}>
-    <h2>Pagamenti fornitori</h2>
-
-    <p style={{ color: '#666' }}>
-      Pagina fornitori attiva.
-    </p>
-  </div>
+  <PagamentiFornitoriPanel cardStyle={cardStyle} />
 )}
+
 {/* ================= ECONOMIA GENERALE ================= */}
 {(
   pagineAperte.includes('economia') ||
