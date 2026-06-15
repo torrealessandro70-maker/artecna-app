@@ -12069,7 +12069,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   fotoFullscreen={fotoFullscreen}
   setFotoFullscreen={setFotoFullscreen}
 />
-{/* ================= OPERAI - ANAGRAFICA ================= */}
+
 
 {/* ================= OPERAI - ANAGRAFICA ================= */}
 {(
