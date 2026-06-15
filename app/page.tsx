@@ -104,6 +104,7 @@ import SalDettagliatoPanel from './components/SalDettagliatoPanel'
 import AccontiEconomiaPanel from './components/AccontiEconomiaPanel'
 import RiepilogoCostiEconomiaPanel from './components/RiepilogoCostiEconomiaPanel'
 import CantieriEconomiaPanel from './components/CantieriEconomiaPanel'
+import HomeDashboardPanel from './components/HomeDashboardPanel'
 import type {
   Cantiere,
   Rapportino,
