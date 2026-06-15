@@ -14,9 +14,21 @@ import FattureEmessePopupLayer from './FattureEmessePopupLayer'
 export default function RegistroPanel(props: any) {
   const p = props
 
-  return (
-    <>
-      <RegistroHeaderToolbar
+ return (
+  <>
+    <div
+      style={{
+        padding: 12,
+        background: '#fff3cd',
+        border: '1px solid #facc15',
+        borderRadius: 8,
+        marginBottom: 12,
+      }}
+    >
+      TEST REGISTRO VISIBILE - tab: {p.registroTab}
+    </div>
+
+    <RegistroHeaderToolbar
         registroTab={p.registroTab}
         setRegistroTab={p.setRegistroTab}
         registroCerca={p.registroCerca}
