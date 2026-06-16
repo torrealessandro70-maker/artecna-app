@@ -121,11 +121,40 @@ export default function RegistroPanel(props: any) {
       {p.mostraRevisionePreventivoAi && (
         <RevisionePreventivoAiPanel {...p} />
       )}
-
-      {p.registroTab === 'rapportini' && (
-        <RegistroRapportiniPanel {...p} />
-      )}
-
+{p.registroTab === 'rapportini' && (
+  <RegistroRapportiniPanel
+    rapportini={p.rapportini}
+    registroCerca={p.registroCerca}
+    ordinaRegistro={p.ordinaRegistro}
+    ordinaRapportiniCampo={p.ordinaRapportiniCampo}
+    ordinaRapportiniDirezione={p.ordinaRapportiniDirezione}
+    setOrdinaRapportiniCampo={p.setOrdinaRapportiniCampo}
+    setOrdinaRapportiniDirezione={p.setOrdinaRapportiniDirezione}
+    rapportinoRegistroEdit={p.rapportinoRegistroEdit}
+    rapportinoRegistroData={p.rapportinoRegistroData}
+    setRapportinoRegistroData={p.setRapportinoRegistroData}
+    rapportinoRegistroCantiere={p.rapportinoRegistroCantiere}
+    setRapportinoRegistroCantiere={p.setRapportinoRegistroCantiere}
+    rapportinoRegistroOperaio={p.rapportinoRegistroOperaio}
+    setRapportinoRegistroOperaio={p.setRapportinoRegistroOperaio}
+    rapportinoRegistroOre={p.rapportinoRegistroOre}
+    setRapportinoRegistroOre={p.setRapportinoRegistroOre}
+    rapportinoRegistroDescrizione={p.rapportinoRegistroDescrizione}
+    setRapportinoRegistroDescrizione={p.setRapportinoRegistroDescrizione}
+    salvaModificaRegistroRapportino={p.salvaModificaRegistroRapportino}
+    annullaModificaRegistroRapportino={p.annullaModificaRegistroRapportino}
+    preparaModificaRegistroRapportino={p.preparaModificaRegistroRapportino}
+    eliminaRapportino={p.eliminaRapportino}
+    excelBox={p.excelBox}
+    excelToolbar={p.excelToolbar}
+    excelTable={p.excelTable}
+    excelTh={p.excelTh}
+    excelTd={p.excelTd}
+    excelInput={p.excelInput}
+    buttonPrimary={p.buttonPrimary}
+    buttonSecondary={p.buttonSecondary}
+  />
+)}
       {p.registroTab === 'timbrature' && (
         <RegistroTimbraturePanel {...p} />
       )}
