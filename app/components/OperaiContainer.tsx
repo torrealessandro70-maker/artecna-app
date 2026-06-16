@@ -49,6 +49,63 @@ export default function OperaiContainer(props: Props) {
     buttonSecondary={p.buttonSecondary}
   />
 )}
+{(
+  p.pagineAperte.includes('operai-presenze') ||
+  (!p.modalitaMulti &&
+    p.sezioneAttiva === 'operai' &&
+    p.sottoSezioneOperai === 'presenze')
+) && (
+  <OperaiPresenzeContainer
+    cardStyle={p.cardStyle}
+    timbraturaInModifica={p.timbraturaInModifica}
+    dataTimbraturaModifica={p.dataTimbraturaModifica}
+    setDataTimbraturaModifica={p.setDataTimbraturaModifica}
+    oraEntrataModifica={p.oraEntrataModifica}
+    setOraEntrataModifica={p.setOraEntrataModifica}
+    oraUscitaModifica={p.oraUscitaModifica}
+    setOraUscitaModifica={p.setOraUscitaModifica}
+    parseOra={p.parseOra}
+    setTimbraturaInModifica={p.setTimbraturaInModifica}
+    salvaModificaTimbratura={p.salvaModificaTimbratura}
+    buttonSecondary={p.buttonSecondary}
+    buttonPrimary={p.buttonPrimary}
+    dataPresenzaManuale={p.dataPresenzaManuale}
+    setDataPresenzaManuale={p.setDataPresenzaManuale}
+    operaioPresenzaManuale={p.operaioPresenzaManuale}
+    setOperaioPresenzaManuale={p.setOperaioPresenzaManuale}
+    cantierePresenzaManuale={p.cantierePresenzaManuale}
+    setCantierePresenzaManuale={p.setCantierePresenzaManuale}
+    oraEntrataManuale={p.oraEntrataManuale}
+    setOraEntrataManuale={p.setOraEntrataManuale}
+    oraUscitaManuale={p.oraUscitaManuale}
+    setOraUscitaManuale={p.setOraUscitaManuale}
+    operaiAnagrafica={p.operaiAnagrafica}
+    cantieri={p.cantieri}
+    aggiungiPresenzaManuale={p.aggiungiPresenzaManuale}
+    dataDa={p.dataDa}
+    setDataDa={p.setDataDa}
+    dataA={p.dataA}
+    setDataA={p.setDataA}
+    cantiereGrafico={p.cantiereGrafico}
+    setCantiereGrafico={p.setCantiereGrafico}
+    inputStyle={p.inputStyle}
+    timbrature={p.timbrature}
+    totaleCostoPeriodo={p.totaleCostoPeriodo}
+    totaleOrePeriodo={p.totaleOrePeriodo}
+    calcolaOre={p.calcolaOre}
+    calcolaCostoTimbratura={p.calcolaCostoTimbratura}
+    formatMoney={p.formatMoney}
+    badgeStyle={p.badgeStyle}
+    preparaModificaOperaio={p.preparaModificaOperaio}
+    cambiaStatoOperaio={p.cambiaStatoOperaio}
+    eliminaOperaio={p.eliminaOperaio}
+    costoPerCantiereOggi={p.costoPerCantiereOggi}
+    timbratureOggi={p.timbratureOggi}
+    erroreTimbratura={p.erroreTimbratura}
+    setStatoTimbraturaModifica={p.setStatoTimbraturaModifica}
+    eliminaTimbratura={p.eliminaTimbratura}
+  />
+)}
     </>
   )
 }
