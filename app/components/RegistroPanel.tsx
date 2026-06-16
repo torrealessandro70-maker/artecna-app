@@ -194,8 +194,40 @@ export default function RegistroPanel(props: any) {
 )}
 
       {p.registroTab === 'pagamenti-operai' && (
-        <RegistroPagamentiOperaiPanel {...p} />
-      )}
+  <RegistroPagamentiOperaiPanel
+    pagamentiOperai={p.pagamentiOperai}
+    registroCerca={p.registroCerca}
+    formatMoney={p.formatMoney}
+    ordinaRegistro={p.ordinaRegistro}
+    ordinaPagamentiCampo={p.ordinaPagamentiCampo}
+    ordinaPagamentiDirezione={p.ordinaPagamentiDirezione}
+    setOrdinaPagamentiCampo={p.setOrdinaPagamentiCampo}
+    setOrdinaPagamentiDirezione={p.setOrdinaPagamentiDirezione}
+    pagamentoOperaioRegistroEdit={p.pagamentoOperaioRegistroEdit}
+    pagamentoOperaioRegistroNome={p.pagamentoOperaioRegistroNome}
+    setPagamentoOperaioRegistroNome={p.setPagamentoOperaioRegistroNome}
+    pagamentoOperaioRegistroImporto={p.pagamentoOperaioRegistroImporto}
+    setPagamentoOperaioRegistroImporto={p.setPagamentoOperaioRegistroImporto}
+    pagamentoOperaioRegistroData={p.pagamentoOperaioRegistroData}
+    setPagamentoOperaioRegistroData={p.setPagamentoOperaioRegistroData}
+    pagamentoOperaioRegistroMetodo={p.pagamentoOperaioRegistroMetodo}
+    setPagamentoOperaioRegistroMetodo={p.setPagamentoOperaioRegistroMetodo}
+    pagamentoOperaioRegistroNota={p.pagamentoOperaioRegistroNota}
+    setPagamentoOperaioRegistroNota={p.setPagamentoOperaioRegistroNota}
+    salvaModificaRegistroPagamentoOperaio={p.salvaModificaRegistroPagamentoOperaio}
+    annullaModificaRegistroPagamentoOperaio={p.annullaModificaRegistroPagamentoOperaio}
+    preparaModificaRegistroPagamentoOperaio={p.preparaModificaRegistroPagamentoOperaio}
+    eliminaPagamentoOperaio={p.eliminaPagamentoOperaio}
+    excelBox={p.excelBox}
+    excelToolbar={p.excelToolbar}
+    excelTable={p.excelTable}
+    excelTh={p.excelTh}
+    excelTd={p.excelTd}
+    excelInput={p.excelInput}
+    buttonPrimary={p.buttonPrimary}
+    buttonSecondary={p.buttonSecondary}
+  />
+)}
 
       {p.registroTab === 'fatture-fornitori' && (
         <RegistroFattureFornitoriPanel {...p} />
