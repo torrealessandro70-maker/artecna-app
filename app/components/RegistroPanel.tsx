@@ -41,10 +41,41 @@ export default function RegistroPanel(props: any) {
         buttonSecondary={p.buttonSecondary}
       />
 
-      {p.registroTab === 'cantieri' && (
-        <RegistroCantieriPanel {...p} />
-      )}
-
+   {p.registroTab === 'cantieri' && (
+  <RegistroCantieriPanel
+    cantieri={p.cantieri}
+    registroCerca={p.registroCerca}
+    formatMoney={p.formatMoney}
+    ordinaRegistro={p.ordinaRegistro}
+    ordinaCantieriCampo={p.ordinaCantieriCampo}
+    ordinaCantieriDirezione={p.ordinaCantieriDirezione}
+    setOrdinaCantieriCampo={p.setOrdinaCantieriCampo}
+    setOrdinaCantieriDirezione={p.setOrdinaCantieriDirezione}
+    cantiereRegistroEdit={p.cantiereRegistroEdit}
+    cantiereRegistroNome={p.cantiereRegistroNome}
+    setCantiereRegistroNome={p.setCantiereRegistroNome}
+    cantiereRegistroPreventivo={p.cantiereRegistroPreventivo}
+    setCantiereRegistroPreventivo={p.setCantiereRegistroPreventivo}
+    cantiereRegistroInizio={p.cantiereRegistroInizio}
+    setCantiereRegistroInizio={p.setCantiereRegistroInizio}
+    cantiereRegistroFine={p.cantiereRegistroFine}
+    setCantiereRegistroFine={p.setCantiereRegistroFine}
+    cantiereRegistroConcluso={p.cantiereRegistroConcluso}
+    setCantiereRegistroConcluso={p.setCantiereRegistroConcluso}
+    salvaModificaRegistroCantiere={p.salvaModificaRegistroCantiere}
+    annullaModificaRegistroCantiere={p.annullaModificaRegistroCantiere}
+    preparaModificaRegistroCantiere={p.preparaModificaRegistroCantiere}
+    eliminaCantiere={p.eliminaCantiere}
+    excelBox={p.excelBox}
+    excelToolbar={p.excelToolbar}
+    excelTable={p.excelTable}
+    excelTh={p.excelTh}
+    excelTd={p.excelTd}
+    excelInput={p.excelInput}
+    buttonPrimary={p.buttonPrimary}
+    buttonSecondary={p.buttonSecondary}
+  />
+)}
       {p.registroTab === 'preventivi' && (
         <RegistroPreventiviPanel {...p} />
       )}
