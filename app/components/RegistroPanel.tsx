@@ -76,9 +76,47 @@ export default function RegistroPanel(props: any) {
     buttonSecondary={p.buttonSecondary}
   />
 )}
-      {p.registroTab === 'preventivi' && (
-        <RegistroPreventiviPanel {...p} />
-      )}
+     {p.registroTab === 'preventivi' && (
+  <RegistroPreventiviPanel
+    preventivi={p.preventivi}
+    registroCerca={p.registroCerca}
+    mostraRegistroPreventiviCaricati={p.mostraRegistroPreventiviCaricati}
+    setMostraRegistroPreventiviCaricati={p.setMostraRegistroPreventiviCaricati}
+    preventivoRegistroEdit={p.preventivoRegistroEdit}
+    setPreventivoRegistroEdit={p.setPreventivoRegistroEdit}
+    preventivoRegistroCantiere={p.preventivoRegistroCantiere}
+    setPreventivoRegistroCantiere={p.setPreventivoRegistroCantiere}
+    preventivoRegistroNomeFile={p.preventivoRegistroNomeFile}
+    setPreventivoRegistroNomeFile={p.setPreventivoRegistroNomeFile}
+    preventivoRegistroImporto={p.preventivoRegistroImporto}
+    setPreventivoRegistroImporto={p.setPreventivoRegistroImporto}
+    preventivoRegistroNote={p.preventivoRegistroNote}
+    setPreventivoRegistroNote={p.setPreventivoRegistroNote}
+    ordinaPreventiviCampo={p.ordinaPreventiviCampo}
+    ordinaPreventiviDirezione={p.ordinaPreventiviDirezione}
+    setOrdinaPreventiviCampo={p.setOrdinaPreventiviCampo}
+    setOrdinaPreventiviDirezione={p.setOrdinaPreventiviDirezione}
+    ordinaRegistro={p.ordinaRegistro}
+    parseImporto={p.parseImporto}
+    formatMoney={p.formatMoney}
+    generaExcelDaPreventivoAi={p.generaExcelDaPreventivoAi}
+    approvaPreventivoAiECreaCantiere={p.approvaPreventivoAiECreaCantiere}
+    salvaModificaRegistroPreventivo={p.salvaModificaRegistroPreventivo}
+    eliminaPreventivoCantiere={p.eliminaPreventivoCantiere}
+    setVociPreventivoAi={p.setVociPreventivoAi}
+    setVociPreventivoAiOriginali={p.setVociPreventivoAiOriginali}
+    setDescrizionePreventivoAi={p.setDescrizionePreventivoAi}
+    setMostraRevisionePreventivoAi={p.setMostraRevisionePreventivoAi}
+    excelBox={p.excelBox}
+    excelToolbar={p.excelToolbar}
+    excelTable={p.excelTable}
+    excelTh={p.excelTh}
+    excelTd={p.excelTd}
+    excelInput={p.excelInput}
+    buttonPrimary={p.buttonPrimary}
+    buttonSecondary={p.buttonSecondary}
+  />
+)}
 
       {p.mostraRevisionePreventivoAi && (
         <RevisionePreventivoAiPanel {...p} />
