@@ -97,7 +97,31 @@ export default function SopralluoghiPanel(props: Props) {
     <div style={props.cardStyle}>
       <h2>📍 Sopralluoghi</h2>
 
-      <SopralluogoForm {...props} />
+     <SopralluogoForm
+  clienteSopralluogo={props.clienteSopralluogo}
+  setClienteSopralluogo={props.setClienteSopralluogo}
+  telefonoSopralluogo={props.telefonoSopralluogo}
+  setTelefonoSopralluogo={props.setTelefonoSopralluogo}
+  indirizzoSopralluogo={props.indirizzoSopralluogo}
+  setIndirizzoSopralluogo={props.setIndirizzoSopralluogo}
+  geolocalizzazioneSopralluogo={props.geolocalizzazioneSopralluogo}
+  setGeolocalizzazioneSopralluogo={props.setGeolocalizzazioneSopralluogo}
+  rilevaGeolocalizzazioneSopralluogo={props.rilevaGeolocalizzazioneSopralluogo}
+  dataSopralluogo={props.dataSopralluogo}
+  setDataSopralluogo={props.setDataSopralluogo}
+  oraSopralluogo={props.oraSopralluogo}
+  setOraSopralluogo={props.setOraSopralluogo}
+  promemoriaSopralluogo={props.promemoriaSopralluogo}
+  setPromemoriaSopralluogo={props.setPromemoriaSopralluogo}
+  tipoLavoroSopralluogo={props.tipoLavoroSopralluogo}
+  setTipoLavoroSopralluogo={props.setTipoLavoroSopralluogo}
+  noteSopralluogo={props.noteSopralluogo}
+  setNoteSopralluogo={props.setNoteSopralluogo}
+  salvaSopralluogo={props.salvaSopralluogo}
+  inputStyle={props.inputStyle}
+  buttonPrimary={props.buttonPrimary}
+  buttonSecondary={props.buttonSecondary}
+/>
 
       <SopralluoghiList
         sopralluoghi={props.sopralluoghi}
