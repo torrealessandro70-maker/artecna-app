@@ -324,7 +324,22 @@ export default function RegistroPanel(props: any) {
   />
 )}
 
-      <FattureEmessePopupLayer {...p} />
+      <FattureEmessePopupLayer
+  popupNuovaFatturaEmessa={p.popupNuovaFatturaEmessa}
+  nuovaFatturaEmessa={p.nuovaFatturaEmessa}
+  setNuovaFatturaEmessa={p.setNuovaFatturaEmessa}
+  setPopupNuovaFatturaEmessa={p.setPopupNuovaFatturaEmessa}
+  salvaNuovaFatturaEmessa={p.salvaNuovaFatturaEmessa}
+  fatturaEmessaAperta={p.fatturaEmessaAperta}
+  setFatturaEmessaAperta={p.setFatturaEmessaAperta}
+  aggiornaFatturaEmessa={p.aggiornaFatturaEmessa}
+  eliminaFatturaEmessa={p.eliminaFatturaEmessa}
+  cantieri={p.cantieri}
+  formatMoney={p.formatMoney}
+  inputStyle={p.inputStyle}
+  buttonPrimary={p.buttonPrimary}
+  buttonSecondary={p.buttonSecondary}
+/>
     </>
   )
 }
