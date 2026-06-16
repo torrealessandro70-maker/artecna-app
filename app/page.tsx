@@ -88,8 +88,8 @@ import HomeRapportiniCard from './components/HomeRapportiniCard'
 import HomePagamentiOperaiCard from './components/HomePagamentiOperaiCard'
 import HomePagamentiFornitoriCard from './components/HomePagamentiFornitoriCard'
 import HomeEconomiaGeneraleCard from './components/HomeEconomiaGeneraleCard'
-import OperaiAnagraficaPanel from './components/OperaiAnagraficaPanel'
-import OperaiTimbraturePanel from './components/OperaiTimbraturePanel'
+import OperaiContainer from './components/OperaiContainer'
+
 import PagamentiFornitoriPanel from './components/PagamentiFornitoriPanel'
 import EconomiaGeneraleKpiPanel from './components/EconomiaGeneraleKpiPanel'
 import UtileNettoImpresaContainer from './components/UtileNettoImpresaContainer'
@@ -99,7 +99,7 @@ import AccontiEconomiaPanel from './components/AccontiEconomiaPanel'
 import RiepilogoCostiEconomiaPanel from './components/RiepilogoCostiEconomiaPanel'
 import CantieriEconomiaPanel from './components/CantieriEconomiaPanel'
 import HomeDashboardPanel from './components/HomeDashboardPanel'
-import OperaiPresenzeContainer from './components/OperaiPresenzeContainer'
+
 
 import type {
   Cantiere,
@@ -11300,98 +11300,48 @@ WebkitOverflowScrolling: 'touch',
 />
 
 
-{(
-  pagineAperte.includes('operai-anagrafica') ||
-  (!modalitaMulti &&
-    sezioneAttiva === 'operai' &&
-    sottoSezioneOperai === 'anagrafica')
-) && (
-  <OperaiAnagraficaPanel
-    cardStyle={cardStyle}
-    operaioInModifica={operaioInModifica}
-    annullaModificaOperaio={annullaModificaOperaio}
-    salvaModificaOperaio={salvaModificaOperaio}
-    nomeOperaioModifica={nomeOperaioModifica}
-    setNomeOperaioModifica={setNomeOperaioModifica}
-    telefonoOperaioModifica={telefonoOperaioModifica}
-    setTelefonoOperaioModifica={setTelefonoOperaioModifica}
-    qualificaOperaioModifica={qualificaOperaioModifica}
-    setQualificaOperaioModifica={setQualificaOperaioModifica}
-    pinOperaioModifica={pinOperaioModifica}
-    setPinOperaioModifica={setPinOperaioModifica}
-    costoOrarioOperaioModifica={costoOrarioOperaioModifica}
-    setCostoOrarioOperaioModifica={setCostoOrarioOperaioModifica}
-    statoOperaioModifica={statoOperaioModifica}
-    setStatoOperaioModifica={setStatoOperaioModifica}
-    notaOperaioModifica={notaOperaioModifica}
-    setNotaOperaioModifica={setNotaOperaioModifica}
-    nomeOperaio={nomeOperaio}
-    setNomeOperaio={setNomeOperaio}
-    telefonoOperaio={telefonoOperaio}
-    setTelefonoOperaio={setTelefonoOperaio}
-    qualificaOperaio={qualificaOperaio}
-    setQualificaOperaio={setQualificaOperaio}
-    pinOperaio={pinOperaio}
-    setPinOperaio={setPinOperaio}
-    costoOrarioOperaio={costoOrarioOperaio}
-    setCostoOrarioOperaio={setCostoOrarioOperaio}
-    aggiungiOperaio={aggiungiOperaio}
-    operaiFiltrati={operaiFiltrati}
-    badgeStyle={badgeStyle}
-    formatMoney={formatMoney}
-    preparaModificaOperaio={preparaModificaOperaio}
-    cambiaStatoOperaio={cambiaStatoOperaio}
-    eliminaOperaio={eliminaOperaio}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}
-
-{/* ================= OPERAI - TIMBRATURE ================= */}
-{(
-  pagineAperte.includes('operai-timbrature') ||
-  (!modalitaMulti &&
-    sezioneAttiva === 'operai' &&
-    sottoSezioneOperai === 'timbrature')
-) && (
-  <OperaiTimbraturePanel
-    cardStyle={cardStyle}
-    timbraturaInModifica={timbraturaInModifica}
-    dataTimbraturaModifica={dataTimbraturaModifica}
-    setDataTimbraturaModifica={setDataTimbraturaModifica}
-    oraEntrataModifica={oraEntrataModifica}
-    setOraEntrataModifica={setOraEntrataModifica}
-    oraUscitaModifica={oraUscitaModifica}
-    setOraUscitaModifica={setOraUscitaModifica}
-    setTimbraturaInModifica={setTimbraturaInModifica}
-    setStatoTimbraturaModifica={setStatoTimbraturaModifica}
-    parseOra={parseOra}
-    salvaModificaTimbratura={salvaModificaTimbratura}
-    operaioTimbratura={operaioTimbratura}
-    setOperaioTimbratura={setOperaioTimbratura}
-    cantiereTimbratura={cantiereTimbratura}
-    setCantiereTimbratura={setCantiereTimbratura}
-    pinTimbratura={pinTimbratura}
-    setPinTimbratura={setPinTimbratura}
-    operaiAttivi={operaiAttivi}
-    cantieri={cantieri}
-    timbratureOggi={timbratureOggi}
-    timbraEntrataConPin={timbraEntrataConPin}
-    timbraUscitaConPin={timbraUscitaConPin}
-    eliminaTimbratura={eliminaTimbratura}
-    calcolaCostoTimbratura={calcolaCostoTimbratura}
-    formatMoney={formatMoney}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-  />
-)}{(
-  pagineAperte.includes('operai-presenze') ||
-  (!modalitaMulti &&
-    sezioneAttiva === 'operai' &&
-    sottoSezioneOperai === 'presenze')
-) && (
-<OperaiPresenzeContainer
+<OperaiContainer
+  pagineAperte={pagineAperte}
+  modalitaMulti={modalitaMulti}
+  sezioneAttiva={sezioneAttiva}
+  sottoSezioneOperai={sottoSezioneOperai}
   cardStyle={cardStyle}
+  operaioInModifica={operaioInModifica}
+  annullaModificaOperaio={annullaModificaOperaio}
+  salvaModificaOperaio={salvaModificaOperaio}
+  nomeOperaioModifica={nomeOperaioModifica}
+  setNomeOperaioModifica={setNomeOperaioModifica}
+  telefonoOperaioModifica={telefonoOperaioModifica}
+  setTelefonoOperaioModifica={setTelefonoOperaioModifica}
+  qualificaOperaioModifica={qualificaOperaioModifica}
+  setQualificaOperaioModifica={setQualificaOperaioModifica}
+  pinOperaioModifica={pinOperaioModifica}
+  setPinOperaioModifica={setPinOperaioModifica}
+  costoOrarioOperaioModifica={costoOrarioOperaioModifica}
+  setCostoOrarioOperaioModifica={setCostoOrarioOperaioModifica}
+  statoOperaioModifica={statoOperaioModifica}
+  setStatoOperaioModifica={setStatoOperaioModifica}
+  notaOperaioModifica={notaOperaioModifica}
+  setNotaOperaioModifica={setNotaOperaioModifica}
+  nomeOperaio={nomeOperaio}
+  setNomeOperaio={setNomeOperaio}
+  telefonoOperaio={telefonoOperaio}
+  setTelefonoOperaio={setTelefonoOperaio}
+  qualificaOperaio={qualificaOperaio}
+  setQualificaOperaio={setQualificaOperaio}
+  pinOperaio={pinOperaio}
+  setPinOperaio={setPinOperaio}
+  costoOrarioOperaio={costoOrarioOperaio}
+  setCostoOrarioOperaio={setCostoOrarioOperaio}
+  aggiungiOperaio={aggiungiOperaio}
+  operaiFiltrati={operaiFiltrati}
+  badgeStyle={badgeStyle}
+  formatMoney={formatMoney}
+  preparaModificaOperaio={preparaModificaOperaio}
+  cambiaStatoOperaio={cambiaStatoOperaio}
+  eliminaOperaio={eliminaOperaio}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
   timbraturaInModifica={timbraturaInModifica}
   dataTimbraturaModifica={dataTimbraturaModifica}
   setDataTimbraturaModifica={setDataTimbraturaModifica}
@@ -11399,11 +11349,23 @@ WebkitOverflowScrolling: 'touch',
   setOraEntrataModifica={setOraEntrataModifica}
   oraUscitaModifica={oraUscitaModifica}
   setOraUscitaModifica={setOraUscitaModifica}
-  parseOra={parseOra}
   setTimbraturaInModifica={setTimbraturaInModifica}
+  setStatoTimbraturaModifica={setStatoTimbraturaModifica}
+  parseOra={parseOra}
   salvaModificaTimbratura={salvaModificaTimbratura}
-  buttonSecondary={buttonSecondary}
-  buttonPrimary={buttonPrimary}
+  operaioTimbratura={operaioTimbratura}
+  setOperaioTimbratura={setOperaioTimbratura}
+  cantiereTimbratura={cantiereTimbratura}
+  setCantiereTimbratura={setCantiereTimbratura}
+  pinTimbratura={pinTimbratura}
+  setPinTimbratura={setPinTimbratura}
+  operaiAttivi={operaiAttivi}
+  cantieri={cantieri}
+  timbratureOggi={timbratureOggi}
+  timbraEntrataConPin={timbraEntrataConPin}
+  timbraUscitaConPin={timbraUscitaConPin}
+  eliminaTimbratura={eliminaTimbratura}
+  calcolaCostoTimbratura={calcolaCostoTimbratura}
   dataPresenzaManuale={dataPresenzaManuale}
   setDataPresenzaManuale={setDataPresenzaManuale}
   operaioPresenzaManuale={operaioPresenzaManuale}
@@ -11415,7 +11377,6 @@ WebkitOverflowScrolling: 'touch',
   oraUscitaManuale={oraUscitaManuale}
   setOraUscitaManuale={setOraUscitaManuale}
   operaiAnagrafica={operaiAnagrafica}
-  cantieri={cantieri}
   aggiungiPresenzaManuale={aggiungiPresenzaManuale}
   dataDa={dataDa}
   setDataDa={setDataDa}
@@ -11428,19 +11389,9 @@ WebkitOverflowScrolling: 'touch',
   totaleCostoPeriodo={totaleCostoPeriodo}
   totaleOrePeriodo={totaleOrePeriodo}
   calcolaOre={calcolaOre}
-  calcolaCostoTimbratura={calcolaCostoTimbratura}
-  formatMoney={formatMoney}
-  badgeStyle={badgeStyle}
-  preparaModificaOperaio={preparaModificaOperaio}
-  cambiaStatoOperaio={cambiaStatoOperaio}
-  eliminaOperaio={eliminaOperaio}
   costoPerCantiereOggi={costoPerCantiereOggi}
-  timbratureOggi={timbratureOggi}
   erroreTimbratura={erroreTimbratura}
-  setStatoTimbraturaModifica={setStatoTimbraturaModifica}
-  eliminaTimbratura={eliminaTimbratura}
-/>)}
-
+/>
 
 {/* ================= SOPRALLUOGHI ================= */}
 {sezioneAttiva === 'sopralluoghi' && (
