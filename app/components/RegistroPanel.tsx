@@ -301,9 +301,28 @@ export default function RegistroPanel(props: any) {
     salvaModificheFatturaAperta={p.salvaModificheFatturaAperta}
   />
 )}
-      {p.registroTab === 'fatture-emesse' && (
-        <FattureEmessePanel {...p} />
-      )}
+     {p.registroTab === 'fatture-emesse' && (
+  <FattureEmessePanel
+    fattureEmesseOrdinate={p.fattureEmesseOrdinate}
+    filtroFattureEmesse={p.filtroFattureEmesse}
+    setFiltroFattureEmesse={p.setFiltroFattureEmesse}
+    setNuovaFatturaEmessa={p.setNuovaFatturaEmessa}
+    setPopupNuovaFatturaEmessa={p.setPopupNuovaFatturaEmessa}
+    setFatturaEmessaAperta={p.setFatturaEmessaAperta}
+    caricaFatturaEmessaPdf={p.caricaFatturaEmessaPdf}
+    caricaFatturaEmessaXml={p.caricaFatturaEmessaXml}
+    caricaFattureEmesse={p.caricaFattureEmesse}
+    ordinaFattureEmesse={p.ordinaFattureEmesse}
+    formatMoney={p.formatMoney}
+    cardStyle={p.cardStyle}
+    inputStyle={p.inputStyle}
+    excelTable={p.excelTable}
+    excelTh={p.excelTh}
+    excelTd={p.excelTd}
+    buttonPrimary={p.buttonPrimary}
+    buttonSecondary={p.buttonSecondary}
+  />
+)}
 
       <FattureEmessePopupLayer {...p} />
     </>
