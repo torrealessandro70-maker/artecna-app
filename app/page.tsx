@@ -30,7 +30,7 @@ import OperaioForm from './components/OperaioForm'
 import OperaioCard from './components/OperaioCard'
 import OperaiList from './components/OperaiList'
 import RapportiniList from './components/RapportiniList'
-import PagamentiOperaiPanel from './components/PagamentiOperaiPanel'
+
 import FotoCantiereAnteprime from './components/FotoCantiereAnteprime'
 import FotoCantiereCategoriaModal from './components/FotoCantiereCategoriaModal'
 import FotoCantiereGallery from './components/FotoCantiereGallery'
@@ -75,7 +75,7 @@ import CantieriAnalisiDocumentoPanel from './components/CantieriAnalisiDocumento
 
 
 
-
+import PagamentiContainer from './components/PagamentiContainer'
 import PresenzeCostiOperaiPanel from './components/PresenzeCostiOperaiPanel'
 import PresenzaManualePanel from './components/PresenzaManualePanel'
 import FiltroPresenzeCostiPanel from './components/FiltroPresenzeCostiPanel'
@@ -90,7 +90,7 @@ import HomePagamentiFornitoriCard from './components/HomePagamentiFornitoriCard'
 import HomeEconomiaGeneraleCard from './components/HomeEconomiaGeneraleCard'
 import OperaiContainer from './components/OperaiContainer'
 
-import PagamentiFornitoriPanel from './components/PagamentiFornitoriPanel'
+
 import EconomiaGeneraleKpiPanel from './components/EconomiaGeneraleKpiPanel'
 import UtileNettoImpresaContainer from './components/UtileNettoImpresaContainer'
 import EconomiaSpeseImpresaPanel from './components/EconomiaSpeseImpresaPanel'
@@ -11481,78 +11481,67 @@ WebkitOverflowScrolling: 'touch',
   />
 )}
 
-{/* ================= PAGAMENTI - OPERAI ================= */}
-{(
-  pagineAperte.includes('pagamenti-operai') ||
-  (!modalitaMulti &&
-    sezioneAttiva === 'pagamenti' &&
-    sottoSezionePagamenti === 'operai')
-) && (
-  <PagamentiOperaiPanel
-    cardStyle={cardStyle}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-    excelTable={excelTable}
-    excelTh={excelTh}
-    excelTd={excelTd}
+<PagamentiContainer
+  pagineAperte={pagineAperte}
+  modalitaMulti={modalitaMulti}
+  sezioneAttiva={sezioneAttiva}
+  sottoSezionePagamenti={sottoSezionePagamenti}
 
-    formatMoney={formatMoney}
-    calcolaOreNumero={calcolaOreNumero}
-    totaleOreOperaio={totaleOreOperaio}
-    calcolaCostoTimbratura={calcolaCostoTimbratura}
-    parseOra={parseOra}
+  cardStyle={cardStyle}
 
-    totaleMaturatoOperai={totaleMaturatoOperai}
-    totalePagatoOperai={totalePagatoOperai}
-    residuoPagamentiOperai={residuoPagamentiOperai}
-    scadenzaPagamentiOperai={scadenzaPagamentiOperai}
-    statoScadenzaPagamenti={statoScadenzaPagamenti}
-    giorniAllaScadenzaPagamenti={giorniAllaScadenzaPagamenti}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
 
-    costoOperaiPerCantiere={costoOperaiPerCantiere}
-    situazioneCantieri={situazioneCantieri}
-    cantieri={cantieri}
-    timbrature={timbrature}
-    operaiAnagrafica={operaiAnagrafica}
-    pagamentiOperai={pagamentiOperai}
+  excelTable={excelTable}
+  excelTh={excelTh}
+  excelTd={excelTd}
 
-    mostraValutazioneFondi={mostraValutazioneFondi}
-    setMostraValutazioneFondi={setMostraValutazioneFondi}
-    mostraCostiPresenze={mostraCostiPresenze}
-    setMostraCostiPresenze={setMostraCostiPresenze}
-    mostraRiepilogoOperai={mostraRiepilogoOperai}
-    setMostraRiepilogoOperai={setMostraRiepilogoOperai}
+  formatMoney={formatMoney}
+  calcolaOreNumero={calcolaOreNumero}
+  totaleOreOperaio={totaleOreOperaio}
+  calcolaCostoTimbratura={calcolaCostoTimbratura}
+  parseOra={parseOra}
 
-    pagamentiDataDa={pagamentiDataDa}
-    setPagamentiDataDa={setPagamentiDataDa}
-    pagamentiDataA={pagamentiDataA}
-    setPagamentiDataA={setPagamentiDataA}
+  totaleMaturatoOperai={totaleMaturatoOperai}
+  totalePagatoOperai={totalePagatoOperai}
+  residuoPagamentiOperai={residuoPagamentiOperai}
+  scadenzaPagamentiOperai={scadenzaPagamentiOperai}
+  statoScadenzaPagamenti={statoScadenzaPagamenti}
+  giorniAllaScadenzaPagamenti={giorniAllaScadenzaPagamenti}
 
-    operaioPagamento={operaioPagamento}
-    setOperaioPagamento={setOperaioPagamento}
-    importoPagamento={importoPagamento}
-    setImportoPagamento={setImportoPagamento}
-    dataPagamento={dataPagamento}
-    setDataPagamento={setDataPagamento}
-    metodoPagamento={metodoPagamento}
-    setMetodoPagamento={setMetodoPagamento}
-    notaPagamento={notaPagamento}
-    setNotaPagamento={setNotaPagamento}
+  costoOperaiPerCantiere={costoOperaiPerCantiere}
+  situazioneCantieri={situazioneCantieri}
+  cantieri={cantieri}
+  timbrature={timbrature}
+  operaiAnagrafica={operaiAnagrafica}
+  pagamentiOperai={pagamentiOperai}
 
-    salvaPagamentoOperaio={salvaPagamentoOperaio}
-    preparaPagamentoRapidoOperaio={preparaPagamentoRapidoOperaio}
-  />
-)}
+  mostraValutazioneFondi={mostraValutazioneFondi}
+  setMostraValutazioneFondi={setMostraValutazioneFondi}
+  mostraCostiPresenze={mostraCostiPresenze}
+  setMostraCostiPresenze={setMostraCostiPresenze}
+  mostraRiepilogoOperai={mostraRiepilogoOperai}
+  setMostraRiepilogoOperai={setMostraRiepilogoOperai}
 
-{/* ================= PAGAMENTI - FORNITORI ================= */}
-{(
-  pagineAperte.includes('pagamenti-fornitori') ||
-  (!modalitaMulti &&
-    sezioneAttiva === 'pagamenti' &&
-    sottoSezionePagamenti === 'fornitori')
-) && (
-  <PagamentiFornitoriPanel cardStyle={cardStyle} />
-)}
+  pagamentiDataDa={pagamentiDataDa}
+  setPagamentiDataDa={setPagamentiDataDa}
+  pagamentiDataA={pagamentiDataA}
+  setPagamentiDataA={setPagamentiDataA}
+
+  operaioPagamento={operaioPagamento}
+  setOperaioPagamento={setOperaioPagamento}
+  importoPagamento={importoPagamento}
+  setImportoPagamento={setImportoPagamento}
+  dataPagamento={dataPagamento}
+  setDataPagamento={setDataPagamento}
+  metodoPagamento={metodoPagamento}
+  setMetodoPagamento={setMetodoPagamento}
+  notaPagamento={notaPagamento}
+  setNotaPagamento={setNotaPagamento}
+
+  salvaPagamentoOperaio={salvaPagamentoOperaio}
+  preparaPagamentoRapidoOperaio={preparaPagamentoRapidoOperaio}
+/>
 
 {/* ================= ECONOMIA GENERALE ================= */}
 {(
