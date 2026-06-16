@@ -155,9 +155,43 @@ export default function RegistroPanel(props: any) {
     buttonSecondary={p.buttonSecondary}
   />
 )}
-      {p.registroTab === 'timbrature' && (
-        <RegistroTimbraturePanel {...p} />
-      )}
+     {p.registroTab === 'timbrature' && (
+  <RegistroTimbraturePanel
+    timbratureFiltrateRegistro={p.timbratureFiltrateRegistro}
+    calcolaOre={p.calcolaOre}
+    calcolaCostoTimbratura={p.calcolaCostoTimbratura}
+    formatMoney={p.formatMoney}
+    excelTable={p.excelTable}
+    excelTh={p.excelTh}
+    excelTd={p.excelTd}
+    excelInput={p.excelInput}
+    ordinaRegistro={p.ordinaRegistro}
+    setOrdinaTimbratureCampo={p.setOrdinaTimbratureCampo}
+    setOrdinaTimbratureDirezione={p.setOrdinaTimbratureDirezione}
+    ordinaTimbratureCampo={p.ordinaTimbratureCampo}
+    ordinaTimbratureDirezione={p.ordinaTimbratureDirezione}
+    timbraturaRegistroEdit={p.timbraturaRegistroEdit}
+    timbraturaRegistroData={p.timbraturaRegistroData}
+    setTimbraturaRegistroData={p.setTimbraturaRegistroData}
+    timbraturaRegistroOperaio={p.timbraturaRegistroOperaio}
+    setTimbraturaRegistroOperaio={p.setTimbraturaRegistroOperaio}
+    timbraturaRegistroCantiere={p.timbraturaRegistroCantiere}
+    setTimbraturaRegistroCantiere={p.setTimbraturaRegistroCantiere}
+    timbraturaRegistroEntrata={p.timbraturaRegistroEntrata}
+    setTimbraturaRegistroEntrata={p.setTimbraturaRegistroEntrata}
+    timbraturaRegistroUscita={p.timbraturaRegistroUscita}
+    setTimbraturaRegistroUscita={p.setTimbraturaRegistroUscita}
+    operaiAnagrafica={p.operaiAnagrafica}
+    cantieri={p.cantieri}
+    calcolaOreTimbratura={p.calcolaOreTimbratura}
+    salvaModificaRegistroTimbratura={p.salvaModificaRegistroTimbratura}
+    annullaModificaRegistroTimbratura={p.annullaModificaRegistroTimbratura}
+    preparaModificaRegistroTimbratura={p.preparaModificaRegistroTimbratura}
+    eliminaTimbratura={p.eliminaTimbratura}
+    buttonPrimary={p.buttonPrimary}
+    buttonSecondary={p.buttonSecondary}
+  />
+)}
 
       {p.registroTab === 'pagamenti-operai' && (
         <RegistroPagamentiOperaiPanel {...p} />
