@@ -247,11 +247,60 @@ export default function RegistroPanel(props: any) {
     buttonSecondary={p.buttonSecondary}
   />
 )}
-
-      {p.registroTab === 'fatture-fornitori' && (
-        <RegistroFattureFornitoriPanel {...p} />
-      )}
-
+{p.registroTab === 'fatture-fornitori' && (
+  <RegistroFattureFornitoriPanel
+    cardStyle={p.cardStyle}
+    buttonPrimary={p.buttonPrimary}
+    buttonSecondary={p.buttonSecondary}
+    excelTable={p.excelTable}
+    excelTh={p.excelTh}
+    excelTd={p.excelTd}
+    excelBox={p.excelBox}
+    cantieri={p.cantieri}
+    fattureFornitori={p.fattureFornitori}
+    fattureOrdinate={p.fattureOrdinate}
+    righeFatturaDaAssegnare={p.righeFatturaDaAssegnare}
+    righeFatturaAperta={p.righeFatturaAperta}
+    fatturaNomeFile={p.fatturaNomeFile}
+    fatturaFornitore={p.fatturaFornitore}
+    fatturaPartitaIva={p.fatturaPartitaIva}
+    fatturaNumero={p.fatturaNumero}
+    fatturaData={p.fatturaData}
+    cantiereMassivoFattura={p.cantiereMassivoFattura}
+    categoriaMassivaFattura={p.categoriaMassivaFattura}
+    filtroFattureFornitore={p.filtroFattureFornitore}
+    filtroFattureStato={p.filtroFattureStato}
+    fatturaApertaId={p.fatturaApertaId}
+    nascondiCantieriConclusiFatture={p.nascondiCantieriConclusiFatture}
+    larghezzaDescrizioneFattura={p.larghezzaDescrizioneFattura}
+    setFatturaFornitore={p.setFatturaFornitore}
+    setFatturaPartitaIva={p.setFatturaPartitaIva}
+    setFatturaNumero={p.setFatturaNumero}
+    setFatturaData={p.setFatturaData}
+    setFatturaTotale={p.setFatturaTotale}
+    setFatturaNomeFile={p.setFatturaNomeFile}
+    setFatturaTipoFile={p.setFatturaTipoFile}
+    setFatturaTestoOriginale={p.setFatturaTestoOriginale}
+    setRigheFatturaDaAssegnare={p.setRigheFatturaDaAssegnare}
+    setRigheFatturaAperta={p.setRigheFatturaAperta}
+    setCantiereMassivoFattura={p.setCantiereMassivoFattura}
+    setCategoriaMassivaFattura={p.setCategoriaMassivaFattura}
+    setFatturaApertaId={p.setFatturaApertaId}
+    setNascondiCantieriConclusiFatture={p.setNascondiCantieriConclusiFatture}
+    setLarghezzaDescrizioneFattura={p.setLarghezzaDescrizioneFattura}
+    caricaFatturaXml={p.caricaFatturaXml}
+    caricaFatturaPdf={p.caricaFatturaPdf}
+    caricaFattureFornitori={p.caricaFattureFornitori}
+    importaFatturaSilenziosa={p.importaFatturaSilenziosa}
+    numeroXml={p.numeroXml}
+    formatMoney={p.formatMoney}
+    salvaFatturaFornitore={p.salvaFatturaFornitore}
+    ordinaFatture={p.ordinaFatture}
+    apriFatturaFornitore={p.apriFatturaFornitore}
+    eliminaFatturaFornitore={p.eliminaFatturaFornitore}
+    salvaModificheFatturaAperta={p.salvaModificheFatturaAperta}
+  />
+)}
       {p.registroTab === 'fatture-emesse' && (
         <FattureEmessePanel {...p} />
       )}
