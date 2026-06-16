@@ -11390,59 +11390,56 @@ WebkitOverflowScrolling: 'touch',
     sezioneAttiva === 'operai' &&
     sottoSezioneOperai === 'presenze')
 ) && (
- <OperaiPresenzeContainer
-  {...{
-    cardStyle,
-    timbraturaInModifica,
-    dataTimbraturaModifica,
-    setDataTimbraturaModifica,
-    oraEntrataModifica,
-    setOraEntrataModifica,
-    oraUscitaModifica,
-    setOraUscitaModifica,
-    parseOra,
-    setTimbraturaInModifica,
-    salvaModificaTimbratura,
-    buttonSecondary,
-    buttonPrimary,
-    dataPresenzaManuale,
-    setDataPresenzaManuale,
-    operaioPresenzaManuale,
-    setOperaioPresenzaManuale,
-    cantierePresenzaManuale,
-    setCantierePresenzaManuale,
-    oraEntrataManuale,
-    setOraEntrataManuale,
-    oraUscitaManuale,
-    setOraUscitaManuale,
-    operaiAnagrafica,
-    cantieri,
-    aggiungiPresenzaManuale,
-    dataDa,
-    setDataDa,
-    dataA,
-    setDataA,
-    cantiereGrafico,
-    setCantiereGrafico,
-    inputStyle,
-    timbrature,
-    totaleCostoPeriodo,
-    totaleOrePeriodo,
-    calcolaOre,
-    calcolaCostoTimbratura,
-    formatMoney,
-    badgeStyle,
-    preparaModificaOperaio,
-    cambiaStatoOperaio,
-    eliminaOperaio,
-    costoPerCantiereOggi,
-    timbratureOggi,
-    erroreTimbratura,
-    setStatoTimbraturaModifica,
-    eliminaTimbratura,
-  }}
-/>
-)}
+<OperaiPresenzeContainer
+  cardStyle={cardStyle}
+  timbraturaInModifica={timbraturaInModifica}
+  dataTimbraturaModifica={dataTimbraturaModifica}
+  setDataTimbraturaModifica={setDataTimbraturaModifica}
+  oraEntrataModifica={oraEntrataModifica}
+  setOraEntrataModifica={setOraEntrataModifica}
+  oraUscitaModifica={oraUscitaModifica}
+  setOraUscitaModifica={setOraUscitaModifica}
+  parseOra={parseOra}
+  setTimbraturaInModifica={setTimbraturaInModifica}
+  salvaModificaTimbratura={salvaModificaTimbratura}
+  buttonSecondary={buttonSecondary}
+  buttonPrimary={buttonPrimary}
+  dataPresenzaManuale={dataPresenzaManuale}
+  setDataPresenzaManuale={setDataPresenzaManuale}
+  operaioPresenzaManuale={operaioPresenzaManuale}
+  setOperaioPresenzaManuale={setOperaioPresenzaManuale}
+  cantierePresenzaManuale={cantierePresenzaManuale}
+  setCantierePresenzaManuale={setCantierePresenzaManuale}
+  oraEntrataManuale={oraEntrataManuale}
+  setOraEntrataManuale={setOraEntrataManuale}
+  oraUscitaManuale={oraUscitaManuale}
+  setOraUscitaManuale={setOraUscitaManuale}
+  operaiAnagrafica={operaiAnagrafica}
+  cantieri={cantieri}
+  aggiungiPresenzaManuale={aggiungiPresenzaManuale}
+  dataDa={dataDa}
+  setDataDa={setDataDa}
+  dataA={dataA}
+  setDataA={setDataA}
+  cantiereGrafico={cantiereGrafico}
+  setCantiereGrafico={setCantiereGrafico}
+  inputStyle={inputStyle}
+  timbrature={timbrature}
+  totaleCostoPeriodo={totaleCostoPeriodo}
+  totaleOrePeriodo={totaleOrePeriodo}
+  calcolaOre={calcolaOre}
+  calcolaCostoTimbratura={calcolaCostoTimbratura}
+  formatMoney={formatMoney}
+  badgeStyle={badgeStyle}
+  preparaModificaOperaio={preparaModificaOperaio}
+  cambiaStatoOperaio={cambiaStatoOperaio}
+  eliminaOperaio={eliminaOperaio}
+  costoPerCantiereOggi={costoPerCantiereOggi}
+  timbratureOggi={timbratureOggi}
+  erroreTimbratura={erroreTimbratura}
+  setStatoTimbraturaModifica={setStatoTimbraturaModifica}
+  eliminaTimbratura={eliminaTimbratura}
+/>)}
 
 
 {/* ================= SOPRALLUOGHI ================= */}
