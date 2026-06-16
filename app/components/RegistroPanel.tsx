@@ -117,10 +117,29 @@ export default function RegistroPanel(props: any) {
     buttonSecondary={p.buttonSecondary}
   />
 )}
-
-      {p.mostraRevisionePreventivoAi && (
-        <RevisionePreventivoAiPanel {...p} />
-      )}
+{p.mostraRevisionePreventivoAi && (
+  <RevisionePreventivoAiPanel
+    messaggioAi={p.messaggioAi}
+    descrizionePreventivoAi={p.descrizionePreventivoAi}
+    setDescrizionePreventivoAi={p.setDescrizionePreventivoAi}
+    vociPreventivoAi={p.vociPreventivoAi}
+    setVociPreventivoAi={p.setVociPreventivoAi}
+    vociPreventivoAiOriginali={p.vociPreventivoAiOriginali}
+    calcolaMediaPrezziSimili={p.calcolaMediaPrezziSimili}
+    verificaPrezzoAnomalo={p.verificaPrezzoAnomalo}
+    formatMoney={p.formatMoney}
+    miglioraVocePreventivoAi={p.miglioraVocePreventivoAi}
+    salvaInMemoriaPrezzi={p.salvaInMemoriaPrezzi}
+    generaExcelDefinitivoPreventivoAi={p.generaExcelDefinitivoPreventivoAi}
+    preventivoRegistroCantiere={p.preventivoRegistroCantiere}
+    setMostraRevisionePreventivoAi={p.setMostraRevisionePreventivoAi}
+    excelTable={p.excelTable}
+    excelTh={p.excelTh}
+    excelTd={p.excelTd}
+    buttonPrimary={p.buttonPrimary}
+    buttonSecondary={p.buttonSecondary}
+  />
+)}
 {p.registroTab === 'rapportini' && (
   <RegistroRapportiniPanel
     rapportini={p.rapportini}
