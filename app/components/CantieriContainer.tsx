@@ -21,8 +21,14 @@ const {
   calcoloEconomiaCantiere,
   formatMoney,
   inputStyle,
-  buttonPrimary,
+   buttonPrimary,
   buttonSecondary,
+  caricaFileAnalisiDocumento,
+  fileAnalisiDocumento,
+  nomeFileAnalisiDocumento,
+  testoEstrattoDocumento,
+  importoRilevatoDocumento,
+  vociAnalizzate,
   ...rest
 } = props
   return (
@@ -44,7 +50,23 @@ const {
 
   {...rest}
 />
-      <CantieriAnalisiDocumentoPanel {...props} />
+      <CantieriAnalisiDocumentoPanel
+  cardStyle={cardStyle}
+  cantieri={cantieri}
+  cantiereAnalisiDocumento={cantiereScheda || ''}
+  setCantiereAnalisiDocumento={setCantiereScheda}
+  inputStyle={inputStyle}
+  buttonSecondary={buttonSecondary}
+  buttonPrimary={buttonPrimary}
+  caricaFileAnalisiDocumento={caricaFileAnalisiDocumento}
+  fileAnalisiDocumento={fileAnalisiDocumento}
+  nomeFileAnalisiDocumento={nomeFileAnalisiDocumento}
+  testoEstrattoDocumento={testoEstrattoDocumento}
+  importoRilevatoDocumento={importoRilevatoDocumento}
+  vociAnalizzate={vociAnalizzate}
+
+  {...rest}
+/>
       <CantieriEconomiaPanel {...props} />
     </>
   )
