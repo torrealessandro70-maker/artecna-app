@@ -30,7 +30,7 @@ import OperaioForm from './components/OperaioForm'
 import OperaioCard from './components/OperaioCard'
 import OperaiList from './components/OperaiList'
 import RapportiniList from './components/RapportiniList'
-
+import SopralluoghiContainer from './components/SopralluoghiContainer'
 import FotoCantiereAnteprime from './components/FotoCantiereAnteprime'
 import FotoCantiereCategoriaModal from './components/FotoCantiereCategoriaModal'
 import FotoCantiereGallery from './components/FotoCantiereGallery'
@@ -11055,67 +11055,62 @@ WebkitOverflowScrolling: 'touch',
   />
 )}
 
-{/* ================= CANTIERI - SCHEDA ================= */}
-{(
-  pagineAperte.includes('cantieri-scheda') ||
-  (!modalitaMulti &&
-    sezioneAttiva === 'cantieri' &&
-    sottoSezioneCantieri === 'scheda')
-) && (
-  <CantieriSchedaPanel
-    cardStyle={cardStyle}
-    cantieri={cantieri}
-    cantiereScheda={cantiereScheda}
-    setCantiereScheda={setCantiereScheda}
-    ricercaCantiereEconomia={ricercaCantiereEconomia}
-    setRicercaCantiereEconomia={setRicercaCantiereEconomia}
-    mostraConclusiEconomia={mostraConclusiEconomia}
-    setMostraConclusiEconomia={setMostraConclusiEconomia}
-    calcoloEconomiaCantiere={calcoloEconomiaCantiere}
-    formatMoney={formatMoney}
-    inputStyle={inputStyle}
-    buttonPrimary={buttonPrimary}
-    buttonSecondary={buttonSecondary}
-    caricaFotoDaInput={caricaFotoDaInput}
-    cameraFotoCantiereAttiva={cameraFotoCantiereAttiva}
-    setCameraFotoCantiereAttiva={setCameraFotoCantiereAttiva}
-    cameraFotoCantiereFullscreen={cameraFotoCantiereFullscreen}
-    setCameraFotoCantiereFullscreen={setCameraFotoCantiereFullscreen}
-    webcamFotoCantiereRef={webcamFotoCantiereRef}
-    scattaFotoCantiere={scattaFotoCantiere}
-    rilevaPosizioneFoto={rilevaPosizioneFoto}
-    fotoDaCaricare={fotoDaCaricare}
-    setFotoDaCaricare={setFotoDaCaricare}
-    categoriaFoto={categoriaFoto}
-    setCategoriaFoto={setCategoriaFoto}
-    categoriaFotoDaSalvare={categoriaFotoDaSalvare}
-    setCategoriaFotoDaSalvare={setCategoriaFotoDaSalvare}
-    popupCategoriaFotoCantiere={popupCategoriaFotoCantiere}
-    setPopupCategoriaFotoCantiere={setPopupCategoriaFotoCantiere}
-    esportaPdfFotoCantiere={esportaPdfFotoCantiere}
-    notaFotoCantiere={notaFotoCantiere}
-    setNotaFotoCantiere={setNotaFotoCantiere}
-    note={note}
-    setNote={setNote}
-    avviaDettatura={avviaDettatura}
-    fotoCantiere={fotoCantiere}
-    setFotoCantiere={setFotoCantiere}
-    filtroFotoCantiere={filtroFotoCantiere}
-    setFiltroFotoCantiere={setFiltroFotoCantiere}
-    fotoCantiereSelezionate={fotoCantiereSelezionate}
-    setFotoCantiereSelezionate={setFotoCantiereSelezionate}
-    categoriaFotoMultipla={categoriaFotoMultipla}
-    setCategoriaFotoMultipla={setCategoriaFotoMultipla}
-    aggiornaCategoriaFotoSelezionate={aggiornaCategoriaFotoSelezionate}
-    setFotoFullscreen={setFotoFullscreen}
-    supabase={supabase}
-    caricaFotoCantiere={caricaFotoCantiere}
-    eliminaFotoCantiere={eliminaFotoCantiere}
-    geolocalizzazioneFoto={geolocalizzazioneFoto}
-    salvaFotoCantiere={salvaFotoCantiere}
-  />
-)}
-
+<CantieriContainer
+  pagineAperte={pagineAperte}
+  modalitaMulti={modalitaMulti}
+  sezioneAttiva={sezioneAttiva}
+  sottoSezioneCantieri={sottoSezioneCantieri}
+  cardStyle={cardStyle}
+  cantieri={cantieri}
+  cantiereScheda={cantiereScheda}
+  setCantiereScheda={setCantiereScheda}
+  ricercaCantiereEconomia={ricercaCantiereEconomia}
+  setRicercaCantiereEconomia={setRicercaCantiereEconomia}
+  mostraConclusiEconomia={mostraConclusiEconomia}
+  setMostraConclusiEconomia={setMostraConclusiEconomia}
+  calcoloEconomiaCantiere={calcoloEconomiaCantiere}
+  formatMoney={formatMoney}
+  inputStyle={inputStyle}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+  caricaFotoDaInput={caricaFotoDaInput}
+  cameraFotoCantiereAttiva={cameraFotoCantiereAttiva}
+  setCameraFotoCantiereAttiva={setCameraFotoCantiereAttiva}
+  cameraFotoCantiereFullscreen={cameraFotoCantiereFullscreen}
+  setCameraFotoCantiereFullscreen={setCameraFotoCantiereFullscreen}
+  webcamFotoCantiereRef={webcamFotoCantiereRef}
+  scattaFotoCantiere={scattaFotoCantiere}
+  rilevaPosizioneFoto={rilevaPosizioneFoto}
+  fotoDaCaricare={fotoDaCaricare}
+  setFotoDaCaricare={setFotoDaCaricare}
+  categoriaFoto={categoriaFoto}
+  setCategoriaFoto={setCategoriaFoto}
+  categoriaFotoDaSalvare={categoriaFotoDaSalvare}
+  setCategoriaFotoDaSalvare={setCategoriaFotoDaSalvare}
+  popupCategoriaFotoCantiere={popupCategoriaFotoCantiere}
+  setPopupCategoriaFotoCantiere={setPopupCategoriaFotoCantiere}
+  esportaPdfFotoCantiere={esportaPdfFotoCantiere}
+  notaFotoCantiere={notaFotoCantiere}
+  setNotaFotoCantiere={setNotaFotoCantiere}
+  note={note}
+  setNote={setNote}
+  avviaDettatura={avviaDettatura}
+  fotoCantiere={fotoCantiere}
+  setFotoCantiere={setFotoCantiere}
+  filtroFotoCantiere={filtroFotoCantiere}
+  setFiltroFotoCantiere={setFiltroFotoCantiere}
+  fotoCantiereSelezionate={fotoCantiereSelezionate}
+  setFotoCantiereSelezionate={setFotoCantiereSelezionate}
+  categoriaFotoMultipla={categoriaFotoMultipla}
+  setCategoriaFotoMultipla={setCategoriaFotoMultipla}
+  aggiornaCategoriaFotoSelezionate={aggiornaCategoriaFotoSelezionate}
+  setFotoFullscreen={setFotoFullscreen}
+  supabase={supabase}
+  caricaFotoCantiere={caricaFotoCantiere}
+  eliminaFotoCantiere={eliminaFotoCantiere}
+  geolocalizzazioneFoto={geolocalizzazioneFoto}
+  salvaFotoCantiere={salvaFotoCantiere}
+/>
  <FotoFullscreenModal
   fotoFullscreen={fotoFullscreen}
   setFotoFullscreen={setFotoFullscreen}
@@ -11391,7 +11386,7 @@ WebkitOverflowScrolling: 'touch',
 
 {/* ================= SOPRALLUOGHI ================= */}
 {sezioneAttiva === 'sopralluoghi' && (
-  <SopralluoghiPanel
+  <SopralluoghiContainer
     cardStyle={cardStyle}
     clienteSopralluogo={clienteSopralluogo}
     setClienteSopralluogo={setClienteSopralluogo}
