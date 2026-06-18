@@ -2,18 +2,19 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
   type ChangeEvent,
 } from 'react'
+import { flushSync } from 'react-dom'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import NotaDisegno from './note/NotaDisegno'
 import type {
   AllegatoNota,
   AnalisiNota,
   SegnoNota,
-  StrumentoDisegno,
   VoceChecklistNota,
 } from './note/types'
 
@@ -21,6 +22,8 @@ type SopralluogoNota = {
   id?: string
   cliente?: string
   indirizzo?: string
+  data_sopralluogo?: string
+  ora_appuntamento?: string
   tipo_lavoro?: string
 }
 
@@ -33,7 +36,11 @@ type Props = {
   buttonSecondary: CSSProperties
 }
 
-const colori = ['#111827', '#2563eb', '#dc2626', '#16a34a', '#f59e0b']
+type FotoInCoda = {
+  id: string
+  file: File
+  anteprima: string
+}
 
 export default function SopralluogoAppunti({
   mostraAppuntiSopralluogo,
@@ -49,14 +56,36 @@ export default function SopralluogoAppunti({
   const [checklist, setChecklist] = useState<VoceChecklistNota[]>([])
   const [disegni, setDisegni] = useState<SegnoNota[]>([])
   const [allegati, setAllegati] = useState<AllegatoNota[]>([])
-  const [strumento, setStrumento] = useState<StrumentoDisegno>('penna')
-  const [colore, setColore] = useState(colori[0])
+  const [fotoInCoda, setFotoInCoda] = useState<FotoInCoda[]>([])
+  const [salvataggioFotoAttivo, setSalvataggioFotoAttivo] = useState(false)
   const [analisiAi, setAnalisiAi] = useState<AnalisiNota | null>(null)
   const [stato, setStato] = useState('')
   const [pronto, setPronto] = useState(false)
   const [registrazioneAttiva, setRegistrazioneAttiva] = useState(false)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const testoNotaRef = useRef<HTMLTextAreaElement>(null)
+  const inputChecklistRefs = useRef(new Map<string, HTMLInputElement>())
+  const checklistDaFocalizzareRef = useRef<string | null>(null)
+  const fotoInCodaRef = useRef<FotoInCoda[]>([])
+
+  useEffect(() => {
+    fotoInCodaRef.current = fotoInCoda
+  }, [fotoInCoda])
+
+  useEffect(
+    () => () => {
+      fotoInCodaRef.current.forEach((foto) => URL.revokeObjectURL(foto.anteprima))
+    },
+    []
+  )
+
+  useLayoutEffect(() => {
+    const textarea = testoNotaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.max(180, textarea.scrollHeight)}px`
+  }, [testo])
 
   useEffect(() => {
     if (!mostraAppuntiSopralluogo || !sopralluogoAperto.id) return
@@ -64,6 +93,8 @@ export default function SopralluogoAppunti({
     let attivo = true
 
     const caricaNota = async () => {
+      fotoInCodaRef.current.forEach((foto) => URL.revokeObjectURL(foto.anteprima))
+      setFotoInCoda([])
       setPronto(false)
       setNotaId(null)
       setStato('Caricamento nota…')
@@ -180,22 +211,24 @@ export default function SopralluogoAppunti({
     files: File[],
     tipo: AllegatoNota['tipo']
   ) => {
-    if (files.length === 0) return
+    if (files.length === 0) return []
 
     const id = notaId || (await salvaNota(false))
-    if (!id || !sopralluogoAperto.id) return
+    if (!id || !sopralluogoAperto.id) return []
 
     const { data: userData } = await supabase.auth.getUser()
-    if (!userData.user) return
+    if (!userData.user) return []
 
     setStato('Caricamento allegati…')
+
+    const fileSalvati: File[] = []
 
     for (const file of files) {
       const nomePulito = file.name
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `utenti/${userData.user.id}/sopralluoghi/${sopralluogoAperto.id}/note/${Date.now()}_${nomePulito}`
+      const path = `utenti/${userData.user.id}/sopralluoghi/${sopralluogoAperto.id}/note/${Date.now()}_${crypto.randomUUID()}_${nomePulito}`
 
       const { error: uploadError } = await supabase.storage
         .from('preventivi')
@@ -226,10 +259,17 @@ export default function SopralluogoAppunti({
 
       if (!error && allegato) {
         setAllegati((correnti) => [...correnti, allegato])
+        fileSalvati.push(file)
+      } else {
+        await supabase.storage.from('preventivi').remove([path])
+        setStato(`Errore salvataggio allegato: ${error?.message || 'operazione non riuscita'}`)
       }
     }
 
-    setStato('Allegati caricati')
+    if (fileSalvati.length === files.length) {
+      setStato(files.length === 1 ? 'Allegato caricato' : 'Allegati caricati')
+    }
+    return fileSalvati
   }
 
   const caricaFile = (
@@ -239,6 +279,72 @@ export default function SopralluogoAppunti({
     const files = Array.from(event.target.files || [])
     event.target.value = ''
     void salvaFile(files, tipo)
+  }
+
+  const aggiungiFotoInCoda = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []).filter((file) =>
+      file.type.startsWith('image/')
+    )
+    event.target.value = ''
+    if (files.length === 0) return
+
+    const nuoveFoto = files.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      anteprima: URL.createObjectURL(file),
+    }))
+    setFotoInCoda((correnti) => [
+      ...correnti,
+      ...nuoveFoto,
+    ])
+    setStato(
+      files.length === 1
+        ? 'Foto aggiunta, pronta da salvare'
+        : `${files.length} foto aggiunte, pronte da salvare`
+    )
+  }
+
+  const rimuoviFotoInCoda = (id: string) => {
+    const fotoDaRimuovere = fotoInCoda.find((foto) => foto.id === id)
+    if (fotoDaRimuovere) URL.revokeObjectURL(fotoDaRimuovere.anteprima)
+    setFotoInCoda((correnti) => correnti.filter((foto) => foto.id !== id))
+  }
+
+  const salvaFotoInCoda = async () => {
+    if (fotoInCoda.length === 0 || salvataggioFotoAttivo) return
+
+    setSalvataggioFotoAttivo(true)
+    const codaDaSalvare = fotoInCoda
+    try {
+      const fileSalvati = await salvaFile(
+        codaDaSalvare.map((foto) => foto.file),
+        'foto'
+      )
+      const salvati = new Set(fileSalvati)
+
+      codaDaSalvare
+        .filter((foto) => salvati.has(foto.file))
+        .forEach((foto) => URL.revokeObjectURL(foto.anteprima))
+      setFotoInCoda((correnti) =>
+        correnti.filter((foto) => !salvati.has(foto.file))
+      )
+
+      if (fileSalvati.length === codaDaSalvare.length) {
+        setStato(
+          fileSalvati.length === 1
+            ? 'Foto salvata'
+            : `${fileSalvati.length} foto salvate`
+        )
+      } else {
+        setStato(
+          `${codaDaSalvare.length - fileSalvati.length} foto non salvate: riprova`
+        )
+      }
+    } catch {
+      setStato('Upload non riuscito: le foto sono ancora pronte da salvare')
+    } finally {
+      setSalvataggioFotoAttivo(false)
+    }
   }
 
   const eliminaAllegato = async (allegato: AllegatoNota) => {
@@ -328,14 +434,89 @@ export default function SopralluogoAppunti({
   }
 
   const aggiungiChecklist = () => {
-    setChecklist((corrente) => [
-      ...corrente,
-      { id: crypto.randomUUID(), testo: '', completata: false },
-    ])
+    const id = crypto.randomUUID()
+    checklistDaFocalizzareRef.current = id
+
+    flushSync(() => {
+      setChecklist((corrente) => [
+        ...corrente,
+        { id, testo: '', completata: false },
+      ])
+    })
+
+    const input = inputChecklistRefs.current.get(id)
+    input?.focus()
+    checklistDaFocalizzareRef.current = null
   }
+
+  const stampaNota = () => window.print()
+
+  const dataSopralluogo = sopralluogoAperto.data_sopralluogo
+    ? new Intl.DateTimeFormat('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date(`${sopralluogoAperto.data_sopralluogo}T00:00:00`))
+    : ''
+  const dataOraSopralluogo = [
+    dataSopralluogo,
+    sopralluogoAperto.ora_appuntamento
+      ? `ore ${sopralluogoAperto.ora_appuntamento.slice(0, 5)}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(', ')
 
   return (
     <section style={{ marginTop: 16 }}>
+      <style>{`
+        .smart-note-print {
+          display: none;
+        }
+
+        @media print {
+          @page {
+            margin: 16mm;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .smart-note-print,
+          .smart-note-print * {
+            visibility: visible !important;
+          }
+
+          .smart-note-print {
+            display: block !important;
+            position: absolute;
+            inset: 0 auto auto 0;
+            width: 100%;
+            color: #111 !important;
+            background: #fff !important;
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.45;
+          }
+
+          .smart-note-print [role='toolbar'] {
+            display: none !important;
+          }
+
+          .smart-note-print section,
+          .smart-note-print article,
+          .smart-note-print figure,
+          .smart-note-print li {
+            break-inside: avoid;
+          }
+
+          .smart-note-print svg,
+          .smart-note-print img {
+            max-width: 100% !important;
+          }
+        }
+      `}</style>
       <button
         type="button"
         onClick={() => setMostraAppuntiSopralluogo(!mostraAppuntiSopralluogo)}
@@ -371,10 +552,14 @@ export default function SopralluogoAppunti({
             <button type="button" onClick={() => void salvaNota()} style={buttonPrimary}>
               Salva ora
             </button>
+            <button type="button" onClick={stampaNota} style={buttonSecondary}>
+              🖨️ Stampa nota
+            </button>
             <span style={{ fontSize: 13, color: '#64748b' }}>{stato}</span>
           </div>
 
           <textarea
+            ref={testoNotaRef}
             value={testo}
             onChange={(event) => setTesto(event.target.value)}
             placeholder="Scrivi ciò che osservi: muro umido, distacco intonaco, misure…"
@@ -385,25 +570,87 @@ export default function SopralluogoAppunti({
               padding: 14,
               border: '1px solid #cbd5e1',
               borderRadius: 12,
-              resize: 'vertical',
+              resize: 'none',
+              overflow: 'hidden',
               fontSize: 16,
               lineHeight: 1.6,
             }}
           />
 
-          <div style={{ marginTop: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-              <strong>Checklist</strong>
-              <button type="button" onClick={aggiungiChecklist} style={buttonSecondary}>
+          <div
+            style={{
+              marginTop: 16,
+              padding: 14,
+              border: '1px solid #cbd5e1',
+              borderRadius: 14,
+              background: '#fff',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 10,
+                flexWrap: 'wrap',
+              }}
+            >
+              <strong style={{ fontSize: 17, color: '#0f172a' }}>Checklist</strong>
+              <button
+                type="button"
+                onClick={aggiungiChecklist}
+                style={{
+                  ...buttonSecondary,
+                  minHeight: 48,
+                  padding: '10px 16px',
+                  fontWeight: 800,
+                }}
+              >
                 + Aggiungi controllo
               </button>
             </div>
-            <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+
+            {checklist.length === 0 && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: '#f8fafc',
+                  color: '#64748b',
+                  fontSize: 14,
+                }}
+              >
+                Aggiungi un controllo e scrivi ciò che deve essere verificato.
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
               {checklist.map((voce) => (
-                <div key={voce.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div
+                  key={voce.id}
+                  style={{
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'center',
+                    minHeight: 62,
+                    padding: 8,
+                    border: voce.completata
+                      ? '1px solid #86efac'
+                      : '1px solid #cbd5e1',
+                    borderRadius: 12,
+                    background: voce.completata ? '#f0fdf4' : '#fff',
+                    transition: 'background 160ms ease, border-color 160ms ease',
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={voce.completata}
+                    aria-label={
+                      voce.completata
+                        ? `Segna come da completare: ${voce.testo || 'controllo'}`
+                        : `Segna come completato: ${voce.testo || 'controllo'}`
+                    }
                     onChange={(event) =>
                       setChecklist((corrente) =>
                         corrente.map((item) =>
@@ -413,8 +660,26 @@ export default function SopralluogoAppunti({
                         )
                       )
                     }
+                    style={{
+                      width: 28,
+                      height: 28,
+                      flex: '0 0 28px',
+                      margin: 0,
+                      accentColor: '#16a34a',
+                      cursor: 'pointer',
+                    }}
                   />
                   <input
+                    ref={(element) => {
+                      if (element) {
+                        inputChecklistRefs.current.set(voce.id, element)
+                        if (checklistDaFocalizzareRef.current === voce.id) {
+                          element.focus()
+                        }
+                      } else {
+                        inputChecklistRefs.current.delete(voce.id)
+                      }
+                    }}
                     value={voce.testo}
                     onChange={(event) =>
                       setChecklist((corrente) =>
@@ -423,16 +688,46 @@ export default function SopralluogoAppunti({
                         )
                       )
                     }
-                    placeholder="Verifica da eseguire"
-                    style={{ flex: 1, padding: 9, border: '1px solid #cbd5e1', borderRadius: 8 }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        aggiungiChecklist()
+                      }
+                    }}
+                    placeholder="Nuovo controllo..."
+                    aria-label="Testo del controllo"
+                    style={{
+                      flex: '1 1 auto',
+                      width: '100%',
+                      minWidth: 0,
+                      minHeight: 46,
+                      padding: '10px 12px',
+                      border: '1px solid #94a3b8',
+                      borderRadius: 9,
+                      background: '#fff',
+                      color: voce.completata ? '#64748b' : '#0f172a',
+                      fontSize: 16,
+                      lineHeight: 1.35,
+                      textDecoration: voce.completata ? 'line-through' : 'none',
+                    }}
                   />
                   <button
                     type="button"
                     onClick={() =>
                       setChecklist((corrente) => corrente.filter((item) => item.id !== voce.id))
                     }
-                    style={buttonSecondary}
-                    aria-label="Elimina voce"
+                    style={{
+                      ...buttonSecondary,
+                      width: 48,
+                      height: 48,
+                      flex: '0 0 48px',
+                      padding: 0,
+                      borderColor: '#fecaca',
+                      color: '#991b1b',
+                      fontSize: 24,
+                      fontWeight: 700,
+                    }}
+                    aria-label={`Elimina controllo: ${voce.testo || 'senza testo'}`}
                   >
                     ×
                   </button>
@@ -443,60 +738,14 @@ export default function SopralluogoAppunti({
 
           <div style={{ marginTop: 18 }}>
             <strong>Disegno</strong>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '10px 0' }}>
-              {(['penna', 'evidenziatore', 'freccia', 'cerchio'] as StrumentoDisegno[]).map(
-                (item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setStrumento(item)}
-                    style={strumento === item ? buttonPrimary : buttonSecondary}
-                  >
-                    {item[0].toUpperCase() + item.slice(1)}
-                  </button>
-                )
-              )}
-              {colori.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setColore(item)}
-                  aria-label={`Colore ${item}`}
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: '50%',
-                    background: item,
-                    border: colore === item ? '3px solid #fff' : '1px solid #94a3b8',
-                    boxShadow: colore === item ? '0 0 0 2px #0f172a' : 'none',
-                    cursor: 'pointer',
-                  }}
-                />
-              ))}
-              <button
-                type="button"
-                onClick={() => setDisegni((correnti) => correnti.slice(0, -1))}
-                style={buttonSecondary}
-              >
-                Annulla
-              </button>
-              <button type="button" onClick={() => setDisegni([])} style={buttonSecondary}>
-                Pulisci
-              </button>
+            <div style={{ marginTop: 10 }}>
+              <NotaDisegno
+                segni={disegni}
+                onChange={setDisegni}
+                strumento="penna"
+                colore="#111827"
+              />
             </div>
-       <div
-  style={{
-    touchAction: 'none',
-    overscrollBehavior: 'contain',
-  }}
->
-  <NotaDisegno
-    segni={disegni}
-    onChange={setDisegni}
-    strumento={strumento}
-    colore={colore}
-  />
-</div>
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
@@ -506,7 +755,18 @@ export default function SopralluogoAppunti({
                 type="file"
                 accept="image/*"
                 capture="environment"
-                onChange={(event) => void caricaFile(event, 'foto')}
+                multiple
+                onChange={aggiungiFotoInCoda}
+                style={{ display: 'none' }}
+              />
+            </label>
+            <label style={{ ...buttonSecondary, cursor: 'pointer' }}>
+              Galleria foto
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={aggiungiFotoInCoda}
                 style={{ display: 'none' }}
               />
             </label>
@@ -530,6 +790,104 @@ export default function SopralluogoAppunti({
               {registrazioneAttiva ? '■ Ferma registrazione' : '🎤 Registra audio'}
             </button>
           </div>
+
+          {fotoInCoda.length > 0 && (
+            <section
+              style={{
+                marginTop: 14,
+                padding: 14,
+                border: '2px solid #93c5fd',
+                borderRadius: 14,
+                background: '#eff6ff',
+              }}
+              aria-label="Foto pronte da salvare"
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <strong style={{ color: '#1e3a8a', fontSize: 16 }}>
+                  {fotoInCoda.length}{' '}
+                  {fotoInCoda.length === 1
+                    ? 'foto pronta da salvare'
+                    : 'foto pronte da salvare'}
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => void salvaFotoInCoda()}
+                  disabled={salvataggioFotoAttivo}
+                  style={{
+                    ...buttonPrimary,
+                    minHeight: 52,
+                    padding: '12px 20px',
+                    fontSize: 16,
+                    fontWeight: 800,
+                    opacity: salvataggioFotoAttivo ? 0.65 : 1,
+                  }}
+                >
+                  {salvataggioFotoAttivo ? 'Salvataggio...' : 'Salva tutte'}
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                  gap: 10,
+                  marginTop: 12,
+                }}
+              >
+                {fotoInCoda.map((foto, indice) => (
+                  <figure
+                    key={foto.id}
+                    style={{
+                      position: 'relative',
+                      margin: 0,
+                      overflow: 'hidden',
+                      borderRadius: 12,
+                      border: '1px solid #bfdbfe',
+                      background: '#fff',
+                      aspectRatio: '1 / 1',
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={foto.anteprima}
+                      alt={`Foto in attesa ${indice + 1}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => rimuoviFotoInCoda(foto.id)}
+                      disabled={salvataggioFotoAttivo}
+                      aria-label={`Rimuovi foto ${indice + 1}`}
+                      style={{
+                        position: 'absolute',
+                        top: 6,
+                        right: 6,
+                        width: 44,
+                        height: 44,
+                        border: '2px solid #fff',
+                        borderRadius: '50%',
+                        background: 'rgba(15, 23, 42, 0.82)',
+                        color: '#fff',
+                        fontSize: 24,
+                        lineHeight: 1,
+                        cursor: salvataggioFotoAttivo ? 'default' : 'pointer',
+                      }}
+                    >
+                      ×
+                    </button>
+                  </figure>
+                ))}
+              </div>
+            </section>
+          )}
 
           {allegati.length > 0 && (
             <div
@@ -629,6 +987,111 @@ WebkitTextFillColor: '#111827',
 )}
           </aside>
         </div>
+      )}
+
+      {mostraAppuntiSopralluogo && (
+        <article className="smart-note-print" aria-hidden="true">
+          <header style={{ borderBottom: '1px solid #94a3b8', paddingBottom: 12 }}>
+            <h1 style={{ margin: 0, fontSize: 24 }}>{titolo || 'Nota sopralluogo'}</h1>
+            {(sopralluogoAperto.cliente || sopralluogoAperto.indirizzo) && (
+              <p style={{ margin: '8px 0 0' }}>
+                {sopralluogoAperto.cliente && <strong>{sopralluogoAperto.cliente}</strong>}
+                {sopralluogoAperto.cliente && sopralluogoAperto.indirizzo && ' - '}
+                {sopralluogoAperto.indirizzo}
+              </p>
+            )}
+            {dataOraSopralluogo && (
+              <p style={{ margin: '4px 0 0' }}>Sopralluogo: {dataOraSopralluogo}</p>
+            )}
+          </header>
+
+          {testo && (
+            <section style={{ marginTop: 18 }}>
+              <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Nota</h2>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{testo}</div>
+            </section>
+          )}
+
+          {checklist.length > 0 && (
+            <section style={{ marginTop: 18 }}>
+              <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Checklist</h2>
+              <ul style={{ margin: 0, paddingLeft: 0, listStyle: 'none' }}>
+                {checklist.map((voce) => (
+                  <li key={voce.id} style={{ marginBottom: 5 }}>
+                    <span aria-hidden="true">{voce.completata ? '☑' : '☐'}</span>{' '}
+                    {voce.testo || 'Controllo senza descrizione'}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {disegni.length > 0 && (
+            <section style={{ marginTop: 18 }}>
+              <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Disegno</h2>
+              <NotaDisegno
+                segni={disegni}
+                onChange={setDisegni}
+                strumento="penna"
+                colore="#111827"
+              />
+            </section>
+          )}
+
+          {allegati.length > 0 && (
+            <section style={{ marginTop: 18 }}>
+              <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Allegati</h2>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: 12,
+                }}
+              >
+                {allegati.map((allegato) => (
+                  <figure key={allegato.id} style={{ margin: 0 }}>
+                    {allegato.tipo === 'foto' && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={allegato.url}
+                        alt={allegato.nome_file}
+                        style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'contain' }}
+                      />
+                    )}
+                    <figcaption style={{ marginTop: 4 }}>{allegato.nome_file}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {analisiAi && (
+            <section style={{ marginTop: 18 }}>
+              <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Analisi AI</h2>
+              <strong>Sintesi</strong>
+              <div>{analisiAi.sintesi}</div>
+              {analisiAi.ipotesi.length > 0 && (
+                <>
+                  <strong>Possibili cause</strong>
+                  <ul>{analisiAi.ipotesi.map((item) => <li key={item}>{item}</li>)}</ul>
+                </>
+              )}
+              {analisiAi.verifiche.length > 0 && (
+                <>
+                  <strong>Da verificare</strong>
+                  <ul>{analisiAi.verifiche.map((item) => <li key={item}>{item}</li>)}</ul>
+                </>
+              )}
+              {analisiAi.domande.length > 0 && (
+                <>
+                  <strong>Informazioni mancanti</strong>
+                  <ul>{analisiAi.domande.map((item) => <li key={item}>{item}</li>)}</ul>
+                </>
+              )}
+              <small>{analisiAi.avvertenza}</small>
+            </section>
+          )}
+        </article>
       )}
     </section>
   )
