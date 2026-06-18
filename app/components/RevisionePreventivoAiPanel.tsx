@@ -1,6 +1,86 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+
+type EsitoCalcolo =
+  | { valore: number; errore?: never }
+  | { valore?: never; errore: string }
+
+function calcolaEspressione(input: string): EsitoCalcolo {
+  const formula = input.replace(/,/g, '.').replace(/\s+/g, '')
+  if (!formula) return { errore: 'Inserisci un calcolo' }
+  if (!/^[0-9.+\-*/()]+$/.test(formula)) {
+    return { errore: 'Sono ammessi solo numeri e operatori + − × ÷' }
+  }
+
+  let posizione = 0
+
+  const leggiNumero = (): number => {
+    const inizio = posizione
+    while (/[0-9.]/.test(formula[posizione] || '')) posizione += 1
+    const testo = formula.slice(inizio, posizione)
+    if (!testo || (testo.match(/\./g) || []).length > 1) {
+      throw new Error('Numero non valido')
+    }
+    const numero = Number(testo)
+    if (!Number.isFinite(numero)) throw new Error('Numero non valido')
+    return numero
+  }
+
+  const leggiFattore = (): number => {
+    if (formula[posizione] === '+') {
+      posizione += 1
+      return leggiFattore()
+    }
+    if (formula[posizione] === '-') {
+      posizione += 1
+      return -leggiFattore()
+    }
+    if (formula[posizione] === '(') {
+      posizione += 1
+      const valore = leggiEspressione()
+      if (formula[posizione] !== ')') throw new Error('Parentesi non chiusa')
+      posizione += 1
+      return valore
+    }
+    return leggiNumero()
+  }
+
+  const leggiTermine = (): number => {
+    let valore = leggiFattore()
+    while (formula[posizione] === '*' || formula[posizione] === '/') {
+      const operatore = formula[posizione]
+      posizione += 1
+      const operando = leggiFattore()
+      if (operatore === '/' && operando === 0) throw new Error('Divisione per zero')
+      valore = operatore === '*' ? valore * operando : valore / operando
+    }
+    return valore
+  }
+
+  function leggiEspressione(): number {
+    let valore = leggiTermine()
+    while (formula[posizione] === '+' || formula[posizione] === '-') {
+      const operatore = formula[posizione]
+      posizione += 1
+      const operando = leggiTermine()
+      valore = operatore === '+' ? valore + operando : valore - operando
+    }
+    return valore
+  }
+
+  try {
+    const valore = leggiEspressione()
+    if (posizione !== formula.length || !Number.isFinite(valore)) {
+      return { errore: 'Formula non valida' }
+    }
+    return { valore: Number(valore.toFixed(6)) }
+  } catch (errore) {
+    return {
+      errore: errore instanceof Error ? errore.message : 'Formula non valida',
+    }
+  }
+}
 
 type Props = {
   messaggioAi: string
@@ -50,6 +130,18 @@ export default function RevisionePreventivoAiPanel({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+  const [calcolatrice, setCalcolatrice] = useState<{
+    indice: number
+    formula: string
+  } | null>(null)
+  const formulaRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!calcolatrice) return
+    formulaRef.current?.focus()
+    formulaRef.current?.select()
+  }, [calcolatrice])
+
   const subTotale = vociPreventivoAi.reduce(
     (tot, voce) =>
       tot +
@@ -57,6 +149,38 @@ export default function RevisionePreventivoAiPanel({
         Number(voce.prezzo_unitario || 0),
     0
   )
+  const esitoCalcolo = calcolatrice
+    ? calcolaEspressione(calcolatrice.formula)
+    : null
+
+  const apriCalcolatrice = (indice: number) => {
+    setCalcolatrice({
+      indice,
+      formula: String(vociPreventivoAi[indice]?.quantita ?? 0),
+    })
+  }
+
+  const applicaCalcolo = () => {
+    if (!calcolatrice || esitoCalcolo?.valore === undefined) return
+    const nuove = vociPreventivoAi.map((voce, indice) =>
+      indice === calcolatrice.indice
+        ? { ...voce, quantita: esitoCalcolo.valore }
+        : voce
+    )
+    setVociPreventivoAi(nuove)
+    setCalcolatrice(null)
+  }
+
+  const spostaVoce = (indice: number, direzione: -1 | 1) => {
+    const destinazione = indice + direzione
+    if (destinazione < 0 || destinazione >= vociPreventivoAi.length) return
+    const nuove = [...vociPreventivoAi]
+    ;[nuove[indice], nuove[destinazione]] = [
+      nuove[destinazione],
+      nuove[indice],
+    ]
+    setVociPreventivoAi(nuove)
+  }
 
   return (
     <div
@@ -261,17 +385,47 @@ export default function RevisionePreventivoAiPanel({
                   />
                 </td>
 
-                <td style={excelTd}>
-                  <input
-                    type="number"
-                    value={voce.quantita || 0}
-                    onChange={(e) => {
-                      const nuove = [...vociPreventivoAi]
-                      nuove[index].quantita = Number(e.target.value)
-                      setVociPreventivoAi(nuove)
-                    }}
-                    style={{ width: 80 }}
-                  />
+                <td
+                  style={{ ...excelTd, cursor: 'pointer' }}
+                  onClick={() => apriCalcolatrice(index)}
+                  title="Tocca per aprire la calcolatrice"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      type="number"
+                      value={voce.quantita || 0}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(e) => {
+                        const nuove = [...vociPreventivoAi]
+                        nuove[index] = {
+                          ...nuove[index],
+                          quantita: Number(e.target.value),
+                        }
+                        setVociPreventivoAi(nuove)
+                      }}
+                      aria-label={`Quantità voce ${index + 1}`}
+                      style={{ width: 80, minHeight: 44 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        apriCalcolatrice(index)
+                      }}
+                      aria-label={`Calcola quantità voce ${index + 1}`}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        border: '1px solid #94a3b8',
+                        borderRadius: 8,
+                        background: '#f8fafc',
+                        fontSize: 20,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ÷
+                    </button>
+                  </div>
                 </td>
 
                 <td style={excelTd}>
@@ -298,6 +452,48 @@ export default function RevisionePreventivoAiPanel({
                     }}
                   >
                     <button
+                      type="button"
+                      onClick={() => spostaVoce(index, -1)}
+                      disabled={index === 0}
+                      aria-label={`Sposta in alto la voce ${index + 1}`}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        border: '1px solid #94a3b8',
+                        borderRadius: 6,
+                        background: '#fff',
+                        fontSize: 20,
+                        cursor: index === 0 ? 'default' : 'pointer',
+                        opacity: index === 0 ? 0.4 : 1,
+                      }}
+                    >
+                      ↑
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => spostaVoce(index, 1)}
+                      disabled={index === vociPreventivoAi.length - 1}
+                      aria-label={`Sposta in basso la voce ${index + 1}`}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        border: '1px solid #94a3b8',
+                        borderRadius: 6,
+                        background: '#fff',
+                        fontSize: 20,
+                        cursor:
+                          index === vociPreventivoAi.length - 1
+                            ? 'default'
+                            : 'pointer',
+                        opacity: index === vociPreventivoAi.length - 1 ? 0.4 : 1,
+                      }}
+                    >
+                      ↓
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => miglioraVocePreventivoAi(index)}
                       style={{
                         background: '#f59e0b',
@@ -312,6 +508,7 @@ export default function RevisionePreventivoAiPanel({
                     </button>
 
                     <button
+                      type="button"
                       onClick={() =>
                         setVociPreventivoAi(
                           vociPreventivoAi.filter((_, i) => i !== index)
@@ -424,6 +621,126 @@ export default function RevisionePreventivoAiPanel({
           Chiudi revisione
         </button>
       </div>
+
+      {calcolatrice && (
+        <div
+          role="presentation"
+          onClick={() => setCalcolatrice(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 12000,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+            background: 'rgba(15,23,42,0.45)',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titolo-calcolatrice-quantita"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: 'min(100%, 420px)',
+              padding: 20,
+              borderRadius: 16,
+              background: '#fff',
+              boxShadow: '0 20px 60px rgba(15,23,42,0.3)',
+            }}
+          >
+            <h4 id="titolo-calcolatrice-quantita" style={{ margin: 0, fontSize: 22 }}>
+              Calcola quantità
+            </h4>
+            <div style={{ marginTop: 8, color: '#64748b' }}>
+              Valore attuale:{' '}
+              <strong>{vociPreventivoAi[calcolatrice.indice]?.quantita ?? 0}</strong>
+            </div>
+
+            <label style={{ display: 'block', marginTop: 16, fontWeight: 700 }}>
+              Formula
+              <input
+                ref={formulaRef}
+                value={calcolatrice.formula}
+                inputMode="decimal"
+                placeholder="Esempio: 2.4*3"
+                onChange={(event) =>
+                  setCalcolatrice((corrente) =>
+                    corrente ? { ...corrente, formula: event.target.value } : null
+                  )
+                }
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && esitoCalcolo?.valore !== undefined) {
+                    event.preventDefault()
+                    applicaCalcolo()
+                  }
+                  if (event.key === 'Escape') setCalcolatrice(null)
+                }}
+                style={{
+                  width: '100%',
+                  minHeight: 54,
+                  marginTop: 7,
+                  padding: '12px 14px',
+                  border: '2px solid #94a3b8',
+                  borderRadius: 10,
+                  fontSize: 21,
+                }}
+              />
+            </label>
+
+            <div
+              aria-live="polite"
+              style={{
+                minHeight: 58,
+                marginTop: 14,
+                padding: 12,
+                borderRadius: 10,
+                background: esitoCalcolo?.errore ? '#fef2f2' : '#f0fdf4',
+                color: esitoCalcolo?.errore ? '#991b1b' : '#166534',
+              }}
+            >
+              {esitoCalcolo?.errore ? (
+                esitoCalcolo.errore
+              ) : (
+                <>
+                  Risultato:{' '}
+                  <strong style={{ fontSize: 22 }}>{esitoCalcolo?.valore}</strong>
+                </>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 10,
+                marginTop: 18,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setCalcolatrice(null)}
+                style={{ ...buttonSecondary, minHeight: 50, padding: '11px 18px' }}
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={applicaCalcolo}
+                disabled={esitoCalcolo?.valore === undefined}
+                style={{
+                  ...buttonPrimary,
+                  minHeight: 50,
+                  padding: '11px 20px',
+                  opacity: esitoCalcolo?.valore === undefined ? 0.5 : 1,
+                }}
+              >
+                Applica
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
