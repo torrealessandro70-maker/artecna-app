@@ -66,6 +66,7 @@ import PopupOperaiRapportino from './components/PopupOperaiRapportino'
 import PopupFotoRapportinoAperte from './components/PopupFotoRapportinoAperte'
 import RegistroHeaderToolbar from './components/RegistroHeaderToolbar'
 import AttivitaPanel from './components/AttivitaPanel'
+import AgendaContainer from './components/agenda/AgendaContainer'
 import SopralluoghiPanel from './components/SopralluoghiPanel'
 import FattureEmessePopupLayer from './components/FattureEmessePopupLayer'
 import RegistroPanel from './components/RegistroPanel'
@@ -10572,6 +10573,15 @@ textarea:not(.impostazioni-input) {
 </button>
     <button
       onClick={() => {
+        setSezioneAttiva('agenda')
+        setMenuAperto(null)
+      }}
+      style={menuButtonStyle(sezioneAttiva === 'agenda')}
+    >
+      🗓️ Agenda
+    </button>
+    <button
+      onClick={() => {
         setSezioneAttiva('attivita')
         setMenuAperto(null)
       }}
@@ -11843,7 +11853,19 @@ WebkitOverflowScrolling: 'touch',
   buttonSecondary={buttonSecondary}
 />
 )}
-  
+
+{/* ================= AGENDA / TIME ENGINE ================= */}
+{!modalitaMulti && sezioneAttiva === 'agenda' && (
+  <AgendaContainer
+    sopralluoghi={sopralluoghi}
+    cantieri={cantieri}
+    preventivi={preventivi}
+    cardStyle={cardStyle}
+    buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
+  />
+)}
+
 {/* ================= ATTIVITÀ ================= */}
 {(
   pagineAperte.includes('attivita') ||
