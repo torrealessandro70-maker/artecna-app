@@ -9,10 +9,12 @@ import {
   type StatoAttivita,
   type TipoAttivita,
   type TipoCollegamento,
+  type VoceChecklistAttivita,
 } from './utils'
 
 type Props = {
   aperto: boolean
+  attivitaInModifica?: AttivitaAgenda | null
   opzioniCollegamento: OpzioneCollegamento[]
   onChiudi: () => void
   onSalva: (attivita: AttivitaAgenda) => void
@@ -22,27 +24,63 @@ type Props = {
 
 export default function PopupNuovaAttivita({
   aperto,
+  attivitaInModifica = null,
   opzioniCollegamento,
   onChiudi,
   onSalva,
   buttonPrimary,
   buttonSecondary,
 }: Props) {
-  const [titolo, setTitolo] = useState('')
-  const [descrizione, setDescrizione] = useState('')
-  const [data, setData] = useState(dataLocale())
-  const [ora, setOra] = useState('09:00')
-  const [tipo, setTipo] = useState<TipoAttivita>('Sopralluogo')
-  const [stato, setStato] = useState<StatoAttivita>('da_fare')
+  const collegamentoIniziale = attivitaInModifica?.collegamento
+  const valoreCollegamentoIniziale = collegamentoIniziale
+    ? `${collegamentoIniziale.tipo}:${
+        collegamentoIniziale.id || collegamentoIniziale.etichetta
+      }`
+    : ''
+  const [titolo, setTitolo] = useState(attivitaInModifica?.titolo || '')
+  const [descrizione, setDescrizione] = useState(
+    attivitaInModifica?.descrizione || ''
+  )
+  const [checklist, setChecklist] = useState<VoceChecklistAttivita[]>(() =>
+    (attivitaInModifica?.checklist || []).map((voce) => ({ ...voce }))
+  )
+  const [data, setData] = useState(attivitaInModifica?.data || dataLocale())
+  const [ora, setOra] = useState(attivitaInModifica?.ora || '09:00')
+  const [tipo, setTipo] = useState<TipoAttivita>(
+    attivitaInModifica?.tipo || 'Sopralluogo'
+  )
+  const [stato, setStato] = useState<StatoAttivita>(
+    attivitaInModifica?.stato || 'da_fare'
+  )
   const [tipoCollegamento, setTipoCollegamento] =
-    useState<TipoCollegamento | ''>('')
-  const [valoreCollegamento, setValoreCollegamento] = useState('')
+    useState<TipoCollegamento | ''>(collegamentoIniziale?.tipo || '')
+  const [valoreCollegamento, setValoreCollegamento] = useState(
+    valoreCollegamentoIniziale
+  )
 
   if (!aperto) return null
 
-  const opzioniFiltrate = tipoCollegamento
+  const opzioniDisponibili = tipoCollegamento
     ? opzioniCollegamento.filter((opzione) => opzione.tipo === tipoCollegamento)
     : []
+  const opzioneInizialeMancante =
+    collegamentoIniziale &&
+    collegamentoIniziale.tipo === tipoCollegamento &&
+    valoreCollegamentoIniziale &&
+    !opzioniDisponibili.some(
+      (opzione) => opzione.valore === valoreCollegamentoIniziale
+    )
+      ? {
+          ...collegamentoIniziale,
+          valore: valoreCollegamentoIniziale,
+        }
+      : null
+  const opzioniFiltrate = opzioneInizialeMancante
+    ? [...opzioniDisponibili, opzioneInizialeMancante]
+    : opzioniDisponibili
+  const checklistValida = checklist.filter((voce) => voce.testo.trim())
+  const checklistCompletata =
+    checklistValida.length > 0 && checklistValida.every((voce) => voce.completata)
 
   const salva = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -51,27 +89,22 @@ export default function PopupNuovaAttivita({
     )
 
     onSalva({
-      id: crypto.randomUUID(),
+      id: attivitaInModifica?.id || crypto.randomUUID(),
       titolo: titolo.trim(),
       descrizione: descrizione.trim(),
       data,
       ora,
       tipo,
       stato,
+      checklist: checklistValida.map((voce) => ({
+        ...voce,
+        testo: voce.testo.trim(),
+      })),
       collegamento: opzione
         ? { tipo: opzione.tipo, id: opzione.id, etichetta: opzione.etichetta }
         : undefined,
-      createdAt: new Date().toISOString(),
+      createdAt: attivitaInModifica?.createdAt || new Date().toISOString(),
     })
-
-    setTitolo('')
-    setDescrizione('')
-    setData(dataLocale())
-    setOra('09:00')
-    setTipo('Sopralluogo')
-    setStato('da_fare')
-    setTipoCollegamento('')
-    setValoreCollegamento('')
   }
 
   const stileCampo: CSSProperties = {
@@ -111,7 +144,9 @@ export default function PopupNuovaAttivita({
           boxShadow: '0 24px 70px rgba(15,23,42,0.3)',
         }}
       >
-        <h2 style={{ margin: '0 0 18px' }}>Nuova attività</h2>
+        <h2 style={{ margin: '0 0 18px' }}>
+          {attivitaInModifica ? 'Modifica attività' : 'Nuova attività'}
+        </h2>
 
         <div style={{ display: 'grid', gap: 14 }}>
           <label style={{ display: 'grid', gap: 6, fontWeight: 700 }}>
@@ -125,8 +160,149 @@ export default function PopupNuovaAttivita({
             />
           </label>
 
+          <section
+            aria-labelledby="titolo-checklist-attivita"
+            style={{
+              padding: 14,
+              border: '1px solid #e2e8f0',
+              borderRadius: 12,
+              background: '#f8fafc',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                flexWrap: 'wrap',
+              }}
+            >
+              <strong id="titolo-checklist-attivita" style={{ fontSize: 17 }}>
+                ✓ Checklist
+              </strong>
+              <button
+                type="button"
+                onClick={() =>
+                  setChecklist((correnti) => [
+                    ...correnti,
+                    { id: crypto.randomUUID(), testo: '', completata: false },
+                  ])
+                }
+                style={{
+                  ...buttonSecondary,
+                  minHeight: 46,
+                  padding: '9px 14px',
+                  fontWeight: 800,
+                }}
+              >
+                + Nuova voce
+              </button>
+            </div>
+
+            {checklist.length === 0 ? (
+              <div style={{ marginTop: 10, color: '#64748b', fontSize: 14 }}>
+                Nessuna voce. Aggiungi i passaggi operativi dell’attività.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 9, marginTop: 12 }}>
+                {checklist.map((voce, indice) => (
+                  <div
+                    key={voce.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={voce.completata}
+                      onChange={(event) =>
+                        setChecklist((correnti) =>
+                          correnti.map((item) =>
+                            item.id === voce.id
+                              ? { ...item, completata: event.target.checked }
+                              : item
+                          )
+                        )
+                      }
+                      aria-label={`Completa voce ${indice + 1}`}
+                      style={{ width: 26, height: 26, flex: '0 0 26px' }}
+                    />
+                    <input
+                      value={voce.testo}
+                      onChange={(event) =>
+                        setChecklist((correnti) =>
+                          correnti.map((item) =>
+                            item.id === voce.id
+                              ? { ...item, testo: event.target.value }
+                              : item
+                          )
+                        )
+                      }
+                      placeholder="Scrivi una voce..."
+                      aria-label={`Testo voce ${indice + 1}`}
+                      style={{ ...stileCampo, minWidth: 0, flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setChecklist((correnti) =>
+                          correnti.filter((item) => item.id !== voce.id)
+                        )
+                      }
+                      aria-label={`Elimina voce ${indice + 1}`}
+                      style={{
+                        width: 46,
+                        height: 46,
+                        flex: '0 0 46px',
+                        border: '1px solid #fecaca',
+                        borderRadius: 9,
+                        background: '#fff',
+                        color: '#991b1b',
+                        fontSize: 22,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {checklistCompletata && stato !== 'completata' && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  marginTop: 12,
+                  padding: 11,
+                  border: '1px solid #86efac',
+                  borderRadius: 10,
+                  background: '#f0fdf4',
+                  color: '#166534',
+                }}
+              >
+                <span>Tutte le voci sono completate.</span>
+                <button
+                  type="button"
+                  onClick={() => setStato('completata')}
+                  style={{
+                    ...buttonPrimary,
+                    minHeight: 44,
+                    padding: '9px 13px',
+                    background: '#16a34a',
+                  }}
+                >
+                  Completa attività
+                </button>
+              </div>
+            )}
+          </section>
+
           <label style={{ display: 'grid', gap: 6, fontWeight: 700 }}>
-            Descrizione
+            Note
             <textarea
               value={descrizione}
               onChange={(event) => setDescrizione(event.target.value)}
@@ -274,7 +450,7 @@ export default function PopupNuovaAttivita({
             type="submit"
             style={{ ...buttonPrimary, minHeight: 50, padding: '11px 20px' }}
           >
-            Salva attività
+            {attivitaInModifica ? 'Salva modifiche' : 'Salva attività'}
           </button>
         </div>
       </form>

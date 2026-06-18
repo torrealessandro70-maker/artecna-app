@@ -60,6 +60,8 @@ export default function AgendaContainer({
   const [attivita, setAttivita] = useState<AttivitaAgenda[]>([])
   const [caricato, setCaricato] = useState(false)
   const [popupAperto, setPopupAperto] = useState(false)
+  const [attivitaInModifica, setAttivitaInModifica] =
+    useState<AttivitaAgenda | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -142,6 +144,11 @@ export default function AgendaContainer({
     setAttivita((correnti) => correnti.filter((item) => item.id !== id))
   }
 
+  const chiudiPopup = () => {
+    setPopupAperto(false)
+    setAttivitaInModifica(null)
+  }
+
   return (
     <section style={{ ...cardStyle, maxWidth: 1050, margin: '0 auto' }}>
       <div
@@ -162,7 +169,10 @@ export default function AgendaContainer({
         </div>
         <button
           type="button"
-          onClick={() => setPopupAperto(true)}
+          onClick={() => {
+            setAttivitaInModifica(null)
+            setPopupAperto(true)
+          }}
           style={{
             ...buttonPrimary,
             minHeight: 52,
@@ -180,23 +190,36 @@ export default function AgendaContainer({
       ) : (
         <AgendaTimeline
           attivita={attivita}
+          onModifica={(item) => {
+            setAttivitaInModifica(item)
+            setPopupAperto(true)
+          }}
           onCambiaStato={cambiaStato}
           onElimina={elimina}
           buttonSecondary={buttonSecondary}
         />
       )}
 
-      <PopupNuovaAttivita
-        aperto={popupAperto}
-        opzioniCollegamento={opzioniCollegamento}
-        onChiudi={() => setPopupAperto(false)}
-        onSalva={(nuovaAttivita) => {
-          setAttivita((correnti) => [...correnti, nuovaAttivita])
-          setPopupAperto(false)
-        }}
-        buttonPrimary={buttonPrimary}
-        buttonSecondary={buttonSecondary}
-      />
+      {popupAperto && (
+        <PopupNuovaAttivita
+          aperto
+          attivitaInModifica={attivitaInModifica}
+          opzioniCollegamento={opzioniCollegamento}
+          onChiudi={chiudiPopup}
+          onSalva={(attivitaSalvata) => {
+            setAttivita((correnti) =>
+              attivitaInModifica
+                ? correnti.map((item) =>
+                    item.id === attivitaSalvata.id ? attivitaSalvata : item
+                  )
+                : [...correnti, attivitaSalvata]
+            )
+            chiudiPopup()
+          }}
+          buttonPrimary={buttonPrimary}
+          buttonSecondary={buttonSecondary}
+        />
+      )}
     </section>
   )
 }

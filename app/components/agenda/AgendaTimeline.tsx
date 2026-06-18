@@ -6,6 +6,7 @@ import { aggiungiGiorni, dataLocale, type AttivitaAgenda } from './utils'
 
 type Props = {
   attivita: AttivitaAgenda[]
+  onModifica: (attivita: AttivitaAgenda) => void
   onCambiaStato: (id: string) => void
   onElimina: (id: string) => void
   buttonSecondary: CSSProperties
@@ -13,6 +14,7 @@ type Props = {
 
 export default function AgendaTimeline({
   attivita,
+  onModifica,
   onCambiaStato,
   onElimina,
   buttonSecondary,
@@ -86,6 +88,7 @@ export default function AgendaTimeline({
                 <AgendaAttivitaCard
                   key={item.id}
                   attivita={item}
+                  onModifica={onModifica}
                   onCambiaStato={onCambiaStato}
                   onElimina={onElimina}
                   buttonSecondary={buttonSecondary}

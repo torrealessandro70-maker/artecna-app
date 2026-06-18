@@ -5,6 +5,7 @@ import { esportaAttivitaIcs, formattaData, type AttivitaAgenda } from './utils'
 
 type Props = {
   attivita: AttivitaAgenda
+  onModifica: (attivita: AttivitaAgenda) => void
   onCambiaStato: (id: string) => void
   onElimina: (id: string) => void
   buttonSecondary: CSSProperties
@@ -12,11 +13,15 @@ type Props = {
 
 export default function AgendaAttivitaCard({
   attivita,
+  onModifica,
   onCambiaStato,
   onElimina,
   buttonSecondary,
 }: Props) {
   const completata = attivita.stato === 'completata'
+  const totaleChecklist = attivita.checklist?.length || 0
+  const checklistCompletate =
+    attivita.checklist?.filter((voce) => voce.completata).length || 0
 
   return (
     <article
@@ -94,6 +99,22 @@ export default function AgendaAttivitaCard({
         )}
       </div>
 
+      {totaleChecklist > 0 && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '9px 11px',
+            borderRadius: 9,
+            background: '#f8fafc',
+            color: '#475569',
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          Checklist: {checklistCompletate}/{totaleChecklist} completate
+        </div>
+      )}
+
       {attivita.descrizione && (
         <p style={{ margin: '12px 0 0', color: '#475569', whiteSpace: 'pre-wrap' }}>
           {attivita.descrizione}
@@ -101,6 +122,13 @@ export default function AgendaAttivitaCard({
       )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+        <button
+          type="button"
+          onClick={() => onModifica(attivita)}
+          style={{ ...buttonSecondary, minHeight: 44, padding: '9px 14px', fontWeight: 800 }}
+        >
+          Modifica
+        </button>
         <button
           type="button"
           onClick={() => esportaAttivitaIcs(attivita)}

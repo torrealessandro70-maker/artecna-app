@@ -22,6 +22,12 @@ export type CollegamentoAgenda = {
   etichetta: string
 }
 
+export type VoceChecklistAttivita = {
+  id: string
+  testo: string
+  completata: boolean
+}
+
 export type AttivitaAgenda = {
   id: string
   titolo: string
@@ -30,6 +36,7 @@ export type AttivitaAgenda = {
   ora: string
   tipo: TipoAttivita
   stato: StatoAttivita
+  checklist?: VoceChecklistAttivita[]
   collegamento?: CollegamentoAgenda
   createdAt: string
 }
@@ -80,6 +87,11 @@ export function esportaAttivitaIcs(attivita: AttivitaAgenda) {
   const fine = new Date(inizio.getTime() + 60 * 60 * 1000)
   const descrizione = [
     attivita.descrizione,
+    attivita.checklist?.length
+      ? `Checklist:\n${attivita.checklist
+          .map((voce) => `${voce.completata ? '[x]' : '[ ]'} ${voce.testo}`)
+          .join('\n')}`
+      : '',
     attivita.collegamento
       ? `Fascicolo collegato: ${attivita.collegamento.etichetta}`
       : '',
