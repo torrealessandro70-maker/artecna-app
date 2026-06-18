@@ -484,12 +484,19 @@ export default function SopralluogoAppunti({
                 Pulisci
               </button>
             </div>
-            <NotaDisegno
-              segni={disegni}
-              onChange={setDisegni}
-              strumento={strumento}
-              colore={colore}
-            />
+       <div
+  style={{
+    touchAction: 'none',
+    overscrollBehavior: 'contain',
+  }}
+>
+  <NotaDisegno
+    segni={disegni}
+    onChange={setDisegni}
+    strumento={strumento}
+    colore={colore}
+  />
+</div>
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
