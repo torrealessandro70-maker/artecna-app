@@ -1110,11 +1110,17 @@ const caricaSopralluoghi = async () => {
 }
 
 
-const caricaFotoSopralluoghi = async () => {
+const caricaFotoSopralluoghi = async (sopralluogoId?: string) => {
+  const id = sopralluogoId || sopralluogoAperto?.id
+  if (!id) {
+    setFotoSopralluoghi([])
+    return
+  }
+
   const { data, error } = await supabase
     .from('foto_sopralluogo')
-    .select('*')
-    .order('created_at', { ascending: false })
+    .select('id,sopralluogo_id,nota,immagine_base64,tag,includi_preventivo,created_at')
+    .eq('sopralluogo_id', id)
 
   if (error) {
     alert(
@@ -1124,7 +1130,10 @@ const caricaFotoSopralluoghi = async () => {
     return
   }
 
-  setFotoSopralluoghi(data || [])
+  const fotoOrdinate = [...(data || [])].sort((prima, seconda) =>
+    String(seconda.created_at || '').localeCompare(String(prima.created_at || ''))
+  )
+  setFotoSopralluoghi(fotoOrdinate)
 }
 
 
@@ -2036,21 +2045,25 @@ const salvaFotoSopralluogo = async () => {
     includi_preventivo: true,
   }))
 
-  const risultati = await Promise.all(
-    righe.map((riga) =>
-      supabase
-        .from('foto_sopralluogo')
-        .insert(riga)
-    )
-  )
-  const fotoFallite = codaDaSalvare.filter((_, indice) => risultati[indice].error)
-  const salvate = codaDaSalvare.length - fotoFallite.length
+  const { data, error } = await supabase
+    .from('foto_sopralluogo')
+    .insert(righe)
+    .select('id,sopralluogo_id,nota,tag,includi_preventivo,created_at')
 
-  setFotoSopralluogoTemp(fotoFallite)
-  if (fotoFallite.length === 0) setNotaFotoSopralluogo('')
-  if (salvate > 0) await caricaFotoSopralluoghi()
+  if (error) {
+    return { salvate: 0, fallite: codaDaSalvare.length }
+  }
 
-  return { salvate, fallite: fotoFallite.length }
+  const nuoveFoto: FotoSopralluogo[] = (data || []).map((foto, indice) => ({
+    ...foto,
+    immagine_base64: codaDaSalvare[indice],
+  }))
+
+  setFotoSopralluoghi((correnti) => [...nuoveFoto.reverse(), ...correnti])
+  setFotoSopralluogoTemp([])
+  setNotaFotoSopralluogo('')
+
+  return { salvate: codaDaSalvare.length, fallite: 0 }
 }
 
 
@@ -4725,7 +4738,6 @@ caricaSopralluoghi()
 caricaIncassiNonFatturati()
   caricaSalLavorazioni()
   caricaPreventivoLavorazioni()
-caricaFotoSopralluoghi()
 caricaSpeseImpresa()
 caricaMemoriaPrezzi()
 caricaPrezziarioSicilia()
