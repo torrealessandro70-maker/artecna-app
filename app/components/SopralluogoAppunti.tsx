@@ -27,6 +27,14 @@ type SopralluogoNota = {
   tipo_lavoro?: string
 }
 
+type FotoGalleriaNota = {
+  id?: string
+  sopralluogo_id?: string
+  immagine_base64: string
+  nota?: string
+  tag?: string
+}
+
 type Props = {
   mostraAppuntiSopralluogo: boolean
   setMostraAppuntiSopralluogo: (v: boolean) => void
@@ -34,12 +42,9 @@ type Props = {
   supabase: SupabaseClient
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
-}
-
-type FotoInCoda = {
-  id: string
-  file: File
-  anteprima: string
+  integrato?: boolean
+  fotoGalleria?: FotoGalleriaNota[]
+  onApriGalleria?: () => void
 }
 
 export default function SopralluogoAppunti({
@@ -49,6 +54,9 @@ export default function SopralluogoAppunti({
   supabase,
   buttonPrimary,
   buttonSecondary,
+  integrato = false,
+  fotoGalleria = [],
+  onApriGalleria,
 }: Props) {
   const [notaId, setNotaId] = useState<string | null>(null)
   const [titolo, setTitolo] = useState('')
@@ -56,8 +64,6 @@ export default function SopralluogoAppunti({
   const [checklist, setChecklist] = useState<VoceChecklistNota[]>([])
   const [disegni, setDisegni] = useState<SegnoNota[]>([])
   const [allegati, setAllegati] = useState<AllegatoNota[]>([])
-  const [fotoInCoda, setFotoInCoda] = useState<FotoInCoda[]>([])
-  const [salvataggioFotoAttivo, setSalvataggioFotoAttivo] = useState(false)
   const [analisiAi, setAnalisiAi] = useState<AnalisiNota | null>(null)
   const [stato, setStato] = useState('')
   const [pronto, setPronto] = useState(false)
@@ -67,17 +73,11 @@ export default function SopralluogoAppunti({
   const testoNotaRef = useRef<HTMLTextAreaElement>(null)
   const inputChecklistRefs = useRef(new Map<string, HTMLInputElement>())
   const checklistDaFocalizzareRef = useRef<string | null>(null)
-  const fotoInCodaRef = useRef<FotoInCoda[]>([])
-
-  useEffect(() => {
-    fotoInCodaRef.current = fotoInCoda
-  }, [fotoInCoda])
-
-  useEffect(
-    () => () => {
-      fotoInCodaRef.current.forEach((foto) => URL.revokeObjectURL(foto.anteprima))
-    },
-    []
+  const notaVisibile = integrato || mostraAppuntiSopralluogo
+  const fotoCollegate = fotoGalleria.filter(
+    (foto) =>
+      foto.sopralluogo_id === sopralluogoAperto.id &&
+      (foto.tag || '').split(',').map((tag) => tag.trim()).includes('smart-note')
   )
 
   useLayoutEffect(() => {
@@ -88,13 +88,11 @@ export default function SopralluogoAppunti({
   }, [testo])
 
   useEffect(() => {
-    if (!mostraAppuntiSopralluogo || !sopralluogoAperto.id) return
+    if (!notaVisibile || !sopralluogoAperto.id) return
 
     let attivo = true
 
     const caricaNota = async () => {
-      fotoInCodaRef.current.forEach((foto) => URL.revokeObjectURL(foto.anteprima))
-      setFotoInCoda([])
       setPronto(false)
       setNotaId(null)
       setStato('Caricamento nota…')
@@ -154,7 +152,7 @@ export default function SopralluogoAppunti({
       attivo = false
     }
   }, [
-    mostraAppuntiSopralluogo,
+    notaVisibile,
     sopralluogoAperto.id,
     sopralluogoAperto.cliente,
     sopralluogoAperto.tipo_lavoro,
@@ -281,72 +279,6 @@ export default function SopralluogoAppunti({
     void salvaFile(files, tipo)
   }
 
-  const aggiungiFotoInCoda = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []).filter((file) =>
-      file.type.startsWith('image/')
-    )
-    event.target.value = ''
-    if (files.length === 0) return
-
-    const nuoveFoto = files.map((file) => ({
-      id: crypto.randomUUID(),
-      file,
-      anteprima: URL.createObjectURL(file),
-    }))
-    setFotoInCoda((correnti) => [
-      ...correnti,
-      ...nuoveFoto,
-    ])
-    setStato(
-      files.length === 1
-        ? 'Foto aggiunta, pronta da salvare'
-        : `${files.length} foto aggiunte, pronte da salvare`
-    )
-  }
-
-  const rimuoviFotoInCoda = (id: string) => {
-    const fotoDaRimuovere = fotoInCoda.find((foto) => foto.id === id)
-    if (fotoDaRimuovere) URL.revokeObjectURL(fotoDaRimuovere.anteprima)
-    setFotoInCoda((correnti) => correnti.filter((foto) => foto.id !== id))
-  }
-
-  const salvaFotoInCoda = async () => {
-    if (fotoInCoda.length === 0 || salvataggioFotoAttivo) return
-
-    setSalvataggioFotoAttivo(true)
-    const codaDaSalvare = fotoInCoda
-    try {
-      const fileSalvati = await salvaFile(
-        codaDaSalvare.map((foto) => foto.file),
-        'foto'
-      )
-      const salvati = new Set(fileSalvati)
-
-      codaDaSalvare
-        .filter((foto) => salvati.has(foto.file))
-        .forEach((foto) => URL.revokeObjectURL(foto.anteprima))
-      setFotoInCoda((correnti) =>
-        correnti.filter((foto) => !salvati.has(foto.file))
-      )
-
-      if (fileSalvati.length === codaDaSalvare.length) {
-        setStato(
-          fileSalvati.length === 1
-            ? 'Foto salvata'
-            : `${fileSalvati.length} foto salvate`
-        )
-      } else {
-        setStato(
-          `${codaDaSalvare.length - fileSalvati.length} foto non salvate: riprova`
-        )
-      }
-    } catch {
-      setStato('Upload non riuscito: le foto sono ancora pronte da salvare')
-    } finally {
-      setSalvataggioFotoAttivo(false)
-    }
-  }
-
   const eliminaAllegato = async (allegato: AllegatoNota) => {
     await supabase.storage.from('preventivi').remove([allegato.storage_path])
     const { error } = await supabase
@@ -402,6 +334,7 @@ export default function SopralluogoAppunti({
     const immagini = allegati
       .filter((allegato) => allegato.tipo === 'foto')
       .map((allegato) => allegato.url)
+      .concat(fotoCollegate.map((foto) => foto.immagine_base64))
     const audio = allegati
       .filter((allegato) => allegato.tipo === 'audio')
       .map((allegato) => ({
@@ -517,15 +450,17 @@ export default function SopralluogoAppunti({
           }
         }
       `}</style>
-      <button
-        type="button"
-        onClick={() => setMostraAppuntiSopralluogo(!mostraAppuntiSopralluogo)}
-        style={{ ...buttonPrimary, marginTop: 0 }}
-      >
-        📝 {mostraAppuntiSopralluogo ? 'Chiudi Note' : 'Apri Note'}
-      </button>
+      {!integrato && (
+        <button
+          type="button"
+          onClick={() => setMostraAppuntiSopralluogo(!mostraAppuntiSopralluogo)}
+          style={{ ...buttonPrimary, marginTop: 0 }}
+        >
+          📝 {mostraAppuntiSopralluogo ? 'Chiudi Note' : 'Apri Note'}
+        </button>
+      )}
 
-      {mostraAppuntiSopralluogo && (
+      {notaVisibile && (
         <div
           style={{
             marginTop: 14,
@@ -749,27 +684,6 @@ export default function SopralluogoAppunti({
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
-            <label style={{ ...buttonPrimary, cursor: 'pointer' }}>
-              📷 Foto
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                multiple
-                onChange={aggiungiFotoInCoda}
-                style={{ display: 'none' }}
-              />
-            </label>
-            <label style={{ ...buttonSecondary, cursor: 'pointer' }}>
-              Galleria foto
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={aggiungiFotoInCoda}
-                style={{ display: 'none' }}
-              />
-            </label>
             <label style={{ ...buttonSecondary, cursor: 'pointer' }}>
               📎 Allegati
               <input
@@ -791,105 +705,33 @@ export default function SopralluogoAppunti({
             </button>
           </div>
 
-          {fotoInCoda.length > 0 && (
-            <section
-              style={{
-                marginTop: 14,
-                padding: 14,
-                border: '2px solid #93c5fd',
-                borderRadius: 14,
-                background: '#eff6ff',
-              }}
-              aria-label="Foto pronte da salvare"
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <strong style={{ color: '#1e3a8a', fontSize: 16 }}>
-                  {fotoInCoda.length}{' '}
-                  {fotoInCoda.length === 1
-                    ? 'foto pronta da salvare'
-                    : 'foto pronte da salvare'}
-                </strong>
-                <button
-                  type="button"
-                  onClick={() => void salvaFotoInCoda()}
-                  disabled={salvataggioFotoAttivo}
-                  style={{
-                    ...buttonPrimary,
-                    minHeight: 52,
-                    padding: '12px 20px',
-                    fontSize: 16,
-                    fontWeight: 800,
-                    opacity: salvataggioFotoAttivo ? 0.65 : 1,
-                  }}
-                >
-                  {salvataggioFotoAttivo ? 'Salvataggio...' : 'Salva tutte'}
-                </button>
-              </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              marginTop: 14,
+              padding: 12,
+              border: '1px solid #dbeafe',
+              borderRadius: 10,
+              background: '#eff6ff',
+              color: '#1e3a8a',
+            }}
+          >
+            <span>
+              {fotoCollegate.length === 0
+                ? 'Nessuna foto collegata al Quaderno'
+                : `${fotoCollegate.length} foto collegate dalla Galleria`}
+            </span>
+            {onApriGalleria && (
+              <button type="button" onClick={onApriGalleria} style={buttonSecondary}>
+                Apri Galleria
+              </button>
+            )}
+          </div>
 
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
-                  gap: 10,
-                  marginTop: 12,
-                }}
-              >
-                {fotoInCoda.map((foto, indice) => (
-                  <figure
-                    key={foto.id}
-                    style={{
-                      position: 'relative',
-                      margin: 0,
-                      overflow: 'hidden',
-                      borderRadius: 12,
-                      border: '1px solid #bfdbfe',
-                      background: '#fff',
-                      aspectRatio: '1 / 1',
-                    }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={foto.anteprima}
-                      alt={`Foto in attesa ${indice + 1}`}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => rimuoviFotoInCoda(foto.id)}
-                      disabled={salvataggioFotoAttivo}
-                      aria-label={`Rimuovi foto ${indice + 1}`}
-                      style={{
-                        position: 'absolute',
-                        top: 6,
-                        right: 6,
-                        width: 44,
-                        height: 44,
-                        border: '2px solid #fff',
-                        borderRadius: '50%',
-                        background: 'rgba(15, 23, 42, 0.82)',
-                        color: '#fff',
-                        fontSize: 24,
-                        lineHeight: 1,
-                        cursor: salvataggioFotoAttivo ? 'default' : 'pointer',
-                      }}
-                    >
-                      ×
-                    </button>
-                  </figure>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {allegati.length > 0 && (
+          {allegati.some((allegato) => allegato.tipo !== 'foto') && (
             <div
               style={{
                 display: 'grid',
@@ -898,7 +740,7 @@ export default function SopralluogoAppunti({
                 marginTop: 14,
               }}
             >
-              {allegati.map((allegato) => (
+              {allegati.filter((allegato) => allegato.tipo !== 'foto').map((allegato) => (
                 <article
                   key={allegato.id}
                   style={{ padding: 10, border: '1px solid #cbd5e1', borderRadius: 10, background: '#fff' }}
@@ -989,7 +831,7 @@ WebkitTextFillColor: '#111827',
         </div>
       )}
 
-      {mostraAppuntiSopralluogo && (
+      {notaVisibile && (
         <article className="smart-note-print" aria-hidden="true">
           <header style={{ borderBottom: '1px solid #94a3b8', paddingBottom: 12 }}>
             <h1 style={{ margin: 0, fontSize: 24 }}>{titolo || 'Nota sopralluogo'}</h1>
@@ -1038,7 +880,32 @@ WebkitTextFillColor: '#111827',
             </section>
           )}
 
-          {allegati.length > 0 && (
+          {fotoCollegate.length > 0 && (
+            <section style={{ marginTop: 18 }}>
+              <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Foto collegate</h2>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: 12,
+                }}
+              >
+                {fotoCollegate.map((foto, indice) => (
+                  <figure key={foto.id || indice} style={{ margin: 0 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={foto.immagine_base64}
+                      alt={foto.nota || `Foto collegata ${indice + 1}`}
+                      style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'contain' }}
+                    />
+                    {foto.nota && <figcaption style={{ marginTop: 4 }}>{foto.nota}</figcaption>}
+                  </figure>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {allegati.some((allegato) => allegato.tipo !== 'foto') && (
             <section style={{ marginTop: 18 }}>
               <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Allegati</h2>
               <div
@@ -1048,16 +915,8 @@ WebkitTextFillColor: '#111827',
                   gap: 12,
                 }}
               >
-                {allegati.map((allegato) => (
+                {allegati.filter((allegato) => allegato.tipo !== 'foto').map((allegato) => (
                   <figure key={allegato.id} style={{ margin: 0 }}>
-                    {allegato.tipo === 'foto' && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={allegato.url}
-                        alt={allegato.nome_file}
-                        style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'contain' }}
-                      />
-                    )}
                     <figcaption style={{ marginTop: 4 }}>{allegato.nome_file}</figcaption>
                   </figure>
                 ))}

@@ -1,4 +1,11 @@
-export type StrumentoDisegno = 'penna' | 'evidenziatore' | 'freccia' | 'cerchio'
+export type StrumentoDisegno =
+  | 'penna'
+  | 'evidenziatore'
+  | 'freccia'
+  | 'linea'
+  | 'rettangolo'
+  | 'cerchio'
+  | 'gomma'
 
 export type PuntoNota = {
   x: number

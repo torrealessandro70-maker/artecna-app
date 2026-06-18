@@ -25,6 +25,7 @@ export default function SopralluogoAzioniPreventivo({
   generaPdfSopralluogo,
   buttonPrimary,
 }: Props) {
+  const [menuAperto, setMenuAperto] = useState(false)
   const [faseAi, setFaseAi] = useState(-1)
   const [erroreAi, setErroreAi] = useState(false)
   const fasiAi = [
@@ -69,30 +70,134 @@ export default function SopralluogoAzioniPreventivo({
   const percentualeAi =
     erroreAi ? 0 : faseAi >= 0 ? fasiAi[faseAi].percentuale : 0
 
+  const condividiSopralluogo = async () => {
+    const testo = [
+      `Sopralluogo: ${sopralluogoAperto.cliente || 'senza cliente'}`,
+      sopralluogoAperto.indirizzo,
+      sopralluogoAperto.data_sopralluogo,
+    ]
+      .filter(Boolean)
+      .join('\n')
+
+    if (navigator.share) {
+      await navigator.share({ title: 'Sopralluogo ARTECNA', text: testo })
+      return
+    }
+
+    await navigator.clipboard.writeText(testo)
+    alert('Riepilogo copiato negli appunti')
+  }
+
+  const eseguiAzione = async (azione: () => void | Promise<void>) => {
+    setMenuAperto(false)
+    await azione()
+  }
+
+  const stileAzione: CSSProperties = {
+    width: '100%',
+    padding: '12px 14px',
+    border: 0,
+    borderRadius: 9,
+    background: 'transparent',
+    color: '#0f172a',
+    textAlign: 'left',
+    fontSize: 15,
+    cursor: 'pointer',
+  }
+
   return (
-    <>
+    <div style={{ position: 'relative' }}>
       <button
         type="button"
-        onClick={() => generaPreventivoDaSopralluogo(sopralluogoAperto)}
+        onClick={() => setMenuAperto((aperto) => !aperto)}
+        aria-expanded={menuAperto}
+        aria-haspopup="menu"
         style={{
           ...buttonPrimary,
-          backgroundColor: '#7c3aed',
+          minWidth: 180,
+          minHeight: 52,
+          backgroundColor: '#0f172a',
+          fontSize: 16,
         }}
       >
-        🧾 Genera preventivo
+        ⚙ Azioni
       </button>
 
-      <button
-        type="button"
-        onClick={generaPreventivoAi}
-        disabled={elaborazioneAi}
-        style={{
-          ...buttonPrimary,
-          backgroundColor: '#9333ea',
-        }}
-      >
-        {elaborazioneAi ? 'Elaborazione in corso…' : '🤖 Genera preventivo AI'}
-      </button>
+      {menuAperto && (
+        <div
+          role="menu"
+          style={{
+            width: 'min(100%, 360px)',
+            marginTop: 10,
+            padding: 8,
+            border: '1px solid #e2e8f0',
+            borderRadius: 12,
+            background: '#fff',
+            boxShadow: '0 16px 35px rgba(15, 23, 42, 0.14)',
+          }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void eseguiAzione(() => generaPreventivoDaSopralluogo(sopralluogoAperto))}
+            style={stileAzione}
+          >
+            Genera Preventivo
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void eseguiAzione(generaPreventivoAi)}
+            disabled={elaborazioneAi}
+            style={{ ...stileAzione, opacity: elaborazioneAi ? 0.55 : 1 }}
+          >
+            {elaborazioneAi ? 'Generazione AI in corso...' : 'Genera Preventivo AI'}
+          </button>
+          {preventivoAiGenerato && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void eseguiAzione(apriPreventivoAiGeneratoInModifica)}
+              style={stileAzione}
+            >
+              Apri Preventivo AI
+            </button>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void eseguiAzione(() => convertiSopralluogoInCantiere(sopralluogoAperto))}
+            style={stileAzione}
+          >
+            Converti in Cantiere
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void eseguiAzione(() => generaPdfSopralluogo(sopralluogoAperto))}
+            style={stileAzione}
+          >
+            Esporta PDF
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void eseguiAzione(condividiSopralluogo)}
+            style={stileAzione}
+          >
+            Condividi
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled
+            title="Funzione predisposta per un prossimo sprint"
+            style={{ ...stileAzione, color: '#64748b', cursor: 'not-allowed' }}
+          >
+            Esporta Fascicolo (prossimamente)
+          </button>
+        </div>
+      )}
 
       {faseAi >= 0 && (
         <div
@@ -157,40 +262,6 @@ export default function SopralluogoAzioniPreventivo({
         </div>
       )}
 
-      {preventivoAiGenerato && (
-        <button
-          type="button"
-          onClick={apriPreventivoAiGeneratoInModifica}
-          style={{
-            ...buttonPrimary,
-            backgroundColor: '#059669',
-          }}
-        >
-          📂 Apri preventivo AI generato
-        </button>
-      )}
-
-      <button
-        type="button"
-        onClick={() => convertiSopralluogoInCantiere(sopralluogoAperto)}
-        style={{
-          ...buttonPrimary,
-          backgroundColor: '#15803d',
-        }}
-      >
-        🏗 Converti in cantiere
-      </button>
-
-      <button
-        type="button"
-        onClick={() => generaPdfSopralluogo(sopralluogoAperto)}
-        style={{
-          ...buttonPrimary,
-          backgroundColor: '#2563eb',
-        }}
-      >
-        📄 Genera PDF
-      </button>
-    </>
+    </div>
   )
 }

@@ -22,6 +22,7 @@ type Props = {
 
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
+  integrato?: boolean
 }
 
 export default function SopralluogoDettaglioHeader({
@@ -44,6 +45,7 @@ export default function SopralluogoDettaglioHeader({
 
   buttonPrimary,
   buttonSecondary,
+  integrato = false,
 }: Props) {
   if (!sopralluogoAperto) return null
 
@@ -59,16 +61,18 @@ export default function SopralluogoDettaglioHeader({
           marginBottom: 20,
         }}
       >
-        <h2>📍 {sopralluogoAperto.cliente}</h2>
+        {!integrato && <h2>📍 {sopralluogoAperto.cliente}</h2>}
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => setSopralluogoAperto(null)}
-            style={buttonSecondary}
-          >
-            Chiudi
-          </button>
+          {!integrato && (
+            <button
+              type="button"
+              onClick={() => setSopralluogoAperto(null)}
+              style={buttonSecondary}
+            >
+              Chiudi
+            </button>
+          )}
 
           <button
             type="button"
