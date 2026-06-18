@@ -1463,6 +1463,32 @@ const generaExcelDefinitivoPreventivoAi = async () => {
     return
   }
 
+  if (!preventivoAiGenerato) {
+    alert('Preventivo AI non disponibile')
+    return
+  }
+
+  const esportato = await generaExcelDaPreventivoAi(
+    preventivoAiGenerato,
+    vociPreventivoAi,
+    descrizionePreventivoAi
+  )
+
+  if (esportato && preventivoAiGenerato.id) {
+    await supabase
+      .from('preventivi_cantiere')
+      .update({
+        stato_preventivo: 'definitivo_excel_generato',
+        approvato: false,
+      })
+      .eq('id', preventivoAiGenerato.id)
+
+    await caricaEconomia()
+  }
+  return
+
+  /* Vecchio generatore definitivo disattivato: l'export usa il generatore comune. */
+  /*
   const workbook = new ExcelJS.Workbook()
 workbook.calcProperties.fullCalcOnLoad = true
 
@@ -1656,15 +1682,20 @@ if (preventivoAiGenerato?.id) {
   await caricaEconomia()
 }
 }
+  */
+}
 
-
-const generaExcelDaPreventivoAi = async (p: any) => {
+const generaExcelDaPreventivoAi = async (
+  p: any,
+  vociRevisionate?: any[],
+  descrizioneRevisionata?: string
+) => {
   try {
-    const vociAi = p.json_voci_ai || []
+    const vociAi = vociRevisionate || p.json_voci_ai || []
 
     if (!vociAi.length) {
       alert('Nessuna voce AI trovata in questo preventivo')
-      return
+      return false
     }
 
     const workbook = new ExcelJS.Workbook()
@@ -1676,7 +1707,7 @@ const generaExcelDaPreventivoAi = async (p: any) => {
       alert(
         'Template Excel non trovato. Controlla che il file sia in: public/templates/preventivo-template.xlsx'
       )
-      return
+      return false
     }
 
     const arrayBuffer = await templateResponse.arrayBuffer()
@@ -1686,7 +1717,7 @@ const generaExcelDaPreventivoAi = async (p: any) => {
 
     if (!worksheet) {
       alert('Foglio Excel non trovato nel template')
-      return
+      return false
     }
 
     const ws = worksheet
@@ -1697,7 +1728,9 @@ const generaExcelDaPreventivoAi = async (p: any) => {
     ws.getCell('E11').value = ''
 
     ws.getCell('A15').value =
-      `DESCRIZIONE INTERVENTO\n\n${p.descrizione_ai || p.note || ''}`
+      `DESCRIZIONE INTERVENTO\n\n${
+        descrizioneRevisionata ?? p.descrizione_ai ?? p.note ?? ''
+      }`
 
     let rigaExcel = 22
     let totalePreventivo = 0
@@ -1818,9 +1851,9 @@ Restano escluse problematiche dovute a supporti preesistenti, infiltrazioni preg
     })
 
     const nomeFile = String(
-      preventivoAiGenerato?.cliente_ai ||
-        preventivoAiGenerato?.nome_file ||
-        preventivoAiGenerato?.cantiere ||
+      p.cliente_ai ||
+        p.nome_file ||
+        p.cantiere ||
         'Cliente'
     )
       .replace('Preventivo_AI_', '')
@@ -1830,11 +1863,13 @@ Restano escluse problematiche dovute a supporti preesistenti, infiltrazioni preg
       .trim()
 
     saveAs(blob, `${nomeFile}.xlsx`)
+    return true
   } catch (errore: any) {
     console.error('Errore generazione Excel AI:', errore)
     alert(
       'Errore generazione Excel AI. Controlla che il file preventivo-template.xlsx sia dentro public/templates.'
     )
+    return false
   }
 }
 
@@ -11728,6 +11763,7 @@ WebkitOverflowScrolling: 'touch',
   setVociPreventivoAi={setVociPreventivoAi}
   vociPreventivoAiOriginali={vociPreventivoAiOriginali}
   setVociPreventivoAiOriginali={setVociPreventivoAiOriginali}
+  setPreventivoAiGenerato={setPreventivoAiGenerato}
   calcolaMediaPrezziSimili={calcolaMediaPrezziSimili}
   verificaPrezzoAnomalo={verificaPrezzoAnomalo}
   miglioraVocePreventivoAi={miglioraVocePreventivoAi}

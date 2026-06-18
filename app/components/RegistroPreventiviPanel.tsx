@@ -40,6 +40,7 @@ type Props = {
   setVociPreventivoAi: (v: any[]) => void
   setVociPreventivoAiOriginali: (v: any[]) => void
   setDescrizionePreventivoAi: (v: string) => void
+  setPreventivoAiGenerato: (v: any) => void
   setMostraRevisionePreventivoAi: (v: boolean) => void
 
   excelBox: CSSProperties
@@ -81,6 +82,7 @@ export default function RegistroPreventiviPanel({
   setVociPreventivoAi,
   setVociPreventivoAiOriginali,
   setDescrizionePreventivoAi,
+  setPreventivoAiGenerato,
   setMostraRevisionePreventivoAi,
   excelBox,
   excelToolbar,
@@ -297,6 +299,7 @@ export default function RegistroPreventiviPanel({
                               setDescrizionePreventivoAi(
                                 p.descrizione_ai || ''
                               )
+                              setPreventivoAiGenerato(p)
                               setMostraRevisionePreventivoAi(true)
                             }}
                             style={{

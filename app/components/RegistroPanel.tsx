@@ -106,6 +106,7 @@ export default function RegistroPanel(props: any) {
     setVociPreventivoAi={p.setVociPreventivoAi}
     setVociPreventivoAiOriginali={p.setVociPreventivoAiOriginali}
     setDescrizionePreventivoAi={p.setDescrizionePreventivoAi}
+    setPreventivoAiGenerato={p.setPreventivoAiGenerato}
     setMostraRevisionePreventivoAi={p.setMostraRevisionePreventivoAi}
     excelBox={p.excelBox}
     excelToolbar={p.excelToolbar}
