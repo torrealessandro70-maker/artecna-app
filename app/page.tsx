@@ -11056,6 +11056,12 @@ WebkitOverflowScrolling: 'touch',
   />
 )}
 
+{(
+  pagineAperte.includes('cantieri-scheda') ||
+  (!modalitaMulti &&
+    sezioneAttiva === 'cantieri' &&
+    sottoSezioneCantieri === 'scheda')
+) && (
 <CantieriContainer
   pagineAperte={pagineAperte}
   modalitaMulti={modalitaMulti}
@@ -11112,6 +11118,7 @@ WebkitOverflowScrolling: 'touch',
   geolocalizzazioneFoto={geolocalizzazioneFoto}
   salvaFotoCantiere={salvaFotoCantiere}
 />
+)}
  <FotoFullscreenModal
   fotoFullscreen={fotoFullscreen}
   setFotoFullscreen={setFotoFullscreen}
