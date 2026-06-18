@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties, RefObject } from 'react'
+import { useRef, type ChangeEvent, type CSSProperties, type RefObject } from 'react'
 import Webcam from 'react-webcam'
 
 type Props = {
@@ -38,7 +38,28 @@ export default function PopupFotoSopralluogo({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+  const fotocameraNativaRef = useRef<HTMLInputElement>(null)
+
   if (!popupFotoSopralluogo) return null
+
+  const aggiungiFoto = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+
+    const fotoConvertite = await Promise.all(
+      files.map(
+        (file) =>
+          new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(String(reader.result || ''))
+            reader.readAsDataURL(file)
+          })
+      )
+    )
+
+    setFotoSopralluogoTemp((prev) => [...prev, ...fotoConvertite])
+    e.target.value = ''
+  }
 
   return (
     <div
@@ -67,7 +88,24 @@ export default function PopupFotoSopralluogo({
       >
         <h2>📸 Foto sopralluogo</h2>
 
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <input
+            ref={fotocameraNativaRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={aggiungiFoto}
+            style={{ display: 'none' }}
+          />
+
+          <button
+            type="button"
+            onClick={() => fotocameraNativaRef.current?.click()}
+            style={buttonPrimary}
+          >
+            📷 Scatta con fotocamera
+          </button>
+
           <button
             type="button"
             onClick={() =>
@@ -75,33 +113,27 @@ export default function PopupFotoSopralluogo({
             }
             style={buttonPrimary}
           >
-            {cameraSopralluogoAttiva ? 'Chiudi fotocamera' : '📷 Apri fotocamera'}
+            {cameraSopralluogoAttiva ? 'Chiudi fotocamera web' : 'Fotocamera web'}
           </button>
         </div>
 
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={async (e) => {
-            const files = Array.from(e.target.files || [])
-            if (files.length === 0) return
-
-            const fotoConvertite = await Promise.all(
-              files.map(
-                (file) =>
-                  new Promise<string>((resolve) => {
-                    const reader = new FileReader()
-                    reader.onload = () => resolve(String(reader.result || ''))
-                    reader.readAsDataURL(file)
-                  })
-              )
-            )
-
-            setFotoSopralluogoTemp((prev) => [...prev, ...fotoConvertite])
-            e.target.value = ''
+        <label
+          style={{
+            ...buttonSecondary,
+            display: 'inline-block',
+            marginTop: 10,
+            cursor: 'pointer',
           }}
-        />
+        >
+          🖼️ Scegli dalla galleria
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={aggiungiFoto}
+            style={{ display: 'none' }}
+          />
+        </label>
 
         {cameraSopralluogoAttiva && (
           <div

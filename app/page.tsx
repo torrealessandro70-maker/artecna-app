@@ -1241,7 +1241,7 @@ const generaVociAutomatiche = (
 const generaPreventivoAiDaSopralluogo = async (s: Sopralluogo) => {
   if (!s.id) {
     alert('Sopralluogo non valido')
-    return
+    return false
   }
 
   const fotoDelSopralluogo = fotoSopralluoghi.filter(
@@ -1255,7 +1255,7 @@ const { data: prezziRiferimento, error: errorePrezzi } =
 
 if (errorePrezzi) {
   alert('Errore caricamento prezzi riferimento: ' + errorePrezzi.message)
-  return
+  return false
 }
   const response = await fetch('/api/genera-preventivo-ai', {
     method: 'POST',
@@ -1278,7 +1278,7 @@ prezzi_riferimento: prezziRiferimento || [],
 
   if (!response.ok) {
     alert('Errore AI: ' + risultato.error)
-    return
+    return false
   }
 
 const vociAi = (risultato.voci || []).map((voce: any) => {
@@ -1377,12 +1377,12 @@ if (erroreSalvataggioAi) {
     'Errore salvataggio preventivo AI: ' +
       erroreSalvataggioAi.message
   )
-  return
+  return false
 }
 
 if (vociAi.length === 0) {
   alert('AI non ha generato voci')
-  return
+  return false
 }
 
 setPreventivoAiGenerato(preventivoAiCreato)
@@ -1397,6 +1397,7 @@ await caricaEconomia()
 alert(
   `Preventivo AI salvato nel Registro preventivi con ${vociAi.length} voci`
 )
+return true
 }
 
 const miglioraVocePreventivoAi = async (

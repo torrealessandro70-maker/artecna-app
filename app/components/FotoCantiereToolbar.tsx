@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties, ChangeEvent } from 'react'
+import { useRef, type CSSProperties, type ChangeEvent } from 'react'
 
 type Props = {
   caricaFotoDaInput: (e: ChangeEvent<HTMLInputElement>) => void
@@ -29,6 +29,8 @@ export default function FotoCantiereToolbar({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+  const fotocameraNativaRef = useRef<HTMLInputElement>(null)
+
   return (
     <>
       <h3 style={{ marginTop: 0 }}>📸 Foto cantiere</h3>
@@ -43,11 +45,32 @@ export default function FotoCantiereToolbar({
         }}
       >
         <input
+          ref={fotocameraNativaRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={caricaFotoDaInput}
+          style={{ display: 'none' }}
+        />
+
+        <button
+          type="button"
+          onClick={() => fotocameraNativaRef.current?.click()}
+          style={buttonPrimary}
+        >
+          📷 Scatta con fotocamera
+        </button>
+
+        <label style={{ ...buttonSecondary, cursor: 'pointer' }}>
+          🖼️ Scegli dalla galleria
+          <input
           type="file"
           accept="image/*"
           multiple
           onChange={caricaFotoDaInput}
-        />
+            style={{ display: 'none' }}
+          />
+        </label>
 
         <button
           type="button"
@@ -57,8 +80,8 @@ export default function FotoCantiereToolbar({
           style={buttonSecondary}
         >
           {cameraFotoCantiereAttiva
-            ? 'Chiudi fotocamera'
-            : '📷 Apri fotocamera'}
+            ? 'Chiudi fotocamera web'
+            : 'Fotocamera web'}
         </button>
 
         <button

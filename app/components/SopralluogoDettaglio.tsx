@@ -81,23 +81,13 @@ export default function SopralluogoDettaglio(props: Props) {
         />
 
         <SopralluogoAppunti
-  mostraAppuntiSopralluogo={props.mostraAppuntiSopralluogo}
-  setMostraAppuntiSopralluogo={props.setMostraAppuntiSopralluogo}
-  pagineAppunti={props.pagineAppunti}
-  setPagineAppunti={props.setPagineAppunti}
-  paginaFullscreen={props.paginaFullscreen}
-  setPaginaFullscreen={props.setPaginaFullscreen}
-  appuntiRefs={props.appuntiRefs}
-  mostraTavolozzaFirma={props.mostraTavolozzaFirma}
-  setMostraTavolozzaFirma={props.setMostraTavolozzaFirma}
-  coloreFirma={props.coloreFirma}
-  setColoreFirma={props.setColoreFirma}
-  spessoreFirma={props.spessoreFirma}
-  setSpessoreFirma={props.setSpessoreFirma}
-  sopralluogoAperto={props.sopralluogoAperto}
-  buttonPrimary={props.buttonPrimary}
-  buttonSecondary={props.buttonSecondary}
-/>
+          mostraAppuntiSopralluogo={props.mostraAppuntiSopralluogo}
+          setMostraAppuntiSopralluogo={props.setMostraAppuntiSopralluogo}
+          sopralluogoAperto={props.sopralluogoAperto}
+          supabase={supabase}
+          buttonPrimary={props.buttonPrimary}
+          buttonSecondary={props.buttonSecondary}
+        />
 
         <div style={{ marginTop: 25 }}>
           <h3>📸 Galleria sopralluogo</h3>
