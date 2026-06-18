@@ -558,15 +558,16 @@ export default function SopralluogoAppunti({
             </div>
           )}
 
-          <aside
-            style={{
-              marginTop: 18,
-              padding: 16,
-              border: '1px solid #c4b5fd',
-              borderRadius: 14,
-              background: '#faf5ff',
-            }}
-          >
+         <aside
+  style={{
+    marginTop: 18,
+    padding: 16,
+    border: '1px solid #c4b5fd',
+    borderRadius: 14,
+    background: '#faf5ff',
+    color: '#111827',
+  }}
+>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
               <div>
                 <strong>AI osservatore</strong>
