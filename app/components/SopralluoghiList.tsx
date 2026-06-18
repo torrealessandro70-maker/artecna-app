@@ -100,11 +100,16 @@ export default function SopralluoghiList({
 
                       const { data } = await supabase
                         .from('foto_sopralluogo')
-                        .select('*')
+                        .select('id,sopralluogo_id,nota,immagine_base64,tag,includi_preventivo,created_at')
                         .eq('sopralluogo_id', s.id)
-                        .order('created_at', { ascending: false })
 
-                      setFotoSopralluoghi(data || [])
+                      setFotoSopralluoghi(
+                        [...(data || [])].sort((prima, seconda) =>
+                          String(seconda.created_at || '').localeCompare(
+                            String(prima.created_at || '')
+                          )
+                        )
+                      )
                     }}
                     style={{
                       ...buttonPrimary,
