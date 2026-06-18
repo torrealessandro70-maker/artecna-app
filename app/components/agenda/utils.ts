@@ -34,6 +34,7 @@ export type AttivitaAgenda = {
   descrizione: string
   data: string
   ora: string
+  oraFine?: string
   tipo: TipoAttivita
   stato: StatoAttivita
   checklist?: VoceChecklistAttivita[]
@@ -82,9 +83,20 @@ function dataOraIcs(data: string, ora: string) {
   return `${data.replace(/-/g, '')}T${(ora || '09:00').replace(':', '')}00`
 }
 
+export function aggiungiUnOra(ora: string) {
+  const [ore, minuti] = (ora || '09:00').split(':').map(Number)
+  const totaleMinuti = ore * 60 + minuti + 60
+
+  if (totaleMinuti >= 24 * 60) return '23:59'
+
+  return `${String(Math.floor(totaleMinuti / 60)).padStart(2, '0')}:${String(
+    totaleMinuti % 60
+  ).padStart(2, '0')}`
+}
+
 export function esportaAttivitaIcs(attivita: AttivitaAgenda) {
-  const inizio = new Date(`${attivita.data}T${attivita.ora || '09:00'}:00`)
-  const fine = new Date(inizio.getTime() + 60 * 60 * 1000)
+  const oraInizio = attivita.ora || '09:00'
+  const oraFine = attivita.oraFine || aggiungiUnOra(oraInizio)
   const descrizione = [
     attivita.descrizione,
     attivita.checklist?.length
@@ -108,8 +120,8 @@ export function esportaAttivitaIcs(attivita: AttivitaAgenda) {
     'BEGIN:VEVENT',
     `UID:${attivita.id}@artecna-os`,
     `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}`,
-    `DTSTART:${dataOraIcs(attivita.data, attivita.ora)}`,
-    `DTEND:${dataOraIcs(dataLocale(fine), `${String(fine.getHours()).padStart(2, '0')}:${String(fine.getMinutes()).padStart(2, '0')}`)}`,
+    `DTSTART:${dataOraIcs(attivita.data, oraInizio)}`,
+    `DTEND:${dataOraIcs(attivita.data, oraFine)}`,
     `SUMMARY:${escapeIcs(attivita.titolo)}`,
     `DESCRIPTION:${escapeIcs(descrizione)}`,
     'END:VEVENT',

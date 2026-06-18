@@ -1,7 +1,12 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { esportaAttivitaIcs, formattaData, type AttivitaAgenda } from './utils'
+import {
+  aggiungiUnOra,
+  esportaAttivitaIcs,
+  formattaData,
+  type AttivitaAgenda,
+} from './utils'
 
 type Props = {
   attivita: AttivitaAgenda
@@ -22,6 +27,13 @@ export default function AgendaAttivitaCard({
   const totaleChecklist = attivita.checklist?.length || 0
   const checklistCompletate =
     attivita.checklist?.filter((voce) => voce.completata).length || 0
+  const anteprimaChecklist = attivita.checklist?.slice(0, 3) || []
+  const altreVociChecklist = Math.max(totaleChecklist - anteprimaChecklist.length, 0)
+  const checklistCompletata =
+    totaleChecklist > 0 && checklistCompletate === totaleChecklist
+  const intervalloOrario = attivita.ora
+    ? `${attivita.ora}\u2013${attivita.oraFine || aggiungiUnOra(attivita.ora)}`
+    : 'Ora da definire'
 
   return (
     <article
@@ -52,7 +64,7 @@ export default function AgendaAttivitaCard({
             {attivita.titolo}
           </h3>
           <div style={{ marginTop: 5, color: '#475569', fontWeight: 700 }}>
-            {formattaData(attivita.data)} · {attivita.ora || 'Ora da definire'}
+            {formattaData(attivita.data)} · {intervalloOrario}
           </div>
         </div>
         <span
@@ -103,15 +115,74 @@ export default function AgendaAttivitaCard({
         <div
           style={{
             marginTop: 12,
-            padding: '9px 11px',
+            padding: '11px 12px',
             borderRadius: 9,
             background: '#f8fafc',
             color: '#475569',
-            fontSize: 13,
-            fontWeight: 700,
           }}
         >
-          Checklist: {checklistCompletate}/{totaleChecklist} completate
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              flexWrap: 'wrap',
+              fontSize: 13,
+              fontWeight: 800,
+            }}
+          >
+            <span>{checklistCompletate}/{totaleChecklist} completate</span>
+            {checklistCompletata && (
+              <span
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 999,
+                  background: '#dcfce7',
+                  color: '#166534',
+                  fontSize: 12,
+                }}
+              >
+                Checklist completata
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
+            {anteprimaChecklist.map((voce) => (
+              <div
+                key={voce.id}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={voce.completata}
+                  readOnly
+                  tabIndex={-1}
+                  aria-label={`${voce.testo}: ${
+                    voce.completata ? 'completata' : 'da completare'
+                  }`}
+                  style={{ width: 18, height: 18, margin: 0, flex: '0 0 18px' }}
+                />
+                <span
+                  style={{
+                    fontSize: 14,
+                    lineHeight: 1.3,
+                    textDecoration: voce.completata ? 'line-through' : 'none',
+                    color: voce.completata ? '#64748b' : '#334155',
+                  }}
+                >
+                  {voce.testo}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {altreVociChecklist > 0 && (
+            <div style={{ marginTop: 8, color: '#64748b', fontSize: 13, fontWeight: 700 }}>
+              + {altreVociChecklist} altre voci
+            </div>
+          )}
         </div>
       )}
 

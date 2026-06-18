@@ -3,6 +3,7 @@
 import { useState, type CSSProperties, type FormEvent } from 'react'
 import {
   TIPI_ATTIVITA,
+  aggiungiUnOra,
   dataLocale,
   type AttivitaAgenda,
   type OpzioneCollegamento,
@@ -45,7 +46,12 @@ export default function PopupNuovaAttivita({
     (attivitaInModifica?.checklist || []).map((voce) => ({ ...voce }))
   )
   const [data, setData] = useState(attivitaInModifica?.data || dataLocale())
-  const [ora, setOra] = useState(attivitaInModifica?.ora || '09:00')
+  const oraIniziale = attivitaInModifica?.ora || '09:00'
+  const [ora, setOra] = useState(oraIniziale)
+  const [oraFine, setOraFine] = useState(
+    attivitaInModifica?.oraFine || aggiungiUnOra(oraIniziale)
+  )
+  const [erroreOrario, setErroreOrario] = useState('')
   const [tipo, setTipo] = useState<TipoAttivita>(
     attivitaInModifica?.tipo || 'Sopralluogo'
   )
@@ -84,6 +90,10 @@ export default function PopupNuovaAttivita({
 
   const salva = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!oraFine || oraFine < ora) {
+      setErroreOrario("L'ora di fine non può essere precedente all'ora di inizio.")
+      return
+    }
     const opzione = opzioniFiltrate.find(
       (elemento) => elemento.valore === valoreCollegamento
     )
@@ -94,6 +104,7 @@ export default function PopupNuovaAttivita({
       descrizione: descrizione.trim(),
       data,
       ora,
+      oraFine,
       tipo,
       stato,
       checklist: checklistValida.map((voce) => ({
@@ -328,16 +339,44 @@ export default function PopupNuovaAttivita({
               />
             </label>
             <label style={{ display: 'grid', gap: 6, fontWeight: 700 }}>
-              Ora
+              Ora inizio
               <input
                 type="time"
                 value={ora}
-                onChange={(event) => setOra(event.target.value)}
+                onChange={(event) => {
+                  const nuovaOra = event.target.value
+                  setOra(nuovaOra)
+                  setErroreOrario('')
+                  if (!oraFine || oraFine < nuovaOra) {
+                    setOraFine(aggiungiUnOra(nuovaOra))
+                  }
+                }}
                 required
                 style={stileCampo}
               />
             </label>
+            <label style={{ display: 'grid', gap: 6, fontWeight: 700 }}>
+              Ora fine
+              <input
+                type="time"
+                value={oraFine}
+                onChange={(event) => {
+                  setOraFine(event.target.value)
+                  setErroreOrario('')
+                }}
+                required
+                min={ora}
+                aria-invalid={Boolean(erroreOrario)}
+                style={stileCampo}
+              />
+            </label>
           </div>
+
+          {erroreOrario && (
+            <div role="alert" style={{ color: '#b91c1c', fontWeight: 700 }}>
+              {erroreOrario}
+            </div>
+          )}
 
           <div
             style={{
