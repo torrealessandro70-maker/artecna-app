@@ -579,15 +579,52 @@ export default function SopralluogoAppunti({
               </button>
             </div>
 
-            {analisiAi && (
-              <div style={{ marginTop: 14, display: 'grid', gap: 12 }}>
-                <div><strong>Sintesi</strong><div>{analisiAi.sintesi}</div></div>
-                <div><strong>Possibili cause</strong><ul>{analisiAi.ipotesi.map((item) => <li key={item}>{item}</li>)}</ul></div>
-                <div><strong>Da verificare</strong><ul>{analisiAi.verifiche.map((item) => <li key={item}>{item}</li>)}</ul></div>
-                {analisiAi.domande.length > 0 && <div><strong>Informazioni mancanti</strong><ul>{analisiAi.domande.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-                <small>{analisiAi.avvertenza}</small>
-              </div>
-            )}
+           {analisiAi && (
+  <div
+    style={{
+      marginTop: 14,
+      display: 'grid',
+      gap: 12,
+      color: '#111827',
+    }}
+  >
+    <div style={{ padding: 10, borderRadius: 10, background: '#f8fafc' }}>
+      <strong>Sintesi</strong>
+      <div>{analisiAi.sintesi}</div>
+    </div>
+
+    <div style={{ padding: 10, borderRadius: 10, background: '#f8fafc' }}>
+      <strong>Possibili cause</strong>
+      <ul>
+        {analisiAi.ipotesi.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+
+    <div style={{ padding: 10, borderRadius: 10, background: '#f8fafc' }}>
+      <strong>Da verificare</strong>
+      <ul>
+        {analisiAi.verifiche.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+
+    {analisiAi.domande.length > 0 && (
+      <div style={{ padding: 10, borderRadius: 10, background: '#f8fafc' }}>
+        <strong>Informazioni mancanti</strong>
+        <ul>
+          {analisiAi.domande.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    )}
+
+    <small style={{ color: '#475569' }}>{analisiAi.avvertenza}</small>
+  </div>
+)}
           </aside>
         </div>
       )}
