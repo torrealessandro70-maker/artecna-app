@@ -130,11 +130,11 @@ export default function RegistroPreventiviPanel({
   const preventivoInFocus = preventivi.find(
     (preventivo) => String(preventivo.id) === preventivoFocusId
   )
-  const preventiviFiltrati = modalitaFocus
-    ? preventivoInFocus
-      ? [preventivoInFocus]
-      : []
-    : preventiviOrdinati.slice(0, mostraRegistroPreventiviCaricati ? undefined : 1)
+ const preventiviFiltrati = modalitaFocus
+  ? preventivoInFocus
+    ? [preventivoInFocus]
+    : []
+  : preventiviOrdinati
 
   return (
     <div style={excelBox}>
