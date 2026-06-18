@@ -11617,6 +11617,7 @@ WebkitOverflowScrolling: 'touch',
 {/* ================= REGISTRO ================= */}
 {sezioneAttiva === 'registro' && (
   <RegistroPanel
+  sezioneAttiva={sezioneAttiva}
   registroTab={registroTab}
   setRegistroTab={setRegistroTab}
   registroCerca={registroCerca}
@@ -11763,6 +11764,7 @@ WebkitOverflowScrolling: 'touch',
   setVociPreventivoAi={setVociPreventivoAi}
   vociPreventivoAiOriginali={vociPreventivoAiOriginali}
   setVociPreventivoAiOriginali={setVociPreventivoAiOriginali}
+  preventivoAiGenerato={preventivoAiGenerato}
   setPreventivoAiGenerato={setPreventivoAiGenerato}
   calcolaMediaPrezziSimili={calcolaMediaPrezziSimili}
   verificaPrezzoAnomalo={verificaPrezzoAnomalo}

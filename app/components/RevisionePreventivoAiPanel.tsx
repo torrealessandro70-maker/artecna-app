@@ -135,12 +135,13 @@ export default function RevisionePreventivoAiPanel({
     formula: string
   } | null>(null)
   const formulaRef = useRef<HTMLInputElement>(null)
+  const indiceCalcolatrice = calcolatrice?.indice
 
   useEffect(() => {
-    if (!calcolatrice) return
+    if (indiceCalcolatrice === undefined) return
     formulaRef.current?.focus()
     formulaRef.current?.select()
-  }, [calcolatrice])
+  }, [indiceCalcolatrice])
 
   const subTotale = vociPreventivoAi.reduce(
     (tot, voce) =>
@@ -662,7 +663,9 @@ export default function RevisionePreventivoAiPanel({
               <input
                 ref={formulaRef}
                 value={calcolatrice.formula}
-                inputMode="decimal"
+                inputMode="text"
+                autoComplete="off"
+                spellCheck={false}
                 placeholder="Esempio: 2.4*3"
                 onChange={(event) =>
                   setCalcolatrice((corrente) =>

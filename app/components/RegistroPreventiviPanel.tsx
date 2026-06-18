@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { Fragment, type CSSProperties, type ReactNode } from 'react'
 
 type Props = {
   preventivi: any[]
@@ -42,6 +42,9 @@ type Props = {
   setDescrizionePreventivoAi: (v: string) => void
   setPreventivoAiGenerato: (v: any) => void
   setMostraRevisionePreventivoAi: (v: boolean) => void
+  mostraRevisionePreventivoAi: boolean
+  preventivoAiGenerato: any | null
+  pannelloRevisione: ReactNode
 
   excelBox: CSSProperties
   excelToolbar: CSSProperties
@@ -84,6 +87,9 @@ export default function RegistroPreventiviPanel({
   setDescrizionePreventivoAi,
   setPreventivoAiGenerato,
   setMostraRevisionePreventivoAi,
+  mostraRevisionePreventivoAi,
+  preventivoAiGenerato,
+  pannelloRevisione,
   excelBox,
   excelToolbar,
   excelTable,
@@ -93,7 +99,7 @@ export default function RegistroPreventiviPanel({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
-  const preventiviFiltrati = [...preventivi]
+  const preventiviOrdinati = [...preventivi]
     .filter(
       (p) =>
         String(p.cantiere || '')
@@ -117,7 +123,18 @@ export default function RegistroPreventiviPanel({
         ? String(valoreA).localeCompare(String(valoreB))
         : String(valoreB).localeCompare(String(valoreA))
     })
-    .slice(0, mostraRegistroPreventiviCaricati ? undefined : 1)
+  const preventivoFocusId = mostraRevisionePreventivoAi
+    ? String(preventivoAiGenerato?.id || '')
+    : ''
+  const modalitaFocus = Boolean(preventivoFocusId && pannelloRevisione)
+  const preventivoInFocus = preventivi.find(
+    (preventivo) => String(preventivo.id) === preventivoFocusId
+  )
+  const preventiviFiltrati = modalitaFocus
+    ? preventivoInFocus
+      ? [preventivoInFocus]
+      : []
+    : preventiviOrdinati.slice(0, mostraRegistroPreventiviCaricati ? undefined : 1)
 
   return (
     <div style={excelBox}>
@@ -125,22 +142,56 @@ export default function RegistroPreventiviPanel({
         <strong>📄 Registro preventivi caricati</strong>
       </div>
 
-      <button
-        type="button"
-        onClick={() =>
-          setMostraRegistroPreventiviCaricati(
-            !mostraRegistroPreventiviCaricati
-          )
-        }
-        style={{
-          ...buttonSecondary,
-          marginTop: 15,
-        }}
-      >
-        {mostraRegistroPreventiviCaricati
-          ? 'Nascondi registro preventivi caricati'
-          : '📂 Mostra registro preventivi caricati'}
-      </button>
+      {modalitaFocus ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+            marginTop: 15,
+            padding: 14,
+            border: '1px solid #fbbf24',
+            borderRadius: 12,
+            background: '#fffbeb',
+          }}
+        >
+          <strong style={{ color: '#92400e', fontSize: 17 }}>
+            Stai revisionando:{' '}
+            {preventivoInFocus?.nome_file || preventivoInFocus?.cantiere || 'Preventivo AI'}
+          </strong>
+          <button
+            type="button"
+            onClick={() => setMostraRevisionePreventivoAi(false)}
+            style={{
+              ...buttonPrimary,
+              minHeight: 50,
+              padding: '11px 18px',
+              fontSize: 16,
+            }}
+          >
+            Mostra tutti i preventivi
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() =>
+            setMostraRegistroPreventiviCaricati(
+              !mostraRegistroPreventiviCaricati
+            )
+          }
+          style={{
+            ...buttonSecondary,
+            marginTop: 15,
+          }}
+        >
+          {mostraRegistroPreventiviCaricati
+            ? 'Nascondi registro preventivi caricati'
+            : '📂 Mostra registro preventivi caricati'}
+        </button>
+      )}
 
       <div style={{ overflowX: 'auto' }}>
         <table style={excelTable}>
@@ -208,8 +259,8 @@ export default function RegistroPreventiviPanel({
 
           <tbody>
             {preventiviFiltrati.map((p, i) => (
+              <Fragment key={p.id || i}>
               <tr
-                key={p.id || i}
                 style={{
                   backgroundColor:
                     preventivoRegistroEdit === String(p.id)
@@ -376,6 +427,14 @@ export default function RegistroPreventiviPanel({
                   )}
                 </td>
               </tr>
+              {modalitaFocus && String(p.id) === preventivoFocusId && (
+                <tr>
+                  <td colSpan={5} style={{ padding: 0, border: 0 }}>
+                    {pannelloRevisione}
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>

@@ -13,21 +13,15 @@ import FattureEmessePopupLayer from './FattureEmessePopupLayer'
 
 export default function RegistroPanel(props: any) {
   const p = props
+  const revisioneVisibile =
+    p.sezioneAttiva === 'registro' &&
+    p.registroTab === 'preventivi' &&
+    p.mostraRevisionePreventivoAi
+
+  if (p.sezioneAttiva !== 'registro') return null
 
  return (
   <>
-    <div
-      style={{
-        padding: 12,
-        background: '#fff3cd',
-        border: '1px solid #facc15',
-        borderRadius: 8,
-        marginBottom: 12,
-      }}
-    >
-      TEST REGISTRO VISIBILE - tab: {p.registroTab}
-    </div>
-
     <RegistroHeaderToolbar
         registroTab={p.registroTab}
         setRegistroTab={p.setRegistroTab}
@@ -108,35 +102,37 @@ export default function RegistroPanel(props: any) {
     setDescrizionePreventivoAi={p.setDescrizionePreventivoAi}
     setPreventivoAiGenerato={p.setPreventivoAiGenerato}
     setMostraRevisionePreventivoAi={p.setMostraRevisionePreventivoAi}
+    mostraRevisionePreventivoAi={revisioneVisibile}
+    preventivoAiGenerato={p.preventivoAiGenerato}
+    pannelloRevisione={revisioneVisibile ? (
+      <RevisionePreventivoAiPanel
+        messaggioAi={p.messaggioAi}
+        descrizionePreventivoAi={p.descrizionePreventivoAi}
+        setDescrizionePreventivoAi={p.setDescrizionePreventivoAi}
+        vociPreventivoAi={p.vociPreventivoAi}
+        setVociPreventivoAi={p.setVociPreventivoAi}
+        vociPreventivoAiOriginali={p.vociPreventivoAiOriginali}
+        calcolaMediaPrezziSimili={p.calcolaMediaPrezziSimili}
+        verificaPrezzoAnomalo={p.verificaPrezzoAnomalo}
+        formatMoney={p.formatMoney}
+        miglioraVocePreventivoAi={p.miglioraVocePreventivoAi}
+        salvaInMemoriaPrezzi={p.salvaInMemoriaPrezzi}
+        generaExcelDefinitivoPreventivoAi={p.generaExcelDefinitivoPreventivoAi}
+        preventivoRegistroCantiere={p.preventivoRegistroCantiere}
+        setMostraRevisionePreventivoAi={p.setMostraRevisionePreventivoAi}
+        excelTable={p.excelTable}
+        excelTh={p.excelTh}
+        excelTd={p.excelTd}
+        buttonPrimary={p.buttonPrimary}
+        buttonSecondary={p.buttonSecondary}
+      />
+    ) : null}
     excelBox={p.excelBox}
     excelToolbar={p.excelToolbar}
     excelTable={p.excelTable}
     excelTh={p.excelTh}
     excelTd={p.excelTd}
     excelInput={p.excelInput}
-    buttonPrimary={p.buttonPrimary}
-    buttonSecondary={p.buttonSecondary}
-  />
-)}
-{p.mostraRevisionePreventivoAi && (
-  <RevisionePreventivoAiPanel
-    messaggioAi={p.messaggioAi}
-    descrizionePreventivoAi={p.descrizionePreventivoAi}
-    setDescrizionePreventivoAi={p.setDescrizionePreventivoAi}
-    vociPreventivoAi={p.vociPreventivoAi}
-    setVociPreventivoAi={p.setVociPreventivoAi}
-    vociPreventivoAiOriginali={p.vociPreventivoAiOriginali}
-    calcolaMediaPrezziSimili={p.calcolaMediaPrezziSimili}
-    verificaPrezzoAnomalo={p.verificaPrezzoAnomalo}
-    formatMoney={p.formatMoney}
-    miglioraVocePreventivoAi={p.miglioraVocePreventivoAi}
-    salvaInMemoriaPrezzi={p.salvaInMemoriaPrezzi}
-    generaExcelDefinitivoPreventivoAi={p.generaExcelDefinitivoPreventivoAi}
-    preventivoRegistroCantiere={p.preventivoRegistroCantiere}
-    setMostraRevisionePreventivoAi={p.setMostraRevisionePreventivoAi}
-    excelTable={p.excelTable}
-    excelTh={p.excelTh}
-    excelTd={p.excelTd}
     buttonPrimary={p.buttonPrimary}
     buttonSecondary={p.buttonSecondary}
   />
