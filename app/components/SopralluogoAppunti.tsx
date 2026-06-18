@@ -566,6 +566,7 @@ export default function SopralluogoAppunti({
     borderRadius: 14,
     background: '#faf5ff',
     color: '#111827',
+WebkitTextFillColor: '#111827',
   }}
 >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
@@ -580,50 +581,43 @@ export default function SopralluogoAppunti({
               </button>
             </div>
 
-           {analisiAi && (
-  <div
-    style={{
-      marginTop: 14,
-      display: 'grid',
-      gap: 12,
-      color: '#111827',
-    }}
-  >
-    <div style={{ padding: 10, borderRadius: 10, background: '#f8fafc' }}>
-      <strong>Sintesi</strong>
-      <div>{analisiAi.sintesi}</div>
+          {analisiAi && (
+  <div style={{ marginTop: 14, display: 'grid', gap: 12 }}>
+    <div style={{ padding: 10, borderRadius: 10, background: '#ffffff', color: '#111827' }}>
+      <strong style={{ color: '#111827' }}>Sintesi</strong>
+      <div style={{ color: '#111827' }}>{analisiAi.sintesi}</div>
     </div>
 
-    <div style={{ padding: 10, borderRadius: 10, background: '#f8fafc' }}>
-      <strong>Possibili cause</strong>
-      <ul>
+    <div style={{ padding: 10, borderRadius: 10, background: '#ffffff', color: '#111827' }}>
+      <strong style={{ color: '#111827' }}>Possibili cause</strong>
+      <ul style={{ color: '#111827' }}>
         {analisiAi.ipotesi.map((item) => (
-          <li key={item}>{item}</li>
+          <li key={item} style={{ color: '#111827' }}>{item}</li>
         ))}
       </ul>
     </div>
 
-    <div style={{ padding: 10, borderRadius: 10, background: '#f8fafc' }}>
-      <strong>Da verificare</strong>
-      <ul>
+    <div style={{ padding: 10, borderRadius: 10, background: '#ffffff', color: '#111827' }}>
+      <strong style={{ color: '#111827' }}>Da verificare</strong>
+      <ul style={{ color: '#111827' }}>
         {analisiAi.verifiche.map((item) => (
-          <li key={item}>{item}</li>
+          <li key={item} style={{ color: '#111827' }}>{item}</li>
         ))}
       </ul>
     </div>
 
     {analisiAi.domande.length > 0 && (
-      <div style={{ padding: 10, borderRadius: 10, background: '#f8fafc' }}>
-        <strong>Informazioni mancanti</strong>
-        <ul>
+      <div style={{ padding: 10, borderRadius: 10, background: '#ffffff', color: '#111827' }}>
+        <strong style={{ color: '#111827' }}>Informazioni mancanti</strong>
+        <ul style={{ color: '#111827' }}>
           {analisiAi.domande.map((item) => (
-            <li key={item}>{item}</li>
+            <li key={item} style={{ color: '#111827' }}>{item}</li>
           ))}
         </ul>
       </div>
     )}
 
-    <small style={{ color: '#475569' }}>{analisiAi.avvertenza}</small>
+    <small style={{ color: '#334155' }}>{analisiAi.avvertenza}</small>
   </div>
 )}
           </aside>
