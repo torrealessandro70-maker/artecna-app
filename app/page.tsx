@@ -2021,40 +2021,36 @@ const convertiSopralluogoInCantiere = async (s: Sopralluogo) => {
 const salvaFotoSopralluogo = async () => {
   if (!sopralluogoAperto?.id) {
     alert('Apri un sopralluogo')
-    return
+    return { salvate: 0, fallite: fotoSopralluogoTemp.length }
   }
 
   if (fotoSopralluogoTemp.length === 0) {
-    alert('Nessuna foto selezionata')
-    return
+    return { salvate: 0, fallite: 0 }
   }
 
-  const righe = fotoSopralluogoTemp.map((img) => ({
+  const codaDaSalvare = fotoSopralluogoTemp
+  const righe = codaDaSalvare.map((img) => ({
     sopralluogo_id: sopralluogoAperto.id,
     immagine_base64: img,
     nota: notaFotoSopralluogo,
     includi_preventivo: true,
   }))
 
-  const { error } = await supabase
-    .from('foto_sopralluogo')
-    .insert(righe)
-
-  if (error) {
-    alert(
-      'Errore salvataggio foto: ' +
-        error.message
+  const risultati = await Promise.all(
+    righe.map((riga) =>
+      supabase
+        .from('foto_sopralluogo')
+        .insert(riga)
     )
-    return
-  }
+  )
+  const fotoFallite = codaDaSalvare.filter((_, indice) => risultati[indice].error)
+  const salvate = codaDaSalvare.length - fotoFallite.length
 
-  setFotoSopralluogoTemp([])
-  setNotaFotoSopralluogo('')
-  setPopupFotoSopralluogo(false)
+  setFotoSopralluogoTemp(fotoFallite)
+  if (fotoFallite.length === 0) setNotaFotoSopralluogo('')
+  if (salvate > 0) await caricaFotoSopralluoghi()
 
-  await caricaFotoSopralluoghi()
-
-  alert('Foto sopralluogo salvate')
+  return { salvate, fallite: fotoFallite.length }
 }
 
 
