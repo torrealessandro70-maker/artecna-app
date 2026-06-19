@@ -45,7 +45,7 @@ export default function PreventiviEconomiaPanel({
           ) : (
             preventivi
               .filter((p) => p.cantiere === cantiereScheda)
-              .slice(-1)
+              .slice(0, 1)
               .map((p, i) => (
                 <div
                   key={p.id || i}
@@ -70,6 +70,23 @@ export default function PreventiviEconomiaPanel({
                       )
                     )}
                   </div>
+
+                  {parseImporto(p.importo_totale) <= 0 && (
+                    <div
+                      role="alert"
+                      style={{
+                        marginTop: 10,
+                        padding: 10,
+                        border: '1px solid #fde68a',
+                        borderRadius: 8,
+                        background: '#fffbeb',
+                        color: '#92400e',
+                        fontWeight: 700,
+                      }}
+                    >
+                      Totale non rilevato automaticamente, inserisci importo manualmente.
+                    </div>
+                  )}
 
                   <label style={{ display: 'block', marginTop: 8 }}>
                     <strong>Correggi importo:</strong>

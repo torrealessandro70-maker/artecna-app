@@ -12,7 +12,7 @@ export default function CantieriAnalisiDocumentoPanel(props: any) {
 
   return (
     <div style={p.integrato ? undefined : p.cardStyle}>
-      <h2>{p.integrato ? 'Analisi documento' : 'Analisi documento cantiere'}</h2>
+      <h2>{p.integrato ? 'Analizza documento tecnico' : 'Analisi documento cantiere'}</h2>
 
       {!p.integrato && <div style={{ marginBottom: 20 }}>
         <strong>Seleziona cantiere</strong>
@@ -41,7 +41,7 @@ export default function CantieriAnalisiDocumentoPanel(props: any) {
           marginBottom: 20,
         }}
       >
-        <h3 style={{ marginTop: 0 }}>Carica documento da analizzare</h3>
+        <h3 style={{ marginTop: 0 }}>Seleziona documento da analizzare</h3>
 
         <input
           type="file"
@@ -58,8 +58,8 @@ export default function CantieriAnalisiDocumentoPanel(props: any) {
         />
 
         <p style={{ marginTop: 10, color: '#64748b' }}>
-          Puoi caricare un PDF, una foto o un’immagine del documento del
-          cantiere.
+          Estrae testo, importi e voci da PDF o immagini. Non modifica il
+          preventivo ufficiale né i totali del cantiere.
         </p>
 
         {p.nomeFileAnalisiDocumento && (

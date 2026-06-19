@@ -14,7 +14,7 @@ export default function UploadPreventivoBox({
   return (
     <>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>
-        📎 Trascina qui il file del preventivo
+        Carica preventivo ufficiale
       </div>
 
       <div
@@ -24,7 +24,8 @@ export default function UploadPreventivoBox({
           marginBottom: 10,
         }}
       >
-        PDF, Excel o immagini — oppure clicca per selezionare
+        Archivia il preventivo nel fascicolo e aggiorna il totale quando
+        l’importo viene rilevato con sicurezza. PDF, Excel o immagini.
       </div>
 
       <input

@@ -3904,6 +3904,92 @@ const caricaFilePreventivo = async (file: File) => {
   await handleUploadPreventivo(fakeEvent)
 }
 
+const parseNumeroMonetarioExcel = (valore: unknown) => {
+  if (typeof valore === 'number') {
+    return Number.isFinite(valore) && valore > 0 ? valore : null
+  }
+
+  const testo = String(valore || '').trim()
+  if (!testo || testo.includes('%')) return null
+  if (/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/.test(testo)) return null
+
+  const corrispondenze = testo.match(/\d[\d.,]*/g)
+
+  if (!corrispondenze) return null
+
+  const numeri = corrispondenze
+    .map((numero) => {
+      const ultimaVirgola = numero.lastIndexOf(',')
+      const ultimoPunto = numero.lastIndexOf('.')
+      let normalizzato = numero
+
+      if (ultimaVirgola >= 0 && ultimoPunto >= 0) {
+        normalizzato =
+          ultimaVirgola > ultimoPunto
+            ? numero.replace(/\./g, '').replace(',', '.')
+            : numero.replace(/,/g, '')
+      } else if (ultimaVirgola >= 0) {
+        const decimali = numero.length - ultimaVirgola - 1
+        normalizzato =
+          decimali > 0 && decimali <= 2
+            ? numero.replace(',', '.')
+            : numero.replace(/,/g, '')
+      } else if (ultimoPunto >= 0) {
+        const decimali = numero.length - ultimoPunto - 1
+        normalizzato =
+          numero.split('.').length > 2 || decimali === 3
+            ? numero.replace(/\./g, '')
+            : numero
+      }
+
+      return Number(normalizzato)
+    })
+    .filter(
+      (numero) =>
+        Number.isFinite(numero) && numero > 0 && numero <= 100_000_000
+    )
+
+  return numeri.length > 0 ? Math.max(...numeri) : null
+}
+
+const rilevaTotalePreventivoExcel = (righe: unknown[][]) => {
+  const candidati: Array<{ importo: number; priorita: number; riga: number }> = []
+
+  righe.forEach((riga, indiceRiga) => {
+    const testoRiga = riga
+      .map((cella) => String(cella || '').trim().toLowerCase())
+      .join(' ')
+      .replace(/\s+/g, ' ')
+
+    const totaleForte =
+      /\b(totale generale|totale complessivo|importo totale|totale preventivo|totale offerta)\b/.test(
+        testoRiga
+      )
+    const totaleEsplicito = riga.some((cella) =>
+      /^totale(?:\s+(?:lavori|netto|preventivo))?\s*:?$/i.test(
+        String(cella || '').trim()
+      )
+    )
+
+    if (!totaleForte && !totaleEsplicito) return
+
+    const valori = riga
+      .map(parseNumeroMonetarioExcel)
+      .filter((valore): valore is number => valore !== null)
+
+    if (valori.length === 0) return
+
+    candidati.push({
+      importo: Math.max(...valori),
+      priorita: totaleForte ? 2 : 1,
+      riga: indiceRiga,
+    })
+  })
+
+  candidati.sort((a, b) => b.priorita - a.priorita || b.riga - a.riga)
+  return candidati[0]?.importo ?? null
+}
+
 const handleUploadPreventivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0]
 
@@ -3971,41 +4057,29 @@ const { error: uploadError } = await supabase.storage
 
   let anteprima = ''
   let importoTotale = 0
+  let totaleExcelAffidabile = true
 
   if (tipo === 'excel') {
     const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array' })
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const json: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
-
-    anteprima = JSON.stringify(json.slice(0, 100))
-
-    const numeri: number[] = []
-
-    json.forEach((row: any) => {
-      if (!Array.isArray(row)) return
-
-      row.forEach((cell) => {
-        if (typeof cell === 'number' && cell > 0) {
-          numeri.push(cell)
-        }
-
-        if (typeof cell === 'string') {
-          const pulito = cell
-            .replace(/\./g, '')
-            .replace(',', '.')
-            .replace(/[^\d.]/g, '')
-
-          const numero = parseFloat(pulito)
-
-          if (!isNaN(numero) && numero > 0) {
-            numeri.push(numero)
-          }
-        }
-      })
+    const json = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      raw: false,
+      defval: '',
     })
+    const righeVisibili = json.filter(
+      (riga) =>
+        Array.isArray(riga) &&
+        riga.some((cella) => String(cella).trim() !== '')
+    )
 
-    importoTotale = numeri.length > 0 ? Number(Math.max(...numeri).toFixed(2)) : 0
+    anteprima = JSON.stringify(righeVisibili.slice(0, 100))
+
+    const totaleRilevato = rilevaTotalePreventivoExcel(righeVisibili)
+    totaleExcelAffidabile = totaleRilevato !== null
+    importoTotale =
+      totaleRilevato !== null ? Number(totaleRilevato.toFixed(2)) : 0
   }
 
   if (tipo === 'pdf') {
@@ -4042,6 +4116,15 @@ const { error: uploadError } = await supabase.storage
   }
 
   await caricaEconomia()
+  setMostraPreventiviCantiere(true)
+
+  if (tipo === 'excel' && !totaleExcelAffidabile) {
+    alert(
+      'Preventivo caricato. Totale non rilevato automaticamente, inserisci importo manualmente.'
+    )
+    return
+  }
+
   alert('Preventivo caricato ✔')
 }
 const previsioneCostiPro = () => {
