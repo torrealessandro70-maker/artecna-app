@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 
 type Props = {
   popupCategoriaFotoCantiere: boolean
@@ -9,7 +9,7 @@ type Props = {
   setCategoriaFotoDaSalvare: (v: string) => void
   setPopupCategoriaFotoCantiere: (v: boolean) => void
   setCategoriaFoto: (v: string) => void
-  salvaFotoCantiere: () => void | Promise<void>
+  salvaFotoCantiere: () => boolean | Promise<boolean>
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
 }
@@ -25,6 +25,8 @@ export default function FotoCantiereCategoriaModal({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+  const [salvataggioInCorso, setSalvataggioInCorso] = useState(false)
+
   if (!popupCategoriaFotoCantiere) return null
 
   return (
@@ -91,14 +93,25 @@ export default function FotoCantiereCategoriaModal({
 
           <button
             type="button"
+            disabled={salvataggioInCorso}
             onClick={async () => {
-              setCategoriaFoto(categoriaFotoDaSalvare)
-              await salvaFotoCantiere()
-              setPopupCategoriaFotoCantiere(false)
+              setSalvataggioInCorso(true)
+
+              try {
+                setCategoriaFoto(categoriaFotoDaSalvare)
+                const salvata = await salvaFotoCantiere()
+                if (salvata) setPopupCategoriaFotoCantiere(false)
+              } finally {
+                setSalvataggioInCorso(false)
+              }
             }}
-            style={buttonPrimary}
+            style={{
+              ...buttonPrimary,
+              opacity: salvataggioInCorso ? 0.65 : 1,
+              cursor: salvataggioInCorso ? 'wait' : 'pointer',
+            }}
           >
-            Conferma e salva
+            {salvataggioInCorso ? 'Salvataggio...' : 'Conferma e salva'}
           </button>
         </div>
       </div>

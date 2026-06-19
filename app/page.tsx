@@ -4988,7 +4988,7 @@ const eliminaPagamentoOperaio = async (id?: string) => {
 const caricaFotoCantiere = async () => {
   const { data, error } = await supabase
     .from('foto_cantiere')
-    .select('id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria')
+    .select('id,cantiere,nota,immagine_base64,data_foto,geolocalizzazione,created_at,categoria')
     .order('created_at', { ascending: false })
     .limit(80)
 
@@ -5099,16 +5099,33 @@ const scattaFotoRapportino = () => {
 
 const caricaFotoDaInput = (e: ChangeEvent<HTMLInputElement>) => {
   const files = Array.from(e.target.files || [])
-  if (files.length === 0) return
+  if (files.length === 0) {
+    alert('File mancante: seleziona almeno una foto')
+    return
+  }
 
   files.forEach((file) => {
+    if (!file.type.startsWith('image/')) {
+      alert(`File non valido: ${file.name} non è un'immagine`)
+      return
+    }
+
     const reader = new FileReader()
 
     reader.onload = () => {
+      if (typeof reader.result !== 'string' || !reader.result.startsWith('data:image/')) {
+        alert(`File non leggibile: ${file.name}`)
+        return
+      }
+
       setFotoDaCaricare((foto) => [
         ...foto,
-        String(reader.result || ''),
+        reader.result as string,
       ])
+    }
+
+    reader.onerror = () => {
+      alert(`Errore lettura file: ${file.name}`)
     }
 
     reader.readAsDataURL(file)
@@ -8242,33 +8259,158 @@ const provaAttrezzoDaImmagine = async (file: File) => {
 }
 
 
+const FOTO_CANTIERE_BUCKET = 'preventivi'
+
+const creaBlobFotoCantiere = (dataUrl: string) => {
+  const separatore = dataUrl.indexOf(',')
+  const intestazione = dataUrl.slice(0, separatore)
+
+  if (separatore < 0 || !intestazione.startsWith('data:image/')) {
+    throw new Error('Il file selezionato non contiene una foto valida')
+  }
+
+  const mimeType = intestazione.match(/^data:([^;]+)/)?.[1] || 'image/jpeg'
+  const contenuto = dataUrl.slice(separatore + 1)
+  const binario = intestazione.includes(';base64')
+    ? atob(contenuto)
+    : decodeURIComponent(contenuto)
+  const bytes = new Uint8Array(binario.length)
+
+  for (let indice = 0; indice < binario.length; indice += 1) {
+    bytes[indice] = binario.charCodeAt(indice)
+  }
+
+  return new Blob([bytes], { type: mimeType })
+}
+
+const estensioneFotoCantiere = (mimeType: string) => {
+  if (mimeType === 'image/png') return 'png'
+  if (mimeType === 'image/webp') return 'webp'
+  if (mimeType === 'image/gif') return 'gif'
+  if (mimeType === 'image/heic') return 'heic'
+  if (mimeType === 'image/heif') return 'heif'
+  return 'jpg'
+}
+
+const pulisciSegmentoStorage = (valore: string) =>
+  valore
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'cantiere'
+
 const salvaFotoCantiere = async () => {
   if (!cantiereScheda) {
-    alert('Seleziona un cantiere')
-    return
+    alert('Cantiere mancante: seleziona un cantiere prima di salvare')
+    return false
   }
 
   if (fotoDaCaricare.length === 0) {
-    alert('Carica o scatta almeno una foto')
-    return
+    alert('File mancante: carica o scatta almeno una foto')
+    return false
   }
 
-  const nuoveFoto = fotoDaCaricare.map((foto) => ({
+  let filePreparati: Array<{ blob: Blob; estensione: string }>
+
+  try {
+    filePreparati = fotoDaCaricare.map((foto) => {
+      const blob = creaBlobFotoCantiere(foto)
+      return { blob, estensione: estensioneFotoCantiere(blob.type) }
+    })
+  } catch (errore) {
+    const messaggio = errore instanceof Error ? errore.message : 'foto non valida'
+    alert('File mancante o non valido: ' + messaggio)
+    return false
+  }
+
+  const { data: datiUtente, error: erroreUtente } = await supabase.auth.getUser()
+
+  if (erroreUtente || !datiUtente.user) {
+    alert(
+      'Errore Storage upload: impossibile identificare l’utente. ' +
+        (erroreUtente?.message || 'Sessione non disponibile')
+    )
+    return false
+  }
+
+  const cantierePulito = pulisciSegmentoStorage(cantiereScheda)
+  const caricamenti: Array<{ path: string; url: string }> = []
+
+  const rimuoviUploadParziali = async () => {
+    if (caricamenti.length === 0) return
+
+    try {
+      const { error } = await supabase.storage
+        .from(FOTO_CANTIERE_BUCKET)
+        .remove(caricamenti.map((file) => file.path))
+
+      if (error) console.error('Errore rollback foto Storage:', error.message)
+    } catch (errore) {
+      console.error('Errore di rete durante il rollback foto Storage:', errore)
+    }
+  }
+
+  try {
+    for (let indice = 0; indice < filePreparati.length; indice += 1) {
+      const file = filePreparati[indice]
+      const path = `utenti/${datiUtente.user.id}/cantieri/${cantierePulito}/foto/${Date.now()}_${indice}.${file.estensione}`
+      const { error: erroreUpload } = await supabase.storage
+        .from(FOTO_CANTIERE_BUCKET)
+        .upload(path, file.blob, {
+          contentType: file.blob.type,
+          upsert: false,
+        })
+
+      if (erroreUpload) {
+        await rimuoviUploadParziali()
+        alert('Errore Storage upload: ' + erroreUpload.message)
+        return false
+      }
+
+      const { data: datiUrl } = supabase.storage
+        .from(FOTO_CANTIERE_BUCKET)
+        .getPublicUrl(path)
+
+      if (!datiUrl.publicUrl) {
+        await rimuoviUploadParziali()
+        alert('Errore Storage upload: URL pubblico della foto non disponibile')
+        return false
+      }
+
+      caricamenti.push({ path, url: datiUrl.publicUrl })
+    }
+  } catch (errore) {
+    await rimuoviUploadParziali()
+    const messaggio = errore instanceof Error ? errore.message : 'errore di rete'
+    alert('Errore Storage upload: connessione non riuscita. ' + messaggio)
+    return false
+  }
+
+  const nuoveFoto = caricamenti.map((file) => ({
     cantiere: cantiereScheda,
     nota: notaFotoCantiere,
-    immagine_base64: foto,
+    immagine_base64: file.url,
     categoria: categoriaFotoDaSalvare || categoriaFoto || 'durante',
     geolocalizzazione: geolocalizzazioneFoto,
     data_foto: new Date().toISOString().slice(0, 10),
   }))
 
-  const { error } = await supabase
-    .from('foto_cantiere')
-    .insert(nuoveFoto)
+  try {
+    const { error: erroreInsert } = await supabase
+      .from('foto_cantiere')
+      .insert(nuoveFoto)
 
-  if (error) {
-    alert('Errore salvataggio foto cantiere: ' + error.message)
-    return
+    if (erroreInsert) {
+      await rimuoviUploadParziali()
+      alert('Errore insert database foto_cantiere: ' + erroreInsert.message)
+      return false
+    }
+  } catch (errore) {
+    await rimuoviUploadParziali()
+    const messaggio = errore instanceof Error ? errore.message : 'errore di rete'
+    alert('Errore insert database foto_cantiere: connessione non riuscita. ' + messaggio)
+    return false
   }
 
   setFotoDaCaricare([])
@@ -8280,6 +8422,7 @@ const salvaFotoCantiere = async () => {
   await caricaFotoCantiere()
 
   alert('Foto cantiere salvate')
+  return true
 }
 
   const salvaPreventivo = async () => {
