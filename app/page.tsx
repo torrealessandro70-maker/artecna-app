@@ -5238,7 +5238,7 @@ const rilevaPosizioneFoto = () => {
 
 
 
-const [mostraPreventiviCantiere, setMostraPreventiviCantiere] = useState(false)
+const [mostraPreventiviCantiere, setMostraPreventiviCantiere] = useState(true)
 const [mostraMaterialiCantiere, setMostraMaterialiCantiere] = useState(false)
 const [mostraAttrezziCantiere, setMostraAttrezziCantiere] = useState(false)
 

@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 type Props = {
   preventivoCantiere: number
   mostraPreventiviCantiere: boolean
@@ -15,7 +17,6 @@ type Props = {
 }
 
 export default function PreventiviEconomiaPanel({
-  preventivoCantiere,
   mostraPreventiviCantiere,
   setMostraPreventiviCantiere,
   preventivi,
@@ -27,26 +28,54 @@ export default function PreventiviEconomiaPanel({
   caricaEconomia,
   buttonSecondary,
 }: Props) {
+  const [anteprimeAperte, setAnteprimeAperte] = useState<Record<string, boolean>>({})
+  const preventiviCantiere = preventivi.filter(
+    (preventivo) => preventivo.cantiere === cantiereScheda
+  )
+  const importoUsato = (preventivo: any) =>
+    parseImporto(
+      preventivo.importo_corretto &&
+        String(preventivo.importo_corretto).trim() !== ''
+        ? preventivo.importo_corretto
+        : preventivo.importo_totale
+    )
+  const totalePreventivi = preventiviCantiere.reduce(
+    (totale, preventivo) => totale + importoUsato(preventivo),
+    0
+  )
+
   return (
     <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-      <strong>Preventivo totale:</strong> {formatMoney(preventivoCantiere)}
+      <strong>
+        Preventivi caricati: {preventiviCantiere.length} — Totale:{' '}
+        {formatMoney(totalePreventivi)}
+      </strong>
 
       <button
         onClick={() => setMostraPreventiviCantiere(!mostraPreventiviCantiere)}
         style={{ ...buttonSecondary, marginLeft: 10 }}
       >
-        {mostraPreventiviCantiere ? 'Nascondi anteprima' : 'Vedi anteprima preventivi'}
+        {mostraPreventiviCantiere ? 'Nascondi elenco' : 'Mostra preventivi'}
       </button>
 
       {mostraPreventiviCantiere && (
         <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-          {preventivi.filter((p) => p.cantiere === cantiereScheda).length === 0 ? (
+          {preventiviCantiere.length === 0 ? (
             <p>Nessun preventivo caricato.</p>
           ) : (
-            preventivi
-              .filter((p) => p.cantiere === cantiereScheda)
-              .slice(0, 1)
-              .map((p, i) => (
+            preventiviCantiere.map((p, i) => {
+              const chiaveAnteprima = String(
+                p.id || p.file_path || `${p.nome_file || 'preventivo'}-${i}`
+              )
+              const anteprimaAperta = Boolean(anteprimeAperte[chiaveAnteprima])
+              const haAnteprima = Boolean(
+                (p.file_tipo === 'pdf' && p.file_url) ||
+                  (p.file_tipo === 'excel' && p.anteprima_testo)
+              )
+              const importoEffettivo = importoUsato(p)
+              const importoCorretto = String(p.importo_corretto ?? '').trim()
+
+              return (
                 <div
                   key={p.id || i}
                   style={{
@@ -61,17 +90,17 @@ export default function PreventiviEconomiaPanel({
 
                   <div style={{ marginTop: 8 }}>
                     <strong>Importo usato nel totale:</strong>{' '}
-                    {formatMoney(
-                      parseImporto(
-                        (p as any).importo_corretto &&
-                          String((p as any).importo_corretto).trim() !== ''
-                          ? (p as any).importo_corretto
-                          : p.importo_totale
-                      )
-                    )}
+                    {formatMoney(importoEffettivo)}
                   </div>
 
-                  {parseImporto(p.importo_totale) <= 0 && (
+                  {importoCorretto && (
+                    <div style={{ marginTop: 5, color: '#475569' }}>
+                      <strong>Importo corretto:</strong>{' '}
+                      {formatMoney(parseImporto(importoCorretto))}
+                    </div>
+                  )}
+
+                  {importoEffettivo <= 0 && (
                     <div
                       role="alert"
                       style={{
@@ -154,7 +183,28 @@ export default function PreventiviEconomiaPanel({
                   <br />
                   Note: {p.note || '-'}
 
-                  {p.file_tipo === 'pdf' && p.file_url && (
+                  <div style={{ marginTop: 10 }}>
+                    {haAnteprima ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAnteprimeAperte((correnti) => ({
+                            ...correnti,
+                            [chiaveAnteprima]: !anteprimaAperta,
+                          }))
+                        }
+                        style={buttonSecondary}
+                      >
+                        {anteprimaAperta ? 'Nascondi anteprima' : 'Mostra anteprima'}
+                      </button>
+                    ) : (
+                      <span style={{ color: '#64748b', fontSize: 13 }}>
+                        Anteprima non disponibile
+                      </span>
+                    )}
+                  </div>
+
+                  {anteprimaAperta && p.file_tipo === 'pdf' && p.file_url && (
                     <div
                       style={{
                         width: 700,
@@ -180,7 +230,7 @@ export default function PreventiviEconomiaPanel({
                     </div>
                   )}
 
-                  {p.file_tipo === 'excel' && p.anteprima_testo && (
+                  {anteprimaAperta && p.file_tipo === 'excel' && p.anteprima_testo && (
                     <div
                       style={{
                         marginTop: 12,
@@ -307,7 +357,8 @@ export default function PreventiviEconomiaPanel({
                     </button>
                   </div>
                 </div>
-              ))
+              )
+            })
           )}
         </div>
       )}
