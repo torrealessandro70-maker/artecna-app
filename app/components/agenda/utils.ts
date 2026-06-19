@@ -83,21 +83,8 @@ function dataOraIcs(data: string, ora: string) {
   return `${data.replace(/-/g, '')}T${(ora || '09:00').replace(':', '')}00`
 }
 
-export function aggiungiUnOra(ora: string) {
-  const [ore, minuti] = (ora || '09:00').split(':').map(Number)
-  const totaleMinuti = ore * 60 + minuti + 60
-
-  if (totaleMinuti >= 24 * 60) return '23:59'
-
-  return `${String(Math.floor(totaleMinuti / 60)).padStart(2, '0')}:${String(
-    totaleMinuti % 60
-  ).padStart(2, '0')}`
-}
-
-export function esportaAttivitaIcs(attivita: AttivitaAgenda) {
-  const oraInizio = attivita.ora || '09:00'
-  const oraFine = attivita.oraFine || aggiungiUnOra(oraInizio)
-  const descrizione = [
+function descrizioneCalendario(attivita: AttivitaAgenda) {
+  return [
     attivita.descrizione,
     attivita.checklist?.length
       ? `Checklist:\n${attivita.checklist
@@ -111,6 +98,63 @@ export function esportaAttivitaIcs(attivita: AttivitaAgenda) {
   ]
     .filter(Boolean)
     .join('\n')
+}
+
+function intervalloCalendario(attivita: AttivitaAgenda) {
+  const oraInizio = attivita.ora || '09:00'
+  return {
+    oraInizio,
+    oraFine: attivita.oraFine || aggiungiUnOra(oraInizio),
+  }
+}
+
+function dataOraIsoLocale(data: string, ora: string) {
+  return `${data}T${ora}:00`
+}
+
+export function urlGoogleCalendar(attivita: AttivitaAgenda) {
+  const { oraInizio, oraFine } = intervalloCalendario(attivita)
+  const parametri = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: attivita.titolo,
+    dates: `${dataOraIcs(attivita.data, oraInizio)}/${dataOraIcs(
+      attivita.data,
+      oraFine
+    )}`,
+    details: descrizioneCalendario(attivita),
+  })
+
+  return `https://calendar.google.com/calendar/render?${parametri.toString()}`
+}
+
+export function urlOutlookCalendar(attivita: AttivitaAgenda) {
+  const { oraInizio, oraFine } = intervalloCalendario(attivita)
+  const parametri = new URLSearchParams({
+    path: '/calendar/action/compose',
+    rru: 'addevent',
+    subject: attivita.titolo,
+    startdt: dataOraIsoLocale(attivita.data, oraInizio),
+    enddt: dataOraIsoLocale(attivita.data, oraFine),
+    body: descrizioneCalendario(attivita),
+  })
+
+  return `https://outlook.live.com/calendar/0/deeplink/compose?${parametri.toString()}`
+}
+
+export function aggiungiUnOra(ora: string) {
+  const [ore, minuti] = (ora || '09:00').split(':').map(Number)
+  const totaleMinuti = ore * 60 + minuti + 60
+
+  if (totaleMinuti >= 24 * 60) return '23:59'
+
+  return `${String(Math.floor(totaleMinuti / 60)).padStart(2, '0')}:${String(
+    totaleMinuti % 60
+  ).padStart(2, '0')}`
+}
+
+export function esportaAttivitaIcs(attivita: AttivitaAgenda) {
+  const { oraInizio, oraFine } = intervalloCalendario(attivita)
+  const descrizione = descrizioneCalendario(attivita)
 
   const contenuto = [
     'BEGIN:VCALENDAR',

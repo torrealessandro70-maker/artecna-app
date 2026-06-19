@@ -1,11 +1,13 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   aggiungiUnOra,
   esportaAttivitaIcs,
   formattaData,
   type AttivitaAgenda,
+  urlGoogleCalendar,
+  urlOutlookCalendar,
 } from './utils'
 
 type Props = {
@@ -23,6 +25,9 @@ export default function AgendaAttivitaCard({
   onElimina,
   buttonSecondary,
 }: Props) {
+  const [menuCalendarioAperto, setMenuCalendarioAperto] = useState(false)
+  const [dispositivoApple, setDispositivoApple] = useState<boolean | null>(null)
+  const menuCalendarioRef = useRef<HTMLDivElement>(null)
   const completata = attivita.stato === 'completata'
   const totaleChecklist = attivita.checklist?.length || 0
   const checklistCompletate =
@@ -34,6 +39,61 @@ export default function AgendaAttivitaCard({
   const intervalloOrario = attivita.ora
     ? `${attivita.ora}\u2013${attivita.oraFine || aggiungiUnOra(attivita.ora)}`
     : 'Ora da definire'
+
+  useEffect(() => {
+    if (!menuCalendarioAperto) return
+
+    const chiudiMenu = (evento: PointerEvent) => {
+      if (!menuCalendarioRef.current?.contains(evento.target as Node)) {
+        setMenuCalendarioAperto(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', chiudiMenu)
+    return () => document.removeEventListener('pointerdown', chiudiMenu)
+  }, [menuCalendarioAperto])
+
+  const stileVoceCalendario: CSSProperties = {
+    display: 'block',
+    width: '100%',
+    padding: '10px 12px',
+    border: 0,
+    borderRadius: 8,
+    background: 'transparent',
+    color: '#0f172a',
+    cursor: 'pointer',
+    font: 'inherit',
+    fontWeight: 700,
+    textAlign: 'left',
+    textDecoration: 'none',
+  }
+
+  const voceGoogle = (
+    <a
+      key="google"
+      href={urlGoogleCalendar(attivita)}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() => setMenuCalendarioAperto(false)}
+      style={stileVoceCalendario}
+    >
+      Google Calendar
+    </a>
+  )
+
+  const voceApple = (
+    <button
+      key="apple"
+      type="button"
+      onClick={() => {
+        esportaAttivitaIcs(attivita)
+        setMenuCalendarioAperto(false)
+      }}
+      style={stileVoceCalendario}
+    >
+      Apple Calendar / file .ics
+    </button>
+  )
 
   return (
     <article
@@ -200,13 +260,64 @@ export default function AgendaAttivitaCard({
         >
           Modifica
         </button>
-        <button
-          type="button"
-          onClick={() => esportaAttivitaIcs(attivita)}
-          style={{ ...buttonSecondary, minHeight: 44, padding: '9px 12px' }}
-        >
-          Aggiungi al calendario
-        </button>
+        <div ref={menuCalendarioRef} style={{ position: 'relative' }}>
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={menuCalendarioAperto}
+            onClick={() => {
+              if (dispositivoApple === null) {
+                const piattaforma = navigator.userAgent || navigator.platform || ''
+                setDispositivoApple(
+                  /iPad|iPhone|iPod|Macintosh|Mac OS X/i.test(piattaforma)
+                )
+              }
+              setMenuCalendarioAperto((aperto) => !aperto)
+            }}
+            style={{ ...buttonSecondary, minHeight: 44, padding: '9px 12px' }}
+          >
+            Aggiungi al calendario
+          </button>
+
+          {menuCalendarioAperto && (
+            <div
+              role="menu"
+              style={{
+                position: 'absolute',
+                zIndex: 20,
+                left: 0,
+                bottom: 'calc(100% + 7px)',
+                width: 245,
+                padding: 6,
+                border: '1px solid #cbd5e1',
+                borderRadius: 11,
+                background: '#fff',
+                boxShadow: '0 12px 28px rgba(15,23,42,0.18)',
+              }}
+            >
+              {dispositivoApple ? [voceApple, voceGoogle] : [voceGoogle, voceApple]}
+              <a
+                href={urlOutlookCalendar(attivita)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuCalendarioAperto(false)}
+                style={stileVoceCalendario}
+              >
+                Outlook Calendar
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  esportaAttivitaIcs(attivita)
+                  setMenuCalendarioAperto(false)
+                }}
+                style={stileVoceCalendario}
+              >
+                Scarica file .ics
+              </button>
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => onCambiaStato(attivita.id)}

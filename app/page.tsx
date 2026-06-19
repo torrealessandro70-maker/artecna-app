@@ -10451,7 +10451,7 @@ textarea:not(.impostazioni-input) {
             }}
             style={submenuButtonStyle(sottoSezioneCantieri === 'economia')}
           >
-            💶 Economia cantiere
+            📁 Fascicolo cantiere
           </div>
         </div>
       )}
@@ -10615,7 +10615,7 @@ textarea:not(.impostazioni-input) {
       ['cantieri-elenco', '📋 Elenco cantieri'],
       ['cantieri-scheda', '🏗️ Scheda cantiere'],
       ['cantieri-analisi', '📄 Analisi documento'],
-      ['cantieri-economia', '💶 Economia cantiere'],
+      ['cantieri-economia', '📁 Fascicolo cantiere'],
       ['operai-anagrafica', '👷 Anagrafica operai'],
       ['operai-timbrature', '🕒 Timbrature'],
       ['operai-presenze', '📋 Presenze / costi'],
@@ -10936,7 +10936,7 @@ WebkitOverflowScrolling: 'touch',
 
     {pagineAperte.includes('cantieri-economia') && (
       <div style={{ ...cardStyle, minWidth: 420, maxWidth: 480 }}>
-        <h3>💶 Economia cantiere</h3>
+        <h3>📁 Fascicolo cantiere</h3>
         <p>Cantiere: {cantiereScheda || 'nessuno'}</p>
         <p>Preventivo: {formatMoney(preventivoCantiere)}</p>
         <p>Manodopera: {formatMoney(totaleManodoperaCantiere)}</p>
@@ -11002,7 +11002,7 @@ WebkitOverflowScrolling: 'touch',
 )}
     {pagineAperte.includes('cantieri-economia') && (
       <div style={cardStyle}>
-        <h3>💶 Economia cantiere</h3>
+        <h3>📁 Fascicolo cantiere</h3>
         <p>Cantiere: {cantiereScheda || 'nessuno'}</p>
         <p>Preventivo: {formatMoney(preventivoCantiere)}</p>
         <p>Manodopera: {formatMoney(totaleManodoperaCantiere)}</p>
@@ -11343,6 +11343,50 @@ WebkitOverflowScrolling: 'touch',
   setMostraAttrezziCantiere={setMostraAttrezziCantiere}
   attrezziCantiere={attrezziCantiere}
   eliminaAttrezzatura={eliminaAttrezzatura}
+  caricaFileAnalisiDocumento={caricaFileAnalisiDocumento}
+  fileAnalisiDocumento={fileAnalisiDocumento}
+  nomeFileAnalisiDocumento={nomeFileAnalisiDocumento}
+  testoEstrattoDocumento={testoEstrattoDocumento}
+  importoRilevatoDocumento={importoRilevatoDocumento}
+  vociAnalizzate={vociAnalizzate}
+  caricaFotoDaInput={caricaFotoDaInput}
+  cameraFotoCantiereAttiva={cameraFotoCantiereAttiva}
+  setCameraFotoCantiereAttiva={setCameraFotoCantiereAttiva}
+  cameraFotoCantiereFullscreen={cameraFotoCantiereFullscreen}
+  setCameraFotoCantiereFullscreen={setCameraFotoCantiereFullscreen}
+  webcamFotoCantiereRef={webcamFotoCantiereRef}
+  scattaFotoCantiere={scattaFotoCantiere}
+  rilevaPosizioneFoto={rilevaPosizioneFoto}
+  fotoDaCaricare={fotoDaCaricare}
+  setFotoDaCaricare={setFotoDaCaricare}
+  categoriaFoto={categoriaFoto}
+  setCategoriaFoto={setCategoriaFoto}
+  categoriaFotoDaSalvare={categoriaFotoDaSalvare}
+  setCategoriaFotoDaSalvare={setCategoriaFotoDaSalvare}
+  popupCategoriaFotoCantiere={popupCategoriaFotoCantiere}
+  setPopupCategoriaFotoCantiere={setPopupCategoriaFotoCantiere}
+  esportaPdfFotoCantiere={esportaPdfFotoCantiere}
+  notaFotoCantiere={notaFotoCantiere}
+  setNotaFotoCantiere={setNotaFotoCantiere}
+  note={note}
+  setNote={setNote}
+  avviaDettatura={avviaDettatura}
+  fotoCantiere={fotoCantiere}
+  setFotoCantiere={setFotoCantiere}
+  filtroFotoCantiere={filtroFotoCantiere}
+  setFiltroFotoCantiere={setFiltroFotoCantiere}
+  fotoCantiereSelezionate={fotoCantiereSelezionate}
+  setFotoCantiereSelezionate={setFotoCantiereSelezionate}
+  categoriaFotoMultipla={categoriaFotoMultipla}
+  setCategoriaFotoMultipla={setCategoriaFotoMultipla}
+  aggiornaCategoriaFotoSelezionate={aggiornaCategoriaFotoSelezionate}
+  setFotoFullscreen={setFotoFullscreen}
+  caricaFotoCantiere={caricaFotoCantiere}
+  eliminaFotoCantiere={eliminaFotoCantiere}
+  geolocalizzazioneFoto={geolocalizzazioneFoto}
+  salvaFotoCantiere={salvaFotoCantiere}
+  setRegistroTab={setRegistroTab}
+  setSezioneAttiva={setSezioneAttiva}
 />
 )}
 

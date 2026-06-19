@@ -11,10 +11,10 @@ export default function CantieriAnalisiDocumentoPanel(props: any) {
   )
 
   return (
-    <div style={p.cardStyle}>
-      <h2>Analisi documento cantiere</h2>
+    <div style={p.integrato ? undefined : p.cardStyle}>
+      <h2>{p.integrato ? 'Analisi documento' : 'Analisi documento cantiere'}</h2>
 
-      <div style={{ marginBottom: 20 }}>
+      {!p.integrato && <div style={{ marginBottom: 20 }}>
         <strong>Seleziona cantiere</strong>
 
         <div style={{ marginTop: 10 }}>
@@ -30,7 +30,7 @@ export default function CantieriAnalisiDocumentoPanel(props: any) {
             buttonSecondary={p.buttonSecondary}
           />
         </div>
-      </div>
+      </div>}
 
       <div
         style={{

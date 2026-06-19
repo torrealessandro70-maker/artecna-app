@@ -2,7 +2,6 @@
 
 import type { CSSProperties } from 'react'
 import SelectCantiere from './SelectCantiere'
-import UploadPreventivoBox from './UploadPreventivoBox'
 
 type Props = {
   cantieri: any[]
@@ -14,13 +13,6 @@ type Props = {
 
   mostraConclusiEconomia: boolean
   setMostraConclusiEconomia: (value: boolean) => void
-
-  dragAttivo: boolean
-  setDragAttivo: (value: boolean) => void
-  caricaFilePreventivo: (file: File) => void | Promise<void>
-  handleUploadPreventivo: (
-  e: React.ChangeEvent<HTMLInputElement>
-) => void | Promise<void>
 
   inputStyle: CSSProperties
   buttonSecondary: CSSProperties
@@ -34,10 +26,6 @@ export default function EconomiaSelezioneCantierePanel({
   setRicercaCantiereEconomia,
   mostraConclusiEconomia,
   setMostraConclusiEconomia,
-  dragAttivo,
-  setDragAttivo,
-  caricaFilePreventivo,
-  handleUploadPreventivo,
   inputStyle,
   buttonSecondary,
 }: Props) {
@@ -82,40 +70,6 @@ export default function EconomiaSelezioneCantierePanel({
         buttonSecondary={buttonSecondary}
       />
 
-      <div
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragAttivo(true)
-        }}
-        onDragLeave={() => setDragAttivo(false)}
-        onDrop={async (e) => {
-          e.preventDefault()
-          setDragAttivo(false)
-
-          const file = e.dataTransfer.files?.[0]
-
-          if (!file) return
-
-          await caricaFilePreventivo(file)
-        }}
-        style={{
-          padding: 20,
-          border: dragAttivo
-            ? '2px solid #2563eb'
-            : '2px dashed #cbd5e1',
-          borderRadius: 12,
-          background: dragAttivo ? '#eff6ff' : '#f8fafc',
-          marginBottom: 15,
-          textAlign: 'center',
-          cursor: cantiereScheda ? 'pointer' : 'not-allowed',
-          opacity: cantiereScheda ? 1 : 0.6,
-        }}
-      >
-        <UploadPreventivoBox
-          cantiereScheda={cantiereScheda || ''}
-          handleUploadPreventivo={handleUploadPreventivo}
-        />
-      </div>
     </>
   )
 }
