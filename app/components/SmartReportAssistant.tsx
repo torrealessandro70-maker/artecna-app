@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   parseReportNarration,
   type ParsedReport,
@@ -35,6 +35,81 @@ export default function SmartReportAssistant({
   onParsedReport,
 }: Props) {
   const [anteprima, setAnteprima] = useState<ParsedReport | null>(null)
+  const [ascoltoAttivo, setAscoltoAttivo] = useState(false)
+  const recognitionRef = useRef<any>(null)
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop()
+    }
+  }, [])
+
+  const avviaDettatura = () => {
+    if (recognitionRef.current) return
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition
+
+    if (!SpeechRecognition) {
+      alert('La dettatura vocale non e supportata da questo browser.')
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    const testoIniziale = testo.trimEnd()
+
+    recognitionRef.current = recognition
+    recognition.lang = 'it-IT'
+    recognition.continuous = true
+    recognition.interimResults = true
+
+    recognition.onstart = () => {
+      setAscoltoAttivo(true)
+    }
+
+    recognition.onresult = (event: any) => {
+      const partiFinali: string[] = []
+      const partiIntermedie: string[] = []
+
+      for (let i = 0; i < event.results.length; i++) {
+        const frase = String(event.results[i][0].transcript || '').trim()
+
+        if (!frase) continue
+
+        if (event.results[i].isFinal) {
+          partiFinali.push(frase)
+        } else {
+          partiIntermedie.push(frase)
+        }
+      }
+
+      const trascrizione = [...partiFinali, ...partiIntermedie].join(' ')
+      onChangeTesto(
+        testoIniziale && trascrizione
+          ? `${testoIniziale}\n${trascrizione}`
+          : testoIniziale || trascrizione
+      )
+    }
+
+    recognition.onerror = (event: any) => {
+      if (event.error !== 'aborted') {
+        alert('Errore durante la dettatura vocale.')
+      }
+    }
+
+    recognition.onend = () => {
+      recognitionRef.current = null
+      setAscoltoAttivo(false)
+    }
+
+    recognition.start()
+  }
+
+  const fermaDettatura = () => {
+    recognitionRef.current?.stop()
+    setAscoltoAttivo(false)
+  }
 
   const preparaRapportino = () => {
     const report = parseReportNarration(testo, context)
@@ -78,15 +153,25 @@ export default function SmartReportAssistant({
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
           type="button"
-          disabled
-          style={{ ...buttonSecondary, ...disabledButtonStyle }}
+          onClick={avviaDettatura}
+          disabled={ascoltoAttivo}
+          style={{
+            ...buttonSecondary,
+            ...(ascoltoAttivo ? disabledButtonStyle : {}),
+          }}
         >
           🎤 Avvia dettatura
         </button>
         <button
           type="button"
-          disabled
-          style={{ ...buttonSecondary, ...disabledButtonStyle }}
+          onClick={fermaDettatura}
+          disabled={!ascoltoAttivo}
+          style={{
+            ...buttonSecondary,
+            ...(!ascoltoAttivo ? disabledButtonStyle : {}),
+            backgroundColor: ascoltoAttivo ? '#dc2626' : undefined,
+            color: ascoltoAttivo ? '#fff' : undefined,
+          }}
         >
           ⏹ Ferma
         </button>
