@@ -1,6 +1,11 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
+import {
+  parseReportNarration,
+  type ParsedReport,
+  type ReportNarrationContext,
+} from '../engines/document-intelligence/report-parser'
 
 type Props = {
   testo: string
@@ -8,6 +13,7 @@ type Props = {
   inputStyle: CSSProperties
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
+  context: ReportNarrationContext
 }
 
 const prossimeEvoluzioni = [
@@ -24,7 +30,10 @@ export default function SmartReportAssistant({
   inputStyle,
   buttonPrimary,
   buttonSecondary,
+  context,
 }: Props) {
+  const [anteprima, setAnteprima] = useState<ParsedReport | null>(null)
+
   const disabledButtonStyle: CSSProperties = {
     opacity: 0.6,
     cursor: 'not-allowed',
@@ -74,12 +83,83 @@ export default function SmartReportAssistant({
         </button>
         <button
           type="button"
-          disabled
-          style={{ ...buttonPrimary, ...disabledButtonStyle }}
+          onClick={() => setAnteprima(parseReportNarration(testo, context))}
+          style={buttonPrimary}
         >
           🤖 Prepara rapportino
         </button>
       </div>
+
+      {anteprima && (
+        <section
+          style={{
+            display: 'grid',
+            gap: 10,
+            padding: 14,
+            border: '1px solid #a5b4fc',
+            borderRadius: 8,
+            background: '#fff',
+          }}
+        >
+          <h4 style={{ margin: 0 }}>Anteprima rapportino AI</h4>
+
+          <div>
+            <strong>Cantiere:</strong> {anteprima.cantiere || 'Non rilevato'}
+          </div>
+          <div>
+            <strong>Data:</strong> {anteprima.data || 'Non rilevata'}
+          </div>
+
+          <div>
+            <strong>Operai:</strong>
+            {anteprima.operai.length > 0 ? (
+              <pre style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0' }}>
+                {JSON.stringify(anteprima.operai, null, 2)}
+              </pre>
+            ) : (
+              ' Nessuno'
+            )}
+          </div>
+
+          <div>
+            <strong>Materiali:</strong>
+            {anteprima.materiali.length > 0 ? (
+              <pre style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0' }}>
+                {JSON.stringify(anteprima.materiali, null, 2)}
+              </pre>
+            ) : (
+              ' Nessuno'
+            )}
+          </div>
+
+          <div>
+            <strong>Lavorazioni:</strong>{' '}
+            {anteprima.lavorazioni.length > 0
+              ? anteprima.lavorazioni.join(', ')
+              : 'Nessuna'}
+          </div>
+          <div>
+            <strong>Note:</strong> {anteprima.note || 'Nessuna'}
+          </div>
+
+          <div>
+            <strong>Warnings:</strong>
+            {anteprima.warnings.length > 0 ? (
+              <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+                {anteprima.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            ) : (
+              ' Nessuno'
+            )}
+          </div>
+
+          <div>
+            <strong>Confidence:</strong> {anteprima.confidence}
+          </div>
+        </section>
+      )}
 
       <aside
         style={{
