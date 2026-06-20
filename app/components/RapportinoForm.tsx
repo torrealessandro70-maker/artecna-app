@@ -1,7 +1,16 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import type { Cantiere } from '../types'
+import SmartReportAssistant from './SmartReportAssistant'
+
+const checklistRapportino = [
+  'Lavorazioni eseguite',
+  'Personale presente',
+  'Materiali utilizzati',
+  'Criticita riscontrate',
+  'Lavori da completare',
+]
 
 type Props = {
   cantiereRapporto: string
@@ -21,6 +30,9 @@ type Props = {
   inputStyle: CSSProperties
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
+  ascoltoRapportino: boolean
+  avviaDettaturaRapportino: () => void
+  fermaDettaturaRapportino: () => void
   onClose: () => void
 }
 
@@ -42,8 +54,22 @@ export default function RapportinoForm({
   inputStyle,
   buttonPrimary,
   buttonSecondary,
+  ascoltoRapportino,
+  avviaDettaturaRapportino,
+  fermaDettaturaRapportino,
   onClose,
 }: Props) {
+  const [testoRacconto, setTestoRacconto] = useState('')
+
+  const aggiungiVoceChecklist = (voce: string) => {
+    const riga = `☐ ${voce}`
+    const notaCorrente = note.trimEnd()
+
+    if (notaCorrente.split('\n').some((linea) => linea.trim() === riga)) return
+
+    setNote(notaCorrente ? `${notaCorrente}\n${riga}` : riga)
+  }
+
   return (
     <div
       style={{
@@ -84,6 +110,14 @@ export default function RapportinoForm({
         />
       </label>
 
+      <SmartReportAssistant
+        testo={testoRacconto}
+        onChangeTesto={setTestoRacconto}
+        inputStyle={inputStyle}
+        buttonPrimary={buttonPrimary}
+        buttonSecondary={buttonSecondary}
+      />
+
       <label>
         Note / lavorazioni
         <textarea
@@ -93,6 +127,62 @@ export default function RapportinoForm({
           rows={4}
         />
       </label>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={avviaDettaturaRapportino}
+          disabled={ascoltoRapportino}
+          style={buttonSecondary}
+        >
+          🎤 Avvia dettatura
+        </button>
+        <button
+          type="button"
+          onClick={fermaDettaturaRapportino}
+          disabled={!ascoltoRapportino}
+          style={{
+            ...buttonSecondary,
+            backgroundColor: ascoltoRapportino ? '#dc2626' : undefined,
+            color: ascoltoRapportino ? '#fff' : undefined,
+          }}
+        >
+          ⏹ Stop
+        </button>
+      </div>
+
+      <fieldset
+        style={{
+          display: 'grid',
+          gap: 8,
+          margin: 0,
+          padding: 12,
+          border: '1px solid #e2e8f0',
+          borderRadius: 8,
+        }}
+      >
+        <legend style={{ padding: '0 6px', fontWeight: 600 }}>
+          Checklist rapida
+        </legend>
+        {checklistRapportino.map((voce) => {
+          const riga = `☐ ${voce}`
+          const presente = note
+            .split('\n')
+            .some((linea) => linea.trim() === riga)
+
+          return (
+            <label key={voce} style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={presente}
+                disabled={presente}
+                onChange={() => aggiungiVoceChecklist(voce)}
+              />
+              {voce}
+            </label>
+          )
+        })}
+      </fieldset>
 
       <label>
         Materiali
