@@ -11728,6 +11728,22 @@ WebkitOverflowScrolling: 'touch',
     preparaModificaRapportino={preparaModificaRapportino}
     eliminaRapportino={eliminaRapportino}
     generaPdfRapportinoFotografico={generaPdfRapportinoFotografico}
+    cantiereRapporto={cantiereRapporto}
+    setCantiereRapporto={setCantiereRapporto}
+    data={data}
+    setData={setData}
+    note={note}
+    setNote={setNote}
+    materiali={materiali}
+    setMateriali={setMateriali}
+    quantitaMateriali={quantitaMateriali}
+    setQuantitaMateriali={setQuantitaMateriali}
+    costoMateriali={costoMateriali}
+    setCostoMateriali={setCostoMateriali}
+    salvaRapportino={salvaRapportino}
+    cantieri={cantieri}
+    inputStyle={inputStyle}
+    buttonPrimary={buttonPrimary}
     buttonSecondary={buttonSecondary}
   />
 )}
