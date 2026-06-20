@@ -29,7 +29,7 @@ import FotoFullscreenModal from './components/FotoFullscreenModal'
 import OperaioForm from './components/OperaioForm'
 import OperaioCard from './components/OperaioCard'
 import OperaiList from './components/OperaiList'
-import RapportiniList from './components/RapportiniList'
+import RapportiniPanel from './components/RapportiniPanel'
 import SopralluoghiContainer from './components/SopralluoghiContainer'
 import FotoCantiereAnteprime from './components/FotoCantiereAnteprime'
 import FotoCantiereCategoriaModal from './components/FotoCantiereCategoriaModal'
@@ -11714,6 +11714,23 @@ WebkitOverflowScrolling: 'touch',
   costoPerCantiereOggi={costoPerCantiereOggi}
   erroreTimbratura={erroreTimbratura}
 />
+
+{/* ================= RAPPORTINI ================= */}
+{(
+  pagineAperte.includes('rapportini') ||
+  (!modalitaMulti && sezioneAttiva === 'rapportini')
+) && (
+  <RapportiniPanel
+    cardStyle={cardStyle}
+    rapportiniFiltrati={rapportiniFiltrati}
+    fotoCantiere={fotoCantiere}
+    setFotoRapportinoAperte={setFotoRapportinoAperte}
+    preparaModificaRapportino={preparaModificaRapportino}
+    eliminaRapportino={eliminaRapportino}
+    generaPdfRapportinoFotografico={generaPdfRapportinoFotografico}
+    buttonSecondary={buttonSecondary}
+  />
+)}
 
 {/* ================= SOPRALLUOGHI ================= */}
 {sezioneAttiva === 'sopralluoghi' && (
