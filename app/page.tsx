@@ -11745,6 +11745,12 @@ WebkitOverflowScrolling: 'touch',
     inputStyle={inputStyle}
     buttonPrimary={buttonPrimary}
     buttonSecondary={buttonSecondary}
+    ascoltoRapportino={ascoltoRapportino}
+    avviaDettaturaRapportino={avviaDettaturaRapportino}
+    fermaDettaturaRapportino={fermaDettaturaRapportino}
+    operaiAnagrafica={operaiAnagrafica}
+    operaiRapportinoTemp={operaiRapportinoTemp}
+    setOperaiRapportinoTemp={setOperaiRapportinoTemp}
   />
 )}
 

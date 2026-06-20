@@ -1,8 +1,15 @@
 'use client'
 
-import { useState, type CSSProperties } from 'react'
-import type { Cantiere } from '../types'
-import RapportinoForm from './RapportinoForm'
+import {
+  useState,
+  type CSSProperties,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
+import type { Cantiere, Operaio } from '../types'
+import RapportinoForm, {
+  type OperaioRapportinoTemp,
+} from './RapportinoForm'
 import RapportiniList from './RapportiniList'
 
 type Props = {
@@ -32,6 +39,14 @@ type Props = {
   inputStyle: CSSProperties
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
+  ascoltoRapportino: boolean
+  avviaDettaturaRapportino: () => void
+  fermaDettaturaRapportino: () => void
+  operaiAnagrafica: Operaio[]
+  operaiRapportinoTemp: OperaioRapportinoTemp[]
+  setOperaiRapportinoTemp: Dispatch<
+    SetStateAction<OperaioRapportinoTemp[]>
+  >
 }
 
 export default function RapportiniPanel({
@@ -59,6 +74,12 @@ export default function RapportiniPanel({
   inputStyle,
   buttonPrimary,
   buttonSecondary,
+  ascoltoRapportino,
+  avviaDettaturaRapportino,
+  fermaDettaturaRapportino,
+  operaiAnagrafica,
+  operaiRapportinoTemp,
+  setOperaiRapportinoTemp,
 }: Props) {
   const [mostraInserimento, setMostraInserimento] = useState(false)
 
@@ -111,6 +132,12 @@ export default function RapportiniPanel({
           inputStyle={inputStyle}
           buttonPrimary={buttonPrimary}
           buttonSecondary={buttonSecondary}
+          ascoltoRapportino={ascoltoRapportino}
+          avviaDettaturaRapportino={avviaDettaturaRapportino}
+          fermaDettaturaRapportino={fermaDettaturaRapportino}
+          operaiAnagrafica={operaiAnagrafica}
+          operaiRapportinoTemp={operaiRapportinoTemp}
+          setOperaiRapportinoTemp={setOperaiRapportinoTemp}
           onClose={() => setMostraInserimento(false)}
         />
       )}
