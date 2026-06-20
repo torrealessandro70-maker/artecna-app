@@ -1,7 +1,13 @@
 'use client'
 
-import { useState, type CSSProperties } from 'react'
-import type { Cantiere } from '../types'
+import {
+  useState,
+  type CSSProperties,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
+import type { Cantiere, Operaio } from '../types'
+import type { ParsedReport } from '../engines/document-intelligence/report-parser'
 import SmartReportAssistant from './SmartReportAssistant'
 
 const checklistRapportino = [
@@ -11,6 +17,14 @@ const checklistRapportino = [
   'Criticita riscontrate',
   'Lavori da completare',
 ]
+
+export type OperaioRapportinoTemp = {
+  nome: string
+  ora_inizio?: string
+  ora_fine?: string
+  ore: number
+  costo_orario: number
+}
 
 type Props = {
   cantiereRapporto: string
@@ -33,6 +47,11 @@ type Props = {
   ascoltoRapportino: boolean
   avviaDettaturaRapportino: () => void
   fermaDettaturaRapportino: () => void
+  operaiAnagrafica: Operaio[]
+  operaiRapportinoTemp: OperaioRapportinoTemp[]
+  setOperaiRapportinoTemp: Dispatch<
+    SetStateAction<OperaioRapportinoTemp[]>
+  >
   onClose: () => void
 }
 
@@ -57,9 +76,67 @@ export default function RapportinoForm({
   ascoltoRapportino,
   avviaDettaturaRapportino,
   fermaDettaturaRapportino,
+  operaiAnagrafica,
+  operaiRapportinoTemp,
+  setOperaiRapportinoTemp,
   onClose,
 }: Props) {
   const [testoRacconto, setTestoRacconto] = useState('')
+
+  const applicaReport = (report: ParsedReport) => {
+    if (report.cantiere) setCantiereRapporto(report.cantiere)
+    if (report.data) setData(report.data)
+    if (report.note.trim()) setNote(report.note)
+
+    if (report.materiali.length > 0) {
+      const materialiEstratti = report.materiali
+        .map((materiale) => {
+          if (typeof materiale === 'string') return materiale
+
+          const nome = String(materiale?.nome || '').trim()
+          const quantita = materiale?.quantita
+          const unita = String(materiale?.unita || nome).trim()
+
+          return quantita ? `${quantita} ${unita}` : nome
+        })
+        .filter(Boolean)
+
+      if (materialiEstratti.length > 0) {
+        setMateriali(materialiEstratti.join(', '))
+      }
+    }
+
+    if (report.operai.length > 0) {
+      const nomiRiconosciuti = new Set(
+        report.operai
+          .map((operaio) =>
+            typeof operaio === 'string' ? operaio : String(operaio?.nome || '')
+          )
+          .filter(Boolean)
+      )
+
+      setOperaiRapportinoTemp((operaiCorrenti) => {
+        const nomiPresenti = new Set(
+          operaiCorrenti.map((operaio) => operaio.nome)
+        )
+        const nuoviOperai = operaiAnagrafica
+          .filter(
+            (operaio) =>
+              nomiRiconosciuti.has(operaio.nome) &&
+              !nomiPresenti.has(operaio.nome)
+          )
+          .map((operaio) => ({
+            nome: operaio.nome,
+            ora_inizio: '',
+            ora_fine: '',
+            ore: 0,
+            costo_orario: Number(operaio.costo_orario || 0),
+          }))
+
+        return [...operaiCorrenti, ...nuoviOperai]
+      })
+    }
+  }
 
   const aggiungiVoceChecklist = (voce: string) => {
     const riga = `☐ ${voce}`
@@ -116,7 +193,28 @@ export default function RapportinoForm({
         inputStyle={inputStyle}
         buttonPrimary={buttonPrimary}
         buttonSecondary={buttonSecondary}
+        context={{
+          cantiere: cantiereRapporto || undefined,
+          data: data || undefined,
+          cantieriDisponibili: cantieri.map((cantiere) => cantiere.nome),
+          operaiDisponibili: operaiAnagrafica.map((operaio) => operaio.nome),
+        }}
+        onParsedReport={applicaReport}
       />
+
+      {operaiRapportinoTemp.length > 0 && (
+        <div
+          style={{
+            padding: 10,
+            border: '1px solid #bbf7d0',
+            borderRadius: 8,
+            background: '#f0fdf4',
+          }}
+        >
+          <strong>Operai precompilati:</strong>{' '}
+          {operaiRapportinoTemp.map((operaio) => operaio.nome).join(', ')}
+        </div>
+      )}
 
       <label>
         Note / lavorazioni

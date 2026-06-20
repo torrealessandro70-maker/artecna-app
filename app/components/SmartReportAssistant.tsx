@@ -14,6 +14,7 @@ type Props = {
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
   context: ReportNarrationContext
+  onParsedReport: (report: ParsedReport) => void
 }
 
 const prossimeEvoluzioni = [
@@ -31,8 +32,16 @@ export default function SmartReportAssistant({
   buttonPrimary,
   buttonSecondary,
   context,
+  onParsedReport,
 }: Props) {
   const [anteprima, setAnteprima] = useState<ParsedReport | null>(null)
+
+  const preparaRapportino = () => {
+    const report = parseReportNarration(testo, context)
+
+    setAnteprima(report)
+    onParsedReport(report)
+  }
 
   const disabledButtonStyle: CSSProperties = {
     opacity: 0.6,
@@ -83,7 +92,7 @@ export default function SmartReportAssistant({
         </button>
         <button
           type="button"
-          onClick={() => setAnteprima(parseReportNarration(testo, context))}
+          onClick={preparaRapportino}
           style={buttonPrimary}
         >
           🤖 Prepara rapportino
@@ -102,6 +111,21 @@ export default function SmartReportAssistant({
           }}
         >
           <h4 style={{ margin: 0 }}>Anteprima rapportino AI</h4>
+
+          <div
+            style={{
+              width: 'fit-content',
+              padding: '6px 10px',
+              borderRadius: 999,
+              background: anteprima.confidence >= 0.7 ? '#dcfce7' : '#fef3c7',
+              color: anteprima.confidence >= 0.7 ? '#166534' : '#92400e',
+              fontWeight: 700,
+            }}
+          >
+            {anteprima.confidence >= 0.7
+              ? '✓ Campi compilati automaticamente'
+              : '⚠ Verificare i dati estratti'}
+          </div>
 
           <div>
             <strong>Cantiere:</strong> {anteprima.cantiere || 'Non rilevato'}
