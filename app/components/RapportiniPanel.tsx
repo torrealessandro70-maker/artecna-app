@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  useEffect,
   useState,
   type CSSProperties,
   type Dispatch,
@@ -35,6 +36,8 @@ type Props = {
   costoMateriali: string
   setCostoMateriali: (costo: string) => void
   salvaRapportino: () => void | Promise<void>
+  aggiornaRapportino: () => void | Promise<void>
+  rapportinoInModifica: string | null
   cantieri: Cantiere[]
   inputStyle: CSSProperties
   buttonPrimary: CSSProperties
@@ -70,6 +73,8 @@ export default function RapportiniPanel({
   costoMateriali,
   setCostoMateriali,
   salvaRapportino,
+  aggiornaRapportino,
+  rapportinoInModifica,
   cantieri,
   inputStyle,
   buttonPrimary,
@@ -82,6 +87,12 @@ export default function RapportiniPanel({
   setOperaiRapportinoTemp,
 }: Props) {
   const [mostraInserimento, setMostraInserimento] = useState(false)
+
+  useEffect(() => {
+    if (rapportinoInModifica !== null) {
+      setMostraInserimento(true)
+    }
+  }, [rapportinoInModifica])
 
   const cantieriCoinvolti = new Set(
     rapportiniFiltrati
@@ -128,6 +139,8 @@ export default function RapportiniPanel({
           costoMateriali={costoMateriali}
           setCostoMateriali={setCostoMateriali}
           salvaRapportino={salvaRapportino}
+          aggiornaRapportino={aggiornaRapportino}
+          rapportinoInModifica={rapportinoInModifica}
           cantieri={cantieri}
           inputStyle={inputStyle}
           buttonPrimary={buttonPrimary}

@@ -11741,6 +11741,8 @@ WebkitOverflowScrolling: 'touch',
     costoMateriali={costoMateriali}
     setCostoMateriali={setCostoMateriali}
     salvaRapportino={salvaRapportino}
+    aggiornaRapportino={aggiornaRapportino}
+    rapportinoInModifica={rapportinoInModifica}
     cantieri={cantieri}
     inputStyle={inputStyle}
     buttonPrimary={buttonPrimary}

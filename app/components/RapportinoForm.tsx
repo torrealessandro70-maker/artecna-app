@@ -40,6 +40,8 @@ type Props = {
   costoMateriali: string
   setCostoMateriali: (costo: string) => void
   salvaRapportino: () => void | Promise<void>
+  aggiornaRapportino: () => void | Promise<void>
+  rapportinoInModifica: string | null
   cantieri: Cantiere[]
   inputStyle: CSSProperties
   buttonPrimary: CSSProperties
@@ -69,6 +71,8 @@ export default function RapportinoForm({
   costoMateriali,
   setCostoMateriali,
   salvaRapportino,
+  aggiornaRapportino,
+  rapportinoInModifica,
   cantieri,
   inputStyle,
   buttonPrimary,
@@ -171,7 +175,11 @@ export default function RapportinoForm({
         background: '#f8fafc',
       }}
     >
-      <h3 style={{ margin: 0 }}>Nuovo rapportino</h3>
+      <h3 style={{ margin: 0 }}>
+        {rapportinoInModifica !== null
+          ? '✏ Modifica rapportino'
+          : '➕ Nuovo rapportino'}
+      </h3>
 
       <label>
         Cantiere
@@ -336,10 +344,16 @@ export default function RapportinoForm({
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
           type="button"
-          onClick={() => void salvaRapportino()}
+          onClick={() =>
+            void (rapportinoInModifica !== null
+              ? aggiornaRapportino()
+              : salvaRapportino())
+          }
           style={buttonPrimary}
         >
-          Salva rapportino
+          {rapportinoInModifica !== null
+            ? 'Aggiorna rapportino'
+            : 'Salva rapportino'}
         </button>
         <button type="button" onClick={onClose} style={buttonSecondary}>
           Chiudi
