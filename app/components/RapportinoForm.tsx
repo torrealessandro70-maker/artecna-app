@@ -8,15 +8,10 @@ import {
 } from 'react'
 import type { Cantiere, Operaio } from '../types'
 import type { ParsedReport } from '../engines/document-intelligence/report-parser'
+import RapportinoActivities, {
+  type RapportinoActivity,
+} from './RapportinoActivities'
 import SmartReportAssistant from './SmartReportAssistant'
-
-const checklistRapportino = [
-  'Lavorazioni eseguite',
-  'Personale presente',
-  'Materiali utilizzati',
-  'Criticita riscontrate',
-  'Lavori da completare',
-]
 
 export type OperaioRapportinoTemp = {
   nome: string
@@ -86,6 +81,7 @@ export default function RapportinoForm({
   onClose,
 }: Props) {
   const [testoRacconto, setTestoRacconto] = useState('')
+  const [attivita, setAttivita] = useState<RapportinoActivity[]>([])
 
   const applicaReport = (report: ParsedReport) => {
     if (report.cantiere) setCantiereRapporto(report.cantiere)
@@ -152,15 +148,6 @@ export default function RapportinoForm({
         return [...operaiAggiornati, ...nuoviOperai]
       })
     }
-  }
-
-  const aggiungiVoceChecklist = (voce: string) => {
-    const riga = `☐ ${voce}`
-    const notaCorrente = note.trimEnd()
-
-    if (notaCorrente.split('\n').some((linea) => linea.trim() === riga)) return
-
-    setNote(notaCorrente ? `${notaCorrente}\n${riga}` : riga)
   }
 
   return (
@@ -275,38 +262,11 @@ export default function RapportinoForm({
         </button>
       </div>
 
-      <fieldset
-        style={{
-          display: 'grid',
-          gap: 8,
-          margin: 0,
-          padding: 12,
-          border: '1px solid #e2e8f0',
-          borderRadius: 8,
-        }}
-      >
-        <legend style={{ padding: '0 6px', fontWeight: 600 }}>
-          Checklist rapida
-        </legend>
-        {checklistRapportino.map((voce) => {
-          const riga = `☐ ${voce}`
-          const presente = note
-            .split('\n')
-            .some((linea) => linea.trim() === riga)
-
-          return (
-            <label key={voce} style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="checkbox"
-                checked={presente}
-                disabled={presente}
-                onChange={() => aggiungiVoceChecklist(voce)}
-              />
-              {voce}
-            </label>
-          )
-        })}
-      </fieldset>
+      <RapportinoActivities
+        attivita={attivita}
+        onChangeAttivita={setAttivita}
+        buttonSecondary={buttonSecondary}
+      />
 
       <label>
         Materiali
