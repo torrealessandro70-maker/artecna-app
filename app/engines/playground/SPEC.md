@@ -8,13 +8,16 @@ degli Engine di ARTECNA OS senza dipendere dall'interfaccia utente.
 ## Cosa testa
 
 Il Playground passa ogni input testuale al Kernel Orchestrator e al
-Construction Knowledge Layer, quindi raccoglie entrambi i risultati. Ogni
-scenario descrive l'input e i segnali attesi utili alle verifiche presenti e
-future.
+Construction Knowledge Layer, quindi usa le entita riconosciute per produrre
+anche un `ReviewResult`. Ogni scenario descrive l'input e i segnali attesi
+utili alle verifiche presenti e future.
 
 Questa pipeline permette di verificare che il racconto operativo venga
 trasformato in entita edilizie prima delle successive elaborazioni degli
 Engine.
+
+Il `ReviewResult` e soltanto una proposta da sottoporre all'utente. Nessun dato
+viene salvato senza la sua conferma.
 
 ## Cosa non fa
 

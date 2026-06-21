@@ -1,5 +1,6 @@
 import { analyzeConstructionSemantics } from '../construction-knowledge'
 import { processUserInput } from '../kernel'
+import { buildReviewFromSemanticEntities } from '../review'
 import { playgroundScenarios } from './scenarios'
 import type {
   EnginePlaygroundResult,
@@ -11,6 +12,15 @@ export function runEnginePlaygroundScenario(
 ): EnginePlaygroundResult {
   const semanticAnalysis = analyzeConstructionSemantics({
     text: scenario.userInput,
+  })
+  const review = buildReviewFromSemanticEntities({
+    title: scenario.title,
+    summary: 'Review generata dal Playground V1',
+    entities: semanticAnalysis.entities.map((entity) => ({
+      text: entity.text,
+      type: entity.type,
+      confidence: entity.confidence,
+    })),
   })
   const output = processUserInput({ userInput: scenario.userInput })
   const pipelineSummary = {
@@ -34,6 +44,7 @@ export function runEnginePlaygroundScenario(
     scenario,
     summary: output.summary,
     semanticAnalysis,
+    review,
     pipelineSummary,
     output,
   }
