@@ -1,3 +1,5 @@
+import type { ConstructionSemanticAnalysisResult } from '../construction-knowledge'
+
 export type EnginePlaygroundScenario = {
   id: string
   title: string
@@ -9,5 +11,6 @@ export type EnginePlaygroundScenario = {
 export type EnginePlaygroundResult = {
   scenario: EnginePlaygroundScenario
   summary: string
+  semanticAnalysis: ConstructionSemanticAnalysisResult
   output: unknown
 }
