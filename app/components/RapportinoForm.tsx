@@ -107,33 +107,45 @@ export default function RapportinoForm({
     }
 
     if (report.operai.length > 0) {
-      const nomiRiconosciuti = new Set(
-        report.operai
-          .map((operaio) =>
-            typeof operaio === 'string' ? operaio : String(operaio?.nome || '')
-          )
-          .filter(Boolean)
+      const operaiEstratti = new Map(
+        report.operai.map((operaio) => [operaio.nome, operaio])
       )
 
       setOperaiRapportinoTemp((operaiCorrenti) => {
+        const operaiAggiornati = operaiCorrenti.map((operaio) => {
+          const estratto = operaiEstratti.get(operaio.nome)
+
+          if (!estratto) return operaio
+
+          return {
+            ...operaio,
+            ora_inizio: estratto.ora_inizio || operaio.ora_inizio || '',
+            ora_fine: estratto.ora_fine || operaio.ora_fine || '',
+            ore: estratto.ore > 0 ? estratto.ore : operaio.ore,
+          }
+        })
         const nomiPresenti = new Set(
-          operaiCorrenti.map((operaio) => operaio.nome)
+          operaiAggiornati.map((operaio) => operaio.nome)
         )
         const nuoviOperai = operaiAnagrafica
           .filter(
             (operaio) =>
-              nomiRiconosciuti.has(operaio.nome) &&
+              operaiEstratti.has(operaio.nome) &&
               !nomiPresenti.has(operaio.nome)
           )
-          .map((operaio) => ({
-            nome: operaio.nome,
-            ora_inizio: '',
-            ora_fine: '',
-            ore: 0,
-            costo_orario: Number(operaio.costo_orario || 0),
-          }))
+          .map((operaio) => {
+            const estratto = operaiEstratti.get(operaio.nome)
 
-        return [...operaiCorrenti, ...nuoviOperai]
+            return {
+              nome: operaio.nome,
+              ora_inizio: estratto?.ora_inizio || '',
+              ora_fine: estratto?.ora_fine || '',
+              ore: estratto?.ore || 0,
+              costo_orario: Number(operaio.costo_orario || 0),
+            }
+          })
+
+        return [...operaiAggiornati, ...nuoviOperai]
       })
     }
   }
@@ -212,7 +224,13 @@ export default function RapportinoForm({
           }}
         >
           <strong>Operai precompilati:</strong>{' '}
-          {operaiRapportinoTemp.map((operaio) => operaio.nome).join(', ')}
+          {operaiRapportinoTemp
+            .map((operaio) =>
+              operaio.ore > 0
+                ? `${operaio.nome} (${operaio.ora_inizio}-${operaio.ora_fine}, ${operaio.ore}h)`
+                : operaio.nome
+            )
+            .join(', ')}
         </div>
       )}
 

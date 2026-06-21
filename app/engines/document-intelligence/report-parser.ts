@@ -10,11 +10,18 @@ export interface ParsedReport {
   confidence: number
   cantiere?: string
   data?: string
-  operai: any[]
+  operai: ParsedReportWorker[]
   materiali: any[]
   lavorazioni: string[]
   note: string
   warnings: string[]
+}
+
+export interface ParsedReportWorker {
+  nome: string
+  ora_inizio?: string
+  ora_fine?: string
+  ore: number
 }
 
 type ParsedMaterial = {
@@ -70,6 +77,67 @@ const calculateConfidence = (recognizedElements: number) => {
   return 0.9
 }
 
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+const recognizeRelativeDate = (normalizedNarration: string) => {
+  const relativeDate = normalizedNarration
+    .split(' ')
+    .find((word) => word === 'oggi' || word === 'ieri' || word === 'domani')
+
+  if (!relativeDate) return undefined
+
+  const date = new Date()
+  date.setHours(12, 0, 0, 0)
+
+  if (relativeDate === 'ieri') date.setDate(date.getDate() - 1)
+  if (relativeDate === 'domani') date.setDate(date.getDate() + 1)
+
+  return formatLocalDate(date)
+}
+
+type RecognizedTimeRange = {
+  ora_inizio: string
+  ora_fine: string
+  ore: number
+}
+
+const recognizeTimeRange = (narration: string): RecognizedTimeRange | undefined => {
+  const time = '([01]?\\d|2[0-3])(?::([0-5]\\d))?'
+  const patterns = [
+    new RegExp(`\\bdalle\\s+${time}\\s+alle\\s+${time}\\b`, 'i'),
+    new RegExp(`\\b${time}\\s*[-–]\\s*${time}\\b`, 'i'),
+  ]
+
+  for (const pattern of patterns) {
+    const match = narration.match(pattern)
+
+    if (!match) continue
+
+    const startHour = Number(match[1])
+    const startMinute = Number(match[2] || 0)
+    const endHour = Number(match[3])
+    const endMinute = Number(match[4] || 0)
+    const startTotalMinutes = startHour * 60 + startMinute
+    const endTotalMinutes = endHour * 60 + endMinute
+
+    if (endTotalMinutes <= startTotalMinutes) return undefined
+
+    return {
+      ora_inizio: `${String(startHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}`,
+      ora_fine: `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`,
+      ore: (endTotalMinutes - startTotalMinutes) / 60,
+    }
+  }
+
+  return undefined
+}
+
 /**
  * Flusso futuro:
  *
@@ -102,9 +170,17 @@ export function parseReportNarration(
     containsTerm(normalizedNarration, nome)
   )
 
-  const operai = (context.operaiDisponibili || []).filter((operaio) =>
+  const nomiOperai = (context.operaiDisponibili || []).filter((operaio) =>
     containsTerm(normalizedNarration, operaio)
   )
+  const timeRange = recognizeTimeRange(narration)
+  const operai = nomiOperai.map((nome) => ({
+    nome,
+    ora_inizio: timeRange?.ora_inizio,
+    ora_fine: timeRange?.ora_fine,
+    ore: timeRange?.ore || 0,
+  }))
+  const relativeDate = recognizeRelativeDate(normalizedNarration)
 
   const materialiRiconosciuti = new Map<string, ParsedMaterial>()
 
@@ -159,18 +235,23 @@ export function parseReportNarration(
 
   if (!cantiere) warnings.push('Aggiungere il cantiere.')
   if (operai.length === 0) warnings.push('Nessun operaio riconosciuto.')
+  if (operai.length > 0 && !timeRange) {
+    warnings.push('Operai riconosciuti ma ore non indicate.')
+  }
   if (materiali.length === 0) warnings.push('Nessun materiale riconosciuto.')
 
   const recognizedElements =
     (cantiere ? 1 : 0) +
     operai.length +
     materiali.length +
-    lavorazioni.length
+    lavorazioni.length +
+    (relativeDate ? 1 : 0) +
+    (timeRange ? 1 : 0)
 
   return {
     confidence: calculateConfidence(recognizedElements),
     cantiere,
-    data: context.data,
+    data: relativeDate || context.data,
     note: narration,
     operai,
     materiali,
