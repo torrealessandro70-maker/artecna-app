@@ -248,6 +248,18 @@ export default function SmartReportAssistant({
               : 'Nessuna'}
           </div>
           <div>
+            <strong>☑ Cosa si deve fare:</strong>
+            {anteprima.attivitaDaFare.length > 0 ? (
+              <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+                {anteprima.attivitaDaFare.map((attivita) => (
+                  <li key={attivita}>{attivita}</li>
+                ))}
+              </ul>
+            ) : (
+              ' Nessuna attività riconosciuta'
+            )}
+          </div>
+          <div>
             <strong>Note:</strong> {anteprima.note || 'Nessuna'}
           </div>
 

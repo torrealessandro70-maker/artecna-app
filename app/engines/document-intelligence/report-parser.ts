@@ -13,6 +13,7 @@ export interface ParsedReport {
   operai: ParsedReportWorker[]
   materiali: any[]
   lavorazioni: string[]
+  attivitaDaFare: string[]
   note: string
   warnings: string[]
 }
@@ -51,6 +52,38 @@ const lavorazioniKeywords = [
   'pittura',
 ]
 
+const taskKeywords = [
+  'domani',
+  'bisogna',
+  'dobbiamo',
+  'da fare',
+  'ricordare',
+  'ricordati',
+  'serve',
+  'manca',
+  'ordinare',
+  'chiamare',
+  'contattare',
+  'comprare',
+  'ritirare',
+  'consegnare',
+  'verificare',
+  'finire',
+  'completare',
+]
+
+const taskActionKeywords = [
+  'ordinare',
+  'chiamare',
+  'contattare',
+  'comprare',
+  'ritirare',
+  'consegnare',
+  'verificare',
+  'finire',
+  'completare',
+]
+
 const normalizeText = (value: string) =>
   value
     .toLowerCase()
@@ -66,6 +99,54 @@ const containsTerm = (normalizedNarration: string, term: string) => {
   if (!normalizedTerm) return false
 
   return ` ${normalizedNarration} `.includes(` ${normalizedTerm} `)
+}
+
+const capitalizeFirst = (value: string) =>
+  value ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : value
+
+const extractTasks = (narration: string) => {
+  const tasks = new Map<string, string>()
+  const actionPattern = taskActionKeywords.join('|')
+  const taskPrefixPattern = new RegExp(
+    `^.*?\\b(?:${taskKeywords.join('|').replace('da fare', 'da\\s+fare')})\\b\\s*`,
+    'i'
+  )
+
+  const addTask = (value: string) => {
+    const cleanValue = value
+      .trim()
+      .replace(/^(?:e|poi)\s+/i, '')
+      .replace(/[.,;:!?]+$/g, '')
+      .trim()
+    const normalizedValue = normalizeText(cleanValue)
+
+    if (!normalizedValue) return
+
+    tasks.set(normalizedValue, capitalizeFirst(cleanValue))
+  }
+
+  for (const sentence of narration.split(/[.!?;\n]+/)) {
+    const normalizedSentence = normalizeText(sentence)
+
+    if (!taskKeywords.some((keyword) => containsTerm(normalizedSentence, keyword))) {
+      continue
+    }
+
+    const actionRegex = new RegExp(
+      `\\b(?:${actionPattern})\\b.*?(?=\\s+(?:e|poi)\\s+(?=(?:${actionPattern})\\b)|,\\s*(?=(?:${actionPattern})\\b)|$)`,
+      'gi'
+    )
+    const actions = Array.from(sentence.matchAll(actionRegex), (match) => match[0])
+
+    if (actions.length > 0) {
+      actions.forEach(addTask)
+      continue
+    }
+
+    addTask(sentence.replace(taskPrefixPattern, ''))
+  }
+
+  return Array.from(tasks.values())
 }
 
 const calculateConfidence = (recognizedElements: number) => {
@@ -230,6 +311,7 @@ export function parseReportNarration(
   const lavorazioni = lavorazioniKeywords.filter((lavorazione) =>
     containsTerm(normalizedNarration, lavorazione)
   )
+  const attivitaDaFare = extractTasks(narration)
 
   const warnings: string[] = []
 
@@ -245,6 +327,7 @@ export function parseReportNarration(
     operai.length +
     materiali.length +
     lavorazioni.length +
+    attivitaDaFare.length +
     (relativeDate ? 1 : 0) +
     (timeRange ? 1 : 0)
 
@@ -256,6 +339,7 @@ export function parseReportNarration(
     operai,
     materiali,
     lavorazioni,
+    attivitaDaFare,
     warnings,
   }
 }

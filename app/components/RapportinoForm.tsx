@@ -106,6 +106,25 @@ export default function RapportinoForm({
     if (report.data) setData(report.data)
     if (report.note.trim()) setNote(report.note)
 
+    if (report.attivitaDaFare.length > 0) {
+      setAttivita((attivitaCorrenti) => {
+        const testiPresenti = new Set(
+          attivitaCorrenti.map((attivita) => attivita.testo.trim().toLowerCase())
+        )
+        const nuoveAttivita = report.attivitaDaFare
+          .filter((testo) => !testiPresenti.has(testo.trim().toLowerCase()))
+          .map((testo) => ({
+            id: crypto.randomUUID(),
+            testo,
+            completata: false,
+            origine: 'ai' as const,
+            dataCreazione: new Date().toISOString(),
+          }))
+
+        return [...attivitaCorrenti, ...nuoveAttivita]
+      })
+    }
+
     if (report.materiali.length > 0) {
       const materialiEstratti = report.materiali
         .map((materiale) => {
