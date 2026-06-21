@@ -2,15 +2,22 @@
 
 import type { CSSProperties, KeyboardEvent } from 'react'
 
-export type RapportinoActivity = {
+export type ActivityOrigin = 'manuale' | 'ai' | 'fascicolo'
+
+export type Activity = {
   id: string
   testo: string
   completata: boolean
+  origine: ActivityOrigin
+  dataCreazione: string
 }
+
+export type RapportinoActivity = Activity
 
 type Props = {
   attivita: RapportinoActivity[]
   onChangeAttivita: (attivita: RapportinoActivity[]) => void
+  onActivitiesChange?: (attivita: RapportinoActivity[]) => void
   buttonSecondary: CSSProperties
 }
 
@@ -18,22 +25,36 @@ const nuovaAttivita = (): RapportinoActivity => ({
   id: crypto.randomUUID(),
   testo: '',
   completata: false,
+  origine: 'manuale',
+  dataCreazione: new Date().toISOString(),
 })
+
+const iconaOrigine: Record<ActivityOrigin, string> = {
+  manuale: '✍',
+  ai: '🤖',
+  fascicolo: '📂',
+}
 
 export default function RapportinoActivities({
   attivita,
   onChangeAttivita,
+  onActivitiesChange,
   buttonSecondary,
 }: Props) {
+  const comunicaAttivita = (prossimeAttivita: RapportinoActivity[]) => {
+    onChangeAttivita(prossimeAttivita)
+    onActivitiesChange?.(prossimeAttivita)
+  }
+
   const aggiungiAttivita = (dopoIndice?: number) => {
     const nuova = nuovaAttivita()
 
     if (dopoIndice === undefined) {
-      onChangeAttivita([...attivita, nuova])
+      comunicaAttivita([...attivita, nuova])
       return
     }
 
-    onChangeAttivita([
+    comunicaAttivita([
       ...attivita.slice(0, dopoIndice + 1),
       nuova,
       ...attivita.slice(dopoIndice + 1),
@@ -44,7 +65,7 @@ export default function RapportinoActivities({
     id: string,
     modifiche: Partial<Omit<RapportinoActivity, 'id'>>
   ) => {
-    onChangeAttivita(
+    comunicaAttivita(
       attivita.map((voce) =>
         voce.id === id ? { ...voce, ...modifiche } : voce
       )
@@ -52,7 +73,7 @@ export default function RapportinoActivities({
   }
 
   const eliminaAttivita = (id: string) => {
-    onChangeAttivita(attivita.filter((voce) => voce.id !== id))
+    comunicaAttivita(attivita.filter((voce) => voce.id !== id))
   }
 
   const gestisciInvio = (
@@ -85,7 +106,7 @@ export default function RapportinoActivities({
               key={voce.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '28px 1fr 36px',
+                gridTemplateColumns: '28px 24px 1fr 36px',
                 alignItems: 'center',
                 minHeight: 40,
                 padding: '0 6px',
@@ -104,6 +125,14 @@ export default function RapportinoActivities({
                 }
                 aria-label={`Completa attività ${indice + 1}`}
               />
+
+              <span
+                title={`Origine: ${voce.origine}`}
+                aria-label={`Origine ${voce.origine}`}
+                style={{ fontSize: 15, textAlign: 'center' }}
+              >
+                {iconaOrigine[voce.origine]}
+              </span>
 
               <input
                 value={voce.testo}
