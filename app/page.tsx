@@ -11753,6 +11753,7 @@ WebkitOverflowScrolling: 'touch',
     operaiAnagrafica={operaiAnagrafica}
     operaiRapportinoTemp={operaiRapportinoTemp}
     setOperaiRapportinoTemp={setOperaiRapportinoTemp}
+    setPopupFotoRapportino={setPopupFotoRapportino}
   />
 )}
 

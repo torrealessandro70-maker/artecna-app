@@ -50,6 +50,7 @@ type Props = {
   setOperaiRapportinoTemp: Dispatch<
     SetStateAction<OperaioRapportinoTemp[]>
   >
+  setPopupFotoRapportino: (aperto: boolean) => void
 }
 
 export default function RapportiniPanel({
@@ -85,6 +86,7 @@ export default function RapportiniPanel({
   operaiAnagrafica,
   operaiRapportinoTemp,
   setOperaiRapportinoTemp,
+  setPopupFotoRapportino,
 }: Props) {
   const [mostraInserimento, setMostraInserimento] = useState(false)
 
@@ -151,6 +153,7 @@ export default function RapportiniPanel({
           operaiAnagrafica={operaiAnagrafica}
           operaiRapportinoTemp={operaiRapportinoTemp}
           setOperaiRapportinoTemp={setOperaiRapportinoTemp}
+          setPopupFotoRapportino={setPopupFotoRapportino}
           onClose={() => setMostraInserimento(false)}
         />
       )}

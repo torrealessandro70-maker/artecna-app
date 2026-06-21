@@ -49,6 +49,7 @@ type Props = {
   setOperaiRapportinoTemp: Dispatch<
     SetStateAction<OperaioRapportinoTemp[]>
   >
+  setPopupFotoRapportino: (aperto: boolean) => void
   onClose: () => void
 }
 
@@ -78,6 +79,7 @@ export default function RapportinoForm({
   operaiAnagrafica,
   operaiRapportinoTemp,
   setOperaiRapportinoTemp,
+  setPopupFotoRapportino,
   onClose,
 }: Props) {
   const [testoRacconto, setTestoRacconto] = useState('')
@@ -267,6 +269,14 @@ export default function RapportinoForm({
         onChangeAttivita={setAttivita}
         buttonSecondary={buttonSecondary}
       />
+
+      <button
+        type="button"
+        onClick={() => setPopupFotoRapportino(true)}
+        style={{ ...buttonSecondary, justifySelf: 'start' }}
+      >
+        📷 Aggiungi foto rapportino
+      </button>
 
       <label>
         Materiali
