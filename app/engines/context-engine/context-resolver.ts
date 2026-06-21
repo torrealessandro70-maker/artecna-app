@@ -2,6 +2,7 @@ import type {
   ContextField,
   ContextResolverInput,
   ContextResolverResult,
+  WorkspaceEntity,
 } from './types'
 
 function unknownField<T>(): ContextField<T> {
@@ -12,14 +13,27 @@ function unknownField<T>(): ContextField<T> {
   }
 }
 
+function fieldFromWorkspaceEntity(
+  entity: WorkspaceEntity
+): ContextField<string> {
+  return {
+    value: entity.label ?? entity.id ?? null,
+    reliability: entity.reliability,
+    sources: entity.source ? [entity.source] : [],
+  }
+}
+
 export function resolveCurrentContext(
   input: ContextResolverInput
 ): ContextResolverResult {
-  void input
+  const workspaceContext = input.workspaceContext
+  const activeCantiere = workspaceContext?.activeCantiere
 
   return {
     context: {
-      cantiere: unknownField<string>(),
+      cantiere: activeCantiere
+        ? fieldFromWorkspaceEntity(activeCantiere)
+        : unknownField<string>(),
       cliente: unknownField<string>(),
       fascicolo: unknownField<string>(),
       zona: unknownField<string>(),
@@ -30,9 +44,15 @@ export function resolveCurrentContext(
       documenti: unknownField<string[]>(),
       foto: unknownField<string[]>(),
       problemi: unknownField<string[]>(),
-      confidence: 0,
+      lastUserInput: workspaceContext?.lastUserInput,
+      confidence: activeCantiere ? 0.1 : 0,
       needsConfirmation: true,
     },
-    reasons: [{ message: 'Context Engine V1 inizializzato' }],
+    reasons: [
+      { message: 'Context Engine V1 inizializzato' },
+      ...(workspaceContext
+        ? [{ message: 'WorkspaceContext ricevuto dal resolver' }]
+        : []),
+    ],
   }
 }
