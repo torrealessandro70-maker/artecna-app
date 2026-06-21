@@ -76,7 +76,7 @@ export default function RapportinoActivities({
         background: '#fff',
       }}
     >
-      <h3 style={{ margin: 0, fontSize: 16 }}>☑ Attività</h3>
+      <h3 style={{ margin: 0, fontSize: 16 }}>☑ Cosa si deve fare</h3>
 
       {attivita.length > 0 && (
         <div style={{ display: 'grid', gap: 6 }}>

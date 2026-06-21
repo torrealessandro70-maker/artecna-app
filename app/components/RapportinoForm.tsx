@@ -6,7 +6,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react'
-import type { Cantiere, Operaio } from '../types'
+import type { Cantiere, FotoCantiere, Operaio } from '../types'
 import type { ParsedReport } from '../engines/document-intelligence/report-parser'
 import RapportinoActivities, {
   type RapportinoActivity,
@@ -50,6 +50,8 @@ type Props = {
     SetStateAction<OperaioRapportinoTemp[]>
   >
   setPopupFotoRapportino: (aperto: boolean) => void
+  fotoCantiere: FotoCantiere[]
+  setFotoRapportinoAperte: (foto: FotoCantiere[]) => void
   onClose: () => void
 }
 
@@ -80,10 +82,24 @@ export default function RapportinoForm({
   operaiRapportinoTemp,
   setOperaiRapportinoTemp,
   setPopupFotoRapportino,
+  fotoCantiere,
+  setFotoRapportinoAperte,
   onClose,
 }: Props) {
   const [testoRacconto, setTestoRacconto] = useState('')
   const [attivita, setAttivita] = useState<RapportinoActivity[]>([])
+
+  const fotoCollegate = cantiereRapporto && data
+    ? fotoCantiere.filter((foto) => {
+        const categoria = String(foto.categoria || '').toLowerCase()
+
+        return (
+          foto.cantiere === cantiereRapporto &&
+          String(foto.data_foto || '') === String(data) &&
+          (!categoria || categoria === 'rapportino')
+        )
+      })
+    : []
 
   const applicaReport = (report: ParsedReport) => {
     if (report.cantiere) setCantiereRapporto(report.cantiere)
@@ -231,38 +247,57 @@ export default function RapportinoForm({
         </div>
       )}
 
-      <label>
-        Note / lavorazioni
+      <section
+        style={{
+          display: 'grid',
+          gap: 10,
+          padding: 14,
+          border: '1px solid #e2e8f0',
+          borderRadius: 10,
+          background: '#fff',
+        }}
+      >
+        <div>
+          <h3 style={{ margin: '0 0 6px', fontSize: 16 }}>
+            🛠 Cosa abbiamo fatto oggi
+          </h3>
+          <p style={{ margin: 0, color: '#64748b' }}>
+            Scrivi o detta le lavorazioni eseguite oggi. Sotto puoi segnare le
+            cose da fare nei prossimi giorni.
+          </p>
+        </div>
+
         <textarea
           value={note}
           onChange={(event) => setNote(event.target.value)}
-          style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 6 }}
+          aria-label="Cosa abbiamo fatto oggi"
+          style={{ ...inputStyle, display: 'block', width: '100%' }}
           rows={4}
         />
-      </label>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          onClick={avviaDettaturaRapportino}
-          disabled={ascoltoRapportino}
-          style={buttonSecondary}
-        >
-          🎤 Avvia dettatura
-        </button>
-        <button
-          type="button"
-          onClick={fermaDettaturaRapportino}
-          disabled={!ascoltoRapportino}
-          style={{
-            ...buttonSecondary,
-            backgroundColor: ascoltoRapportino ? '#dc2626' : undefined,
-            color: ascoltoRapportino ? '#fff' : undefined,
-          }}
-        >
-          ⏹ Stop
-        </button>
-      </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={avviaDettaturaRapportino}
+            disabled={ascoltoRapportino}
+            style={buttonSecondary}
+          >
+            🎤 Avvia dettatura
+          </button>
+          <button
+            type="button"
+            onClick={fermaDettaturaRapportino}
+            disabled={!ascoltoRapportino}
+            style={{
+              ...buttonSecondary,
+              backgroundColor: ascoltoRapportino ? '#dc2626' : undefined,
+              color: ascoltoRapportino ? '#fff' : undefined,
+            }}
+          >
+            ⏹ Stop
+          </button>
+        </div>
+      </section>
 
       <RapportinoActivities
         attivita={attivita}
@@ -277,6 +312,68 @@ export default function RapportinoForm({
       >
         📷 Aggiungi foto rapportino
       </button>
+
+      <section
+        style={{
+          display: 'grid',
+          gap: 10,
+          padding: 12,
+          border: '1px solid #e2e8f0',
+          borderRadius: 10,
+          background: '#f8fafc',
+        }}
+      >
+        <div>
+          <strong>📷 Foto collegate</strong>
+          <span style={{ marginLeft: 8, color: '#64748b' }}>
+            {fotoCollegate.length}
+          </span>
+        </div>
+
+        {fotoCollegate.length === 0 ? (
+          <p style={{ margin: 0, color: '#64748b' }}>
+            Nessuna foto collegata a questo rapportino.
+          </p>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 72px))',
+              gap: 8,
+            }}
+          >
+            {fotoCollegate.map((foto, indice) => (
+              <button
+                key={foto.id || indice}
+                type="button"
+                onClick={() => setFotoRapportinoAperte(fotoCollegate)}
+                title="Apri foto collegate"
+                style={{
+                  width: 72,
+                  height: 72,
+                  padding: 0,
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                <img
+                  src={foto.immagine_base64}
+                  alt={foto.nota || `Foto rapportino ${indice + 1}`}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
       <label>
         Materiali
