@@ -1,16 +1,37 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import type { FotoCantiere, Rapportino } from '../types'
 
 type Props = {
-  rapportino: any
+  rapportino: Rapportino
   index: number
-  fotoCantiere: any[]
-  setFotoRapportinoAperte: (foto: any[]) => void
-  preparaModificaRapportino: (r: any) => void
+  fotoCantiere: FotoCantiere[]
+  setFotoRapportinoAperte: (foto: FotoCantiere[]) => void
+  preparaModificaRapportino: (r: Rapportino) => void
   eliminaRapportino: (id?: string) => void | Promise<void>
-  generaPdfRapportinoFotografico: (r: any) => void | Promise<void>
+  generaPdfRapportinoFotografico: (r: Rapportino) => void | Promise<void>
   buttonSecondary: CSSProperties
+}
+
+const normalizzaDataFotoRapportino = (valore?: string | null) =>
+  String(valore || '').slice(0, 10)
+
+const fotoCollegataAlRapportino = (
+  foto: FotoCantiere,
+  rapportino: Rapportino
+) => {
+  const stessoCantiere =
+    String(foto.cantiere || '').trim() ===
+    String(rapportino.cantiere || '').trim()
+  const stessaData =
+    normalizzaDataFotoRapportino(foto.data_foto) ===
+    normalizzaDataFotoRapportino(rapportino.data)
+  const categoriaCompatibile =
+    !foto.categoria ||
+    String(foto.categoria).toLowerCase() === 'rapportino'
+
+  return stessoCantiere && stessaData && categoriaCompatibile
 }
 
 export default function RapportinoCard({
@@ -23,6 +44,10 @@ export default function RapportinoCard({
   generaPdfRapportinoFotografico,
   buttonSecondary,
 }: Props) {
+  const fotoCollegate = fotoCantiere.filter((foto) =>
+    fotoCollegataAlRapportino(foto, r)
+  )
+
   return (
     <div
       key={r.id || index}
@@ -36,6 +61,9 @@ export default function RapportinoCard({
       <strong>{r.cantiere}</strong> — {r.data} — {r.ore} ore
       <br />
       {r.note}
+      <div style={{ marginTop: 6, color: '#475569' }}>
+        Foto collegate: {fotoCollegate.length}
+      </div>
 
       <div style={{ marginTop: 8 }}>
         <button
@@ -47,11 +75,10 @@ export default function RapportinoCard({
 
         <button
           onClick={() => {
-            const fotoCollegate = fotoCantiere.filter(
-              (f) =>
-                f.cantiere === r.cantiere &&
-                String(f.data_foto || '') === String(r.data || '')
-            )
+            if (fotoCollegate.length === 0) {
+              alert('Nessuna foto collegata a questo rapportino')
+              return
+            }
 
             setFotoRapportinoAperte(fotoCollegate)
           }}

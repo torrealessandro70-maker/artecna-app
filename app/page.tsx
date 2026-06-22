@@ -7157,13 +7157,31 @@ if (appuntiRefs.current.length > 0) {
 
 
 
+const normalizzaDataFotoRapportino = (valore?: string | null) =>
+  String(valore || '').slice(0, 10)
+
+const fotoCollegataAlRapportino = (
+  foto: FotoCantiere,
+  rapportino: Rapportino
+) => {
+  const stessoCantiere =
+    String(foto.cantiere || '').trim() ===
+    String(rapportino.cantiere || '').trim()
+  const stessaData =
+    normalizzaDataFotoRapportino(foto.data_foto) ===
+    normalizzaDataFotoRapportino(rapportino.data)
+  const categoriaCompatibile =
+    !foto.categoria ||
+    String(foto.categoria).toLowerCase() === 'rapportino'
+
+  return stessoCantiere && stessaData && categoriaCompatibile
+}
+
 const generaPdfRapportinoFotografico = (r: Rapportino) => {
   const doc = new jsPDF('p', 'mm', 'a4')
 
-  const fotoDelRapportino = fotoCantiere.filter(
-    (f) =>
-      f.cantiere === r.cantiere &&
-      String(f.data_foto || '') === String(r.data || '')
+  const fotoDelRapportino = fotoCantiere.filter((f) =>
+    fotoCollegataAlRapportino(f, r)
   )
 
   doc.setFillColor(15, 23, 42)
