@@ -5072,7 +5072,9 @@ const eliminaPagamentoOperaio = async (id?: string) => {
 const caricaFotoCantiere = async () => {
   const { data, error } = await supabase
     .from('foto_cantiere')
-    .select('id,cantiere,nota,immagine_base64,data_foto,geolocalizzazione,created_at,categoria')
+    .select(
+'id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria'
+)
     .order('created_at', { ascending: false })
     .limit(80)
 
@@ -6916,21 +6918,10 @@ const salvaRapportino = async () => {
   setUltimoRapportino(nuovoRapportino)
 
  if (fotoRapportinoTemp.length > 0) {
-  const fotoDaSalvare = fotoRapportinoTemp.map((foto) => ({
-    cantiere: cantiereRapporto,
-    nota: notaFotoRapportino || note || 'Foto rapportino',
-    immagine_base64: foto,
-    data_foto: data || new Date().toISOString().slice(0, 10),
-    geolocalizzazione: geolocalizzazioneFoto || null,
-    categoria: 'rapportino',
-  }))
+  const risultatoFoto = await salvaFotoRapportinoInStorage(cantiereRapporto)
 
-  const { error: erroreFoto } = await supabase
-    .from('foto_cantiere')
-    .insert(fotoDaSalvare)
-
-  if (erroreFoto) {
-    alert('Rapportino salvato, ma errore foto: ' + erroreFoto.message)
+  if (!risultatoFoto.success) {
+    alert('Rapportino salvato, ma errore foto: ' + risultatoFoto.error)
     return
   }
 }
@@ -8529,6 +8520,123 @@ const salvaFotoCantiere = async () => {
   return true
 }
 
+type SalvataggioFotoRapportinoResult =
+  | { success: true; numeroFoto: number }
+  | { success: false; error: string }
+
+const salvaFotoRapportinoInStorage = async (
+  cantiereFoto: string
+): Promise<SalvataggioFotoRapportinoResult> => {
+  let filePreparati: Array<{ blob: Blob; estensione: string }>
+
+  try {
+    filePreparati = fotoRapportinoTemp.map((foto) => {
+      const blob = creaBlobFotoCantiere(foto)
+      return { blob, estensione: estensioneFotoCantiere(blob.type) }
+    })
+  } catch (errore) {
+    const messaggio =
+      errore instanceof Error ? errore.message : 'foto non valida'
+    return { success: false, error: messaggio }
+  }
+
+  const { data: datiUtente, error: erroreUtente } = await supabase.auth.getUser()
+
+  if (erroreUtente || !datiUtente.user) {
+    return {
+      success: false,
+      error:
+        'Impossibile identificare l’utente. ' +
+        (erroreUtente?.message || 'Sessione non disponibile'),
+    }
+  }
+
+  const dataFoto = data || new Date().toISOString().slice(0, 10)
+  const cartellaData = pulisciSegmentoStorage(dataFoto.slice(0, 10))
+  const caricamenti: Array<{ path: string; url: string }> = []
+
+  const rimuoviUploadParziali = async () => {
+    if (caricamenti.length === 0) return
+
+    try {
+      const { error } = await supabase.storage
+        .from(FOTO_CANTIERE_BUCKET)
+        .remove(caricamenti.map((file) => file.path))
+
+      if (error) console.error('Errore rollback foto Storage:', error.message)
+    } catch (errore) {
+      console.error('Errore di rete durante il rollback foto Storage:', errore)
+    }
+  }
+
+  try {
+    for (const file of filePreparati) {
+      const path =
+        `utenti/${datiUtente.user.id}/rapportini/${cartellaData}/` +
+        `${crypto.randomUUID()}.${file.estensione}`
+      const { error: erroreUpload } = await supabase.storage
+        .from(FOTO_CANTIERE_BUCKET)
+        .upload(path, file.blob, {
+          contentType: file.blob.type,
+          upsert: false,
+        })
+
+      if (erroreUpload) {
+        await rimuoviUploadParziali()
+        return { success: false, error: erroreUpload.message }
+      }
+
+      const { data: datiUrl } = supabase.storage
+        .from(FOTO_CANTIERE_BUCKET)
+        .getPublicUrl(path)
+
+      if (!datiUrl.publicUrl) {
+        await rimuoviUploadParziali()
+        return {
+          success: false,
+          error: 'URL pubblico della foto non disponibile',
+        }
+      }
+
+      caricamenti.push({ path, url: datiUrl.publicUrl })
+    }
+  } catch (errore) {
+    await rimuoviUploadParziali()
+    const messaggio =
+      errore instanceof Error ? errore.message : 'errore di rete'
+    return { success: false, error: messaggio }
+  }
+
+  const fotoDaSalvare = caricamenti.map((file) => ({
+    cantiere: cantiereFoto,
+    nota: notaFotoRapportino || note || 'Foto rapportino',
+    categoria: 'rapportino',
+    data_foto: dataFoto,
+    geolocalizzazione: geolocalizzazioneFoto || null,
+    file_url: file.url,
+    file_path: file.path,
+    immagine_base64: file.url,
+  }))
+
+  try {
+    const { error } = await supabase
+      .from('foto_cantiere')
+      .insert(fotoDaSalvare)
+
+    if (error) {
+      await rimuoviUploadParziali()
+      return { success: false, error: error.message }
+    }
+  } catch (errore) {
+    await rimuoviUploadParziali()
+    const messaggio =
+      errore instanceof Error ? errore.message : 'errore di rete'
+    return { success: false, error: messaggio }
+  }
+
+  return { success: true, numeroFoto: fotoDaSalvare.length }
+}
+
   const salvaPreventivo = async () => {
     if (!cantiereScheda || !importoPreventivo.trim()) {
       alert('Seleziona cantiere e inserisci importo')
@@ -8583,28 +8691,16 @@ const salvaFotoRapportino = async () => {
     return
   }
 
-  const numeroFoto = fotoRapportinoTemp.length
-  const fotoDaSalvare = fotoRapportinoTemp.map((foto) => ({
-    cantiere: cantiereFoto,
-    nota: notaFotoRapportino || note || 'Foto rapportino',
-    immagine_base64: foto,
-    data_foto: data || new Date().toISOString().slice(0, 10),
-    geolocalizzazione: geolocalizzazioneFoto || null,
-    categoria: 'rapportino',
-  }))
+  const risultatoFoto = await salvaFotoRapportinoInStorage(cantiereFoto)
 
-  const { error } = await supabase
-    .from('foto_cantiere')
-    .insert(fotoDaSalvare)
-
-  if (error) {
-    alert('Errore salvataggio foto rapportino: ' + error.message)
+  if (!risultatoFoto.success) {
+    alert('Errore salvataggio foto rapportino: ' + risultatoFoto.error)
     return
   }
 
   setNote((prev) => {
     const testoFoto =
-      `\n\n📸 Foto lavoro allegate: ${numeroFoto}` +
+      `\n\n📸 Foto lavoro allegate: ${risultatoFoto.numeroFoto}` +
       (notaFotoRapportino
         ? `\nNota foto: ${notaFotoRapportino}`
         : '') +
