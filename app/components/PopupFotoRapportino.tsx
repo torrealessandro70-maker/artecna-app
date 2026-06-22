@@ -1,6 +1,13 @@
 'use client'
 
-import type { CSSProperties, Dispatch, RefObject, SetStateAction } from 'react'
+import {
+  useRef,
+  type ChangeEvent,
+  type CSSProperties,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from 'react'
 import Webcam from 'react-webcam'
 import jsPDF from 'jspdf'
 
@@ -26,7 +33,7 @@ type Props = {
 
   webcamRapportinoRef: RefObject<Webcam | null>
 
-  caricaFotoRapportinoDaInput: (e: any) => void
+  caricaFotoRapportinoDaInput: (e: ChangeEvent<HTMLInputElement>) => void
   rilevaPosizioneFoto: () => void
   salvaFotoRapportino: () => void | Promise<void>
   scattaFotoRapportino: () => void
@@ -58,6 +65,8 @@ export default function PopupFotoRapportino({
   fermaDettaturaNoteFoto,
   setPopupFotoRapportino,
 }: Props) {
+  const fotocameraNativaRef = useRef<HTMLInputElement>(null)
+
   return (
     <div
       style={{
@@ -84,20 +93,6 @@ export default function PopupFotoRapportino({
       >
         <h3 style={{ marginTop: 0 }}>📸 Foto lavoro rapportino</h3>
 
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={caricaFotoRapportinoDaInput}
-          style={{
-            width: '100%',
-            padding: 10,
-            border: '1px solid #cbd5e1',
-            borderRadius: 8,
-            marginBottom: 15,
-          }}
-        />
-
         <div
           style={{
             display: 'flex',
@@ -106,6 +101,34 @@ export default function PopupFotoRapportino({
             marginBottom: 12,
           }}
         >
+          <input
+            ref={fotocameraNativaRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={caricaFotoRapportinoDaInput}
+            style={{ display: 'none' }}
+          />
+
+          <button
+            type="button"
+            onClick={() => fotocameraNativaRef.current?.click()}
+            style={buttonPrimary}
+          >
+            📷 Fotocamera dispositivo
+          </button>
+
+          <label style={{ ...buttonSecondary, cursor: 'pointer' }}>
+            🖼️ Scegli dalla galleria
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={caricaFotoRapportinoDaInput}
+              style={{ display: 'none' }}
+            />
+          </label>
+
           <button
             type="button"
             onClick={() =>
