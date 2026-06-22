@@ -66,6 +66,7 @@ export default function PopupFotoRapportino({
   setPopupFotoRapportino,
 }: Props) {
   const fotocameraNativaRef = useRef<HTMLInputElement>(null)
+  const galleriaRef = useRef<HTMLInputElement>(null)
 
   return (
     <div
@@ -121,6 +122,7 @@ export default function PopupFotoRapportino({
           <label style={{ ...buttonSecondary, cursor: 'pointer' }}>
             🖼️ Scegli dalla galleria
             <input
+              ref={galleriaRef}
               type="file"
               accept="image/*"
               multiple
@@ -192,77 +194,106 @@ export default function PopupFotoRapportino({
         {cameraRapportinoAttiva && (
           <div
             style={{
-              position: 'relative',
               marginTop: 10,
               marginBottom: 12,
               border: '1px solid #cbd5e1',
               borderRadius: 12,
               overflow: 'hidden',
-              background: '#000',
+              background: '#fff',
             }}
           >
-            <Webcam
-              ref={webcamRapportinoRef}
-              audio={false}
-              screenshotFormat="image/jpeg"
-              screenshotQuality={0.9}
-              videoConstraints={{
-                facingMode: 'environment',
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
-              }}
+            <div
               style={{
-                width: '100%',
-                height: fotoRapportinoFullscreen ? '90vh' : 540,
-                maxHeight: fotoRapportinoFullscreen ? '90vh' : '65vh',
-                objectFit: 'cover',
-                display: 'block',
-              }}
-            />
-
-            <button
-              type="button"
-              onClick={scattaFotoRapportino}
-              style={{
-                position: 'absolute',
-                bottom: 18,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: 70,
-                height: 70,
-                borderRadius: '50%',
-                border: '4px solid #fff',
-                background: '#2563eb',
-                color: '#fff',
-                fontSize: 28,
-                cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
+                position: 'relative',
+                overflow: 'hidden',
+                background: '#000',
               }}
             >
-              📸
-            </button>
+              <Webcam
+                ref={webcamRapportinoRef}
+                audio={false}
+                screenshotFormat="image/jpeg"
+                screenshotQuality={0.9}
+                videoConstraints={{
+                  facingMode: 'environment',
+                  width: { ideal: 1920 },
+                  height: { ideal: 1080 },
+                }}
+                style={{
+                  width: '100%',
+                  height: fotoRapportinoFullscreen ? '90vh' : 540,
+                  maxHeight: fotoRapportinoFullscreen ? '90vh' : '65vh',
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+              />
 
-            <button
-              type="button"
-              onClick={() =>
-                setFotoRapportinoFullscreen(!fotoRapportinoFullscreen)
-              }
+              <button
+                type="button"
+                onClick={scattaFotoRapportino}
+                aria-label="Scatta foto"
+                style={{
+                  position: 'absolute',
+                  right: 16,
+                  bottom: 16,
+                  width: 64,
+                  height: 64,
+                  padding: 4,
+                  borderRadius: '50%',
+                  border: '3px solid #fff',
+                  background: '#2563eb',
+                  color: '#fff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  lineHeight: 1.1,
+                  cursor: 'pointer',
+                  boxShadow: '0 3px 10px rgba(0,0,0,0.3)',
+                }}
+              >
+                <span aria-hidden="true" style={{ fontSize: 20 }}>
+                  📷
+                </span>
+                Scatta
+              </button>
+            </div>
+
+            <div
               style={{
-                position: 'absolute',
-                bottom: 18,
-                right: 18,
-                width: 44,
-                height: 44,
-                borderRadius: '50%',
-                border: '2px solid #fff',
-                background: 'rgba(37,99,235,0.9)',
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: 18,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gap: 8,
+                padding: 10,
+                background: '#f8fafc',
               }}
             >
-              ↗
-            </button>
+              <button
+                type="button"
+                onClick={() => setCameraRapportinoAttiva(false)}
+                style={{ ...buttonSecondary, minWidth: 0, minHeight: 44 }}
+              >
+                ✕ Chiudi
+              </button>
+              <button
+                type="button"
+                onClick={() => galleriaRef.current?.click()}
+                style={{ ...buttonSecondary, minWidth: 0, minHeight: 44 }}
+              >
+                🖼 Galleria
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setFotoRapportinoFullscreen(!fotoRapportinoFullscreen)
+                }
+                style={{ ...buttonSecondary, minWidth: 0, minHeight: 44 }}
+              >
+                ⛶ Full Screen
+              </button>
+            </div>
           </div>
         )}
 
