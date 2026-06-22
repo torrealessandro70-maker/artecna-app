@@ -1,6 +1,19 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 const OAUTH_STATE_COOKIE = 'artecna_google_calendar_oauth_state'
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+
+type JsonResponseBody = Record<string, string | number | boolean>
+
+type GoogleTokenResponse = {
+  access_token?: string
+  refresh_token?: string
+  expires_in?: number
+  scope?: string
+  token_type?: string
+  error?: string
+  error_description?: string
+}
 
 const clearStateCookie = (response: NextResponse) => {
   response.cookies.set(OAUTH_STATE_COOKIE, '', {
@@ -14,7 +27,7 @@ const clearStateCookie = (response: NextResponse) => {
   return response
 }
 
-const jsonResponse = (body: Record<string, string>, status: number) =>
+const jsonResponse = (body: JsonResponseBody, status: number) =>
   clearStateCookie(
     NextResponse.json(body, {
       status,
@@ -52,12 +65,78 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Lo scambio del code e il salvataggio sicuro dei token arriveranno in uno
-  // step successivo. Il code non viene loggato, scambiato o persistito qui.
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    return jsonResponse(
+      {
+        error:
+          'Configurazione Google Calendar incompleta: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e GOOGLE_REDIRECT_URI sono obbligatorie.',
+      },
+      500
+    )
+  }
+
+  let tokenResponse: Response
+
+  try {
+    tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+      cache: 'no-store',
+    })
+  } catch {
+    return jsonResponse(
+      { error: 'Impossibile contattare il servizio OAuth di Google.' },
+      502
+    )
+  }
+
+  let tokenData: GoogleTokenResponse
+
+  try {
+    tokenData = (await tokenResponse.json()) as GoogleTokenResponse
+  } catch {
+    return jsonResponse(
+      { error: 'Risposta OAuth Google non valida o non leggibile.' },
+      502
+    )
+  }
+
+  if (!tokenResponse.ok || !tokenData.access_token) {
+    return jsonResponse(
+      {
+        error: 'Scambio token Google Calendar non riuscito.',
+        google_error: tokenData.error || 'oauth_token_exchange_failed',
+      },
+      tokenResponse.status >= 400 && tokenResponse.status < 500 ? 400 : 502
+    )
+  }
+
+  // I token sono letti soltanto dalla risposta in memoria e non vengono
+  // restituiti, loggati o usati per creare eventi in questo step.
+  const expiresIn =
+    typeof tokenData.expires_in === 'number' ? tokenData.expires_in : 0
+
+  // TODO
+  // Persistenza token nello step successivo.
   return jsonResponse(
     {
-      message:
-        'Callback Google Calendar ricevuta. Scambio token non ancora implementato.',
+      connected: true,
+      provider: 'google',
+      expires_in: expiresIn,
     },
     200
   )
