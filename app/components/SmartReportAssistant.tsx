@@ -6,6 +6,7 @@ import {
   type ParsedReport,
   type ReportNarrationContext,
 } from '../engines/document-intelligence/report-parser'
+import { cleanDictationText } from '../utils/cleanDictationText'
 
 type Props = {
   testo: string
@@ -16,6 +17,30 @@ type Props = {
   context: ReportNarrationContext
   onParsedReport: (report: ParsedReport) => void
 }
+
+type SpeechRecognitionResultLike = {
+  readonly isFinal: boolean
+  readonly [index: number]: { transcript: string }
+}
+
+type SpeechRecognitionEventLike = {
+  readonly results: ArrayLike<SpeechRecognitionResultLike>
+}
+
+type SpeechRecognitionLike = {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  onstart: (() => void) | null
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  onerror: ((event: { error: string }) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+  abort: () => void
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike
 
 const prossimeEvoluzioni = [
   'Operai',
@@ -36,20 +61,27 @@ export default function SmartReportAssistant({
 }: Props) {
   const [anteprima, setAnteprima] = useState<ParsedReport | null>(null)
   const [ascoltoAttivo, setAscoltoAttivo] = useState(false)
-  const recognitionRef = useRef<any>(null)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const stopRichiestoRef = useRef(true)
+  const testoBaseRef = useRef('')
+  const testoCorrenteRef = useRef('')
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop()
+      stopRichiestoRef.current = true
+      recognitionRef.current?.abort()
     }
   }, [])
 
   const avviaDettatura = () => {
     if (recognitionRef.current) return
 
+    const speechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor
+      webkitSpeechRecognition?: SpeechRecognitionConstructor
+    }
     const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition
+      speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition
 
     if (!SpeechRecognition) {
       alert('La dettatura vocale non e supportata da questo browser.')
@@ -57,9 +89,10 @@ export default function SmartReportAssistant({
     }
 
     const recognition = new SpeechRecognition()
-    const testoIniziale = testo.trimEnd()
-
     recognitionRef.current = recognition
+    stopRichiestoRef.current = false
+    testoBaseRef.current = testo.trimEnd()
+    testoCorrenteRef.current = testoBaseRef.current
     recognition.lang = 'it-IT'
     recognition.continuous = true
     recognition.interimResults = true
@@ -68,7 +101,7 @@ export default function SmartReportAssistant({
       setAscoltoAttivo(true)
     }
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       const partiFinali: string[] = []
       const partiIntermedie: string[] = []
 
@@ -85,28 +118,55 @@ export default function SmartReportAssistant({
       }
 
       const trascrizione = [...partiFinali, ...partiIntermedie].join(' ')
-      onChangeTesto(
-        testoIniziale && trascrizione
-          ? `${testoIniziale}\n${trascrizione}`
-          : testoIniziale || trascrizione
+      const prossimoTesto = cleanDictationText(
+        testoBaseRef.current && trascrizione
+          ? `${testoBaseRef.current}\n${trascrizione}`
+          : testoBaseRef.current || trascrizione
       )
+
+      testoCorrenteRef.current = prossimoTesto
+      onChangeTesto(prossimoTesto)
     }
 
-    recognition.onerror = (event: any) => {
-      if (event.error !== 'aborted') {
+    recognition.onerror = (event) => {
+      if (
+        event.error === 'not-allowed' ||
+        event.error === 'service-not-allowed'
+      ) {
+        stopRichiestoRef.current = true
         alert('Errore durante la dettatura vocale.')
       }
     }
 
     recognition.onend = () => {
-      recognitionRef.current = null
-      setAscoltoAttivo(false)
+      if (stopRichiestoRef.current) {
+        recognitionRef.current = null
+        setAscoltoAttivo(false)
+        return
+      }
+
+      testoBaseRef.current = testoCorrenteRef.current.trimEnd()
+
+      window.setTimeout(() => {
+        if (stopRichiestoRef.current || recognitionRef.current !== recognition) {
+          return
+        }
+
+        try {
+          recognition.start()
+        } catch {
+          recognitionRef.current = null
+          stopRichiestoRef.current = true
+          setAscoltoAttivo(false)
+        }
+      }, 100)
     }
 
     recognition.start()
   }
 
   const fermaDettatura = () => {
+    stopRichiestoRef.current = true
     recognitionRef.current?.stop()
     setAscoltoAttivo(false)
   }
@@ -259,6 +319,33 @@ export default function SmartReportAssistant({
               ' Nessuna attività riconosciuta'
             )}
           </div>
+          {anteprima.promemoriaSuggeriti.length > 0 && (
+            <div
+              style={{
+                padding: 12,
+                border: '1px solid #bfdbfe',
+                borderRadius: 8,
+                background: '#eff6ff',
+              }}
+            >
+              <strong>📅 Promemoria suggeriti</strong>
+              <p style={{ margin: '6px 0' }}>
+                Vuoi creare un promemoria/evento?
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {anteprima.promemoriaSuggeriti.map((promemoria) => (
+                  <li
+                    key={`${promemoria.testo}-${promemoria.dataSuggerita || ''}`}
+                  >
+                    {promemoria.testo}
+                    {promemoria.dataSuggerita
+                      ? ` (${promemoria.dataSuggerita})`
+                      : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div>
             <strong>Note:</strong> {anteprima.note || 'Nessuna'}
           </div>

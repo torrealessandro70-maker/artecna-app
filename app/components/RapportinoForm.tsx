@@ -12,6 +12,7 @@ import RapportinoActivities, {
   type RapportinoActivity,
 } from './RapportinoActivities'
 import SmartReportAssistant from './SmartReportAssistant'
+import { cleanDictationText } from '../utils/cleanDictationText'
 
 export type OperaioRapportinoTemp = {
   nome: string
@@ -104,7 +105,7 @@ export default function RapportinoForm({
   const applicaReport = (report: ParsedReport) => {
     if (report.cantiere) setCantiereRapporto(report.cantiere)
     if (report.data) setData(report.data)
-    if (report.note.trim()) setNote(report.note)
+    if (report.note.trim()) setNote(cleanDictationText(report.note))
 
     if (report.attivitaDaFare.length > 0) {
       setAttivita((attivitaCorrenti) => {

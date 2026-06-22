@@ -11,11 +11,17 @@ export interface ParsedReport {
   cantiere?: string
   data?: string
   operai: ParsedReportWorker[]
-  materiali: any[]
+  materiali: ParsedMaterial[]
   lavorazioni: string[]
   attivitaDaFare: string[]
+  promemoriaSuggeriti: ParsedReportReminder[]
   note: string
   warnings: string[]
+}
+
+export interface ParsedReportReminder {
+  testo: string
+  dataSuggerita?: string
 }
 
 export interface ParsedReportWorker {
@@ -84,6 +90,31 @@ const taskActionKeywords = [
   'completare',
 ]
 
+const reminderKeywords = [
+  'ricordami',
+  'ricordare',
+  'promemoria',
+  'domani',
+  'lunedì',
+  'martedì',
+  'mercoledì',
+  'giovedì',
+  'venerdì',
+  'sabato',
+  'domenica',
+]
+
+const reminderDates = [
+  { value: 'domani', terms: ['domani'] },
+  { value: 'lunedì', terms: ['lunedì', 'lunedi'] },
+  { value: 'martedì', terms: ['martedì', 'martedi'] },
+  { value: 'mercoledì', terms: ['mercoledì', 'mercoledi'] },
+  { value: 'giovedì', terms: ['giovedì', 'giovedi'] },
+  { value: 'venerdì', terms: ['venerdì', 'venerdi'] },
+  { value: 'sabato', terms: ['sabato'] },
+  { value: 'domenica', terms: ['domenica'] },
+]
+
 const normalizeText = (value: string) =>
   value
     .toLowerCase()
@@ -147,6 +178,56 @@ const extractTasks = (narration: string) => {
   }
 
   return Array.from(tasks.values())
+}
+
+const extractSuggestedReminders = (narration: string) => {
+  const reminders = new Map<string, ParsedReportReminder>()
+  const datePattern = reminderDates.flatMap((date) => date.terms).join('|')
+
+  for (const sentence of narration.split(/[.!?;\n]+/)) {
+    const normalizedSentence = normalizeText(sentence)
+
+    if (
+      !reminderKeywords.some((keyword) =>
+        containsTerm(normalizedSentence, keyword)
+      )
+    ) {
+      continue
+    }
+
+    const dataSuggerita = reminderDates.find((date) =>
+      date.terms.some((term) => containsTerm(normalizedSentence, term))
+    )?.value
+    const cleanText = sentence
+      .trim()
+      .replace(
+        /^.*?\b(?:ricordami|ricordare|promemoria)\b(?:\s+di)?\s*/i,
+        ''
+      )
+      .replace(
+        new RegExp(
+          `(?:^|\\s)(?:per\\s+)?(?:${datePattern})(?=\\s|[,.:]|$)`,
+          'gi'
+        ),
+        ' '
+      )
+      .replace(/^(?:di|che)\s+/i, '')
+      .replace(/\s+/g, ' ')
+      .replace(/\s+([,.;:!?])/g, '$1')
+      .replace(/^[,;:\s]+|[,;:\s]+$/g, '')
+      .trim()
+    const normalizedText = normalizeText(cleanText)
+
+    if (!normalizedText) continue
+
+    const reminder = {
+      testo: capitalizeFirst(cleanText),
+      ...(dataSuggerita ? { dataSuggerita } : {}),
+    }
+    reminders.set(`${normalizedText}|${dataSuggerita || ''}`, reminder)
+  }
+
+  return Array.from(reminders.values())
 }
 
 const calculateConfidence = (recognizedElements: number) => {
@@ -312,6 +393,7 @@ export function parseReportNarration(
     containsTerm(normalizedNarration, lavorazione)
   )
   const attivitaDaFare = extractTasks(narration)
+  const promemoriaSuggeriti = extractSuggestedReminders(narration)
 
   const warnings: string[] = []
 
@@ -328,6 +410,7 @@ export function parseReportNarration(
     materiali.length +
     lavorazioni.length +
     attivitaDaFare.length +
+    promemoriaSuggeriti.length +
     (relativeDate ? 1 : 0) +
     (timeRange ? 1 : 0)
 
@@ -340,6 +423,7 @@ export function parseReportNarration(
     materiali,
     lavorazioni,
     attivitaDaFare,
+    promemoriaSuggeriti,
     warnings,
   }
 }
