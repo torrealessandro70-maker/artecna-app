@@ -10,6 +10,7 @@ import jsPDF from 'jspdf'
 import * as XLSX from 'xlsx'
 import Tesseract from 'tesseract.js'
 import JSZip from 'jszip'
+import { cleanDictationText } from './utils/cleanDictationText'
 import PopupModificaTimbratura from './components/PopupModificaTimbratura'
 import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
@@ -5556,7 +5557,7 @@ const avviaDettaturaRapportino = () => {
 
       if (event.results[i].isFinal) {
         if (frase !== ultimaFraseFinale) {
-          testoFinale = `${testoFinale} ${frase}`.trim()
+          testoFinale = cleanDictationText(`${testoFinale} ${frase}`)
           ultimaFraseFinale = frase
         }
       } else {
@@ -5564,7 +5565,9 @@ const avviaDettaturaRapportino = () => {
       }
     }
 
-    const testoCompleto = `${testoFinale} ${testoTemporaneo}`.trim()
+    const testoCompleto = cleanDictationText(
+      `${testoFinale} ${testoTemporaneo}`
+    )
     setTestoVoceRapportino(testoCompleto)
   }
 
@@ -5575,7 +5578,7 @@ const avviaDettaturaRapportino = () => {
   recognition.onend = () => {
     setAscoltoRapportino(false)
 
-    const testoPulito = testoFinale.trim()
+    const testoPulito = cleanDictationText(testoFinale)
 
     if (testoPulito) {
       setNote((prev) => {
@@ -8551,9 +8554,39 @@ const salvaFotoRapportino = async () => {
     return
   }
 
+  const cantiereFoto =
+    cantiereRapporto ||
+    cantiereScheda ||
+    ultimoRapportino?.cantiere ||
+    ''
+
+  if (!cantiereFoto) {
+    alert('Seleziona un cantiere prima di salvare le foto del rapportino')
+    return
+  }
+
+  const numeroFoto = fotoRapportinoTemp.length
+  const fotoDaSalvare = fotoRapportinoTemp.map((foto) => ({
+    cantiere: cantiereFoto,
+    nota: notaFotoRapportino || note || 'Foto rapportino',
+    immagine_base64: foto,
+    data_foto: data || new Date().toISOString().slice(0, 10),
+    geolocalizzazione: geolocalizzazioneFoto || null,
+    categoria: 'rapportino',
+  }))
+
+  const { error } = await supabase
+    .from('foto_cantiere')
+    .insert(fotoDaSalvare)
+
+  if (error) {
+    alert('Errore salvataggio foto rapportino: ' + error.message)
+    return
+  }
+
   setNote((prev) => {
     const testoFoto =
-      `\n\n📸 Foto lavoro allegate: ${fotoRapportinoTemp.length}` +
+      `\n\n📸 Foto lavoro allegate: ${numeroFoto}` +
       (notaFotoRapportino
         ? `\nNota foto: ${notaFotoRapportino}`
         : '') +
@@ -8568,7 +8601,13 @@ const salvaFotoRapportino = async () => {
     return prev + testoFoto
   })
 
-  alert('Foto aggiunte al rapportino')
+  setFotoRapportinoTemp([])
+  setNotaFotoRapportino('')
+  setPopupFotoRapportino(false)
+
+  await caricaFotoCantiere()
+
+  alert('Foto rapportino salvate nella galleria cantiere')
 }
 
   const aggiungiMaterialeEconomia = async () => {
