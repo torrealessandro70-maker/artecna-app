@@ -17,6 +17,8 @@ export type Activity = {
   completata: boolean
   origine: ActivityOrigin
   dataCreazione: string
+  dataSuggerita?: string
+  oraSuggerita?: string
 }
 
 export type RapportinoActivity = Activity
@@ -305,24 +307,35 @@ export default function RapportinoActivities({
                 {iconaOrigine[voce.origine]}
               </span>
 
-              <input
-                value={voce.testo}
-                onChange={(event) =>
-                  aggiornaAttivita(voce.id, { testo: event.target.value })
-                }
-                onKeyDown={(event) => gestisciInvio(event, indice)}
-                placeholder="Scrivi un'attività..."
-                style={{
-                  width: '100%',
-                  padding: '8px 4px',
-                  border: 'none',
-                  outline: 'none',
-                  background: 'transparent',
-                  color: '#0f172a',
-                  fontSize: 15,
-                  textDecoration: voce.completata ? 'line-through' : 'none',
-                }}
-              />
+              <div style={{ display: 'grid', minWidth: 0 }}>
+                <input
+                  value={voce.testo}
+                  onChange={(event) =>
+                    aggiornaAttivita(voce.id, { testo: event.target.value })
+                  }
+                  onKeyDown={(event) => gestisciInvio(event, indice)}
+                  placeholder="Scrivi un'attività..."
+                  style={{
+                    width: '100%',
+                    padding: '8px 4px',
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    color: '#0f172a',
+                    fontSize: 15,
+                    textDecoration: voce.completata ? 'line-through' : 'none',
+                  }}
+                />
+                {(voce.dataSuggerita || voce.oraSuggerita) && (
+                  <small
+                    style={{ padding: '0 4px 6px', color: '#64748b' }}
+                  >
+                    {[voce.dataSuggerita, voce.oraSuggerita]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </small>
+                )}
+              </div>
 
               <button
                 type="button"

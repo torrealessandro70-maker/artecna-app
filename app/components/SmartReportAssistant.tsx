@@ -8,6 +8,13 @@ import {
 } from '../engines/document-intelligence/report-parser'
 import { cleanDictationText } from '../utils/cleanDictationText'
 
+export type ReminderActivityDraft = {
+  testo: string
+  dataSuggerita?: string
+  oraSuggerita: string
+  origine: 'ai'
+}
+
 type Props = {
   testo: string
   onChangeTesto: (testo: string) => void
@@ -16,6 +23,7 @@ type Props = {
   buttonSecondary: CSSProperties
   context: ReportNarrationContext
   onParsedReport: (report: ParsedReport) => void
+  onCreateActivityFromReminder: (activity: ReminderActivityDraft) => void
 }
 
 type SpeechRecognitionResultLike = {
@@ -58,9 +66,11 @@ export default function SmartReportAssistant({
   buttonSecondary,
   context,
   onParsedReport,
+  onCreateActivityFromReminder,
 }: Props) {
   const [anteprima, setAnteprima] = useState<ParsedReport | null>(null)
   const [ascoltoAttivo, setAscoltoAttivo] = useState(false)
+  const [messaggioAttivitaCreata, setMessaggioAttivitaCreata] = useState('')
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const stopRichiestoRef = useRef(true)
   const testoBaseRef = useRef('')
@@ -174,8 +184,35 @@ export default function SmartReportAssistant({
   const preparaRapportino = () => {
     const report = parseReportNarration(testo, context)
 
+    setMessaggioAttivitaCreata('')
     setAnteprima(report)
     onParsedReport(report)
+  }
+
+  const creaAttivitaDaPromemoria = (
+    promemoria: ParsedReport['promemoriaSuggeriti'][number]
+  ) => {
+    setMessaggioAttivitaCreata('')
+    const oraInserita = window.prompt('A che ora vuoi ricordarlo?')
+
+    if (oraInserita === null) return
+
+    const oraSuggerita = oraInserita.trim()
+
+    if (!oraSuggerita) {
+      alert('Inserisci un orario per creare l’attività.')
+      return
+    }
+
+    onCreateActivityFromReminder({
+      testo: promemoria.testo,
+      dataSuggerita: promemoria.dataSuggerita,
+      oraSuggerita,
+      origine: 'ai',
+    })
+    setMessaggioAttivitaCreata(
+      'Attività creata nel rapportino. Il collegamento al calendario arriverà in una fase successiva.'
+    )
   }
 
   const disabledButtonStyle: CSSProperties = {
@@ -332,7 +369,14 @@ export default function SmartReportAssistant({
               <p style={{ margin: '6px 0' }}>
                 Vuoi creare un promemoria/evento?
               </p>
-              <ul style={{ margin: 0, paddingLeft: 20 }}>
+              <ul
+                style={{
+                  display: 'grid',
+                  gap: 8,
+                  margin: 0,
+                  paddingLeft: 20,
+                }}
+              >
                 {anteprima.promemoriaSuggeriti.map((promemoria) => (
                   <li
                     key={`${promemoria.testo}-${promemoria.dataSuggerita || ''}`}
@@ -341,9 +385,24 @@ export default function SmartReportAssistant({
                     {promemoria.dataSuggerita
                       ? ` (${promemoria.dataSuggerita})`
                       : ''}
+                    <button
+                      type="button"
+                      onClick={() => creaAttivitaDaPromemoria(promemoria)}
+                      style={{ ...buttonPrimary, marginLeft: 8 }}
+                    >
+                      ➕ Crea attività
+                    </button>
                   </li>
                 ))}
               </ul>
+              {messaggioAttivitaCreata && (
+                <p
+                  role="status"
+                  style={{ margin: '10px 0 0', color: '#166534' }}
+                >
+                  {messaggioAttivitaCreata}
+                </p>
+              )}
             </div>
           )}
           <div>

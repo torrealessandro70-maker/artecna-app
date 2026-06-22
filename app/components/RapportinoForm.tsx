@@ -11,7 +11,9 @@ import type { ParsedReport } from '../engines/document-intelligence/report-parse
 import RapportinoActivities, {
   type RapportinoActivity,
 } from './RapportinoActivities'
-import SmartReportAssistant from './SmartReportAssistant'
+import SmartReportAssistant, {
+  type ReminderActivityDraft,
+} from './SmartReportAssistant'
 import { cleanDictationText } from '../utils/cleanDictationText'
 
 export type OperaioRapportinoTemp = {
@@ -188,6 +190,33 @@ export default function RapportinoForm({
     }
   }
 
+  const creaAttivitaDaPromemoria = (activity: ReminderActivityDraft) => {
+    setAttivita((attivitaCorrenti) => {
+      const giaPresente = attivitaCorrenti.some(
+        (attivita) =>
+          attivita.testo.trim().toLowerCase() ===
+            activity.testo.trim().toLowerCase() &&
+          attivita.dataSuggerita === activity.dataSuggerita &&
+          attivita.oraSuggerita === activity.oraSuggerita
+      )
+
+      if (giaPresente) return attivitaCorrenti
+
+      return [
+        ...attivitaCorrenti,
+        {
+          id: crypto.randomUUID(),
+          testo: activity.testo,
+          completata: false,
+          origine: activity.origine,
+          dataCreazione: new Date().toISOString(),
+          dataSuggerita: activity.dataSuggerita,
+          oraSuggerita: activity.oraSuggerita,
+        },
+      ]
+    })
+  }
+
   return (
     <div
       style={{
@@ -245,6 +274,7 @@ export default function RapportinoForm({
           operaiDisponibili: operaiAnagrafica.map((operaio) => operaio.nome),
         }}
         onParsedReport={applicaReport}
+        onCreateActivityFromReminder={creaAttivitaDaPromemoria}
       />
 
       {operaiRapportinoTemp.length > 0 && (
