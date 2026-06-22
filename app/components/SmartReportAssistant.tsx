@@ -193,7 +193,7 @@ export default function SmartReportAssistant({
     promemoria: ParsedReport['promemoriaSuggeriti'][number]
   ) => {
     setMessaggioAttivitaCreata('')
-    const oraInserita = window.prompt('A che ora vuoi ricordarlo?')
+    const oraInserita = window.prompt('A che ora?')
 
     if (oraInserita === null) return
 
@@ -211,7 +211,7 @@ export default function SmartReportAssistant({
       origine: 'ai',
     })
     setMessaggioAttivitaCreata(
-      'Attività creata nel rapportino. Il collegamento al calendario arriverà in una fase successiva.'
+      'Evento aggiunto alle attività. Per creare eventi reali serve collegare Google Calendar.'
     )
   }
 
