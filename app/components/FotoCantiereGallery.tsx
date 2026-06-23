@@ -104,7 +104,11 @@ export default function FotoCantiereGallery({
             </label>
 
             <img
-              src={foto.immagine_base64}
+            src={
+  (foto as any).file_url ||
+  (foto as any).url ||
+  foto.immagine_base64
+}
               alt="Foto cantiere"
               onClick={() => setFotoFullscreen(foto)}
               style={{
