@@ -27,7 +27,11 @@ export default function FotoFullscreenModal({
       }}
     >
       <img
-        src={fotoFullscreen.immagine_base64}
+        src={
+  (fotoFullscreen as any).file_url ||
+  (fotoFullscreen as any).url ||
+  fotoFullscreen.immagine_base64
+}
         alt="Fullscreen"
         style={{
           maxWidth: '95%',
