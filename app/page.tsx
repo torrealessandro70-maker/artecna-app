@@ -5072,8 +5072,8 @@ const eliminaPagamentoOperaio = async (id?: string) => {
 const caricaFotoCantiere = async () => {
   const { data, error } = await supabase
     .from('foto_cantiere')
-    .select(
-'id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria'
+   .select(
+'id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria,immagine_base64,file_url,file_path'
 )
     .order('created_at', { ascending: false })
     .limit(80)
