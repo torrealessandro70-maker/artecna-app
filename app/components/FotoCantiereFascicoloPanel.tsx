@@ -87,6 +87,7 @@ export default function FotoCantiereFascicoloPanel(props: Props) {
         setFotoCantiereSelezionate={p.setFotoCantiereSelezionate}
         setFotoFullscreen={p.setFotoFullscreen}
         supabase={p.supabase}
+        fotoStorageBucket={p.fotoStorageBucket}
         caricaFotoCantiere={p.caricaFotoCantiere}
         eliminaFotoCantiere={p.eliminaFotoCantiere}
         buttonSecondary={p.buttonSecondary}

@@ -11585,6 +11585,7 @@ WebkitOverflowScrolling: 'touch',
   aggiornaCategoriaFotoSelezionate={aggiornaCategoriaFotoSelezionate}
   setFotoFullscreen={setFotoFullscreen}
   supabase={supabase}
+  fotoStorageBucket={FOTO_CANTIERE_BUCKET}
   caricaFotoCantiere={caricaFotoCantiere}
   eliminaFotoCantiere={eliminaFotoCantiere}
   geolocalizzazioneFoto={geolocalizzazioneFoto}
@@ -11800,6 +11801,7 @@ WebkitOverflowScrolling: 'touch',
   setCategoriaFotoMultipla={setCategoriaFotoMultipla}
   aggiornaCategoriaFotoSelezionate={aggiornaCategoriaFotoSelezionate}
   setFotoFullscreen={setFotoFullscreen}
+  fotoStorageBucket={FOTO_CANTIERE_BUCKET}
   caricaFotoCantiere={caricaFotoCantiere}
   eliminaFotoCantiere={eliminaFotoCantiere}
   geolocalizzazioneFoto={geolocalizzazioneFoto}

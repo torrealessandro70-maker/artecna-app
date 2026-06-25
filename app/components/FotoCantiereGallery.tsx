@@ -16,6 +16,7 @@ type Props = {
   setFotoFullscreen: (foto: FotoCantiere | null) => void
 
   supabase: any
+  fotoStorageBucket: string
   caricaFotoCantiere: () => void | Promise<void>
   eliminaFotoCantiere: (id?: string) => void | Promise<void>
 
@@ -31,20 +32,110 @@ export default function FotoCantiereGallery({
   setFotoCantiereSelezionate,
   setFotoFullscreen,
   supabase,
+  fotoStorageBucket,
   caricaFotoCantiere,
   eliminaFotoCantiere,
   buttonSecondary,
 }: Props) {
+  const eliminaFotoSelezionate = async () => {
+    const fotoDaEliminare = fotoCantiere.filter(
+      (foto) => foto.id && fotoCantiereSelezionate.includes(foto.id)
+    )
+    const totale = fotoDaEliminare.length
+
+    if (totale === 0) {
+      setFotoCantiereSelezionate([])
+      return
+    }
+
+    const conferma = confirm(`Eliminare ${totale} foto selezionate?`)
+
+    if (!conferma) return
+
+    const errori: string[] = []
+
+    for (const foto of fotoDaEliminare) {
+      const filePath = (foto as any).file_path
+
+      if (filePath) {
+        try {
+          const { error } = await supabase.storage
+            .from(fotoStorageBucket)
+            .remove([filePath])
+
+          if (error) {
+            errori.push(`Storage ${foto.id}: ${error.message}`)
+          }
+        } catch (error) {
+          const messaggio = error instanceof Error ? error.message : 'errore di rete'
+          errori.push(`Storage ${foto.id}: ${messaggio}`)
+        }
+      }
+
+      const { error } = await supabase
+        .from('foto_cantiere')
+        .delete()
+        .eq('id', foto.id)
+
+      if (error) {
+        errori.push(`Database ${foto.id}: ${error.message}`)
+      }
+    }
+
+    setFotoCantiereSelezionate([])
+    await caricaFotoCantiere()
+
+    if (errori.length > 0) {
+      alert(
+        `Eliminazione completata con ${errori.length} errori. ` +
+          'Controlla alcune foto rimaste in galleria.'
+      )
+    }
+  }
+
+  const numeroFotoSelezionate = fotoCantiereSelezionate.length
+
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-        gap: 12,
-        marginTop: 15,
-      }}
-    >
-      {fotoCantiere
+    <>
+      {numeroFotoSelezionate > 0 && (
+        <div
+          style={{
+            marginTop: 15,
+            marginBottom: 10,
+            padding: 10,
+            border: '1px solid #cbd5e1',
+            borderRadius: 8,
+            background: '#f8fafc',
+            display: 'flex',
+            gap: 10,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <strong>☑ {numeroFotoSelezionate} foto selezionate</strong>
+
+          <button
+            onClick={eliminaFotoSelezionate}
+            style={{
+              ...buttonSecondary,
+              backgroundColor: '#dc2626',
+              color: '#fff',
+            }}
+          >
+            🗑 Elimina selezionate
+          </button>
+        </div>
+      )}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+          gap: 12,
+          marginTop: 15,
+        }}
+      >
+        {fotoCantiere
         .filter((f) => {
           if (f.cantiere !== cantiereScheda) return false
 
@@ -211,6 +302,7 @@ export default function FotoCantiereGallery({
             </div>
           </div>
         ))}
-    </div>
+      </div>
+    </>
   )
 }
