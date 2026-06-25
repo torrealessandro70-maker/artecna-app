@@ -8512,14 +8512,18 @@ const salvaFotoCantiere = async () => {
     return false
   }
 
-  const nuoveFoto = caricamenti.map((file) => ({
-    cantiere: cantiereScheda,
-    nota: notaFotoCantiere,
-    immagine_base64: file.url,
-    categoria: categoriaFotoDaSalvare || categoriaFoto || 'durante',
-    geolocalizzazione: geolocalizzazioneFoto,
-    data_foto: new Date().toISOString().slice(0, 10),
-  }))
+ const nuoveFoto = caricamenti.map((file) => ({
+  cantiere: cantiereScheda,
+  nota: notaFotoCantiere,
+  file_url: file.url,
+  file_path: file.path,
+  immagine_base64: file.url,
+  categoria: categoriaFotoDaSalvare || categoriaFoto || 'durante',
+  geolocalizzazione: geolocalizzazioneFoto,
+  data_foto: new Date().toISOString().slice(0, 10),
+  storage_provider: 'cloud',
+  sync_status: 'not_required',
+}))
 
   try {
     const { error: erroreInsert } = await supabase
