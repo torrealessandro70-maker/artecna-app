@@ -5,12 +5,14 @@ import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 type Props = {
   fotoRapportinoAperte: any[]
   setFotoRapportinoAperte: Dispatch<SetStateAction<any[]>>
+  onEliminaFotoRapportino: (foto: any) => void | Promise<void>
   buttonSecondary: CSSProperties
 }
 
 export default function PopupFotoRapportinoAperte({
   fotoRapportinoAperte,
   setFotoRapportinoAperte,
+  onEliminaFotoRapportino,
   buttonSecondary,
 }: Props) {
   return (
@@ -92,6 +94,19 @@ export default function PopupFotoRapportinoAperte({
                 </div>
 
                 <div style={{ marginTop: 6 }}>{foto.nota}</div>
+
+                <button
+                  onClick={() => onEliminaFotoRapportino(foto)}
+                  style={{
+                    ...buttonSecondary,
+                    marginTop: 10,
+                    backgroundColor: '#dc2626',
+                    color: '#fff',
+                    width: '100%',
+                  }}
+                >
+                  🗑 Elimina foto
+                </button>
               </div>
             </div>
           ))}

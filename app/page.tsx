@@ -7605,6 +7605,54 @@ const eliminaFotoCantiere = async (id?: string) => {
   alert('Foto eliminata')
 }
 
+const eliminaFotoRapportino = async (foto: any) => {
+  if (!foto?.id) {
+    alert('Errore eliminazione foto: record foto non valido')
+    return
+  }
+
+  const conferma = confirm(
+    'Eliminare questa foto dal rapportino e dalla galleria cantiere?'
+  )
+
+  if (!conferma) return
+
+  if (foto.file_path) {
+    try {
+      const { error: erroreStorage } = await supabase.storage
+        .from(FOTO_CANTIERE_BUCKET)
+        .remove([foto.file_path])
+
+      if (erroreStorage) {
+        alert('Errore eliminazione file Storage: ' + erroreStorage.message)
+        return
+      }
+    } catch (errore) {
+      const messaggio = errore instanceof Error ? errore.message : 'errore di rete'
+      alert('Errore eliminazione file Storage: ' + messaggio)
+      return
+    }
+  }
+
+  const { error } = await supabase
+    .from('foto_cantiere')
+    .delete()
+    .eq('id', foto.id)
+
+  if (error) {
+    alert('Errore eliminazione record foto: ' + error.message)
+    return
+  }
+
+  setFotoRapportinoAperte((fotoCorrenti) =>
+    fotoCorrenti.filter(
+      (fotoCorrente) => String(fotoCorrente.id) !== String(foto.id)
+    )
+  )
+
+  await caricaFotoCantiere()
+}
+
 
 
 
@@ -11263,6 +11311,7 @@ textarea:not(.impostazioni-input) {
   <PopupFotoRapportinoAperte
     fotoRapportinoAperte={fotoRapportinoAperte}
     setFotoRapportinoAperte={setFotoRapportinoAperte}
+    onEliminaFotoRapportino={eliminaFotoRapportino}
     buttonSecondary={buttonSecondary}
   />
 )}
