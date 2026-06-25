@@ -8512,7 +8512,7 @@ const salvaFotoCantiere = async () => {
     return false
   }
 
- const nuoveFoto = caricamenti.map((file) => ({
+const nuoveFoto = caricamenti.map((file) => ({
   cantiere: cantiereScheda,
   nota: notaFotoCantiere,
   file_url: file.url,
