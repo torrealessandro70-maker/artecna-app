@@ -5074,7 +5074,7 @@ const caricaFotoCantiere = async () => {
   const { data, error } = await supabase
     .from('foto_cantiere')
   .select(
-'id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria,immagine_base64'
+  'id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria,immagine_base64,file_url,file_path,thumbnail_url,storage_provider,sync_status'
 )
     .order('created_at', { ascending: false })
     .limit(80)
