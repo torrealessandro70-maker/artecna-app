@@ -138,6 +138,8 @@ collegare in futuro la foto a SAL o documenti senza duplicare il file.
 ### V1
 
 - Continuare con Supabase Storage come provider predefinito.
+- Implementare solo il provider `cloud` nell'adapter iniziale; `hybrid`,
+  `local_sync` e `nas` restano pianificati.
 - Salvare URL e path in campi corretti e non ambigui.
 - Eliminare gradualmente l'uso di `immagine_base64` come contenitore misto.
 - Introdurre il contratto del Photo Storage Adapter davanti agli upload nuovi.
