@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react'
 
-type FascicoloCantiereTab =
+export type FascicoloCantiereTab =
   | 'panoramica'
   | 'foto'
   | 'documenti'
@@ -17,6 +17,13 @@ type FascicoloCantiereContainerProps = {
   cliente?: string
   statoLavori?: string
   ultimoAggiornamento?: string
+  numeroFoto?: number
+  numeroDocumenti?: number
+  numeroRapportini?: number
+  numeroSal?: number
+  riepilogoEconomia?: string
+  numeroOperai?: number
+  numeroAttivita?: number
   panoramica?: ReactNode
   foto?: ReactNode
   documenti?: ReactNode
@@ -25,6 +32,9 @@ type FascicoloCantiereContainerProps = {
   sal?: ReactNode
   operai?: ReactNode
   ai?: ReactNode
+  tabAttiva?: FascicoloCantiereTab
+  onTabChange?: (tab: FascicoloCantiereTab) => void
+  children?: ReactNode
 }
 
 const tabs: Array<{ id: FascicoloCantiereTab; label: string }> = [
@@ -43,6 +53,13 @@ export default function FascicoloCantiereContainer({
   cliente,
   statoLavori,
   ultimoAggiornamento,
+  numeroFoto,
+  numeroDocumenti,
+  numeroRapportini,
+  numeroSal,
+  riepilogoEconomia,
+  numeroOperai,
+  numeroAttivita,
   panoramica,
   foto,
   documenti,
@@ -51,9 +68,13 @@ export default function FascicoloCantiereContainer({
   sal,
   operai,
   ai,
+  tabAttiva,
+  onTabChange,
+  children,
 }: FascicoloCantiereContainerProps) {
-  const [tabAttiva, setTabAttiva] =
+  const [tabInterna, setTabInterna] =
     useState<FascicoloCantiereTab>('panoramica')
+  const tabCorrente = tabAttiva || tabInterna
 
   const contenuti: Record<FascicoloCantiereTab, ReactNode> = {
     panoramica,
@@ -65,6 +86,67 @@ export default function FascicoloCantiereContainer({
     operai,
     ai,
   }
+  const cambiaTab = (tab: FascicoloCantiereTab) => {
+    setTabInterna(tab)
+    onTabChange?.(tab)
+  }
+  const cards: Array<{
+    icon: string
+    titolo: string
+    numero: string
+    descrizione: string
+    tab: FascicoloCantiereTab
+  }> = [
+    {
+      icon: '📸',
+      titolo: 'Foto',
+      numero: formatDashboardValue(numeroFoto),
+      descrizione: 'Memoria fotografica del cantiere.',
+      tab: 'foto',
+    },
+    {
+      icon: '📄',
+      titolo: 'Documenti',
+      numero: formatDashboardValue(numeroDocumenti),
+      descrizione: 'File, preventivi e allegati collegati.',
+      tab: 'documenti',
+    },
+    {
+      icon: '📝',
+      titolo: 'Rapportini',
+      numero: formatDashboardValue(numeroRapportini),
+      descrizione: 'Giornate e lavorazioni registrate.',
+      tab: 'rapportini',
+    },
+    {
+      icon: '📊',
+      titolo: 'SAL',
+      numero: formatDashboardValue(numeroSal),
+      descrizione: 'Stato avanzamento lavori.',
+      tab: 'sal',
+    },
+    {
+      icon: '💰',
+      titolo: 'Economia',
+      numero: riepilogoEconomia || '-',
+      descrizione: 'Sintesi economica del cantiere.',
+      tab: 'economia',
+    },
+    {
+      icon: '👷',
+      titolo: 'Operai',
+      numero: formatDashboardValue(numeroOperai),
+      descrizione: 'Presenze e persone associate.',
+      tab: 'operai',
+    },
+    {
+      icon: '📋',
+      titolo: 'Attività',
+      numero: formatDashboardValue(numeroAttivita),
+      descrizione: 'Azioni e promemoria operativi.',
+      tab: 'panoramica',
+    },
+  ]
 
   return (
     <section
@@ -139,6 +221,103 @@ export default function FascicoloCantiereContainer({
         </div>
       </header>
 
+      <section
+        aria-label="Panoramica del Cantiere"
+        style={{
+          display: 'grid',
+          gap: 14,
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0 }}>Panoramica del Cantiere</h3>
+          <div style={{ marginTop: 4, color: '#64748b', fontSize: 13 }}>
+            Stato sintetico del Fascicolo e dei suoi contenuti principali.
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 12,
+          }}
+        >
+          {cards.map((card) => (
+            <button
+              key={card.titolo}
+              type="button"
+              onClick={() => cambiaTab(card.tab)}
+              style={{
+                textAlign: 'left',
+                padding: 14,
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                background: '#ffffff',
+                cursor: 'pointer',
+                minHeight: 132,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                }}
+              >
+                <span style={{ fontSize: 24 }}>{card.icon}</span>
+                <strong style={{ fontSize: 22 }}>{card.numero}</strong>
+              </div>
+
+              <div style={{ marginTop: 12, fontWeight: 800, color: '#0f172a' }}>
+                {card.titolo}
+              </div>
+              <div style={{ marginTop: 5, color: '#64748b', fontSize: 13 }}>
+                {card.descrizione}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <section
+            aria-label="Assistente ARTECNA"
+            style={{
+              padding: 14,
+              border: '1px solid #ddd6fe',
+              borderRadius: 8,
+              background: '#faf5ff',
+            }}
+          >
+            <h4 style={{ margin: 0 }}>🤖 Assistente ARTECNA</h4>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>
+              Nessuna osservazione disponibile.
+            </p>
+          </section>
+
+          <section
+            aria-label="Ultime attività"
+            style={{
+              padding: 14,
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              background: '#ffffff',
+            }}
+          >
+            <h4 style={{ margin: 0 }}>Ultime attività</h4>
+            <p style={{ margin: '8px 0 0', color: '#64748b' }}>
+              Nessuna attività recente.
+            </p>
+          </section>
+        </div>
+      </section>
+
       <nav
         aria-label="Sezioni Fascicolo Cantiere"
         style={{
@@ -150,13 +329,13 @@ export default function FascicoloCantiereContainer({
         }}
       >
         {tabs.map((tab) => {
-          const attiva = tab.id === tabAttiva
+          const attiva = tab.id === tabCorrente
 
           return (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setTabAttiva(tab.id)}
+              onClick={() => cambiaTab(tab.id)}
               style={{
                 padding: '9px 12px',
                 border: '1px solid #cbd5e1',
@@ -173,7 +352,11 @@ export default function FascicoloCantiereContainer({
         })}
       </nav>
 
-      <div>{contenuti[tabAttiva] || <p>Nessun contenuto collegato.</p>}</div>
+      <div>{children || contenuti[tabCorrente] || <p>Nessun contenuto collegato.</p>}</div>
     </section>
   )
+}
+
+function formatDashboardValue(value?: number) {
+  return typeof value === 'number' ? String(value) : '-'
 }
