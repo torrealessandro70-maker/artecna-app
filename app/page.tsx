@@ -79,7 +79,7 @@ import CantieriAnalisiDocumentoPanel from './components/CantieriAnalisiDocumento
 import CantieriContainer from './components/CantieriContainer'
 import PagamentiContainer from './components/PagamentiContainer'
 import PresenzeCostiOperaiPanel from './components/PresenzeCostiOperaiPanel'
-import { createCloudPhotoStorageAdapter } from './engines/photo-storage'
+import { buildPhotoRecordsWithStorage } from './engines/photo-storage'
 import PresenzaManualePanel from './components/PresenzaManualePanel'
 import FiltroPresenzeCostiPanel from './components/FiltroPresenzeCostiPanel'
 import PresenzePeriodoSummaryPanel from './components/PresenzePeriodoSummaryPanel'
@@ -8574,17 +8574,34 @@ const salvaFotoRapportinoInStorage = async (
   }
 
   const dataFoto = data || new Date().toISOString().slice(0, 10)
-  const cartellaData = pulisciSegmentoStorage(dataFoto.slice(0, 10))
-  const photoStorage = createCloudPhotoStorageAdapter(supabase)
-  const caricamenti: Array<{ path: string; url: string }> = []
+  const utenteId = datiUtente.user.id
+  const cantierePulito = pulisciSegmentoStorage(cantiereFoto)
+  const risultato = await buildPhotoRecordsWithStorage(supabase, {
+    cantiere: cantiereFoto,
+    categoria: 'rapportino',
+    nota: notaFotoRapportino,
+    dataFoto,
+    geolocalizzazione: geolocalizzazioneFoto,
+    rapportinoId: rapportinoId ?? null,
+    dataUrls: fotoRapportinoTemp,
+    bucket: FOTO_CANTIERE_BUCKET,
+    folder: `utenti/${utenteId}/cantieri/${cantierePulito}/foto`,
+  })
+
+  if (!risultato.success) {
+    return {
+      success: false,
+      error: risultato.error || 'Errore salvataggio foto rapportino',
+    }
+  }
 
   const rimuoviUploadParziali = async () => {
-    if (caricamenti.length === 0) return
+    if (risultato.uploadedPaths.length === 0) return
 
     try {
       const { error } = await supabase.storage
         .from(FOTO_CANTIERE_BUCKET)
-        .remove(caricamenti.map((file) => file.path))
+        .remove(risultato.uploadedPaths)
 
       if (error) console.error('Errore rollback foto Storage:', error.message)
     } catch (errore) {
@@ -8593,51 +8610,9 @@ const salvaFotoRapportinoInStorage = async (
   }
 
   try {
-    for (let indice = 0; indice < fotoRapportinoTemp.length; indice += 1) {
-      const foto = fotoRapportinoTemp[indice]
-      const risultatoUpload = await photoStorage.uploadPhoto({
-        dataUrl: foto,
-        bucket: FOTO_CANTIERE_BUCKET,
-        folder: `utenti/${datiUtente.user.id}/rapportini/${cartellaData}`,
-        fileName: `${crypto.randomUUID()}-${indice}`,
-      })
-
-      if (!risultatoUpload.success || !risultatoUpload.filePath || !risultatoUpload.fileUrl) {
-        await rimuoviUploadParziali()
-        return {
-          success: false,
-          error: risultatoUpload.error || 'URL pubblico della foto non disponibile',
-        }
-      }
-
-      caricamenti.push({
-        path: risultatoUpload.filePath,
-        url: risultatoUpload.fileUrl,
-      })
-    }
-  } catch (errore) {
-    await rimuoviUploadParziali()
-    const messaggio =
-      errore instanceof Error ? errore.message : 'errore di rete'
-    return { success: false, error: messaggio }
-  }
-
-  const fotoDaSalvare = caricamenti.map((file) => ({
-    cantiere: cantiereFoto,
-    nota: notaFotoRapportino || note || 'Foto rapportino',
-    categoria: 'rapportino',
-    data_foto: dataFoto,
-    geolocalizzazione: geolocalizzazioneFoto || null,
-    file_url: file.url,
-    file_path: file.path,
-    immagine_base64: file.url,
-    rapportino_id: rapportinoId || null,
-  }))
-
-  try {
     const { error } = await supabase
       .from('foto_cantiere')
-      .insert(fotoDaSalvare)
+      .insert(risultato.photos)
 
     if (error) {
       await rimuoviUploadParziali()
@@ -8650,7 +8625,7 @@ const salvaFotoRapportinoInStorage = async (
     return { success: false, error: messaggio }
   }
 
-  return { success: true, numeroFoto: fotoDaSalvare.length }
+  return { success: true, numeroFoto: risultato.photos.length }
 }
 
   const salvaPreventivo = async () => {
