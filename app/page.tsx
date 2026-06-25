@@ -5074,7 +5074,7 @@ const caricaFotoCantiere = async () => {
   const { data, error } = await supabase
     .from('foto_cantiere')
   .select(
-  'id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria,immagine_base64,file_url,file_path,thumbnail_url,storage_provider,sync_status'
+  'id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria,file_url,file_path,thumbnail_url,storage_provider,sync_status,rapportino_id'
 )
     .order('created_at', { ascending: false })
     .limit(80)
@@ -5085,7 +5085,15 @@ const caricaFotoCantiere = async () => {
   return
 }
 
-  setFotoCantiere((data || []) as FotoCantiere[])
+console.log('FOTO CARICATE', data)
+console.log('NUMERO FOTO', data?.length)
+
+ setFotoCantiere(
+  ((data || []).map((foto: any) => ({
+    ...foto,
+    immagine_base64: foto.file_url || foto.thumbnail_url || '',
+  }))) as FotoCantiere[]
+)
 }
   const caricaOperai = async () => {
     const { data, error } = await supabase
@@ -6884,9 +6892,11 @@ const salvaRapportino = async () => {
     costo_materiali: costoMateriali,
   }
 
-  const { error } = await supabase
+  const { data: rapportinoCreato, error } = await supabase
     .from('rapportini')
     .insert([nuovoRapportino])
+    .select('id')
+    .single()
 
   if (error) {
     alert('Errore salvataggio rapportino: ' + error.message)
@@ -6916,10 +6926,12 @@ const salvaRapportino = async () => {
     }
   }
 
-  setUltimoRapportino(nuovoRapportino)
+  const rapportinoId = rapportinoCreato?.id ? String(rapportinoCreato.id) : undefined
+
+  setUltimoRapportino({ ...nuovoRapportino, id: rapportinoId })
 
  if (fotoRapportinoTemp.length > 0) {
-  const risultatoFoto = await salvaFotoRapportinoInStorage(cantiereRapporto)
+  const risultatoFoto = await salvaFotoRapportinoInStorage(cantiereRapporto, rapportinoId)
 
   if (!risultatoFoto.success) {
     alert('Rapportino salvato, ma errore foto: ' + risultatoFoto.error)
@@ -7156,6 +7168,12 @@ const fotoCollegataAlRapportino = (
   foto: FotoCantiere,
   rapportino: Rapportino
 ) => {
+  const fotoRapportinoId = (foto as any).rapportino_id
+
+  if (fotoRapportinoId && rapportino.id) {
+    return String(fotoRapportinoId) === String(rapportino.id)
+  }
+
   const stessoCantiere =
     String(foto.cantiere || '').trim() ===
     String(rapportino.cantiere || '').trim()
@@ -7596,6 +7614,16 @@ const eliminaFotoCantiere = async (id?: string) => {
     const conferma = confirm('Vuoi eliminare questo rapportino?')
     if (!conferma) return
 
+    const { error: erroreFoto } = await supabase
+      .from('foto_cantiere')
+      .update({ rapportino_id: null })
+      .eq('rapportino_id', id)
+
+    if (erroreFoto) {
+      alert('Errore scollegamento foto rapportino: ' + erroreFoto.message)
+      return
+    }
+
     const { error } = await supabase.from('rapportini').delete().eq('id', id)
 
     if (error) {
@@ -7604,6 +7632,7 @@ const eliminaFotoCantiere = async (id?: string) => {
     }
 
     await caricaRapportini()
+    await caricaFotoCantiere()
     alert('Rapportino eliminato')
   }
 
@@ -8526,7 +8555,8 @@ type SalvataggioFotoRapportinoResult =
   | { success: false; error: string }
 
 const salvaFotoRapportinoInStorage = async (
-  cantiereFoto: string
+  cantiereFoto: string,
+  rapportinoId?: string
 ): Promise<SalvataggioFotoRapportinoResult> => {
   const { data: datiUtente, error: erroreUtente } = await supabase.auth.getUser()
 
@@ -8597,6 +8627,7 @@ const salvaFotoRapportinoInStorage = async (
     file_url: file.url,
     file_path: file.path,
     immagine_base64: file.url,
+    rapportino_id: rapportinoId || null,
   }))
 
   try {

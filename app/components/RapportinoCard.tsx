@@ -21,6 +21,12 @@ const fotoCollegataAlRapportino = (
   foto: FotoCantiere,
   rapportino: Rapportino
 ) => {
+  const fotoRapportinoId = (foto as any).rapportino_id
+
+  if (fotoRapportinoId && rapportino.id) {
+    return String(fotoRapportinoId) === String(rapportino.id)
+  }
+
   const stessoCantiere =
     String(foto.cantiere || '').trim() ===
     String(rapportino.cantiere || '').trim()
