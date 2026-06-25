@@ -79,6 +79,7 @@ import CantieriAnalisiDocumentoPanel from './components/CantieriAnalisiDocumento
 import CantieriContainer from './components/CantieriContainer'
 import PagamentiContainer from './components/PagamentiContainer'
 import PresenzeCostiOperaiPanel from './components/PresenzeCostiOperaiPanel'
+import { createCloudPhotoStorageAdapter } from './engines/photo-storage'
 import PresenzaManualePanel from './components/PresenzaManualePanel'
 import FiltroPresenzeCostiPanel from './components/FiltroPresenzeCostiPanel'
 import PresenzePeriodoSummaryPanel from './components/PresenzePeriodoSummaryPanel'
@@ -5072,8 +5073,8 @@ const eliminaPagamentoOperaio = async (id?: string) => {
 const caricaFotoCantiere = async () => {
   const { data, error } = await supabase
     .from('foto_cantiere')
-   .select(
-'id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria,immagine_base64,file_url,file_path'
+  .select(
+'id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria,immagine_base64'
 )
     .order('created_at', { ascending: false })
     .limit(80)
@@ -8527,19 +8528,6 @@ type SalvataggioFotoRapportinoResult =
 const salvaFotoRapportinoInStorage = async (
   cantiereFoto: string
 ): Promise<SalvataggioFotoRapportinoResult> => {
-  let filePreparati: Array<{ blob: Blob; estensione: string }>
-
-  try {
-    filePreparati = fotoRapportinoTemp.map((foto) => {
-      const blob = creaBlobFotoCantiere(foto)
-      return { blob, estensione: estensioneFotoCantiere(blob.type) }
-    })
-  } catch (errore) {
-    const messaggio =
-      errore instanceof Error ? errore.message : 'foto non valida'
-    return { success: false, error: messaggio }
-  }
-
   const { data: datiUtente, error: erroreUtente } = await supabase.auth.getUser()
 
   if (erroreUtente || !datiUtente.user) {
@@ -8553,6 +8541,7 @@ const salvaFotoRapportinoInStorage = async (
 
   const dataFoto = data || new Date().toISOString().slice(0, 10)
   const cartellaData = pulisciSegmentoStorage(dataFoto.slice(0, 10))
+  const photoStorage = createCloudPhotoStorageAdapter(supabase)
   const caricamenti: Array<{ path: string; url: string }> = []
 
   const rimuoviUploadParziali = async () => {
@@ -8570,35 +8559,27 @@ const salvaFotoRapportinoInStorage = async (
   }
 
   try {
-    for (const file of filePreparati) {
-      const path =
-        `utenti/${datiUtente.user.id}/rapportini/${cartellaData}/` +
-        `${crypto.randomUUID()}.${file.estensione}`
-      const { error: erroreUpload } = await supabase.storage
-        .from(FOTO_CANTIERE_BUCKET)
-        .upload(path, file.blob, {
-          contentType: file.blob.type,
-          upsert: false,
-        })
+    for (let indice = 0; indice < fotoRapportinoTemp.length; indice += 1) {
+      const foto = fotoRapportinoTemp[indice]
+      const risultatoUpload = await photoStorage.uploadPhoto({
+        dataUrl: foto,
+        bucket: FOTO_CANTIERE_BUCKET,
+        folder: `utenti/${datiUtente.user.id}/rapportini/${cartellaData}`,
+        fileName: `${crypto.randomUUID()}-${indice}`,
+      })
 
-      if (erroreUpload) {
-        await rimuoviUploadParziali()
-        return { success: false, error: erroreUpload.message }
-      }
-
-      const { data: datiUrl } = supabase.storage
-        .from(FOTO_CANTIERE_BUCKET)
-        .getPublicUrl(path)
-
-      if (!datiUrl.publicUrl) {
+      if (!risultatoUpload.success || !risultatoUpload.filePath || !risultatoUpload.fileUrl) {
         await rimuoviUploadParziali()
         return {
           success: false,
-          error: 'URL pubblico della foto non disponibile',
+          error: risultatoUpload.error || 'URL pubblico della foto non disponibile',
         }
       }
 
-      caricamenti.push({ path, url: datiUrl.publicUrl })
+      caricamenti.push({
+        path: risultatoUpload.filePath,
+        url: risultatoUpload.fileUrl,
+      })
     }
   } catch (errore) {
     await rimuoviUploadParziali()
