@@ -18,29 +18,33 @@ export type WorkflowInput = {
   metadata?: Readonly<Record<string, unknown>>
 }
 
+export type WorkflowPipelineStatus =
+  | 'pending'
+  | 'completed'
+  | 'skipped'
+  | 'failed'
+
+export type WorkflowPipeline = {
+  event?: { status: WorkflowPipelineStatus }
+  context?: { status: WorkflowPipelineStatus }
+  decision?: { status: WorkflowPipelineStatus }
+  action?: { status: WorkflowPipelineStatus }
+}
+
 export type WorkflowResult = {
   id: string
   name: string
   description: string
   summary?: string
+
   input: WorkflowInput
   steps: WorkflowStep[]
+
   executesActions: false
   needsUserConfirmation: true
-  pipeline?: {
-    event?: {
-      status: 'pending'
-    }
-    context?: {
-      status: 'pending'
-    }
-    decision?: {
-      status: 'pending'
-    }
-    action?: {
-      status: 'pending'
-    }
-  }
+
+  pipeline?: WorkflowPipeline
+
   metadata?: {
     workflowType: string
     version: string
