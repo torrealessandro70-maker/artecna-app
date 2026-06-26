@@ -48,7 +48,10 @@ state: WorkflowState
   needsUserConfirmation: true
 
   pipeline?: WorkflowPipeline
-
+eventResult?: {
+  status: 'completed'
+  timelineEventsCount: number
+}
   metadata?: {
     workflowType: string
     version: string

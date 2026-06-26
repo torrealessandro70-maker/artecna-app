@@ -1,9 +1,21 @@
 import type { WorkflowInput, WorkflowResult } from './types'
-
+import { buildTimelineEvents } from '../event'
 export function buildPhotoWorkflow(input: WorkflowInput): WorkflowResult {
   const hasWorkflowContext =
     Boolean(input.cantiereName) && typeof input.photoCount === 'number'
 
+const timelineEvents = buildTimelineEvents({
+  photos: [
+    {
+      id: input.entityId,
+      cantiere: input.cantiereName ?? undefined,
+      data_foto: input.occurredAt,
+      created_at: input.occurredAt,
+      nota: 'Foto workflow',
+    },
+  ],
+  dailyReports: [],
+})
   return {
     id: 'photo-workflow-v1',
     name: 'Photo Workflow V1',
@@ -18,10 +30,10 @@ state: 'waiting_user',
 input,
     executesActions: false,
     needsUserConfirmation: true,
-    pipeline: {
-      event: {
-        status: 'pending',
-      },
+   pipeline: {
+  event: {
+    status: 'completed',
+  },
       context: {
         status: 'pending',
       },
@@ -32,6 +44,10 @@ input,
         status: 'pending',
       },
     },
+eventResult: {
+  status: 'completed',
+  timelineEventsCount: timelineEvents.length,
+},
     metadata: {
       workflowType: 'photo',
       version: '1.0',
