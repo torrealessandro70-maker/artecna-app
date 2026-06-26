@@ -9,10 +9,13 @@ export function buildPhotoWorkflow(input: WorkflowInput): WorkflowResult {
     name: 'Photo Workflow V1',
     description:
       'Descrive il percorso operativo che parte da una foto aggiunta e arriva a una proposta in attesa di conferma utente.',
-    summary: hasWorkflowContext
-      ? `Photo Workflow pronto per il cantiere '${input.cantiereName}' con ${input.photoCount} foto nel contesto.`
-      : 'Photo Workflow pronto.',
-    input,
+   summary: hasWorkflowContext
+  ? `Photo Workflow pronto per il cantiere '${input.cantiereName}' con ${input.photoCount} foto nel contesto.`
+  : 'Photo Workflow pronto.',
+
+state: 'waiting_user',
+
+input,
     executesActions: false,
     needsUserConfirmation: true,
     pipeline: {

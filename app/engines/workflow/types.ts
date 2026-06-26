@@ -30,13 +30,17 @@ export type WorkflowPipeline = {
   decision?: { status: WorkflowPipelineStatus }
   action?: { status: WorkflowPipelineStatus }
 }
-
+export type WorkflowState =
+  | 'created'
+  | 'running'
+  | 'waiting_user'
+  | 'completed'
 export type WorkflowResult = {
   id: string
   name: string
   description: string
   summary?: string
-
+state: WorkflowState
   input: WorkflowInput
   steps: WorkflowStep[]
 
