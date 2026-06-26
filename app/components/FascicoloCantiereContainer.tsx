@@ -757,25 +757,112 @@ export default function FascicoloCantiereContainer({
                     </dd>
                   </div>
                 </dl>
-                <ol
-                  style={{
-                    display: 'grid',
-                    gap: 8,
-                    margin: '10px 0 0',
-                    paddingLeft: 20,
-                  }}
-                >
-                  {photoWorkflowPreview.steps.map((step) => (
-                    <li key={step.id}>
-                      <div style={{ fontWeight: 700 }}>{step.title}</div>
-                      {step.description && (
-                        <div style={{ color: '#64748b', marginTop: 2 }}>
-                          {step.description}
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ol>
+              <ol
+  style={{
+    display: 'grid',
+    gap: 8,
+    margin: '10px 0 0',
+    paddingLeft: 20,
+  }}
+>
+  {photoWorkflowPreview.steps.map((step) => (
+    <li key={step.id}>
+      <div style={{ fontWeight: 700 }}>{step.title}</div>
+      {step.description && (
+        <div style={{ color: '#64748b', marginTop: 2 }}>
+          {step.description}
+        </div>
+      )}
+    </li>
+  ))}
+</ol>
+
+<div
+  style={{
+    marginTop: 14,
+    padding: 10,
+    border: '1px solid #e2e8f0',
+    borderRadius: 8,
+    background: '#ffffff',
+  }}
+>
+  <div style={{ fontWeight: 800, marginBottom: 8 }}>Pipeline</div>
+
+  {photoWorkflowPreview.pipeline ? (
+    <div style={{ display: 'grid', gap: 6 }}>
+      <div>
+        🟡 Event Engine:{' '}
+        {photoWorkflowPreview.pipeline.event?.status ?? 'non disponibile'}
+      </div>
+      <div>
+        🟡 Context Engine:{' '}
+        {photoWorkflowPreview.pipeline.context?.status ?? 'non disponibile'}
+      </div>
+      <div>
+        🟡 Decision Engine:{' '}
+        {photoWorkflowPreview.pipeline.decision?.status ?? 'non disponibile'}
+      </div>
+      <div>
+        🟡 Action Engine:{' '}
+        {photoWorkflowPreview.pipeline.action?.status ?? 'non disponibile'}
+      </div>
+    </div>
+  ) : (
+    <div style={{ color: '#64748b' }}>Pipeline non disponibile</div>
+  )}
+</div>
+
+<div
+  style={{
+    marginTop: 14,
+    padding: 10,
+    border: '1px solid #e2e8f0',
+    borderRadius: 8,
+    background: '#ffffff',
+  }}
+>
+  <div
+    style={{
+      fontWeight: 800,
+      marginBottom: 8,
+    }}
+  >
+    Pipeline
+  </div>
+
+  {photoWorkflowPreview.pipeline ? (
+    <div
+      style={{
+        display: 'grid',
+        gap: 6,
+      }}
+    >
+      <div>
+        🟡 Event Engine:{' '}
+        {photoWorkflowPreview.pipeline.event?.status ?? 'non disponibile'}
+      </div>
+
+      <div>
+        🟡 Context Engine:{' '}
+        {photoWorkflowPreview.pipeline.context?.status ?? 'non disponibile'}
+      </div>
+
+      <div>
+        🟡 Decision Engine:{' '}
+        {photoWorkflowPreview.pipeline.decision?.status ?? 'non disponibile'}
+      </div>
+
+      <div>
+        🟡 Action Engine:{' '}
+        {photoWorkflowPreview.pipeline.action?.status ?? 'non disponibile'}
+      </div>
+    </div>
+  ) : (
+    <div style={{ color: '#64748b' }}>
+      Pipeline non disponibile
+    </div>
+  )}
+</div>
               </div>
             )}
 
