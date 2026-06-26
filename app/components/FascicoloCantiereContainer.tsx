@@ -731,6 +731,16 @@ export default function FascicoloCantiereContainer({
                 <div style={{ fontWeight: 800 }}>
                   Dev: Photo Workflow Preview
                 </div>
+<div
+  style={{
+    marginTop: 6,
+    color: '#64748b',
+    fontSize: 13,
+    fontWeight: 700,
+  }}
+>
+  Stato workflow: {photoWorkflowPreview.state}
+</div>
                 <dl
                   style={{
                     display: 'grid',
