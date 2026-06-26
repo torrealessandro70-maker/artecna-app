@@ -154,6 +154,8 @@ export default function RapportiniPanel({
           operaiRapportinoTemp={operaiRapportinoTemp}
           setOperaiRapportinoTemp={setOperaiRapportinoTemp}
           setPopupFotoRapportino={setPopupFotoRapportino}
+          fotoCantiere={fotoCantiere}
+          setFotoRapportinoAperte={setFotoRapportinoAperte}
           onClose={() => setMostraInserimento(false)}
         />
       )}

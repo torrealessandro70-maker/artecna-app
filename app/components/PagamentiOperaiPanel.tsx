@@ -469,6 +469,7 @@ export default function PagamentiOperaiPanel({
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
       <input
         type="date"
+        placeholder="Periodo di lavoro - Dal"
         value={pagamentiDataDa || ''}
         onChange={(e) => setPagamentiDataDa(e.target.value)}
         style={{ padding: 8 }}
@@ -476,6 +477,7 @@ export default function PagamentiOperaiPanel({
 
       <input
         type="date"
+        placeholder="Periodo di lavoro - Al"
         value={pagamentiDataA || ''}
         onChange={(e) => setPagamentiDataA(e.target.value)}
         style={{ padding: 8 }}
@@ -505,6 +507,7 @@ export default function PagamentiOperaiPanel({
 
       <input
         type="date"
+        placeholder="Data del pagamento"
         value={dataPagamento || ''}
         onChange={(e) => setDataPagamento(e.target.value)}
         style={{ padding: 8 }}

@@ -11,6 +11,7 @@ import {
 import { flushSync } from 'react-dom'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import NotaDisegno from './note/NotaDisegno'
+import { DecisionBuilder, type DecisionPlan } from '../engines/decision'
 import type {
   AllegatoNota,
   AnalisiNota,
@@ -65,6 +66,7 @@ export default function SopralluogoAppunti({
   const [disegni, setDisegni] = useState<SegnoNota[]>([])
   const [allegati, setAllegati] = useState<AllegatoNota[]>([])
   const [analisiAi, setAnalisiAi] = useState<AnalisiNota | null>(null)
+const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
   const [stato, setStato] = useState('')
   const [pronto, setPronto] = useState(false)
   const [registrazioneAttiva, setRegistrazioneAttiva] = useState(false)
@@ -329,8 +331,33 @@ export default function SopralluogoAppunti({
     setRegistrazioneAttiva(false)
   }
 
+const osservaNotaConDecisionEngine = () => {
+  const testoCompleto = [
+    titolo,
+    testo,
+    ...checklist.map((voce) => voce.testo),
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  const builder = new DecisionBuilder()
+
+  const piano = builder.build({
+    text: testoCompleto,
+    source: 'note',
+    metadata: {
+      sopralluogoId: sopralluogoAperto.id,
+      cliente: sopralluogoAperto.cliente,
+      tipoLavoro: sopralluogoAperto.tipo_lavoro,
+    },
+  })
+
+  setDecisionPlan(piano)
+}
+
   const analizzaNota = async () => {
     setStato('L’AI osserva la nota…')
+osservaNotaConDecisionEngine()
     const immagini = allegati
       .filter((allegato) => allegato.tipo === 'foto')
       .map((allegato) => allegato.url)
@@ -787,6 +814,38 @@ WebkitTextFillColor: '#111827',
                 ✨ Analizza nota
               </button>
             </div>
+
+{decisionPlan && decisionPlan.proposals.length > 0 && (
+  <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
+    <div
+      style={{
+        padding: 10,
+        borderRadius: 10,
+        background: '#ffffff',
+        color: '#111827',
+      }}
+    >
+      <strong style={{ color: '#111827' }}>Proposte ARTECNA</strong>
+
+      <ul style={{ marginTop: 8, color: '#111827' }}>
+        {decisionPlan.proposals.map((proposal) => (
+          <li key={proposal.id} style={{ marginBottom: 8 }}>
+            <strong>{proposal.title}</strong>
+            {proposal.description && (
+              <div style={{ fontSize: 13, color: '#475569' }}>
+                {proposal.description}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <small style={{ color: '#64748b' }}>
+        Queste sono proposte. Nessun dato viene salvato senza conferma.
+      </small>
+    </div>
+  </div>
+)}
 
           {analisiAi && (
   <div style={{ marginTop: 14, display: 'grid', gap: 12 }}>

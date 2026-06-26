@@ -12,6 +12,9 @@ import RiepilogoCostiEconomiaPanel from './RiepilogoCostiEconomiaPanel'
 import UploadPreventivoBox from './UploadPreventivoBox'
 import CantieriAnalisiDocumentoPanel from './CantieriAnalisiDocumentoPanel'
 import FotoCantiereFascicoloPanel from './FotoCantiereFascicoloPanel'
+import FascicoloCantiereContainer, {
+  type FascicoloCantiereTab,
+} from './FascicoloCantiereContainer'
 
 type Props = any
 
@@ -37,7 +40,7 @@ const schede: Array<{ id: SchedaFascicolo; etichetta: string }> = [
 export default function CantieriEconomiaPanel(props: Props) {
   const p = props
   const [schedaAttiva, setSchedaAttiva] =
-    useState<SchedaFascicolo>('dashboard')
+    useState<FascicoloCantiereTab>('panoramica')
 
   const margine = Number(p.margineCantiere || 0)
   const stato =
@@ -84,6 +87,28 @@ export default function CantieriEconomiaPanel(props: Props) {
     background: enfasi ? stato.sfondo : '#fff',
     minWidth: 0,
   })
+  const cantiereCorrente = p.cantieri?.find(
+    (cantiere: any) => cantiere.nome === p.cantiereScheda
+  )
+  const clienteCantiere =
+    cantiereCorrente?.cliente ||
+    cantiereCorrente?.cliente_ai ||
+    cantiereCorrente?.committente ||
+    ''
+  const statoLavori =
+    cantiereCorrente?.lavori_conclusi ? 'Lavori conclusi' : stato.titolo
+  const ultimoAggiornamento =
+    cantiereCorrente?.updated_at ||
+    cantiereCorrente?.created_at ||
+    cantiereCorrente?.data_inizio_lavori ||
+    ''
+  const fotoTimelineCantiere = (p.fotoCantiere || []).filter(
+    (foto: any) => String(foto.cantiere || '').trim() === String(p.cantiereScheda || '').trim()
+  )
+  const rapportiniTimelineCantiere = (p.rapportini || []).filter(
+    (rapportino: any) =>
+      String(rapportino.cantiere || '').trim() === String(p.cantiereScheda || '').trim()
+  )
 
   return (
     <div style={{ ...p.cardStyle, padding: 0, overflow: 'hidden' }}>
@@ -117,24 +142,6 @@ export default function CantieriEconomiaPanel(props: Props) {
           />
         </div>
 
-        {p.cantiereScheda && (
-          <nav
-            aria-label="Sezioni del fascicolo cantiere"
-            style={{ display: 'flex', overflowX: 'auto', padding: '0 10px' }}
-          >
-            {schede.map((scheda) => (
-              <button
-                key={scheda.id}
-                type="button"
-                onClick={() => setSchedaAttiva(scheda.id)}
-                aria-current={schedaAttiva === scheda.id ? 'page' : undefined}
-                style={stileScheda(schedaAttiva === scheda.id)}
-              >
-                {scheda.etichetta}
-              </button>
-            ))}
-          </nav>
-        )}
       </header>
 
       <div style={{ padding: 20 }}>
@@ -152,7 +159,17 @@ export default function CantieriEconomiaPanel(props: Props) {
           </div>
         ) : (
           <>
-            {schedaAttiva === 'dashboard' && (
+          <FascicoloCantiereContainer
+            nomeCantiere={p.cantiereScheda}
+            cliente={clienteCantiere}
+            statoLavori={statoLavori}
+            ultimoAggiornamento={ultimoAggiornamento}
+            fotoCantiere={fotoTimelineCantiere}
+            rapportiniCantiere={rapportiniTimelineCantiere}
+            tabAttiva={schedaAttiva}
+            onTabChange={setSchedaAttiva}
+          >
+            {schedaAttiva === 'panoramica' && (
               <section aria-label="Dashboard del cantiere">
                 <div
                   style={{
@@ -220,15 +237,15 @@ export default function CantieriEconomiaPanel(props: Props) {
                       {...p}
                       setMostraDettaglioManodopera={(visibile: boolean) => {
                         p.setMostraDettaglioManodopera(visibile)
-                        if (visibile) setSchedaAttiva('costi')
+                        if (visibile) setSchedaAttiva('economia')
                       }}
                       setMostraDettaglioMateriali={(visibile: boolean) => {
                         p.setMostraDettaglioMateriali(visibile)
-                        if (visibile) setSchedaAttiva('costi')
+                        if (visibile) setSchedaAttiva('economia')
                       }}
                       setMostraDettaglioAttrezzi={(visibile: boolean) => {
                         p.setMostraDettaglioAttrezzi(visibile)
-                        if (visibile) setSchedaAttiva('costi')
+                        if (visibile) setSchedaAttiva('economia')
                       }}
                     />
                   </div>
@@ -236,7 +253,7 @@ export default function CantieriEconomiaPanel(props: Props) {
               </section>
             )}
 
-            {schedaAttiva === 'lavorazioni' && (
+            {schedaAttiva === 'sal' && (
               <section aria-label="Lavorazioni e SAL">
                 <SalDettagliatoPanel {...p} />
                 <div style={{ marginTop: 18 }}>
@@ -245,7 +262,7 @@ export default function CantieriEconomiaPanel(props: Props) {
               </section>
             )}
 
-            {schedaAttiva === 'costi' && (
+            {schedaAttiva === 'economia' && (
               <section aria-label="Costi del cantiere">
                 <FiltroPeriodoEconomia {...p} />
                 <RiepilogoCostiEconomiaPanel {...p} />
@@ -337,33 +354,33 @@ export default function CantieriEconomiaPanel(props: Props) {
               </section>
             )}
 
-            {schedaAttiva === 'azioni' && (
-              <section aria-label="Azioni del cantiere">
-                <h3 style={{ marginTop: 0 }}>Azioni operative</h3>
-                <p style={{ color: '#64748b' }}>
-                  Aggiorna il fascicolo o modifica date e stato del cantiere.
-                </p>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await p.caricaEconomia()
-                      await p.caricaCantieri()
-                    }}
-                    style={p.buttonPrimary}
-                  >
-                    Aggiorna dati
-                  </button>
-                  <button type="button" onClick={() => setSchedaAttiva('documenti')} style={p.buttonSecondary}>
-                    Importa preventivo
-                  </button>
-                  <button type="button" onClick={p.esportaPdfFotoCantiere} style={p.buttonSecondary}>
-                    Esporta PDF foto
-                  </button>
-                </div>
-                <DashboardEconomiaPanel {...p} />
-              </section>
-            )}
+          </FascicoloCantiereContainer>
+
+          <section aria-label="Azioni del cantiere" style={{ marginTop: 20 }}>
+            <h3 style={{ marginTop: 0 }}>Azioni operative</h3>
+            <p style={{ color: '#64748b' }}>
+              Aggiorna il fascicolo o modifica date e stato del cantiere.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+              <button
+                type="button"
+                onClick={async () => {
+                  await p.caricaEconomia()
+                  await p.caricaCantieri()
+                }}
+                style={p.buttonPrimary}
+              >
+                Aggiorna dati
+              </button>
+              <button type="button" onClick={() => setSchedaAttiva('documenti')} style={p.buttonSecondary}>
+                Importa preventivo
+              </button>
+              <button type="button" onClick={p.esportaPdfFotoCantiere} style={p.buttonSecondary}>
+                Esporta PDF foto
+              </button>
+            </div>
+            <DashboardEconomiaPanel {...p} />
+          </section>
           </>
         )}
       </div>

@@ -7,9 +7,9 @@ export type DecisionProposalType =
 
 export type DecisionProposalStatus =
   | 'proposed'
-  | 'confirmed'
+  | 'accepted'
   | 'rejected'
-  | 'needs_review'
+  | 'executed'
 
 export type DecisionProposalSource =
   | 'note'
@@ -28,6 +28,11 @@ export type DecisionProposal = {
   status: DecisionProposalStatus
   source: DecisionProposalSource
   confidence: number
+  action?: {
+    type: string
+    label: string
+    target?: string
+  }
   payload?: Readonly<Record<string, unknown>>
 }
 

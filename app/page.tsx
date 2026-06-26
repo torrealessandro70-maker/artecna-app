@@ -11575,6 +11575,7 @@ WebkitOverflowScrolling: 'touch',
   setNote={setNote}
   avviaDettatura={avviaDettatura}
   fotoCantiere={fotoCantiere}
+  rapportini={rapportini}
   setFotoCantiere={setFotoCantiere}
   filtroFotoCantiere={filtroFotoCantiere}
   setFiltroFotoCantiere={setFiltroFotoCantiere}
