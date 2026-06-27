@@ -40,7 +40,8 @@ export type WorkflowResult = {
   name: string
   description: string
   summary?: string
-state: WorkflowState
+  state: WorkflowState
+
   input: WorkflowInput
   steps: WorkflowStep[]
 
@@ -48,10 +49,26 @@ state: WorkflowState
   needsUserConfirmation: true
 
   pipeline?: WorkflowPipeline
-eventResult?: {
+
+  eventResult?: {
+    status: 'completed'
+    timelineEventsCount: number
+  }
+eventBusResult?: {
   status: 'completed'
-  timelineEventsCount: number
+  publishedEventsCount: number
 }
+  contextResult?: {
+    status: 'completed'
+    cantiereId: string
+    timelineEventsCount: number
+    photosCount: number
+    reportsCount: number
+    documentsCount: number
+    alertsCount: number
+    suggestionsCount: number
+  }
+
   metadata?: {
     workflowType: string
     version: string

@@ -1,5 +1,8 @@
 import type { WorkflowInput, WorkflowResult } from './types'
 import { buildTimelineEvents } from '../event'
+import { buildConstructionContext } from '../context'
+import { publishEvent } from '../event-bus'
+
 export function buildPhotoWorkflow(input: WorkflowInput): WorkflowResult {
   const hasWorkflowContext =
     Boolean(input.cantiereName) && typeof input.photoCount === 'number'
@@ -15,6 +18,19 @@ const timelineEvents = buildTimelineEvents({
     },
   ],
   dailyReports: [],
+})
+const runtimeEvent = publishEvent({
+  id: `photo-${input.entityId ?? 'unknown'}`,
+  type: 'photo_added',
+  occurredAt: input.occurredAt ?? new Date().toISOString(),
+  payload: {
+    cantiereId: input.cantiereId,
+    entityId: input.entityId,
+  },
+})
+const constructionContext = buildConstructionContext({
+  cantiereId: input.cantiereId ?? '',
+  timeline: timelineEvents,
 })
   return {
     id: 'photo-workflow-v1',
@@ -34,9 +50,9 @@ input,
   event: {
     status: 'completed',
   },
-      context: {
-        status: 'pending',
-      },
+     context: {
+  status: 'completed',
+},
       decision: {
         status: 'pending',
       },
@@ -47,6 +63,20 @@ input,
 eventResult: {
   status: 'completed',
   timelineEventsCount: timelineEvents.length,
+},
+eventBusResult: {
+  status: 'completed',
+  publishedEventsCount: runtimeEvent ? 1 : 0,
+},
+contextResult: {
+  status: 'completed',
+  cantiereId: constructionContext.cantiereId,
+  timelineEventsCount: constructionContext.timeline.length,
+  photosCount: constructionContext.statistics.photos,
+  reportsCount: constructionContext.statistics.reports,
+  documentsCount: constructionContext.statistics.documents,
+  alertsCount: constructionContext.alerts.length,
+  suggestionsCount: constructionContext.suggestions.length,
 },
     metadata: {
       workflowType: 'photo',
