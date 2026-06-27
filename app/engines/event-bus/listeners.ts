@@ -1,5 +1,5 @@
 import type { RuntimeEvent } from './types'
-
+import { handleContextEvent } from './context-listener'
 export type RuntimeEventListener = (
   event: RuntimeEvent
 ) => void
@@ -15,5 +15,7 @@ export function registerListener(
 export function dispatchEvent(
   event: RuntimeEvent
 ): void {
+  handleContextEvent(event)
+
   listeners.forEach((listener) => listener(event))
 }

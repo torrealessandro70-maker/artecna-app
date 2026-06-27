@@ -92,3 +92,35 @@ Nella V1:
 
 Serve esclusivamente a definire il contratto del Runtime.
 
+\---
+
+
+
+\## Context Listener V1
+
+
+
+Il primo listener del Runtime osserva gli eventi `photo\_added`.
+
+
+
+Alla ricezione dell'evento invoca automaticamente il Context Engine.
+
+
+
+Nella V1:
+
+
+
+\- nessuna persistenza;
+
+\- nessuna UI;
+
+\- nessun database;
+
+\- nessuna Decision.
+
+
+
+Il listener dimostra il collegamento automatico Event Bus → Context Engine.
+
