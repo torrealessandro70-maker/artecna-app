@@ -1,5 +1,5 @@
 'use client'
-
+import RuntimeInspector from './RuntimeInspector'
 import { useState, type ReactNode } from 'react'
 import {
   buildTimelineEvents,
@@ -909,7 +909,7 @@ export default function FascicoloCantiereContainer({
               </div>
             )}
 
-            {workflowSmokeTestResult && (
+                    {workflowSmokeTestResult && (
               <div
                 style={{
                   marginTop: 10,
@@ -941,6 +941,8 @@ export default function FascicoloCantiereContainer({
                 </div>
               </div>
             )}
+
+            <RuntimeInspector />
           </section>
         )}
       </section>
