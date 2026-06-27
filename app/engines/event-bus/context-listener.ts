@@ -1,5 +1,6 @@
 import type { RuntimeEvent } from './types'
 import { buildConstructionContext } from '../context'
+import { updateRuntimeState } from '../runtime'
 
 export function handleContextEvent(
   event: RuntimeEvent
@@ -15,4 +16,6 @@ export function handleContextEvent(
         : '',
     timeline: [],
   })
+
+  updateRuntimeState('context_updated')
 }
