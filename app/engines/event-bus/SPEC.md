@@ -56,3 +56,39 @@ Nessuna query.
 
 Nessun database.
 
+
+
+\---
+
+
+
+\## Runtime Listener V1
+
+
+
+L'Event Bus introduce un sistema di listener.
+
+
+
+publishEvent() distribuisce l'evento a tutti i listener registrati tramite dispatchEvent().
+
+
+
+Nella V1:
+
+
+
+\- nessuna persistenza;
+
+\- nessun listener reale;
+
+\- nessun database;
+
+\- nessuna UI;
+
+\- nessuna elaborazione asincrona.
+
+
+
+Serve esclusivamente a definire il contratto del Runtime.
+
