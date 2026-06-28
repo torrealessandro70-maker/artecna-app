@@ -4,97 +4,368 @@ import React from 'react'
 
 export default function FascicoloCockpit() {
   return (
-    <div style={{ padding: 20, fontFamily: 'system-ui' }}>
-      {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0 }}>🏗 Villa Scirè</h1>
-        <div style={{ color: '#64748b' }}>
-          Sabato 27 giugno • 07:15
+    <section
+      aria-label="ARTECNA Cockpit"
+      style={{
+        marginTop: 18,
+        padding: 18,
+        borderRadius: 24,
+        background:
+          'radial-gradient(circle at top left, #0f766e 0, #020617 34%, #020617 100%)',
+        color: '#f8fafc',
+        border: '1px solid rgba(148, 163, 184, 0.28)',
+        boxShadow: '0 24px 70px rgba(15, 23, 42, 0.34)',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          alignItems: 'flex-start',
+          marginBottom: 18,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: -0.5 }}>
+            Villa Scirè
+          </div>
+          <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
+            Fascicolo di Cantiere · ARTECNA OS
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: '8px 12px',
+            borderRadius: 999,
+            background: 'rgba(15, 23, 42, 0.72)',
+            border: '1px solid rgba(148, 163, 184, 0.24)',
+            color: '#bbf7d0',
+            fontSize: 12,
+            fontWeight: 800,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          ● Online
         </div>
       </div>
 
-      {/* Stato */}
       <div
         style={{
-          padding: 16,
-          borderRadius: 12,
-          background: '#f0fdf4',
-          border: '1px solid #22c55e',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1.25fr) minmax(220px, 0.75fr)',
+          gap: 16,
           marginBottom: 16,
         }}
       >
-        <h2 style={{ marginTop: 0 }}>🟢 PUOI INIZIARE</h2>
-
-        <p>
-          Il cantiere è pronto.
-          <br />
-          Puoi iniziare il cartongesso.
-          <br />
-          Manca solo la documentazione iniziale della cucina.
-        </p>
-
-        <button
+        <div
           style={{
-            padding: '10px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: '#16a34a',
-            color: 'white',
-            cursor: 'pointer',
-            fontWeight: 600,
+            minHeight: 250,
+            padding: 22,
+            borderRadius: 22,
+            background:
+              'linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(8, 47, 73, 0.62))',
+            border: '1px solid rgba(125, 211, 252, 0.18)',
+            boxShadow: 'inset 0 0 40px rgba(14, 165, 233, 0.08)',
+            position: 'relative',
+            overflow: 'hidden',
           }}
         >
-          📷 Apri Fotocamera
-        </button>
+          <div
+            style={{
+              position: 'absolute',
+              right: -40,
+              top: -30,
+              width: 210,
+              height: 210,
+              borderRadius: '50%',
+              background: 'rgba(34, 197, 94, 0.13)',
+              filter: 'blur(2px)',
+            }}
+          />
+
+          <div style={{ color: '#86efac', fontSize: 12, fontWeight: 900 }}>
+            ● STATO CANTIERE
+          </div>
+
+          <div
+            style={{
+              fontSize: 46,
+              lineHeight: 1,
+              fontWeight: 950,
+              marginTop: 18,
+              letterSpacing: -1.5,
+            }}
+          >
+            PUOI INIZIARE
+          </div>
+
+          <div
+            style={{
+              width: 150,
+              height: 4,
+              borderRadius: 999,
+              background: '#22c55e',
+              marginTop: 20,
+              boxShadow: '0 0 24px rgba(34, 197, 94, 0.85)',
+            }}
+          />
+
+          <p
+            style={{
+              maxWidth: 480,
+              color: '#cbd5e1',
+              fontSize: 18,
+              lineHeight: 1.45,
+              marginTop: 22,
+              marginBottom: 0,
+            }}
+          >
+            Manca solo la documentazione iniziale della cucina prima di
+            procedere con il cartongesso.
+          </p>
+
+          <button
+            type="button"
+            style={{
+              marginTop: 26,
+              padding: '14px 20px',
+              borderRadius: 14,
+              border: '1px solid rgba(187, 247, 208, 0.42)',
+              background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+              color: 'white',
+              fontWeight: 900,
+              cursor: 'pointer',
+              boxShadow: '0 14px 35px rgba(34, 197, 94, 0.32)',
+            }}
+          >
+            📷 APRI FOTOCAMERA →
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gap: 12,
+          }}
+        >
+          <MiniCockpitCard
+            icon="🎯"
+            title="Focus"
+            value="Cartongesso"
+            detail="Piano terra"
+            accent="#60a5fa"
+          />
+
+          <MiniCockpitCard
+            icon="⚠"
+            title="Attenzione"
+            value="3"
+            detail="Elementi aperti"
+            accent="#f59e0b"
+          />
+        </div>
       </div>
 
-      {/* Focus */}
-      <div style={{ marginBottom: 16 }}>
-        <h3>🎯 Focus</h3>
-        <p>Cartongesso piano terra</p>
-      </div>
-
-      {/* Attenzione */}
-      <div style={{ marginBottom: 16 }}>
-        <h3>⚠ Attenzione</h3>
-
-        <ul>
-          <li>Foto cucina</li>
-          <li>Variante bagno</li>
-          <li>Firma cliente</li>
-        </ul>
-      </div>
-
-      {/* Suggerimenti */}
-      <div style={{ marginBottom: 16 }}>
-        <h3>🤖 ARTECNA suggerisce</h3>
-
-        <p>
-          Completa subito la documentazione iniziale.
-        </p>
-      </div>
-
-      {/* Oggi */}
-      <div style={{ marginBottom: 16 }}>
-        <h3>📖 Oggi</h3>
-
-        <div>07:05 Materiale consegnato</div>
-        <div>07:18 Operai arrivati</div>
-        <div>07:22 Lavorazione iniziata</div>
-      </div>
-
-      {/* Prossima azione */}
       <div
         style={{
-          padding: 12,
-          borderRadius: 10,
-          background: '#eff6ff',
-          border: '1px solid #3b82f6',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+          gap: 12,
+          marginBottom: 16,
         }}
       >
-        <strong>▶ Prossima azione</strong>
+        <MiniCockpitCard
+          icon="🤖"
+          title="ARTECNA"
+          value="3"
+          detail="Suggerimenti pronti"
+          accent="#a855f7"
+        />
 
-        <div>Scatta foto cucina</div>
+        <MiniCockpitCard
+          icon="📖"
+          title="Oggi"
+          value="4"
+          detail="Eventi rilevati"
+          accent="#06b6d4"
+        />
+
+        <MiniCockpitCard
+          icon="▶"
+          title="Prossima azione"
+          value="Foto cucina"
+          detail="Tempo stimato 2 min"
+          accent="#22c55e"
+        />
+      </div>
+
+      <div
+        style={{
+          padding: 16,
+          borderRadius: 20,
+          background: 'rgba(15, 23, 42, 0.72)',
+          border: '1px solid rgba(148, 163, 184, 0.18)',
+        }}
+      >
+        <div
+          style={{
+            color: '#94a3b8',
+            fontSize: 12,
+            fontWeight: 900,
+            letterSpacing: 0.4,
+            marginBottom: 12,
+            textTransform: 'uppercase',
+          }}
+        >
+          Diario di bordo · oggi
+        </div>
+
+        <div style={{ display: 'grid', gap: 10 }}>
+          <TimelineRow
+            time="07:05"
+            title="Materiale consegnato"
+            detail="Cartongesso disponibile"
+            status="Completato"
+          />
+          <TimelineRow
+            time="07:18"
+            title="Operai arrivati"
+            detail="Squadra presente"
+            status="Completato"
+          />
+          <TimelineRow
+            time="07:22"
+            title="Documentazione cucina"
+            detail="Foto iniziale da acquisire"
+            status="Da fare"
+          />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function MiniCockpitCard({
+  icon,
+  title,
+  value,
+  detail,
+  accent,
+}: {
+  icon: string
+  title: string
+  value: string
+  detail: string
+  accent: string
+}) {
+  return (
+    <div
+      style={{
+        padding: 16,
+        borderRadius: 18,
+        background: 'rgba(15, 23, 42, 0.72)',
+        border: `1px solid ${accent}44`,
+        minHeight: 116,
+      }}
+    >
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 999,
+          display: 'grid',
+          placeItems: 'center',
+          background: `${accent}22`,
+          border: `1px solid ${accent}66`,
+          marginBottom: 12,
+          fontSize: 22,
+        }}
+      >
+        {icon}
+      </div>
+
+      <div
+        style={{
+          color: '#cbd5e1',
+          fontSize: 11,
+          textTransform: 'uppercase',
+          fontWeight: 900,
+          letterSpacing: 0.4,
+        }}
+      >
+        {title}
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          fontSize: 24,
+          fontWeight: 950,
+          color: '#f8fafc',
+          lineHeight: 1.05,
+        }}
+      >
+        {value}
+      </div>
+
+      <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 13 }}>
+        {detail}
+      </div>
+    </div>
+  )
+}
+
+function TimelineRow({
+  time,
+  title,
+  detail,
+  status,
+}: {
+  time: string
+  title: string
+  detail: string
+  status: string
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '64px minmax(0, 1fr) auto',
+        gap: 12,
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 14,
+        background: 'rgba(30, 41, 59, 0.68)',
+        border: '1px solid rgba(148, 163, 184, 0.12)',
+      }}
+    >
+      <div style={{ color: '#22c55e', fontWeight: 900 }}>{time}</div>
+
+      <div>
+        <div style={{ fontWeight: 800, color: '#f8fafc' }}>{title}</div>
+        <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 2 }}>
+          {detail}
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: '6px 10px',
+          borderRadius: 999,
+          background:
+            status === 'Da fare'
+              ? 'rgba(245, 158, 11, 0.16)'
+              : 'rgba(34, 197, 94, 0.16)',
+          color: status === 'Da fare' ? '#fbbf24' : '#86efac',
+          fontSize: 11,
+          fontWeight: 900,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {status}
       </div>
     </div>
   )
