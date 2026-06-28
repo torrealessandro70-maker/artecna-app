@@ -1,6 +1,9 @@
 'use client'
 
 import React from 'react'
+import { artecnaTheme } from '../design/artecna-theme'
+
+const theme = artecnaTheme.dark
 
 export default function FascicoloCockpit() {
   return (
@@ -12,13 +15,12 @@ export default function FascicoloCockpit() {
         borderRadius: 24,
         background:
           'radial-gradient(circle at top left, #0f766e 0, #020617 34%, #020617 100%)',
-        color: '#f8fafc',
+        color: theme.text,
         border: '1px solid rgba(148, 163, 184, 0.28)',
-        boxShadow: '0 24px 70px rgba(15, 23, 42, 0.34)',
+        boxShadow: theme.shadow.cockpit,
         overflow: 'hidden',
       }}
-    >
-      <div
+    >      <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -304,7 +306,7 @@ function MiniCockpitCard({
           marginTop: 8,
           fontSize: 24,
           fontWeight: 950,
-          color: '#f8fafc',
+          color: theme.text,
           lineHeight: 1.05,
         }}
       >
