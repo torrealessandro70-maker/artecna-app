@@ -9,13 +9,17 @@ const theme = artecnaTheme.dark
 
 type FascicoloCockpitProps = {
   cantiereName?: string
+  focus?: string
 }
 
 export default function FascicoloCockpit({
   cantiereName,
+  focus,
 }: FascicoloCockpitProps) {
-  const cockpitSnapshot = createCockpitSnapshot({
+
+const cockpitSnapshot = createCockpitSnapshot({
   cantiereName,
+  focus,
 })
   return (
     <section

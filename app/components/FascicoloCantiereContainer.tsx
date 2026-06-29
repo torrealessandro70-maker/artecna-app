@@ -320,7 +320,10 @@ export default function FascicoloCantiereContainer({
   Stato sintetico del Fascicolo e dei suoi contenuti principali.
 </div>
 
-<FascicoloCockpit cantiereName={cantiere?.nome ?? undefined} />
+<FascicoloCockpit
+  cantiereName={cantiere?.nome ?? undefined}
+  focus="Fascicolo Cantiere"
+/>
         </div>
 
         <div
