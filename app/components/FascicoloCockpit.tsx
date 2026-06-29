@@ -2,31 +2,13 @@
 
 import React from 'react'
 import { artecnaTheme } from '../design/artecna-theme'
-
+import { createCockpitSnapshot } from '../view-models/cockpit-view-model'
 import { RuntimeSummaryCard, StatusCard } from './ui'
 
 const theme = artecnaTheme.dark
 
-const cockpitSnapshot = {
-  observed: [
-    'Materiale consegnato',
-    'Squadra presente',
-    'Documentazione cucina non completa',
-  ],
-  understood: [
-    'Il cartongesso può iniziare',
-    'Serve una prova fotografica iniziale',
-  ],
-  attention: [
-    'Foto cucina mancante',
-    'Firma cliente da acquisire',
-  ],
-  proposed: [
-    'Aprire la fotocamera',
-    'Generare rapportino a fine giornata',
-  ],
-}
 export default function FascicoloCockpit() {
+  const cockpitSnapshot = createCockpitSnapshot()
   return (
     <section
       aria-label="ARTECNA Cockpit"
@@ -53,7 +35,7 @@ export default function FascicoloCockpit() {
       >
         <div>
           <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: -0.5 }}>
-            Villa Scirè
+            {cockpitSnapshot.cantiereName}
           </div>
           <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
             Fascicolo di Cantiere · ARTECNA OS
@@ -128,7 +110,7 @@ export default function FascicoloCockpit() {
               letterSpacing: -1.5,
             }}
           >
-            PUOI INIZIARE
+            {cockpitSnapshot.status}
           </div>
 
           <div
@@ -176,13 +158,13 @@ export default function FascicoloCockpit() {
 
         {/* SIDE CARDS */}
         <div style={{ display: 'grid', gap: 12 }}>
-          <StatusCard
-            icon="🎯"
-            title="Focus"
-            value="Cartongesso"
-            detail="Piano terra"
-            accent="#60a5fa"
-          />
+         <StatusCard
+  icon="🎯"
+  title="Focus"
+  value={cockpitSnapshot.focus}
+  detail="Priorità operativa"
+  accent="#60a5fa"
+/>
 
           <StatusCard
             icon="⚠"
