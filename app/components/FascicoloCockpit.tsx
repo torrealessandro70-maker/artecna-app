@@ -7,6 +7,25 @@ import { RuntimeSummaryCard, StatusCard } from './ui'
 
 const theme = artecnaTheme.dark
 
+const cockpitSnapshot = {
+  observed: [
+    'Materiale consegnato',
+    'Squadra presente',
+    'Documentazione cucina non completa',
+  ],
+  understood: [
+    'Il cartongesso può iniziare',
+    'Serve una prova fotografica iniziale',
+  ],
+  attention: [
+    'Foto cucina mancante',
+    'Firma cliente da acquisire',
+  ],
+  proposed: [
+    'Aprire la fotocamera',
+    'Generare rapportino a fine giornata',
+  ],
+}
 export default function FascicoloCockpit() {
   return (
     <section
@@ -57,25 +76,11 @@ export default function FascicoloCockpit() {
         </div>
       </div>
 <RuntimeSummaryCard
-  observed={[
-    'Materiale consegnato',
-    'Squadra presente',
-    'Documentazione cucina non completa',
-  ]}
-  understood={[
-    'Il cartongesso può iniziare',
-    'Serve una prova fotografica iniziale',
-  ]}
-  attention={[
-    'Foto cucina mancante',
-    'Firma cliente da acquisire',
-  ]}
-  proposed={[
-    'Aprire la fotocamera',
-    'Generare rapportino a fine giornata',
-  ]}
-/>
-      {/* MAIN GRID */}
+  observed={cockpitSnapshot.observed}
+  understood={cockpitSnapshot.understood}
+  attention={cockpitSnapshot.attention}
+  proposed={cockpitSnapshot.proposed}
+/>      {/* MAIN GRID */}
       <div
         style={{
           display: 'grid',
