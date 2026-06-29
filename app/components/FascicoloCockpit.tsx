@@ -3,6 +3,7 @@
 import React from 'react'
 import { artecnaTheme } from '../design/artecna-theme'
 import { Card } from './ui/Card'
+import { StatusCard } from './ui'
 
 const theme = artecnaTheme.dark
 
@@ -152,7 +153,7 @@ export default function FascicoloCockpit() {
 
         {/* SIDE CARDS */}
         <div style={{ display: 'grid', gap: 12 }}>
-          <MiniCockpitCard
+          <StatusCard
             icon="🎯"
             title="Focus"
             value="Cartongesso"
@@ -160,7 +161,7 @@ export default function FascicoloCockpit() {
             accent="#60a5fa"
           />
 
-          <MiniCockpitCard
+          <StatusCard
             icon="⚠"
             title="Attenzione"
             value="3"
@@ -179,7 +180,7 @@ export default function FascicoloCockpit() {
           marginBottom: 16,
         }}
       >
-        <MiniCockpitCard
+        <StatusCard
           icon="🤖"
           title="ARTECNA"
           value="3"
@@ -187,7 +188,7 @@ export default function FascicoloCockpit() {
           accent="#a855f7"
         />
 
-        <MiniCockpitCard
+        <StatusCard
           icon="📖"
           title="Oggi"
           value="4"
@@ -195,7 +196,7 @@ export default function FascicoloCockpit() {
           accent="#06b6d4"
         />
 
-        <MiniCockpitCard
+        <StatusCard
           icon="▶"
           title="Prossima azione"
           value="Foto cucina"
@@ -254,67 +255,6 @@ export default function FascicoloCockpit() {
 /* =========================
    MINI CARD
 ========================= */
-function MiniCockpitCard({
-  icon,
-  title,
-  value,
-  detail,
-  accent,
-}: {
-  icon: string
-  title: string
-  value: string
-  detail: string
-  accent: string
-}) {
- return (
-  <Card variant="cockpit" className="">
-      <div
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 999,
-          display: 'grid',
-          placeItems: 'center',
-          background: `${accent}22`,
-          border: `1px solid ${accent}66`,
-          marginBottom: 12,
-          fontSize: 22,
-        }}
-      >
-        {icon}
-      </div>
-
-      <div
-        style={{
-          color: '#cbd5e1',
-          fontSize: 11,
-          textTransform: 'uppercase',
-          fontWeight: 900,
-          letterSpacing: 0.4,
-        }}
-      >
-        {title}
-      </div>
-
-      <div
-        style={{
-          marginTop: 8,
-          fontSize: 24,
-          fontWeight: 950,
-          color: '#f8fafc',
-          lineHeight: 1.05,
-        }}
-      >
-        {value}
-      </div>
-
-      <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 13 }}>
-        {detail}
-      </div>
-      </Card>
-  )
-}
 
 /* =========================
    TIMELINE
