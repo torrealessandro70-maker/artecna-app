@@ -322,6 +322,7 @@ export default function FascicoloCantiereContainer({
 
 <FascicoloCockpit
   cantiereName={cantiere?.nome ?? undefined}
+  subtitle="Fascicolo di Cantiere · ARTECNA OS"
   focus="Fascicolo Cantiere"
 />
         </div>

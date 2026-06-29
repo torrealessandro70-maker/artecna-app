@@ -5,6 +5,7 @@ import {
 
 export type RuntimeCockpitInput = {
   cantiereName?: string
+  subtitle?: string
   focus?: string
   status?: string
 }
@@ -13,8 +14,9 @@ export function createCockpitFromRuntime(
   runtime: RuntimeCockpitInput
 ): CockpitSnapshot {
   return createCockpitSnapshot({
-    cantiereName: runtime.cantiereName,
-    focus: runtime.focus,
-    status: runtime.status,
-  })
+  cantiereName: runtime.cantiereName,
+  subtitle: runtime.subtitle,
+  focus: runtime.focus,
+  status: runtime.status,
+})
 }

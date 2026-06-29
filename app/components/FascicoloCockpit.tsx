@@ -9,16 +9,19 @@ const theme = artecnaTheme.dark
 
 type FascicoloCockpitProps = {
   cantiereName?: string
+  subtitle?: string
   focus?: string
 }
 
 export default function FascicoloCockpit({
   cantiereName,
+  subtitle,
   focus,
 }: FascicoloCockpitProps) {
 
 const cockpitSnapshot = createCockpitSnapshot({
   cantiereName,
+  subtitle,
   focus,
 })
   return (
@@ -50,7 +53,7 @@ const cockpitSnapshot = createCockpitSnapshot({
             {cockpitSnapshot.cantiereName}
           </div>
           <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
-            Fascicolo di Cantiere · ARTECNA OS
+            {cockpitSnapshot.subtitle}
           </div>
         </div>
 
