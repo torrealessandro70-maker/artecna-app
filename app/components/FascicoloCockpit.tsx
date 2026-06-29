@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { artecnaTheme } from '../design/artecna-theme'
+import { Card } from './ui/Card'
 
 const theme = artecnaTheme.dark
 
@@ -20,7 +21,8 @@ export default function FascicoloCockpit() {
         boxShadow: theme.shadow.cockpit,
         overflow: 'hidden',
       }}
-    >      <div
+    >
+      <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -54,6 +56,7 @@ export default function FascicoloCockpit() {
         </div>
       </div>
 
+      {/* MAIN GRID */}
       <div
         style={{
           display: 'grid',
@@ -147,12 +150,8 @@ export default function FascicoloCockpit() {
           </button>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gap: 12,
-          }}
-        >
+        {/* SIDE CARDS */}
+        <div style={{ display: 'grid', gap: 12 }}>
           <MiniCockpitCard
             icon="🎯"
             title="Focus"
@@ -171,6 +170,7 @@ export default function FascicoloCockpit() {
         </div>
       </div>
 
+      {/* BOTTOM CARDS */}
       <div
         style={{
           display: 'grid',
@@ -204,6 +204,7 @@ export default function FascicoloCockpit() {
         />
       </div>
 
+      {/* TIMELINE */}
       <div
         style={{
           padding: 16,
@@ -250,6 +251,9 @@ export default function FascicoloCockpit() {
   )
 }
 
+/* =========================
+   MINI CARD
+========================= */
 function MiniCockpitCard({
   icon,
   title,
@@ -263,16 +267,8 @@ function MiniCockpitCard({
   detail: string
   accent: string
 }) {
-  return (
-    <div
-      style={{
-        padding: 16,
-        borderRadius: 18,
-        background: 'rgba(15, 23, 42, 0.72)',
-        border: `1px solid ${accent}44`,
-        minHeight: 116,
-      }}
-    >
+ return (
+  <Card variant="cockpit" className="">
       <div
         style={{
           width: 44,
@@ -306,7 +302,7 @@ function MiniCockpitCard({
           marginTop: 8,
           fontSize: 24,
           fontWeight: 950,
-          color: theme.text,
+          color: '#f8fafc',
           lineHeight: 1.05,
         }}
       >
@@ -316,10 +312,13 @@ function MiniCockpitCard({
       <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 13 }}>
         {detail}
       </div>
-    </div>
+   </Card>
   )
 }
 
+/* =========================
+   TIMELINE
+========================= */
 function TimelineRow({
   time,
   title,
