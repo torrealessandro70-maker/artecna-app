@@ -2,8 +2,8 @@
 
 import React from 'react'
 import { artecnaTheme } from '../design/artecna-theme'
-import { Card } from './ui/Card'
-import { StatusCard } from './ui'
+
+import { RuntimeSummaryCard, StatusCard } from './ui'
 
 const theme = artecnaTheme.dark
 
@@ -56,7 +56,25 @@ export default function FascicoloCockpit() {
           ● Online
         </div>
       </div>
-
+<RuntimeSummaryCard
+  observed={[
+    'Materiale consegnato',
+    'Squadra presente',
+    'Documentazione cucina non completa',
+  ]}
+  understood={[
+    'Il cartongesso può iniziare',
+    'Serve una prova fotografica iniziale',
+  ]}
+  attention={[
+    'Foto cucina mancante',
+    'Firma cliente da acquisire',
+  ]}
+  proposed={[
+    'Aprire la fotocamera',
+    'Generare rapportino a fine giornata',
+  ]}
+/>
       {/* MAIN GRID */}
       <div
         style={{
