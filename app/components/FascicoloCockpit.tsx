@@ -312,7 +312,7 @@ function MiniCockpitCard({
       <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 13 }}>
         {detail}
       </div>
-   </Card>
+      </Card>
   )
 }
 
