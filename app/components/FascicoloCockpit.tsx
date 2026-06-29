@@ -7,8 +7,16 @@ import { RuntimeSummaryCard, StatusCard } from './ui'
 
 const theme = artecnaTheme.dark
 
-export default function FascicoloCockpit() {
-  const cockpitSnapshot = createCockpitSnapshot()
+type FascicoloCockpitProps = {
+  cantiereName?: string
+}
+
+export default function FascicoloCockpit({
+  cantiereName,
+}: FascicoloCockpitProps) {
+  const cockpitSnapshot = createCockpitSnapshot({
+  cantiereName,
+})
   return (
     <section
       aria-label="ARTECNA Cockpit"

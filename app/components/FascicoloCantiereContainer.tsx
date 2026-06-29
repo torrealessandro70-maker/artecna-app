@@ -1,6 +1,7 @@
 'use client'
 import RuntimeInspector from './RuntimeInspector'
 import { useState, type ReactNode } from 'react'
+import FascicoloCockpit from './FascicoloCockpit'
 import {
   buildTimelineEvents,
   type TimelineEvent as EventEngineTimelineEvent,
@@ -313,10 +314,13 @@ export default function FascicoloCantiereContainer({
         }}
       >
         <div>
-          <h3 style={{ margin: 0 }}>Panoramica del Cantiere</h3>
-          <div style={{ marginTop: 4, color: '#64748b', fontSize: 13 }}>
-            Stato sintetico del Fascicolo e dei suoi contenuti principali.
-          </div>
+         <h3 style={{ margin: 0 }}>Panoramica del Cantiere</h3>
+
+<div style={{ marginTop: 4, color: '#64748b', fontSize: 13 }}>
+  Stato sintetico del Fascicolo e dei suoi contenuti principali.
+</div>
+
+<FascicoloCockpit cantiereName={cantiere?.nome ?? undefined} />
         </div>
 
         <div
