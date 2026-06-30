@@ -1,3 +1,5 @@
-export * from './types'
+﻿export * from './types'
 export * from './feed-builder'
 export * from './demo-feed'
+export * from './feed-bridge'
+export * from './photo-feed-bridge'

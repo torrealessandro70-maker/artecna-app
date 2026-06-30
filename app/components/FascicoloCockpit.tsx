@@ -4,6 +4,7 @@ import React from 'react'
 import { artecnaTheme } from '../design/artecna-theme'
 import { createCockpitFromRuntime } from '../adapters/runtime-cockpit-adapter'
 import { RuntimeFeedPanel, RuntimeSummaryCard, StatusCard } from './ui'
+import type { RuntimeFeedItem } from '../runtime/feed'
 
 const theme = artecnaTheme.dark
 
@@ -11,18 +12,21 @@ type FascicoloCockpitProps = {
   cantiereName?: string
   subtitle?: string
   focus?: string
+  feed?: RuntimeFeedItem[]
 }
 
 export default function FascicoloCockpit({
   cantiereName,
   subtitle,
   focus,
+  feed,
 }: FascicoloCockpitProps) {
 
 const cockpitSnapshot = createCockpitFromRuntime({
   cantiereName,
   subtitle,
   focus,
+  feed,
 })
 
   return (
@@ -177,8 +181,7 @@ const cockpitSnapshot = createCockpitFromRuntime({
               marginBottom: 0,
             }}
           >
-            Manca solo la documentazione iniziale della cucina prima di
-            procedere con il cartongesso.
+           {cockpitSnapshot.cockpitSummary.situation}
           </p>
 
           <button
@@ -247,8 +250,8 @@ const cockpitSnapshot = createCockpitFromRuntime({
         <StatusCard
           icon="▶"
           title="Prossima azione"
-          value="Foto cucina"
-          detail="Tempo stimato 2 min"
+        value={cockpitSnapshot.cockpitSummary.nextAction || 'Da definire'}
+detail={`${cockpitSnapshot.cockpitSummary.sourceEventCount} eventi analizzati`}
           accent="#22c55e"
         />
       </div>
