@@ -5,34 +5,45 @@ export function buildCockpitSummary(input: CockpitSummaryInput): CockpitSummary 
   const lastItem = feedItems[0]
 
   const titles = feedItems.map((item) => item.title)
+  const photoCount = feedItems.filter((item) => item.category === 'photo').length
+  const reportCount = feedItems.filter(
+    (item) => item.metadata?.sourceKind === 'report',
+  ).length
 
-  const attentionItems = titles.filter((title) => {
-    const normalizedTitle = title.toLowerCase()
-
-    return (
-      normalizedTitle.includes('errore') ||
-      normalizedTitle.includes('attenzione') ||
-      normalizedTitle.includes('warning') ||
-      normalizedTitle.includes('critic')
-    )
-  })
+  const attentionItems = feedItems.filter(
+    (item) => item.severity === 'warning' || item.severity === 'error',
+  )
 
   const hasAttention = attentionItems.length > 0
+
+  const situationParts = [
+    photoCount > 0 ? `${photoCount} foto acquisite` : null,
+    reportCount > 0 ? `${reportCount} rapportini registrati` : null,
+  ].filter(Boolean)
 
   return {
     level: hasAttention ? 'attention' : 'stable',
     title: hasAttention ? 'Situazione da verificare' : 'Situazione stabile',
-    situation: lastItem
-      ? `Ultimo aggiornamento: ${lastItem.title}`
-      : 'Nessun evento recente rilevato dal Runtime.',
+    situation:
+      situationParts.length > 0
+        ? `Il Fascicolo contiene ${situationParts.join(' e ')}. Ultimo aggiornamento: ${
+            lastItem?.title || 'nessun aggiornamento recente'
+          }.`
+        : lastItem
+          ? `Ultimo aggiornamento: ${lastItem.title}`
+          : 'Nessun evento recente rilevato dal Runtime.',
     recentFacts: titles.slice(0, 3),
-    attention: hasAttention ? attentionItems.slice(0, 3) : ['Nessuna criticità rilevata.'],
-    suggestions: hasAttention
-      ? ['Verificare gli eventi che richiedono attenzione nel Runtime Feed.']
-      : ['Continuare a monitorare il cantiere dal Cockpit.'],
-    nextAction: hasAttention
-      ? 'Aprire il Runtime Feed e verificare gli eventi segnalati.'
-      : 'Proseguire con il controllo operativo del cantiere.',
+    attention: hasAttention
+      ? attentionItems.slice(0, 3).map((item) => item.title)
+      : ['Nessuna criticità rilevata.'],
+    suggestions:
+      photoCount > 0 || reportCount > 0
+        ? ['Verificare il materiale recente collegato al Fascicolo Cantiere.']
+        : ['Continuare a monitorare il cantiere dal Cockpit.'],
+    nextAction:
+      photoCount > 0 || reportCount > 0
+        ? 'Controllare foto e rapportini più recenti.'
+        : 'Proseguire con il controllo operativo del cantiere.',
     generatedAt: new Date().toISOString(),
     sourceEventCount: feedItems.length,
   }
