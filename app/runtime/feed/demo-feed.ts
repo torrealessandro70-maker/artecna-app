@@ -1,0 +1,66 @@
+import { createRuntimeFeedItem, createRuntimeFeedSnapshot } from './feed-builder'
+
+export function createDemoRuntimeFeed() {
+  return createRuntimeFeedSnapshot([
+    createRuntimeFeedItem({
+      id: 'demo-feed-001',
+      timestamp: new Date('2026-06-30T07:05:00'),
+      title: '?? Materiale consegnato',
+      description: 'Arrivato materiale previsto per le lavorazioni della giornata.',
+      category: 'material',
+      severity: 'success',
+      source: 'workflow-engine',
+      priority: 3,
+    }),
+    createRuntimeFeedItem({
+      id: 'demo-feed-002',
+      timestamp: new Date('2026-06-30T07:18:00'),
+      title: '?? Operai presenti',
+      description: 'Presenza squadra rilevata nel cantiere.',
+      category: 'worker',
+      severity: 'info',
+      source: 'runtime',
+      priority: 2,
+    }),
+    createRuntimeFeedItem({
+      id: 'demo-feed-003',
+      timestamp: new Date('2026-06-30T07:22:00'),
+      title: '?? Foto iniziale acquisita',
+      description: 'Prima documentazione fotografica collegata al fascicolo.',
+      category: 'photo',
+      severity: 'info',
+      source: 'user',
+      priority: 2,
+    }),
+    createRuntimeFeedItem({
+      id: 'demo-feed-004',
+      timestamp: new Date('2026-06-30T07:24:00'),
+      title: '?? Possibile infiltrazione rilevata',
+      description: 'ARTECNA suggerisce una verifica prima di procedere con la chiusura.',
+      category: 'ai',
+      severity: 'warning',
+      source: 'construction-knowledge',
+      priority: 5,
+    }),
+    createRuntimeFeedItem({
+      id: 'demo-feed-005',
+      timestamp: new Date('2026-06-30T07:25:00'),
+      title: '? Verifica consigliata',
+      description: 'Controllare il punto critico e allegare una foto ravvicinata.',
+      category: 'review',
+      severity: 'warning',
+      source: 'review-engine',
+      priority: 5,
+    }),
+    createRuntimeFeedItem({
+      id: 'demo-feed-006',
+      timestamp: new Date('2026-06-30T07:26:00'),
+      title: '? Decisione confermata',
+      description: 'La verifica è stata confermata dall’utente prima dell’esecuzione.',
+      category: 'decision',
+      severity: 'success',
+      source: 'decision-engine',
+      priority: 4,
+    }),
+  ])
+}
