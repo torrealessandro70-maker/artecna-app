@@ -3,10 +3,12 @@ import RuntimeInspector from './RuntimeInspector'
 import { useState, type ReactNode } from 'react'
 import FascicoloCockpit from './FascicoloCockpit'
 import {
+  createDocumentRuntimeFeed,
   createPhotoRuntimeFeed,
   createReportRuntimeFeed,
   createRuntimeFeedSnapshot,
 } from '../runtime/feed'
+
 import {
   buildTimelineEvents,
   type TimelineEvent as EventEngineTimelineEvent,
@@ -329,9 +331,14 @@ export default function FascicoloCantiereContainer({
   cantiereName={cantiere?.nome || nomeCantiere}
   subtitle={cliente ? `Cliente: ${cliente}` : 'Fascicolo di Cantiere · ARTECNA OS'}
   focus={statoLavori || 'Stato lavori da aggiornare'}
-  feed={createRuntimeFeedSnapshot([
+ feed={createRuntimeFeedSnapshot([
   ...createPhotoRuntimeFeed(fotoCantiere),
   ...createReportRuntimeFeed(rapportiniCantiere),
+  ...createDocumentRuntimeFeed({
+    count: numeroDocumenti,
+    cantiere: cantiere?.nome || nomeCantiere,
+    updatedAt: ultimoAggiornamento,
+  }),
 ])}
 />
         </div>
