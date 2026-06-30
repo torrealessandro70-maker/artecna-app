@@ -1,5 +1,5 @@
-﻿import { createPhotoSource } from '../sources'
-import { createRuntimeFeedItem, createRuntimeFeedSnapshot } from './feed-builder'
+﻿import { runtimeEventFactory } from '../events'
+import { createPhotoSource } from '../sources'
 import type { RuntimeFeedItem } from './types'
 
 type RuntimePhotoInput = {
@@ -13,26 +13,7 @@ type RuntimePhotoInput = {
 export function createPhotoRuntimeFeed(
   photos: RuntimePhotoInput[] = [],
 ): RuntimeFeedItem[] {
-  const photoSources = createPhotoSource(photos)
+  const sources = createPhotoSource(photos)
 
-  const items = photoSources.map((photoSource) =>
-    createRuntimeFeedItem({
-      id: `photo-${photoSource.id}`,
-      timestamp: photoSource.timestamp,
-      title: 'Foto cantiere acquisita',
-      description:
-        photoSource.description || 'Nuova foto collegata al Fascicolo Cantiere.',
-      category: 'photo',
-      severity: 'success',
-      source: 'user',
-      priority: 2,
-      metadata: {
-        ...photoSource.metadata,
-        sourceId: photoSource.sourceId,
-        sourceKind: photoSource.kind,
-      },
-    }),
-  )
-
-  return createRuntimeFeedSnapshot(items)
+  return runtimeEventFactory.createFeed({ sources })
 }
