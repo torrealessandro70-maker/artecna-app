@@ -1,4 +1,5 @@
-﻿import { createRuntimeFeedItem, createRuntimeFeedSnapshot } from './feed-builder'
+﻿import { createPhotoSource } from '../sources'
+import { createRuntimeFeedItem, createRuntimeFeedSnapshot } from './feed-builder'
 import type { RuntimeFeedItem } from './types'
 
 type RuntimePhotoInput = {
@@ -12,25 +13,26 @@ type RuntimePhotoInput = {
 export function createPhotoRuntimeFeed(
   photos: RuntimePhotoInput[] = [],
 ): RuntimeFeedItem[] {
-  const items = photos.map((photo, index) => {
-    const timestampValue = photo.data_foto || photo.created_at
-    const timestamp = timestampValue ? new Date(timestampValue) : new Date()
+  const photoSources = createPhotoSource(photos)
 
-    return createRuntimeFeedItem({
-      id: `photo-${photo.id || index}`,
-      timestamp,
+  const items = photoSources.map((photoSource) =>
+    createRuntimeFeedItem({
+      id: `photo-${photoSource.id}`,
+      timestamp: photoSource.timestamp,
       title: 'Foto cantiere acquisita',
-      description: photo.nota || 'Nuova foto collegata al Fascicolo Cantiere.',
+      description:
+        photoSource.description || 'Nuova foto collegata al Fascicolo Cantiere.',
       category: 'photo',
       severity: 'success',
       source: 'user',
       priority: 2,
       metadata: {
-        photoId: photo.id,
-        cantiere: photo.cantiere,
+        ...photoSource.metadata,
+        sourceId: photoSource.sourceId,
+        sourceKind: photoSource.kind,
       },
-    })
-  })
+    }),
+  )
 
   return createRuntimeFeedSnapshot(items)
 }
