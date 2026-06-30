@@ -2,3 +2,4 @@
 export * from './photo-source'
 export * from './report-source'
 export * from './document-source'
+export * from './sal-source'

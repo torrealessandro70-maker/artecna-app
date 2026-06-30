@@ -2,12 +2,16 @@
 import RuntimeInspector from './RuntimeInspector'
 import { useState, type ReactNode } from 'react'
 import FascicoloCockpit from './FascicoloCockpit'
+
+
 import {
   createDocumentRuntimeFeed,
   createPhotoRuntimeFeed,
   createReportRuntimeFeed,
   createRuntimeFeedSnapshot,
+  createSalRuntimeFeed,
 } from '../runtime/feed'
+
 
 import {
   buildTimelineEvents,
@@ -336,6 +340,11 @@ export default function FascicoloCantiereContainer({
   ...createReportRuntimeFeed(rapportiniCantiere),
   ...createDocumentRuntimeFeed({
     count: numeroDocumenti,
+    cantiere: cantiere?.nome || nomeCantiere,
+    updatedAt: ultimoAggiornamento,
+  }),
+  ...createSalRuntimeFeed({
+    count: numeroSal,
     cantiere: cantiere?.nome || nomeCantiere,
     updatedAt: ultimoAggiornamento,
   }),
