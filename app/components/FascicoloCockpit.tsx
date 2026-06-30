@@ -2,8 +2,8 @@
 
 import React from 'react'
 import { artecnaTheme } from '../design/artecna-theme'
-import { createCockpitSnapshot } from '../view-models/cockpit-view-model'
-import { RuntimeSummaryCard, StatusCard } from './ui'
+import { createCockpitFromRuntime } from '../adapters/runtime-cockpit-adapter'
+import { RuntimeFeedPanel, RuntimeSummaryCard, StatusCard } from './ui'
 
 const theme = artecnaTheme.dark
 
@@ -19,11 +19,12 @@ export default function FascicoloCockpit({
   focus,
 }: FascicoloCockpitProps) {
 
-const cockpitSnapshot = createCockpitSnapshot({
+const cockpitSnapshot = createCockpitFromRuntime({
   cantiereName,
   subtitle,
   focus,
 })
+
   return (
     <section
       aria-label="ARTECNA Cockpit"
@@ -77,7 +78,34 @@ const cockpitSnapshot = createCockpitSnapshot({
   understood={cockpitSnapshot.understood}
   attention={cockpitSnapshot.attention}
   proposed={cockpitSnapshot.proposed}
-/>      {/* MAIN GRID */}
+/>   
+<div
+  style={{
+    marginTop: 16,
+    marginBottom: 16,
+    padding: 18,
+    borderRadius: 20,
+    background: 'rgba(15, 23, 42, 0.76)',
+    border: '1px solid rgba(34, 197, 94, 0.28)',
+  }}
+>
+  <div style={{ color: '#86efac', fontSize: 12, fontWeight: 900 }}>
+    🟢 SITUAZIONE DEL CANTIERE
+  </div>
+
+  <div style={{ fontSize: 22, fontWeight: 900, marginTop: 8 }}>
+    {cockpitSnapshot.cockpitSummary.title}
+  </div>
+
+  <p style={{ color: '#cbd5e1', marginTop: 8 }}>
+    {cockpitSnapshot.cockpitSummary.situation}
+  </p>
+
+  <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 10 }}>
+    Prossima azione: {cockpitSnapshot.cockpitSummary.nextAction}
+  </div>
+</div>
+   {/* MAIN GRID */}
       <div
         style={{
           display: 'grid',
@@ -225,8 +253,7 @@ const cockpitSnapshot = createCockpitSnapshot({
         />
       </div>
 
-      {/* TIMELINE */}
-      <div
+         <div
         style={{
           padding: 16,
           borderRadius: 20,
@@ -234,100 +261,8 @@ const cockpitSnapshot = createCockpitSnapshot({
           border: '1px solid rgba(148, 163, 184, 0.18)',
         }}
       >
-        <div
-          style={{
-            color: '#94a3b8',
-            fontSize: 12,
-            fontWeight: 900,
-            letterSpacing: 0.4,
-            marginBottom: 12,
-            textTransform: 'uppercase',
-          }}
-        >
-          Diario di bordo · oggi
-        </div>
-
-        <div style={{ display: 'grid', gap: 10 }}>
-          <TimelineRow
-            time="07:05"
-            title="Materiale consegnato"
-            detail="Cartongesso disponibile"
-            status="Completato"
-          />
-          <TimelineRow
-            time="07:18"
-            title="Operai arrivati"
-            detail="Squadra presente"
-            status="Completato"
-          />
-          <TimelineRow
-            time="07:22"
-            title="Documentazione cucina"
-            detail="Foto iniziale da acquisire"
-            status="Da fare"
-          />
-        </div>
-      </div>
+        <RuntimeFeedPanel items={cockpitSnapshot.feed} />
+       </div>
     </section>
-  )
-}
-
-/* =========================
-   MINI CARD
-========================= */
-
-/* =========================
-   TIMELINE
-========================= */
-function TimelineRow({
-  time,
-  title,
-  detail,
-  status,
-}: {
-  time: string
-  title: string
-  detail: string
-  status: string
-}) {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '64px minmax(0, 1fr) auto',
-        gap: 12,
-        alignItems: 'center',
-        padding: 12,
-        borderRadius: 14,
-        background: 'rgba(30, 41, 59, 0.68)',
-        border: '1px solid rgba(148, 163, 184, 0.12)',
-      }}
-    >
-      <div style={{ color: '#22c55e', fontWeight: 900 }}>{time}</div>
-
-      <div>
-        <div style={{ fontWeight: 800, color: '#f8fafc' }}>{title}</div>
-        <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 2 }}>
-          {detail}
-        </div>
-      </div>
-
-      <div
-        style={{
-          padding: '6px 10px',
-          borderRadius: 999,
-          background:
-            status === 'Da fare'
-              ? 'rgba(245, 158, 11, 0.16)'
-              : 'rgba(34, 197, 94, 0.16)',
-          color: status === 'Da fare' ? '#fbbf24' : '#86efac',
-          fontSize: 11,
-          fontWeight: 900,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {status}
-      </div>
-    </div>
   )
 }
