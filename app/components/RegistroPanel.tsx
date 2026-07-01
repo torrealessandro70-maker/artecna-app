@@ -118,6 +118,7 @@ export default function RegistroPanel(props: any) {
         miglioraVocePreventivoAi={p.miglioraVocePreventivoAi}
         salvaInMemoriaPrezzi={p.salvaInMemoriaPrezzi}
         generaExcelDefinitivoPreventivoAi={p.generaExcelDefinitivoPreventivoAi}
+salvaRevisionePreventivoAi={p.salvaRevisionePreventivoAi}
         preventivoRegistroCantiere={p.preventivoRegistroCantiere}
         setMostraRevisionePreventivoAi={p.setMostraRevisionePreventivoAi}
         excelTable={p.excelTable}

@@ -98,6 +98,7 @@ type Props = {
   miglioraVocePreventivoAi: (index: number) => void | Promise<void>
   salvaInMemoriaPrezzi: (voce: any) => void | Promise<void>
   generaExcelDefinitivoPreventivoAi: () => void | Promise<void>
+salvaRevisionePreventivoAi: () => void | Promise<void>
 
   preventivoRegistroCantiere: string
   setMostraRevisionePreventivoAi: (v: boolean) => void
@@ -122,6 +123,7 @@ export default function RevisionePreventivoAiPanel({
   miglioraVocePreventivoAi,
   salvaInMemoriaPrezzi,
   generaExcelDefinitivoPreventivoAi,
+salvaRevisionePreventivoAi,
   preventivoRegistroCantiere,
   setMostraRevisionePreventivoAi,
   excelTable,
@@ -612,6 +614,18 @@ export default function RevisionePreventivoAiPanel({
             backgroundColor: '#2563eb',
           }}
         >
+<button
+  onClick={async () => {
+    await salvaRevisionePreventivoAi()
+  }}
+  style={{
+    ...buttonPrimary,
+    backgroundColor: '#16a34a',
+  }}
+>
+  💾 Salva revisione
+</button>
+
           📄 Genera Excel definitivo
         </button>
 

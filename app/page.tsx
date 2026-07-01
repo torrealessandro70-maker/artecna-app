@@ -1460,6 +1460,49 @@ console.log('CLICK AI', index)
   setMessaggioAi('Errore aggiornamento voce')
 }
 }
+
+const salvaRevisionePreventivoAi = async () => {
+  if (!preventivoAiGenerato?.id) {
+    alert('Preventivo AI non disponibile')
+    return
+  }
+
+  const importoTotale = vociPreventivoAi.reduce((totale: number, voce: any) => {
+    const quantita = Number(voce.quantita || 0)
+    const prezzo = Number(voce.prezzo_unitario || 0)
+
+    return totale + quantita * prezzo
+  }, 0)
+
+  const { error } = await supabase
+    .from('preventivi_cantiere')
+    .update({
+      descrizione_intervento: descrizionePreventivoAi,
+      voci_ai: vociPreventivoAi,
+      importo_totale: importoTotale,
+      stato_preventivo: 'revisionato',
+      approvato: false,
+    })
+    .eq('id', preventivoAiGenerato.id)
+
+  if (error) {
+    alert('Errore salvataggio revisione: ' + error.message)
+    return
+  }
+
+  setPreventivoAiGenerato({
+    ...preventivoAiGenerato,
+    descrizione_intervento: descrizionePreventivoAi,
+    voci_ai: vociPreventivoAi,
+    importo_totale: importoTotale,
+    stato_preventivo: 'revisionato',
+    approvato: false,
+  })
+
+  await caricaEconomia()
+
+  alert('Revisione preventivo salvata')
+}
 const generaExcelDefinitivoPreventivoAi = async () => {
   if (vociPreventivoAi.length === 0) {
     alert('Nessuna voce da esportare')
@@ -12145,6 +12188,7 @@ WebkitOverflowScrolling: 'touch',
   registroFiltroDataA={registroFiltroDataA}
   setRegistroFiltroDataA={setRegistroFiltroDataA}
   setRegistroFiltroNome={setRegistroFiltroNome}
+salvaRevisionePreventivoAi={salvaRevisionePreventivoAi}
 
   cantieri={cantieri}
   preventivi={preventivi}
