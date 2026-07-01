@@ -1404,6 +1404,19 @@ setDescrizionePreventivoAi(
   risultato.descrizione_intervento || ''
 )
 
+const { error: erroreAggiornaSopralluogo } = await supabase
+  .from('sopralluoghi')
+  .update({ stato: 'preventivato' })
+  .eq('id', s.id)
+
+if (erroreAggiornaSopralluogo) {
+  alert(
+    'Preventivo creato, ma errore aggiornamento stato sopralluogo: ' +
+      erroreAggiornaSopralluogo.message
+  )
+}
+
+await caricaSopralluoghi()
 await caricaEconomia()
 
 alert(
@@ -1411,7 +1424,6 @@ alert(
 )
 return true
 }
-
 const miglioraVocePreventivoAi = async (
   index: number
 ) => {
