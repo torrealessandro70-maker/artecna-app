@@ -116,82 +116,21 @@ export default function SopralluogoDettaglioHeader({
 />
 
       <div style={{ display: 'grid', gap: 8 }}>
-       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-  <span>
+  <div>
     <strong>Telefono:</strong> {sopralluogoAperto.telefono || '-'}
-  </span>
+  </div>
 
-  {true && (
-    <a
-      href={sopralluogoAperto.telefono ? `tel:${sopralluogoAperto.telefono}` : '#'}
-onClick={(e) => {
-  if (!sopralluogoAperto.telefono) {
-    e.preventDefault()
-    alert('Telefono non presente nel sopralluogo')
-  }
-}}
-      style={buttonSecondary}
-    >
-      📞 Chiama
-    </a>
-  )}
-</div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-  <span>
+  <div>
     <strong>Indirizzo:</strong> {sopralluogoAperto.indirizzo || '-'}
-  </span>
+  </div>
 
-  {sopralluogoAperto.indirizzo && (
-    <a
-      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        sopralluogoAperto.indirizzo
-      )}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      style={buttonSecondary}
-    >
-      🗺 Apri mappa
-    </a>
-  )}
-</div>
-
-       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-  <span>
+  <div>
     <strong>Data sopralluogo:</strong>{' '}
     {sopralluogoAperto.data_sopralluogo || '-'}
     {sopralluogoAperto.ora_appuntamento
       ? ` · ore ${String(sopralluogoAperto.ora_appuntamento).slice(0, 5)}`
       : ''}
-  </span>
-
-  {sopralluogoAperto.data_sopralluogo && (
-    <a
-      href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
-        `Sopralluogo - ${sopralluogoAperto.cliente || 'Cliente'}`
-      )}&dates=${String(sopralluogoAperto.data_sopralluogo).replace(/-/g, '')}T${String(
-        sopralluogoAperto.ora_appuntamento || '09:00'
-      )
-        .slice(0, 5)
-        .replace(':', '')}00/${String(sopralluogoAperto.data_sopralluogo).replace(/-/g, '')}T${String(
-        sopralluogoAperto.ora_appuntamento || '10:00'
-      )
-        .slice(0, 5)
-        .replace(':', '')}00&details=${encodeURIComponent(
-        `Cliente: ${sopralluogoAperto.cliente || ''}\nTelefono: ${
-          sopralluogoAperto.telefono || ''
-        }\nTipo lavoro: ${sopralluogoAperto.tipo_lavoro || ''}\nNote: ${
-          sopralluogoAperto.note || ''
-        }`
-      )}&location=${encodeURIComponent(sopralluogoAperto.indirizzo || '')}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      style={buttonSecondary}
-    >
-      📅 Crea evento
-    </a>
-  )}
-</div>
+  </div>
 
         <div>
           <strong>Tipo lavoro:</strong>{' '}
