@@ -1,6 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import SopralluogoQuickActionBar from './SopralluogoQuickActionBar'
 
 type Props = {
   sopralluogoAperto: any
@@ -104,15 +105,31 @@ export default function SopralluogoDettaglioHeader({
         </div>
       </div>
 
+<SopralluogoQuickActionBar
+  cliente={sopralluogoAperto.cliente}
+  telefono={sopralluogoAperto.telefono}
+  indirizzo={sopralluogoAperto.indirizzo}
+  dataSopralluogo={sopralluogoAperto.data_sopralluogo}
+  oraAppuntamento={sopralluogoAperto.ora_appuntamento}
+  tipoLavoro={sopralluogoAperto.tipo_lavoro}
+  note={sopralluogoAperto.note}
+/>
+
       <div style={{ display: 'grid', gap: 8 }}>
        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
   <span>
     <strong>Telefono:</strong> {sopralluogoAperto.telefono || '-'}
   </span>
 
-  {sopralluogoAperto.telefono && (
+  {true && (
     <a
-      href={`tel:${sopralluogoAperto.telefono}`}
+      href={sopralluogoAperto.telefono ? `tel:${sopralluogoAperto.telefono}` : '#'}
+onClick={(e) => {
+  if (!sopralluogoAperto.telefono) {
+    e.preventDefault()
+    alert('Telefono non presente nel sopralluogo')
+  }
+}}
       style={buttonSecondary}
     >
       📞 Chiama
