@@ -87,19 +87,22 @@ useEffect(() => {
 }, [sopralluoghiInLavorazione])
 
   const sopralluoghiOrdinati = useMemo(() => {
-    const mappa = new Map(
-      sopralluoghi.filter((s) => s.id).map((s) => [String(s.id), s])
-    )
+  const mappa = new Map(
+    sopralluoghi.filter((s) => s.id).map((s) => [String(s.id), s])
+  )
 
-    const ordinati = ordineSopralluoghi
-      .map((id) => mappa.get(id))
-      .filter(Boolean)
+  const ordinati = ordineSopralluoghi
+    .map((id) => mappa.get(id))
+    .filter(Boolean)
 
-    const giaOrdinati = new Set(ordineSopralluoghi)
+  const giaOrdinati = new Set(ordineSopralluoghi)
 
-    const altri = sopralluoghi.filter(
-      (s) => !s.id || !giaOrdinati.has(String(s.id))
-    )
+  const altri = sopralluoghi.filter(
+    (s) => !s.id || !giaOrdinati.has(String(s.id))
+  )
+
+  return [...ordinati, ...altri]
+}, [sopralluoghi, ordineSopralluoghi])
 
 const sopralluoghiInLavorazioneLista = useMemo(() => {
   const ids = new Set(sopralluoghiInLavorazione)
@@ -109,22 +112,7 @@ const sopralluoghiInLavorazioneLista = useMemo(() => {
   )
 }, [sopralluoghiOrdinati, sopralluoghiInLavorazione])
 
-const toggleInLavorazione = (id: string) => {
-  setSopralluoghiInLavorazione((prev) =>
-    prev.includes(id)
-      ? prev.filter((item) => item !== id)
-      : [...prev, id]
-  )
-}
-    return [...ordinati, ...altri]
-  }, [sopralluoghi, ordineSopralluoghi])
-const sopralluoghiInLavorazioneLista = useMemo(() => {
-  const ids = new Set(sopralluoghiInLavorazione)
 
-  return sopralluoghiOrdinati.filter(
-    (s) => s.id && ids.has(String(s.id))
-  )
-}, [sopralluoghiOrdinati, sopralluoghiInLavorazione])
 
 const toggleInLavorazione = (id: string) => {
   setSopralluoghiInLavorazione((prev) =>
