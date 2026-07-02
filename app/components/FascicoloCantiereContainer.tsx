@@ -413,9 +413,19 @@ export default function FascicoloCantiereContainer({
             }}
           >
             <h4 style={{ margin: 0 }}>🤖 Assistente ARTECNA</h4>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>
-              Nessuna osservazione disponibile.
-            </p>
+           <div style={{ marginTop: 8, color: '#64748b', fontSize: 14 }}>
+  <div>
+    Il fascicolo contiene {context.statistics.photos} foto,{' '}
+    {context.statistics.reports} rapportini,{' '}
+    {context.statistics.documents} documenti e {context.statistics.sal} SAL.
+  </div>
+
+  {context.lastActivity && (
+    <div style={{ marginTop: 6 }}>
+      Ultima attività: <strong>{context.lastActivity.title}</strong>
+    </div>
+  )}
+</div>
           </section>
 
           <section
@@ -428,9 +438,20 @@ export default function FascicoloCantiereContainer({
             }}
           >
             <h4 style={{ margin: 0 }}>Ultime attività</h4>
-            <p style={{ margin: '8px 0 0', color: '#64748b' }}>
-              Nessuna attività recente.
-            </p>
+          <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+  {context.timeline.slice(0, 5).length > 0 ? (
+    context.timeline.slice(0, 5).map((evento) => (
+      <div key={evento.id} style={{ color: '#475569', fontSize: 14 }}>
+        <strong>{evento.title}</strong>
+        <div style={{ fontSize: 12, color: '#94a3b8' }}>
+          {formatContextDate(new Date(evento.date))}
+        </div>
+      </div>
+    ))
+  ) : (
+    <div style={{ color: '#64748b' }}>Nessuna attività recente.</div>
+  )}
+</div>
           </section>
         </div>
       </section>
