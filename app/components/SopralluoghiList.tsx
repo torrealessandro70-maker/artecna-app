@@ -42,13 +42,21 @@ export default function SopralluoghiList({
 
 
   const [ordineSopralluoghi, setOrdineSopralluoghi] = useState<string[]>([])
+const [sopralluoghiInLavorazione, setSopralluoghiInLavorazione] = useState<string[]>([])
 
-  useEffect(() => {
+ useEffect(() => {
+  try {
     const salvato = localStorage.getItem('artecna:sopralluoghi:ordine')
     if (salvato) {
-      setOrdineSopralluoghi(JSON.parse(salvato))
+      const parsed = JSON.parse(salvato)
+      if (Array.isArray(parsed)) {
+        setOrdineSopralluoghi(parsed)
+      }
     }
-  }, [])
+  } catch {
+    localStorage.removeItem('artecna:sopralluoghi:ordine')
+  }
+}, [])
 
   useEffect(() => {
     localStorage.setItem(
@@ -56,6 +64,27 @@ export default function SopralluoghiList({
       JSON.stringify(ordineSopralluoghi)
     )
   }, [ordineSopralluoghi])
+
+useEffect(() => {
+  try {
+    const salvato = localStorage.getItem('artecna:sopralluoghi:in-lavorazione')
+    if (salvato) {
+      const parsed = JSON.parse(salvato)
+      if (Array.isArray(parsed)) {
+        setSopralluoghiInLavorazione(parsed)
+      }
+    }
+  } catch {
+    localStorage.removeItem('artecna:sopralluoghi:in-lavorazione')
+  }
+}, [])
+
+useEffect(() => {
+  localStorage.setItem(
+    'artecna:sopralluoghi:in-lavorazione',
+    JSON.stringify(sopralluoghiInLavorazione)
+  )
+}, [sopralluoghiInLavorazione])
 
   const sopralluoghiOrdinati = useMemo(() => {
     const mappa = new Map(
@@ -72,9 +101,38 @@ export default function SopralluoghiList({
       (s) => !s.id || !giaOrdinati.has(String(s.id))
     )
 
+const sopralluoghiInLavorazioneLista = useMemo(() => {
+  const ids = new Set(sopralluoghiInLavorazione)
+
+  return sopralluoghiOrdinati.filter(
+    (s) => s.id && ids.has(String(s.id))
+  )
+}, [sopralluoghiOrdinati, sopralluoghiInLavorazione])
+
+const toggleInLavorazione = (id: string) => {
+  setSopralluoghiInLavorazione((prev) =>
+    prev.includes(id)
+      ? prev.filter((item) => item !== id)
+      : [...prev, id]
+  )
+}
     return [...ordinati, ...altri]
   }, [sopralluoghi, ordineSopralluoghi])
+const sopralluoghiInLavorazioneLista = useMemo(() => {
+  const ids = new Set(sopralluoghiInLavorazione)
 
+  return sopralluoghiOrdinati.filter(
+    (s) => s.id && ids.has(String(s.id))
+  )
+}, [sopralluoghiOrdinati, sopralluoghiInLavorazione])
+
+const toggleInLavorazione = (id: string) => {
+  setSopralluoghiInLavorazione((prev) =>
+    prev.includes(id)
+      ? prev.filter((item) => item !== id)
+      : [...prev, id]
+  )
+}
   const spostaSopralluogo = (id: string, direzione: 'su' | 'giu') => {
     const ids = sopralluoghiOrdinati.filter((s) => s.id).map((s) => String(s.id))
     const indice = ids.indexOf(id)
@@ -114,6 +172,45 @@ export default function SopralluoghiList({
         </button>
       </div>
 
+{sopralluoghiInLavorazioneLista.length > 0 && (
+  <section
+    style={{
+      display: 'grid',
+      gap: 10,
+      marginBottom: 16,
+      padding: 12,
+      border: '1px solid #bbf7d0',
+      borderRadius: 12,
+      background: '#f0fdf4',
+    }}
+  >
+    <div style={{ fontWeight: 900, color: '#166534' }}>
+      🟢 In lavorazione
+    </div>
+
+    {sopralluoghiInLavorazioneLista.map((s) => (
+      <button
+        key={s.id}
+        type="button"
+        onClick={() => setSopralluogoAperto(s)}
+        style={{
+          textAlign: 'left',
+          padding: 10,
+          border: '1px solid #bbf7d0',
+          borderRadius: 10,
+          background: '#ffffff',
+          cursor: 'pointer',
+        }}
+      >
+        <strong>{s.cliente || 'Sopralluogo'}</strong>
+        <div style={{ color: '#64748b', fontSize: 13, marginTop: 3 }}>
+          {s.indirizzo || '-'} · {s.stato || '-'}
+        </div>
+      </button>
+    ))}
+  </section>
+)}
+
       {sopralluoghi.length === 0 ? (
         <p>Nessun sopralluogo salvato</p>
       ) : (
@@ -142,6 +239,21 @@ export default function SopralluoghiList({
 >
   {s.id && (
     <>
+<button
+  type="button"
+  onClick={() => toggleInLavorazione(String(s.id))}
+  style={{
+    ...buttonSecondary,
+    width: 'auto',
+    minWidth: 0,
+    padding: '8px 10px',
+    backgroundColor: sopralluoghiInLavorazione.includes(String(s.id))
+      ? '#dcfce7'
+      : buttonSecondary.backgroundColor,
+  }}
+>
+  🟢
+</button>
       <button
         type="button"
         onClick={() => spostaSopralluogo(String(s.id), 'su')}
