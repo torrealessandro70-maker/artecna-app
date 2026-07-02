@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 
 type Props = {
   sopralluoghi: any[]
@@ -39,6 +39,59 @@ export default function SopralluoghiList({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+
+
+  const [ordineSopralluoghi, setOrdineSopralluoghi] = useState<string[]>([])
+
+  useEffect(() => {
+    const salvato = localStorage.getItem('artecna:sopralluoghi:ordine')
+    if (salvato) {
+      setOrdineSopralluoghi(JSON.parse(salvato))
+    }
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(
+      'artecna:sopralluoghi:ordine',
+      JSON.stringify(ordineSopralluoghi)
+    )
+  }, [ordineSopralluoghi])
+
+  const sopralluoghiOrdinati = useMemo(() => {
+    const mappa = new Map(
+      sopralluoghi.filter((s) => s.id).map((s) => [String(s.id), s])
+    )
+
+    const ordinati = ordineSopralluoghi
+      .map((id) => mappa.get(id))
+      .filter(Boolean)
+
+    const giaOrdinati = new Set(ordineSopralluoghi)
+
+    const altri = sopralluoghi.filter(
+      (s) => !s.id || !giaOrdinati.has(String(s.id))
+    )
+
+    return [...ordinati, ...altri]
+  }, [sopralluoghi, ordineSopralluoghi])
+
+  const spostaSopralluogo = (id: string, direzione: 'su' | 'giu') => {
+    const ids = sopralluoghiOrdinati.filter((s) => s.id).map((s) => String(s.id))
+    const indice = ids.indexOf(id)
+    if (indice === -1) return
+
+    const nuovoIndice = direzione === 'su' ? indice - 1 : indice + 1
+    if (nuovoIndice < 0 || nuovoIndice >= ids.length) return
+
+    const nuovoOrdine = [...ids]
+    const temporaneo = nuovoOrdine[indice]
+    nuovoOrdine[indice] = nuovoOrdine[nuovoIndice]
+    nuovoOrdine[nuovoIndice] = temporaneo
+
+    setOrdineSopralluoghi(nuovoOrdine)
+  }
+
+
   return (
     <>
       <div
@@ -64,10 +117,10 @@ export default function SopralluoghiList({
       {sopralluoghi.length === 0 ? (
         <p>Nessun sopralluogo salvato</p>
       ) : (
-        <div style={{ display: 'grid', gap: 10 }}>
-          {[...sopralluoghi]
-            .slice(0, mostraElencoSopralluoghi ? undefined : 1)
-            .map((s, i) => (
+       <div style={{ display: 'grid', gap: 10 }}>
+  {sopralluoghiOrdinati
+    .slice(0, mostraElencoSopralluoghi ? undefined : 1)
+    .map((s, i) => (
               <div
                 key={s.id || i}
                 style={{
@@ -77,16 +130,47 @@ export default function SopralluoghiList({
                   background: '#fff',
                 }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 8,
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    width: 'auto',
-                    marginBottom: 8,
-                  }}
-                >
+               <div
+  style={{
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    width: 'auto',
+    marginBottom: 8,
+  }}
+>
+  {s.id && (
+    <>
+      <button
+        type="button"
+        onClick={() => spostaSopralluogo(String(s.id), 'su')}
+        style={{
+          ...buttonSecondary,
+          width: 'auto',
+          minWidth: 0,
+          padding: '8px 10px',
+        }}
+      >
+        ⬆️
+      </button>
+
+      <button
+        type="button"
+        onClick={() => spostaSopralluogo(String(s.id), 'giu')}
+        style={{
+          ...buttonSecondary,
+          width: 'auto',
+          minWidth: 0,
+          padding: '8px 10px',
+        }}
+      >
+        ⬇️
+      </button>
+    </>
+  )}
+
+
                   <button
                     type="button"
                     onClick={async () => {
