@@ -220,6 +220,8 @@ export default function FascicoloCantiereContainer({
   const eventiRecenti = context.timeline.filter(
     (evento) => gruppoDaData(evento.date) !== 'oggi'
   )
+const assistantObservations = buildAssistantObservations(context)
+
   const contextCards = [
     {
       label: 'Ultima attivita',
@@ -413,19 +415,14 @@ export default function FascicoloCantiereContainer({
             }}
           >
             <h4 style={{ margin: 0 }}>🤖 Assistente ARTECNA</h4>
-           <div style={{ marginTop: 8, color: '#64748b', fontSize: 14 }}>
-  <div>
-    Il fascicolo contiene {context.statistics.photos} foto,{' '}
-    {context.statistics.reports} rapportini,{' '}
-    {context.statistics.documents} documenti e {context.statistics.sal} SAL.
-  </div>
 
-  {context.lastActivity && (
-    <div style={{ marginTop: 6 }}>
-      Ultima attività: <strong>{context.lastActivity.title}</strong>
-    </div>
-  )}
-</div>
+<ul style={{ margin: '8px 0 0', paddingLeft: 18, color: '#64748b' }}>
+  {assistantObservations.map((observation) => (
+    <li key={observation} style={{ marginBottom: 4 }}>
+      {observation}
+    </li>
+  ))}
+</ul>
           </section>
 
           <section
@@ -1146,7 +1143,35 @@ function formatContextDate(date: Date) {
     timeStyle: 'short',
   }).format(date)
 }
+function buildAssistantObservations(context: ReturnType<typeof buildConstructionContext>) {
+  const observations: string[] = []
 
+  if (context.statistics.photos > 0) {
+    observations.push(`Sono presenti ${context.statistics.photos} foto nel fascicolo.`)
+  } else {
+    observations.push('Non risultano ancora foto collegate al cantiere.')
+  }
+
+  if (context.statistics.reports > 0) {
+    observations.push(`Sono presenti ${context.statistics.reports} rapportini registrati.`)
+  } else {
+    observations.push('Non risultano ancora rapportini collegati al cantiere.')
+  }
+
+  if (context.statistics.documents > 0) {
+    observations.push(`Sono presenti ${context.statistics.documents} documenti collegati.`)
+  }
+
+  if (context.statistics.sal > 0) {
+    observations.push(`Sono presenti ${context.statistics.sal} SAL da consultare o verificare.`)
+  }
+
+  if (context.lastActivity) {
+    observations.push(`Ultima attività rilevata: ${context.lastActivity.title}.`)
+  }
+
+  return observations.slice(0, 4)
+}
 function alertSeverityIcon(severity: string) {
   if (severity === 'warning') return '⚠️'
   if (severity === 'error' || severity === 'critical') return '🔴'
