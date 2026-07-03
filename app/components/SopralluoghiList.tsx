@@ -148,16 +148,22 @@ const toggleInLavorazione = (id: string) => {
           marginBottom: 10,
         }}
       >
-        <h3>Sopralluoghi</h3>
+        <h3>🚧 Lavori attivi</h3>
 
         <button
-          onClick={() =>
-            setMostraElencoSopralluoghi(!mostraElencoSopralluoghi)
-          }
-          style={buttonSecondary}
-        >
-          {mostraElencoSopralluoghi ? 'Nascondi elenco' : 'Mostra elenco'}
-        </button>
+  type="button"
+  onClick={() =>
+    setMostraElencoSopralluoghi(!mostraElencoSopralluoghi)
+  }
+  style={{
+    ...buttonSecondary,
+    fontWeight: 700,
+  }}
+>
+  {mostraElencoSopralluoghi
+    ? '📚 Archivio sopralluoghi ▲'
+    : '📚 Archivio sopralluoghi ▼'}
+</button>
       </div>
 
 {sopralluoghiInLavorazioneLista.length > 0 && (
@@ -174,10 +180,10 @@ const toggleInLavorazione = (id: string) => {
   >
    <div>
   <div style={{ fontWeight: 900, color: '#166534', fontSize: 16 }}>
-    🟢 Sopralluoghi in lavorazione
+    🎯 Sopralluoghi attivi
   </div>
   <div style={{ color: '#64748b', fontSize: 13, marginTop: 3 }}>
-    Sopralluoghi che stai seguendo adesso.
+    Qui trovi subito i sopralluoghi su cui stai lavorando.
   </div>
 </div>
 
@@ -359,14 +365,21 @@ const toggleInLavorazione = (id: string) => {
     ...buttonSecondary,
     width: 'auto',
     minWidth: 0,
-    padding: '8px 10px',
+    padding: '8px 12px',
     backgroundColor: sopralluoghiInLavorazione.includes(String(s.id))
       ? '#dcfce7'
-      : buttonSecondary.backgroundColor,
+      : '#ffffff',
+    color: sopralluoghiInLavorazione.includes(String(s.id))
+      ? '#166534'
+      : '#475569',
+    fontWeight: 700,
   }}
 >
-  🟢
+  {sopralluoghiInLavorazione.includes(String(s.id))
+    ? '🟢 In lavorazione'
+    : '➕ Metti in lavorazione'}
 </button>
+
       <button
         type="button"
         onClick={() => spostaSopralluogo(String(s.id), 'su')}

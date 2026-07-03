@@ -98,7 +98,25 @@ const [mostraNuovoSopralluogo, setMostraNuovoSopralluogo] = useState(false)
     <div style={props.cardStyle}>
       <h2>📍 Sopralluoghi</h2>
 
-     <div style={{ marginBottom: 20 }}>
+     <div
+  style={{
+    margin: '20px 0',
+    padding: 16,
+    border: '1px solid #e2e8f0',
+    borderRadius: 12,
+    background: '#f8fafc',
+  }}
+>
+  <div
+    style={{
+      fontWeight: 800,
+      fontSize: 16,
+      marginBottom: 12,
+      color: '#0f172a',
+    }}
+  >
+    ➕ Nuovo sopralluogo
+  </div>
   <button
     type="button"
     onClick={() => setMostraNuovoSopralluogo((v) => !v)}
