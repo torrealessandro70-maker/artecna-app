@@ -172,29 +172,71 @@ const toggleInLavorazione = (id: string) => {
       background: '#f0fdf4',
     }}
   >
-    <div style={{ fontWeight: 900, color: '#166534' }}>
-      🟢 In lavorazione
-    </div>
+   <div>
+  <div style={{ fontWeight: 900, color: '#166534', fontSize: 16 }}>
+    🟢 Sopralluoghi in lavorazione
+  </div>
+  <div style={{ color: '#64748b', fontSize: 13, marginTop: 3 }}>
+    Sopralluoghi che stai seguendo adesso.
+  </div>
+</div>
 
     {sopralluoghiInLavorazioneLista.map((s) => (
-      <button
-        key={s.id}
-        type="button"
-        onClick={() => setSopralluogoAperto(s)}
+     <button
+  key={s.id}
+  type="button"
+  onClick={() => {
+    setUltimoSopralluogo(s)
+    setSopralluogoAperto(s)
+    setMostraElencoSopralluoghi(false)
+  }}
+  style={{
+    textAlign: 'left',
+    padding: 12,
+    border: '1px solid #bbf7d0',
+    borderRadius: 12,
+    background: '#ffffff',
+    cursor: 'pointer',
+  }}
+>
+  <strong style={{ display: 'block', color: '#0f172a' }}>
+    {s.cliente || 'Sopralluogo'}
+  </strong>
+
+  <div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>
+    {s.indirizzo || '-'}
+  </div>
+
+  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+    <span
+      style={{
+        padding: '3px 8px',
+        borderRadius: 999,
+        background: '#dcfce7',
+        color: '#166534',
+        fontSize: 12,
+        fontWeight: 800,
+      }}
+    >
+      {s.stato || 'Stato non impostato'}
+    </span>
+
+    {s.data_sopralluogo && (
+      <span
         style={{
-          textAlign: 'left',
-          padding: 10,
-          border: '1px solid #bbf7d0',
-          borderRadius: 10,
-          background: '#ffffff',
-          cursor: 'pointer',
+          padding: '3px 8px',
+          borderRadius: 999,
+          background: '#f1f5f9',
+          color: '#475569',
+          fontSize: 12,
+          fontWeight: 700,
         }}
       >
-        <strong>{s.cliente || 'Sopralluogo'}</strong>
-        <div style={{ color: '#64748b', fontSize: 13, marginTop: 3 }}>
-          {s.indirizzo || '-'} · {s.stato || '-'}
-        </div>
-      </button>
+        {s.data_sopralluogo}
+      </span>
+    )}
+  </div>
+</button>
     ))}
   </section>
 )}
