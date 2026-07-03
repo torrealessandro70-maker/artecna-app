@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties, RefObject } from 'react'
+import { useState, type CSSProperties, type RefObject } from 'react'
 import type Webcam from 'react-webcam'
 import SopralluogoForm from './SopralluogoForm'
 import SopralluoghiList from './SopralluoghiList'
@@ -93,35 +93,52 @@ type Props = {
 }
 
 export default function SopralluoghiPanel(props: Props) {
+const [mostraNuovoSopralluogo, setMostraNuovoSopralluogo] = useState(false)
   return (
     <div style={props.cardStyle}>
       <h2>📍 Sopralluoghi</h2>
 
-     <SopralluogoForm
-  clienteSopralluogo={props.clienteSopralluogo}
-  setClienteSopralluogo={props.setClienteSopralluogo}
-  telefonoSopralluogo={props.telefonoSopralluogo}
-  setTelefonoSopralluogo={props.setTelefonoSopralluogo}
-  indirizzoSopralluogo={props.indirizzoSopralluogo}
-  setIndirizzoSopralluogo={props.setIndirizzoSopralluogo}
-  geolocalizzazioneSopralluogo={props.geolocalizzazioneSopralluogo}
-  setGeolocalizzazioneSopralluogo={props.setGeolocalizzazioneSopralluogo}
-  rilevaGeolocalizzazioneSopralluogo={props.rilevaGeolocalizzazioneSopralluogo}
-  dataSopralluogo={props.dataSopralluogo}
-  setDataSopralluogo={props.setDataSopralluogo}
-  oraSopralluogo={props.oraSopralluogo}
-  setOraSopralluogo={props.setOraSopralluogo}
-  promemoriaSopralluogo={props.promemoriaSopralluogo}
-  setPromemoriaSopralluogo={props.setPromemoriaSopralluogo}
-  tipoLavoroSopralluogo={props.tipoLavoroSopralluogo}
-  setTipoLavoroSopralluogo={props.setTipoLavoroSopralluogo}
-  noteSopralluogo={props.noteSopralluogo}
-  setNoteSopralluogo={props.setNoteSopralluogo}
-  salvaSopralluogo={props.salvaSopralluogo}
-  inputStyle={props.inputStyle}
-  buttonPrimary={props.buttonPrimary}
-  buttonSecondary={props.buttonSecondary}
-/>
+     <div style={{ marginBottom: 20 }}>
+  <button
+    type="button"
+    onClick={() => setMostraNuovoSopralluogo((v) => !v)}
+    style={props.buttonPrimary}
+  >
+    {mostraNuovoSopralluogo
+      ? '✖ Chiudi nuovo sopralluogo'
+      : '➕ Nuovo sopralluogo'}
+  </button>
+
+  {mostraNuovoSopralluogo && (
+    <div style={{ marginTop: 16 }}>
+      <SopralluogoForm
+        clienteSopralluogo={props.clienteSopralluogo}
+        setClienteSopralluogo={props.setClienteSopralluogo}
+        telefonoSopralluogo={props.telefonoSopralluogo}
+        setTelefonoSopralluogo={props.setTelefonoSopralluogo}
+        indirizzoSopralluogo={props.indirizzoSopralluogo}
+        setIndirizzoSopralluogo={props.setIndirizzoSopralluogo}
+        geolocalizzazioneSopralluogo={props.geolocalizzazioneSopralluogo}
+        setGeolocalizzazioneSopralluogo={props.setGeolocalizzazioneSopralluogo}
+        rilevaGeolocalizzazioneSopralluogo={props.rilevaGeolocalizzazioneSopralluogo}
+        dataSopralluogo={props.dataSopralluogo}
+        setDataSopralluogo={props.setDataSopralluogo}
+        oraSopralluogo={props.oraSopralluogo}
+        setOraSopralluogo={props.setOraSopralluogo}
+        promemoriaSopralluogo={props.promemoriaSopralluogo}
+        setPromemoriaSopralluogo={props.setPromemoriaSopralluogo}
+        tipoLavoroSopralluogo={props.tipoLavoroSopralluogo}
+        setTipoLavoroSopralluogo={props.setTipoLavoroSopralluogo}
+        noteSopralluogo={props.noteSopralluogo}
+        setNoteSopralluogo={props.setNoteSopralluogo}
+        salvaSopralluogo={props.salvaSopralluogo}
+        inputStyle={props.inputStyle}
+        buttonPrimary={props.buttonPrimary}
+        buttonSecondary={props.buttonSecondary}
+      />
+    </div>
+  )}
+</div>
 
       <SopralluoghiList
         sopralluoghi={props.sopralluoghi}
