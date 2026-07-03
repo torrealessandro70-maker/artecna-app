@@ -72,18 +72,114 @@ export default function SopralluogoForm({
         onChange={(e) => setClienteSopralluogo(e.target.value)}
       />
 
-      <input
-        placeholder="Telefono"
-        value={telefonoSopralluogo}
-        onChange={(e) => setTelefonoSopralluogo(e.target.value)}
-      />
+     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+  <input
+    placeholder="Telefono"
+    value={telefonoSopralluogo}
+    onChange={(e) => setTelefonoSopralluogo(e.target.value)}
+    style={{ ...inputStyle, flex: 1 }}
+  />
 
-      <input
-        placeholder="Indirizzo"
-        value={indirizzoSopralluogo}
-        onChange={(e) => setIndirizzoSopralluogo(e.target.value)}
-      />
+  <a
+    href={telefonoSopralluogo ? `tel:${telefonoSopralluogo}` : '#'}
+    onClick={(e) => {
+      if (!telefonoSopralluogo) {
+        e.preventDefault()
+        alert('Inserisci prima un numero di telefono')
+      }
+    }}
+    style={{
+      ...buttonSecondary,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textDecoration: 'none',
+    }}
+  >
+    📞 Chiama
+  </a>
 
+  <a
+    href={
+      telefonoSopralluogo
+        ? `https://wa.me/${telefonoSopralluogo.replace(/\D/g, '')}`
+        : '#'
+    }
+    target="_blank"
+    rel="noopener noreferrer"
+    onClick={(e) => {
+      if (!telefonoSopralluogo) {
+        e.preventDefault()
+        alert('Inserisci prima un numero di telefono')
+      }
+    }}
+    style={{
+      ...buttonSecondary,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textDecoration: 'none',
+    }}
+  >
+    💬 WhatsApp
+  </a>
+</div>
+
+     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+  <input
+    placeholder="Indirizzo"
+    value={indirizzoSopralluogo}
+    onChange={(e) => setIndirizzoSopralluogo(e.target.value)}
+    style={{ ...inputStyle, flex: 1 }}
+  />
+
+  <a
+    href={
+      indirizzoSopralluogo
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+            indirizzoSopralluogo
+          )}`
+        : '#'
+    }
+    target="_blank"
+    rel="noopener noreferrer"
+    onClick={(e) => {
+      if (!indirizzoSopralluogo) {
+        e.preventDefault()
+        alert('Inserisci prima un indirizzo')
+      }
+    }}
+    style={{
+      ...buttonSecondary,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textDecoration: 'none',
+    }}
+  >
+    🗺 Apri mappa
+  </a>
+</div>
+
+{indirizzoSopralluogo.trim() && (
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: -2,
+      marginBottom: 6,
+      padding: '8px 12px',
+      borderRadius: 10,
+      background: '#eff6ff',
+      color: '#1d4ed8',
+      fontSize: 14,
+      fontWeight: 600,
+    }}
+  >
+    📍 {indirizzoSopralluogo}
+  </div>
+)}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <input
           placeholder="Geolocalizzazione"
