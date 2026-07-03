@@ -207,35 +207,118 @@ const toggleInLavorazione = (id: string) => {
     {s.indirizzo || '-'}
   </div>
 
-  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+ <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+  <span
+    style={{
+      padding: '3px 8px',
+      borderRadius: 999,
+      background: '#dcfce7',
+      color: '#166534',
+      fontSize: 12,
+      fontWeight: 800,
+    }}
+  >
+    {s.stato || 'Stato non impostato'}
+  </span>
+
+  {s.data_sopralluogo && (
     <span
       style={{
         padding: '3px 8px',
         borderRadius: 999,
-        background: '#dcfce7',
-        color: '#166534',
+        background: '#f1f5f9',
+        color: '#475569',
         fontSize: 12,
-        fontWeight: 800,
+        fontWeight: 700,
       }}
     >
-      {s.stato || 'Stato non impostato'}
+      {s.data_sopralluogo}
     </span>
+  )}
+</div>
 
-    {s.data_sopralluogo && (
-      <span
-        style={{
-          padding: '3px 8px',
-          borderRadius: 999,
-          background: '#f1f5f9',
-          color: '#475569',
-          fontSize: 12,
-          fontWeight: 700,
-        }}
-      >
-        {s.data_sopralluogo}
-      </span>
-    )}
+<div
+  style={{
+    display: 'grid',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTop: '1px solid #e5e7eb',
+  }}
+>
+  <button
+    type="button"
+    onClick={(event) => {
+      event.stopPropagation()
+      setUltimoSopralluogo(s)
+      setSopralluogoAperto(s)
+      setMostraElencoSopralluoghi(false)
+    }}
+    style={{
+      ...buttonPrimary,
+      width: '100%',
+      padding: '12px 14px',
+      fontWeight: 900,
+    }}
+  >
+    ✏️ Continua sopralluogo
+  </button>
+
+  <div
+    style={{
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+    }}
+  >
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation()
+        setUltimoSopralluogo(s)
+        setSopralluogoAperto(s)
+        setMostraElencoSopralluoghi(false)
+      }}
+      style={{
+        ...buttonSecondary,
+        flex: 1,
+        minWidth: 90,
+      }}
+    >
+      📂 Fascicolo
+    </button>
+
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation()
+        alert('PDF sopralluogo: azione in arrivo')
+      }}
+      style={{
+        ...buttonSecondary,
+        flex: 1,
+        minWidth: 70,
+      }}
+    >
+      📄 PDF
+    </button>
+
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation()
+        alert('Preventivo AI: azione in arrivo')
+      }}
+      style={{
+        ...buttonSecondary,
+        flex: 1,
+        minWidth: 110,
+      }}
+    >
+      🤖 Preventivo
+    </button>
   </div>
+</div>
 </button>
     ))}
   </section>
