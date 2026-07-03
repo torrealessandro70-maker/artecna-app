@@ -97,6 +97,21 @@ const [mostraNuovoSopralluogo, setMostraNuovoSopralluogo] = useState(false)
   return (
     <div style={props.cardStyle}>
       <h2>📍 Sopralluoghi</h2>
+ <SopralluoghiList
+        sopralluoghi={props.sopralluoghi}
+        mostraElencoSopralluoghi={props.mostraElencoSopralluoghi}
+        setMostraElencoSopralluoghi={props.setMostraElencoSopralluoghi}
+        setUltimoSopralluogo={props.setUltimoSopralluogo}
+        setSopralluogoAperto={props.setSopralluogoAperto}
+        setFirmaCliente={props.setFirmaCliente}
+        setMostraGestioneFotoSopralluogo={props.setMostraGestioneFotoSopralluogo}
+        setMostraFotoPreventivoSopralluogo={props.setMostraFotoPreventivoSopralluogo}
+        setFotoSopralluoghi={props.setFotoSopralluoghi}
+        eliminaSopralluogo={props.eliminaSopralluogo}
+        supabase={props.supabase}
+        buttonPrimary={props.buttonPrimary}
+        buttonSecondary={props.buttonSecondary}
+      />
 
      <div
   style={{
@@ -158,21 +173,7 @@ const [mostraNuovoSopralluogo, setMostraNuovoSopralluogo] = useState(false)
   )}
 </div>
 
-      <SopralluoghiList
-        sopralluoghi={props.sopralluoghi}
-        mostraElencoSopralluoghi={props.mostraElencoSopralluoghi}
-        setMostraElencoSopralluoghi={props.setMostraElencoSopralluoghi}
-        setUltimoSopralluogo={props.setUltimoSopralluogo}
-        setSopralluogoAperto={props.setSopralluogoAperto}
-        setFirmaCliente={props.setFirmaCliente}
-        setMostraGestioneFotoSopralluogo={props.setMostraGestioneFotoSopralluogo}
-        setMostraFotoPreventivoSopralluogo={props.setMostraFotoPreventivoSopralluogo}
-        setFotoSopralluoghi={props.setFotoSopralluoghi}
-        eliminaSopralluogo={props.eliminaSopralluogo}
-        supabase={props.supabase}
-        buttonPrimary={props.buttonPrimary}
-        buttonSecondary={props.buttonSecondary}
-      />
+     
 
       <SopralluogoDettaglio
         sopralluogoAperto={props.sopralluogoAperto}
