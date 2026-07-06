@@ -11,6 +11,7 @@ import {
 import { flushSync } from 'react-dom'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import NotaDisegno from './note/NotaDisegno'
+import { STRUMENTI_DISEGNO } from './note/drawing-tools'
 import { DecisionBuilder, type DecisionPlan } from '../engines/decision'
 
 import type {
@@ -794,36 +795,20 @@ osservaNotaConDecisionEngine()
   )}
 </div>
 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-  {([
-    'penna',
-    'evidenziatore',
-    'freccia',
-    'linea',
-    'rettangolo',
-    'cerchio',
-    'gomma',
-  ] as const).map((strumento) => (
+ {STRUMENTI_DISEGNO.map((strumento) => (
     <button
-      key={strumento}
+      key={strumento.id}
       type="button"
-      onClick={() => setStrumentoDisegno(strumento)}
+      onClick={() => setStrumentoDisegno(strumento.id)}
       style={{
         ...buttonSecondary,
-        background: strumentoDisegno === strumento ? '#dbeafe' : buttonSecondary.background,
-        transform: strumentoDisegno === strumento ? 'scale(1.05)' : 'scale(1)',
-        boxShadow: strumentoDisegno === strumento ? '0 0 0 2px #2563eb' : 'none',
+        background: strumentoDisegno === strumento.id ? '#dbeafe' : buttonSecondary.background,
+      transform: strumentoDisegno === strumento.id ? 'scale(1.05)' : 'scale(1)',
+boxShadow: strumentoDisegno === strumento.id ? '0 0 0 2px #2563eb' : 'none',
         transition: 'all .15s ease',
       }}
     >
-      {{
-        penna: '✏️ Penna',
-        evidenziatore: '🖍 Evidenziatore',
-        freccia: '↗️ Freccia',
-        linea: '📏 Linea',
-        rettangolo: '▭ Rettangolo',
-        cerchio: '⭕ Cerchio',
-        gomma: '🧽 Gomma',
-      }[strumento]}
+    {strumento.label}
     </button>
   ))}
 

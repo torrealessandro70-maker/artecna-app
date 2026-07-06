@@ -2,6 +2,11 @@
 
 import { useEffect, useId, useRef, type PointerEvent } from 'react'
 import type { PuntoNota, SegnoNota, StrumentoDisegno } from './types'
+import {
+  isStrumentoGomma,
+  isStrumentoManoLibera,
+  isStrumentoTecnico,
+} from './drawing-tools'
 
 type Props = {
   segni: SegnoNota[]
@@ -74,7 +79,26 @@ useEffect(() => {
 
     const punto = puntoDaEvento(event)
 
-    if (strumento === 'gomma') {
+if (isStrumentoTecnico(strumento)) {
+  const numeroPin =
+    segni.filter((segno) => segno.strumento === 'pin').length + 1
+
+  const nuovoPin: SegnoNota = {
+    id: crypto.randomUUID(),
+    strumento,
+    colore,
+    spessore,
+    punti: [punto],
+    metadati: {
+      numero: numeroPin,
+      categoria: 'rilievo',
+    },
+  }
+
+  onChange([...segni, nuovoPin])
+  return
+}
+    if (isStrumentoGomma(strumento)) {
       cancellaSegniVicini(punto, true)
       return
     }
@@ -94,7 +118,7 @@ useEffect(() => {
   const disegna = (event: PointerEvent<SVGSVGElement>) => {
     const punto = puntoDaEvento(event)
 
-    if (strumento === 'gomma') {
+    if (isStrumentoGomma(strumento)) {
       cancellaSegniVicini(punto, false)
       return
     }
@@ -103,7 +127,7 @@ useEffect(() => {
 
     const attivo = segnoAttivo.current
     const punti =
-      attivo.strumento === 'penna' || attivo.strumento === 'evidenziatore'
+      isStrumentoManoLibera(attivo.strumento)
         ? [...attivo.punti, punto]
         : [attivo.punti[0], punto]
 
@@ -170,6 +194,33 @@ useEffect(() => {
         const primo = segno.punti[0]
         const ultimo = segno.punti[segno.punti.length - 1]
         if (!primo || !ultimo) return null
+if (segno.strumento === 'pin') {
+  const numero = segno.metadati?.numero || 0
+
+  return (
+    <g key={segno.id}>
+      <circle
+        cx={primo.x}
+        cy={primo.y}
+        r={16}
+        fill="#ef4444"
+        stroke="#ffffff"
+        strokeWidth={3}
+      />
+      <text
+        x={primo.x}
+        y={primo.y + 5}
+        textAnchor="middle"
+        fontSize={15}
+        fontWeight={800}
+        fill="#ffffff"
+      >
+        {numero}
+      </text>
+    </g>
+  )
+}
+
 if (segno.strumento === 'rettangolo') {
   return (
     <rect
