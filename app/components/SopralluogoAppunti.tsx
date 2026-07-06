@@ -65,9 +65,37 @@ export default function SopralluogoAppunti({
   const [notaId, setNotaId] = useState<string | null>(null)
   const [titolo, setTitolo] = useState('')
   const [testo, setTesto] = useState('')
-  const [checklist, setChecklist] = useState<VoceChecklistNota[]>([])
- 
+const [checklist, setChecklist] = useState<VoceChecklistNota[]>([])
 const [disegni, setDisegni] = useState<SegnoNota[]>([])
+
+
+const pinSelezionato = disegni.find(
+  (segno) => segno.id === pinSelezionatoId
+)
+
+const aggiornaMetadatiPin = (
+  campo: 'titolo' | 'descrizione' | 'stato',
+  valore: string
+) => {
+
+  if (!pinSelezionatoId) return
+
+  aggiornaDisegni(
+    disegni.map((segno) =>
+      segno.id === pinSelezionatoId
+        ? {
+            ...segno,
+            metadati: {
+              ...segno.metadati,
+              [campo]: valore,
+            },
+          }
+        : segno
+    )
+  )
+}
+
+const [pinSelezionatoId, setPinSelezionatoId] = useState<string | null>(null)
 const [sfondoDisegno, setSfondoDisegno] = useState<string | null>(null)
 const [undoStack, setUndoStack] = useState<SegnoNota[][]>([])
 const [redoStack, setRedoStack] = useState<SegnoNota[][]>([])
@@ -887,13 +915,15 @@ boxShadow: strumentoDisegno === strumento.id ? '0 0 0 2px #2563eb' : 'none',
 </div>
 
 <div style={{ marginTop: 10 }}>
-  <NotaDisegno
+ <NotaDisegno
   segni={disegni}
   onChange={aggiornaDisegni}
   strumento={strumentoDisegno}
   colore={coloreDisegno}
   spessore={spessoreDisegno}
   sfondo={sfondoDisegno}
+  pinSelezionatoId={pinSelezionatoId}
+  onSelezionaPin={setPinSelezionatoId}
 />
 </div>
 
@@ -1119,6 +1149,7 @@ WebkitTextFillColor: '#111827',
           {disegni.length > 0 && (
             <section style={{ marginTop: 18 }}>
               <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Disegno</h2>
+
              <NotaDisegno
   segni={disegni}
   onChange={setDisegni}
@@ -1126,8 +1157,83 @@ WebkitTextFillColor: '#111827',
   colore="#111827"
   spessore={4}
   sfondo={sfondoDisegno}
+pinSelezionatoId={null}
 />
-            </section>
+ 
+{pinSelezionato && (
+  <section
+    style={{
+      marginTop: 16,
+      padding: 16,
+      border: '1px solid #cbd5e1',
+      borderRadius: 12,
+      background: '#f8fafc',
+      display: 'grid',
+      gap: 10,
+    }}
+  >
+    <h3 style={{ margin: 0 }}>
+      📍 Pin {pinSelezionato.metadati?.numero}
+    </h3>
+
+    <input
+      value={pinSelezionato.metadati?.titolo || ''}
+      onChange={(event) => aggiornaMetadatiPin('titolo', event.target.value)}
+      placeholder="Titolo del punto rilevato"
+      style={{
+        padding: 10,
+        border: '1px solid #cbd5e1',
+        borderRadius: 8,
+        fontSize: 15,
+      }}
+    />
+
+    <textarea
+      value={pinSelezionato.metadati?.descrizione || ''}
+      onChange={(event) => aggiornaMetadatiPin('descrizione', event.target.value)}
+      placeholder="Descrizione tecnica del punto"
+      rows={3}
+      style={{
+        padding: 10,
+        border: '1px solid #cbd5e1',
+        borderRadius: 8,
+        fontSize: 15,
+        resize: 'vertical',
+      }}
+    />
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+  {[
+    ['nuovo', '🔴 Nuovo'],
+    ['in_lavorazione', '🟡 In lavorazione'],
+    ['risolto', '🟢 Risolto'],
+  ].map(([stato, label]) => (
+    <button
+      key={stato}
+      type="button"
+      onClick={() =>
+        aggiornaMetadatiPin(
+          'stato',
+          stato as 'nuovo' | 'in_lavorazione' | 'risolto'
+        )
+      }
+      style={{
+        ...buttonSecondary,
+        background:
+          pinSelezionato.metadati?.stato === stato
+            ? '#dbeafe'
+            : buttonSecondary.background,
+      }}
+    >
+      {label}
+    </button>
+  ))}
+</div>
+    <small style={{ color: '#64748b' }}>
+      Le informazioni vengono salvate automaticamente nel Quaderno.
+    </small>
+  </section>
+)}
+           </section>
           )}
 
           {fotoCollegate.length > 0 && (
