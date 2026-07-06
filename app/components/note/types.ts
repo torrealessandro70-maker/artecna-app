@@ -6,10 +6,18 @@ export type StrumentoDisegno =
   | 'rettangolo'
   | 'cerchio'
   | 'gomma'
+  | 'pin'
 
 export type PuntoNota = {
   x: number
   y: number
+}
+
+export type MetadatiSegnoNota = {
+  numero?: number
+  testo?: string
+  descrizione?: string
+  categoria?: 'rilievo' | 'difetto' | 'impianto' | 'misura' | 'promemoria'
 }
 
 export type SegnoNota = {
@@ -18,6 +26,7 @@ export type SegnoNota = {
   colore: string
   spessore: number
   punti: PuntoNota[]
+  metadati?: MetadatiSegnoNota
 }
 
 export type VoceChecklistNota = {
@@ -42,4 +51,10 @@ export type AnalisiNota = {
   verifiche: string[]
   domande: string[]
   avvertenza: string
+}
+export type PinNota = {
+  id: string
+  numero: number
+  x: number
+  y: number
 }

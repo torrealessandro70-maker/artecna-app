@@ -5,12 +5,12 @@ import type { PuntoNota, SegnoNota, StrumentoDisegno } from './types'
 
 type Props = {
   segni: SegnoNota[]
-  onChange: (segni: SegnoNota[]) => void
+  onChange: (segni: SegnoNota[], registraCronologia?: boolean) => void
   strumento: StrumentoDisegno
   colore: string
   spessore: number
+  sfondo?: string | null
 }
-
 const LARGHEZZA = 900
 const ALTEZZA = 520
 
@@ -20,8 +20,8 @@ export default function NotaDisegno({
   strumento,
   colore,
   spessore,
+  sfondo,
 }: Props) {
-
   const svgRef = useRef<SVGSVGElement>(null)
   const segnoAttivo = useRef<SegnoNota | null>(null)
   const markerId = useId().replace(/:/g, '')
@@ -53,7 +53,7 @@ useEffect(() => {
     }
   }
 
-   const cancellaSegniVicini = (punto: PuntoNota) => {
+   const cancellaSegniVicini = (punto: PuntoNota, registraCronologia = false) => {
     const raggioGomma = Math.max(spessore * 3, 18)
 
     const segniFiltrati = segni.filter((segno) => {
@@ -63,7 +63,7 @@ useEffect(() => {
       })
     })
 
-    onChange(segniFiltrati)
+    onChange(segniFiltrati, registraCronologia)
   }
 
   const inizia = (event: PointerEvent<SVGSVGElement>) => {
@@ -75,7 +75,7 @@ useEffect(() => {
     const punto = puntoDaEvento(event)
 
     if (strumento === 'gomma') {
-      cancellaSegniVicini(punto)
+      cancellaSegniVicini(punto, true)
       return
     }
 
@@ -95,7 +95,7 @@ useEffect(() => {
     const punto = puntoDaEvento(event)
 
     if (strumento === 'gomma') {
-      cancellaSegniVicini(punto)
+      cancellaSegniVicini(punto, false)
       return
     }
 
@@ -109,10 +109,11 @@ useEffect(() => {
 
     segnoAttivo.current = { ...attivo, punti }
     onChange(
-      segni.map((segno) =>
-        segno.id === attivo.id ? { ...attivo, punti } : segno
-      )
-    )
+  segni.map((segno) =>
+    segno.id === attivo.id ? { ...attivo, punti } : segno
+  ),
+  false
+)
   }
 
   const termina = () => {
@@ -155,7 +156,16 @@ useEffect(() => {
           <path d="M0,0 L0,6 L9,3 z" fill="context-stroke" />
         </marker>
       </defs>
-
+{sfondo && (
+  <image
+    href={sfondo}
+    x={0}
+    y={0}
+    width={LARGHEZZA}
+    height={ALTEZZA}
+    preserveAspectRatio="xMidYMid meet"
+  />
+)}
       {segni.map((segno) => {
         const primo = segno.punti[0]
         const ultimo = segno.punti[segno.punti.length - 1]

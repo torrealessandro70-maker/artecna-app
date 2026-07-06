@@ -65,8 +65,9 @@ export default function SopralluogoAppunti({
   const [titolo, setTitolo] = useState('')
   const [testo, setTesto] = useState('')
   const [checklist, setChecklist] = useState<VoceChecklistNota[]>([])
-  const [disegni, setDisegni] = useState<SegnoNota[]>([])
+ 
 const [disegni, setDisegni] = useState<SegnoNota[]>([])
+const [sfondoDisegno, setSfondoDisegno] = useState<string | null>(null)
 const [undoStack, setUndoStack] = useState<SegnoNota[][]>([])
 const [redoStack, setRedoStack] = useState<SegnoNota[][]>([])
 
@@ -76,7 +77,41 @@ const [strumentoDisegno, setStrumentoDisegno] =
 const [coloreDisegno, setColoreDisegno] = useState('#111827')
 
 const [spessoreDisegno, setSpessoreDisegno] = useState(4)
+const aggiornaDisegni = (
+  nuoviDisegni: SegnoNota[],
+  registraCronologia = true
+) => {
+  if (registraCronologia) {
+    setUndoStack((precedenti) => [...precedenti, disegni])
+    setRedoStack([])
+  }
 
+  setDisegni(nuoviDisegni)
+}
+
+const annullaDisegno = () => {
+  setUndoStack((precedenti) => {
+    const statoPrecedente = precedenti[precedenti.length - 1]
+    if (!statoPrecedente) return precedenti
+
+    setRedoStack((redoPrecedenti) => [disegni, ...redoPrecedenti])
+    setDisegni(statoPrecedente)
+
+    return precedenti.slice(0, -1)
+  })
+}
+
+const ripristinaDisegno = () => {
+  setRedoStack((precedenti) => {
+    const statoSuccessivo = precedenti[0]
+    if (!statoSuccessivo) return precedenti
+
+    setUndoStack((undoPrecedenti) => [...undoPrecedenti, disegni])
+    setDisegni(statoSuccessivo)
+
+    return precedenti.slice(1)
+  })
+}
 const [allegati, setAllegati] = useState<AllegatoNota[]>([])
   const [analisiAi, setAnalisiAi] = useState<AnalisiNota | null>(null)
 const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
@@ -137,6 +172,7 @@ const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
         setTesto(data.testo || '')
         setChecklist(data.checklist || [])
         setDisegni(data.disegni || [])
+setSfondoDisegno(data.sfondo_disegno || null)
         setAnalisiAi(data.analisi_ai || null)
 
         const { data: file } = await supabase
@@ -154,6 +190,7 @@ const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
         setTesto('')
         setChecklist([])
         setDisegni([])
+setSfondoDisegno(null)
         setAllegati([])
         setAnalisiAi(null)
       }
@@ -195,6 +232,7 @@ const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
           checklist,
           disegni,
           analisi_ai: analisiAi,
+sfondo_disegno: sfondoDisegno,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id,sopralluogo_id' }
@@ -713,53 +751,94 @@ osservaNotaConDecisionEngine()
 
           <div style={{ marginTop: 18 }}>
            <strong>Disegno</strong>
-
-<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
- {([
-  'penna',
-  'evidenziatore',
-  'freccia',
-  'linea',
-  'rettangolo',
-  'cerchio',
-  'gomma',
-] as const).map((strumento) => (
-  <button
-    key={strumento}
-    type="button"
-    onClick={() => setStrumentoDisegno(strumento)}
+<div
+  style={{
+    display: 'flex',
+    gap: 10,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: 10,
+    marginBottom: 10,
+  }}
+>
+  <label
     style={{
       ...buttonSecondary,
-      background: strumentoDisegno === strumento ? '#dbeafe' : buttonSecondary.background,
-      transform: strumentoDisegno === strumento ? 'scale(1.05)' : 'scale(1)',
-      boxShadow: strumentoDisegno === strumento ? '0 0 0 2px #2563eb' : 'none',
-      transition: 'all .15s ease',
+      cursor: 'pointer',
     }}
   >
-    {{
-      penna: '✏️ Penna',
-      evidenziatore: '🖍 Evidenziatore',
-      freccia: '↗️ Freccia',
-      linea: '📏 Linea',
-      rettangolo: '▭ Rettangolo',
-      cerchio: '⭕ Cerchio',
-      gomma: '🧽 Gomma',
-    }[strumento]}
-  </button>
-))}
+    🗂 Base di lavoro
+    <input
+      type="file"
+      accept="image/*"
+      hidden
+      onChange={async (event) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+
+        const reader = new FileReader()
+
+        reader.onload = () => {
+          setSfondoDisegno(reader.result as string)
+        }
+
+        reader.readAsDataURL(file)
+      }}
+    />
+  </label>
+
+  {sfondoDisegno && (
+    <span style={{ fontSize: 13, color: '#16a34a' }}>
+      ✅ Base caricata
+    </span>
+  )}
+</div>
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+  {([
+    'penna',
+    'evidenziatore',
+    'freccia',
+    'linea',
+    'rettangolo',
+    'cerchio',
+    'gomma',
+  ] as const).map((strumento) => (
+    <button
+      key={strumento}
+      type="button"
+      onClick={() => setStrumentoDisegno(strumento)}
+      style={{
+        ...buttonSecondary,
+        background: strumentoDisegno === strumento ? '#dbeafe' : buttonSecondary.background,
+        transform: strumentoDisegno === strumento ? 'scale(1.05)' : 'scale(1)',
+        boxShadow: strumentoDisegno === strumento ? '0 0 0 2px #2563eb' : 'none',
+        transition: 'all .15s ease',
+      }}
+    >
+      {{
+        penna: '✏️ Penna',
+        evidenziatore: '🖍 Evidenziatore',
+        freccia: '↗️ Freccia',
+        linea: '📏 Linea',
+        rettangolo: '▭ Rettangolo',
+        cerchio: '⭕ Cerchio',
+        gomma: '🧽 Gomma',
+      }[strumento]}
+    </button>
+  ))}
 
   {[
-  '#111827',
-  '#dc2626',
-  '#ea580c',
-  '#ca8a04',
-  '#16a34a',
-  '#0891b2',
-  '#2563eb',
-  '#7c3aed',
-  '#db2777',
-  '#ffffff',
-].map((colore) => (
+    '#111827',
+    '#dc2626',
+    '#ea580c',
+    '#ca8a04',
+    '#16a34a',
+    '#0891b2',
+    '#2563eb',
+    '#7c3aed',
+    '#db2777',
+    '#ffffff',
+  ].map((colore) => (
     <button
       key={colore}
       type="button"
@@ -771,21 +850,11 @@ osservaNotaConDecisionEngine()
         padding: 0,
         background: colore,
         border: coloreDisegno === colore ? '3px solid #0f172a' : '1px solid #cbd5e1',
-boxShadow: colore === '#ffffff' ? 'inset 0 0 0 1px #94a3b8' : 'none',
+        boxShadow: colore === '#ffffff' ? 'inset 0 0 0 1px #94a3b8' : 'none',
       }}
       aria-label={`Colore ${colore}`}
     />
   ))}
-</div>
-
-<div style={{ marginTop: 10 }}>
-  <NotaDisegno
-  segni={disegni}
-  onChange={setDisegni}
-  strumento={strumentoDisegno}
-  colore={coloreDisegno}
-  spessore={spessoreDisegno}
-/>
 
   <label
     style={{
@@ -806,7 +875,43 @@ boxShadow: colore === '#ffffff' ? 'inset 0 0 0 1px #94a3b8' : 'none',
     />
     <span>{spessoreDisegno}px</span>
   </label>
+
+  <button
+    type="button"
+    onClick={annullaDisegno}
+    disabled={undoStack.length === 0}
+    style={{
+      ...buttonSecondary,
+      opacity: undoStack.length === 0 ? 0.45 : 1,
+    }}
+  >
+    ↶ Annulla
+  </button>
+
+  <button
+    type="button"
+    onClick={ripristinaDisegno}
+    disabled={redoStack.length === 0}
+    style={{
+      ...buttonSecondary,
+      opacity: redoStack.length === 0 ? 0.45 : 1,
+    }}
+  >
+    ↷ Ripristina
+  </button>
 </div>
+
+<div style={{ marginTop: 10 }}>
+  <NotaDisegno
+  segni={disegni}
+  onChange={aggiornaDisegni}
+  strumento={strumentoDisegno}
+  colore={coloreDisegno}
+  spessore={spessoreDisegno}
+  sfondo={sfondoDisegno}
+/>
+</div>
+
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
@@ -1035,6 +1140,7 @@ WebkitTextFillColor: '#111827',
   strumento="penna"
   colore="#111827"
   spessore={4}
+  sfondo={sfondoDisegno}
 />
             </section>
           )}
