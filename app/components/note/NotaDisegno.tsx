@@ -8,6 +8,7 @@ type Props = {
   onChange: (segni: SegnoNota[]) => void
   strumento: StrumentoDisegno
   colore: string
+  spessore: number
 }
 
 const LARGHEZZA = 900
@@ -18,7 +19,9 @@ export default function NotaDisegno({
   onChange,
   strumento,
   colore,
+  spessore,
 }: Props) {
+
   const svgRef = useRef<SVGSVGElement>(null)
   const segnoAttivo = useRef<SegnoNota | null>(null)
   const markerId = useId().replace(/:/g, '')
@@ -50,18 +53,37 @@ useEffect(() => {
     }
   }
 
- const inizia = (event: PointerEvent<SVGSVGElement>) => {
-  event.preventDefault()
-  event.stopPropagation()
+   const cancellaSegniVicini = (punto: PuntoNota) => {
+    const raggioGomma = Math.max(spessore * 3, 18)
 
-  event.currentTarget.setPointerCapture(event.pointerId)
+    const segniFiltrati = segni.filter((segno) => {
+      return !segno.punti.some((p) => {
+        const distanza = Math.hypot(p.x - punto.x, p.y - punto.y)
+        return distanza <= raggioGomma
+      })
+    })
 
-  const punto = puntoDaEvento(event)
+    onChange(segniFiltrati)
+  }
+
+  const inizia = (event: PointerEvent<SVGSVGElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    event.currentTarget.setPointerCapture(event.pointerId)
+
+    const punto = puntoDaEvento(event)
+
+    if (strumento === 'gomma') {
+      cancellaSegniVicini(punto)
+      return
+    }
+
     const nuovoSegno: SegnoNota = {
       id: crypto.randomUUID(),
       strumento,
       colore,
-      spessore: strumento === 'evidenziatore' ? 18 : 4,
+      spessore: strumento === 'evidenziatore' ? Math.max(spessore, 14) : spessore,
       punti: [punto, punto],
     }
 
@@ -70,9 +92,15 @@ useEffect(() => {
   }
 
   const disegna = (event: PointerEvent<SVGSVGElement>) => {
+    const punto = puntoDaEvento(event)
+
+    if (strumento === 'gomma') {
+      cancellaSegniVicini(punto)
+      return
+    }
+
     if (!segnoAttivo.current) return
 
-    const punto = puntoDaEvento(event)
     const attivo = segnoAttivo.current
     const punti =
       attivo.strumento === 'penna' || attivo.strumento === 'evidenziatore'

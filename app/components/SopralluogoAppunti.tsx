@@ -12,10 +12,12 @@ import { flushSync } from 'react-dom'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import NotaDisegno from './note/NotaDisegno'
 import { DecisionBuilder, type DecisionPlan } from '../engines/decision'
+
 import type {
   AllegatoNota,
   AnalisiNota,
   SegnoNota,
+  StrumentoDisegno,
   VoceChecklistNota,
 } from './note/types'
 
@@ -64,7 +66,15 @@ export default function SopralluogoAppunti({
   const [testo, setTesto] = useState('')
   const [checklist, setChecklist] = useState<VoceChecklistNota[]>([])
   const [disegni, setDisegni] = useState<SegnoNota[]>([])
-  const [allegati, setAllegati] = useState<AllegatoNota[]>([])
+
+const [strumentoDisegno, setStrumentoDisegno] =
+  useState<StrumentoDisegno>('penna')
+
+const [coloreDisegno, setColoreDisegno] = useState('#111827')
+
+const [spessoreDisegno, setSpessoreDisegno] = useState(4)
+
+const [allegati, setAllegati] = useState<AllegatoNota[]>([])
   const [analisiAi, setAnalisiAi] = useState<AnalisiNota | null>(null)
 const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
   const [stato, setStato] = useState('')
@@ -699,15 +709,74 @@ osservaNotaConDecisionEngine()
           </div>
 
           <div style={{ marginTop: 18 }}>
-            <strong>Disegno</strong>
-            <div style={{ marginTop: 10 }}>
-              <NotaDisegno
-                segni={disegni}
-                onChange={setDisegni}
-                strumento="penna"
-                colore="#111827"
-              />
-            </div>
+           <strong>Disegno</strong>
+
+<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+  {(['penna', 'evidenziatore', 'gomma'] as const).map((strumento) => (
+    <button
+      key={strumento}
+      type="button"
+      onClick={() => setStrumentoDisegno(strumento)}
+      style={{
+        ...buttonSecondary,
+        background: strumentoDisegno === strumento ? '#dbeafe' : buttonSecondary.background,
+      }}
+    >
+      {strumento === 'penna'
+        ? '✏️ Penna'
+        : strumento === 'evidenziatore'
+          ? '🖍 Evidenziatore'
+          : '🧽 Gomma'}
+    </button>
+  ))}
+
+  {['#111827', '#dc2626', '#2563eb', '#16a34a'].map((colore) => (
+    <button
+      key={colore}
+      type="button"
+      onClick={() => setColoreDisegno(colore)}
+      style={{
+        ...buttonSecondary,
+        width: 42,
+        height: 42,
+        padding: 0,
+        background: colore,
+        border: coloreDisegno === colore ? '3px solid #0f172a' : '1px solid #cbd5e1',
+      }}
+      aria-label={`Colore ${colore}`}
+    />
+  ))}
+</div>
+
+<div style={{ marginTop: 10 }}>
+  <NotaDisegno
+  segni={disegni}
+  onChange={setDisegni}
+  strumento={strumentoDisegno}
+  colore={coloreDisegno}
+  spessore={spessoreDisegno}
+/>
+
+  <label
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      fontSize: 13,
+      color: '#334155',
+    }}
+  >
+    Spessore
+    <input
+      type="range"
+      min={2}
+      max={24}
+      value={spessoreDisegno}
+      onChange={(event) => setSpessoreDisegno(Number(event.target.value))}
+    />
+    <span>{spessoreDisegno}px</span>
+  </label>
+</div>
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
@@ -930,12 +999,13 @@ WebkitTextFillColor: '#111827',
           {disegni.length > 0 && (
             <section style={{ marginTop: 18 }}>
               <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Disegno</h2>
-              <NotaDisegno
-                segni={disegni}
-                onChange={setDisegni}
-                strumento="penna"
-                colore="#111827"
-              />
+             <NotaDisegno
+  segni={disegni}
+  onChange={setDisegni}
+  strumento="penna"
+  colore="#111827"
+  spessore={4}
+/>
             </section>
           )}
 
