@@ -66,6 +66,9 @@ export default function SopralluogoAppunti({
   const [testo, setTesto] = useState('')
   const [checklist, setChecklist] = useState<VoceChecklistNota[]>([])
   const [disegni, setDisegni] = useState<SegnoNota[]>([])
+const [disegni, setDisegni] = useState<SegnoNota[]>([])
+const [undoStack, setUndoStack] = useState<SegnoNota[][]>([])
+const [redoStack, setRedoStack] = useState<SegnoNota[][]>([])
 
 const [strumentoDisegno, setStrumentoDisegno] =
   useState<StrumentoDisegno>('penna')
@@ -712,25 +715,51 @@ osservaNotaConDecisionEngine()
            <strong>Disegno</strong>
 
 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-  {(['penna', 'evidenziatore', 'gomma'] as const).map((strumento) => (
-    <button
-      key={strumento}
-      type="button"
-      onClick={() => setStrumentoDisegno(strumento)}
-      style={{
-        ...buttonSecondary,
-        background: strumentoDisegno === strumento ? '#dbeafe' : buttonSecondary.background,
-      }}
-    >
-      {strumento === 'penna'
-        ? '✏️ Penna'
-        : strumento === 'evidenziatore'
-          ? '🖍 Evidenziatore'
-          : '🧽 Gomma'}
-    </button>
-  ))}
+ {([
+  'penna',
+  'evidenziatore',
+  'freccia',
+  'linea',
+  'rettangolo',
+  'cerchio',
+  'gomma',
+] as const).map((strumento) => (
+  <button
+    key={strumento}
+    type="button"
+    onClick={() => setStrumentoDisegno(strumento)}
+    style={{
+      ...buttonSecondary,
+      background: strumentoDisegno === strumento ? '#dbeafe' : buttonSecondary.background,
+      transform: strumentoDisegno === strumento ? 'scale(1.05)' : 'scale(1)',
+      boxShadow: strumentoDisegno === strumento ? '0 0 0 2px #2563eb' : 'none',
+      transition: 'all .15s ease',
+    }}
+  >
+    {{
+      penna: '✏️ Penna',
+      evidenziatore: '🖍 Evidenziatore',
+      freccia: '↗️ Freccia',
+      linea: '📏 Linea',
+      rettangolo: '▭ Rettangolo',
+      cerchio: '⭕ Cerchio',
+      gomma: '🧽 Gomma',
+    }[strumento]}
+  </button>
+))}
 
-  {['#111827', '#dc2626', '#2563eb', '#16a34a'].map((colore) => (
+  {[
+  '#111827',
+  '#dc2626',
+  '#ea580c',
+  '#ca8a04',
+  '#16a34a',
+  '#0891b2',
+  '#2563eb',
+  '#7c3aed',
+  '#db2777',
+  '#ffffff',
+].map((colore) => (
     <button
       key={colore}
       type="button"
@@ -742,6 +771,7 @@ osservaNotaConDecisionEngine()
         padding: 0,
         background: colore,
         border: coloreDisegno === colore ? '3px solid #0f172a' : '1px solid #cbd5e1',
+boxShadow: colore === '#ffffff' ? 'inset 0 0 0 1px #94a3b8' : 'none',
       }}
       aria-label={`Colore ${colore}`}
     />

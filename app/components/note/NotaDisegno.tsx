@@ -160,7 +160,20 @@ useEffect(() => {
         const primo = segno.punti[0]
         const ultimo = segno.punti[segno.punti.length - 1]
         if (!primo || !ultimo) return null
-
+if (segno.strumento === 'rettangolo') {
+  return (
+    <rect
+      key={segno.id}
+      x={Math.min(primo.x, ultimo.x)}
+      y={Math.min(primo.y, ultimo.y)}
+      width={Math.abs(ultimo.x - primo.x)}
+      height={Math.abs(ultimo.y - primo.y)}
+      fill="none"
+      stroke={segno.colore}
+      strokeWidth={segno.spessore}
+    />
+  )
+}
         if (segno.strumento === 'cerchio') {
           return (
             <ellipse
@@ -175,7 +188,20 @@ useEffect(() => {
             />
           )
         }
-
+if (segno.strumento === 'linea') {
+  return (
+    <line
+      key={segno.id}
+      x1={primo.x}
+      y1={primo.y}
+      x2={ultimo.x}
+      y2={ultimo.y}
+      stroke={segno.colore}
+      strokeWidth={segno.spessore}
+      strokeLinecap="round"
+    />
+  )
+}
         if (segno.strumento === 'freccia') {
           return (
             <line
