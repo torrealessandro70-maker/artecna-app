@@ -141,6 +141,20 @@ const ripristinaDisegno = () => {
     return precedenti.slice(1)
   })
 }
+
+const resettaFoglio = () => {
+  if (!window.confirm('Vuoi resettare il foglio tecnico? Disegni, nodi e base di lavoro verranno rimossi.')) {
+    return
+  }
+
+  aggiornaDisegni([])
+  setSfondoDisegno(null)
+  setPinSelezionatoId(null)
+}
+
+const aggiungiPagina = () => {
+  alert('La gestione pagine sarà il prossimo step: Pagina 1, Pagina 2, Pagina 3.')
+}
 const [allegati, setAllegati] = useState<AllegatoNota[]>([])
   const [analisiAi, setAnalisiAi] = useState<AnalisiNota | null>(null)
 const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
@@ -285,7 +299,7 @@ sfondo_disegno: sfondoDisegno,
     return () => window.clearTimeout(timer)
     // Il debounce deve reagire soltanto al contenuto modificabile della nota.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [titolo, testo, checklist, disegni, analisiAi, pronto])
+  }, [titolo, testo, checklist, disegni, sfondoDisegno, analisiAi, pronto])
 
   const salvaFile = async (
     files: File[],
@@ -815,7 +829,29 @@ osservaNotaConDecisionEngine()
       }}
     />
   </label>
+<button
+  type="button"
+  onClick={() => void salvaNota()}
+  style={buttonPrimary}
+>
+  💾 Salva 
+</button>
 
+<button
+  type="button"
+  onClick={resettaFoglio}
+  style={buttonSecondary}
+>
+  🧹 Reset
+</button>
+
+<button
+  type="button"
+  onClick={aggiungiPagina}
+  style={buttonSecondary}
+>
+  ➕ pagina
+</button>
   {sfondoDisegno && (
     <span style={{ fontSize: 13, color: '#16a34a' }}>
       ✅ Base caricata
