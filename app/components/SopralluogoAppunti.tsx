@@ -366,6 +366,10 @@ const pagineAggiornate = pagineQuaderno.map((pagina, index) =>
       }
     : pagina
 )
+
+setPagineQuaderno(pagineAggiornate)
+
+
     setStato('Salvataggio…')
     const { data, error } = await supabase
       .from('note_sopralluogo')
