@@ -204,6 +204,18 @@ const vaiAllaPagina = (nuovoIndex: number) => {
   const pagina = pagineQuaderno[nuovoIndex]
   if (!pagina) return
 
+  setPagineQuaderno((pagineCorrenti) =>
+    pagineCorrenti.map((paginaCorrente, index) =>
+      index === paginaCorrenteIndex
+        ? {
+            ...paginaCorrente,
+            disegni,
+            sfondoDisegno,
+          }
+        : paginaCorrente
+    )
+  )
+
   setPaginaCorrenteIndex(nuovoIndex)
   setDisegni(pagina.disegni)
   setSfondoDisegno(pagina.sfondoDisegno)
