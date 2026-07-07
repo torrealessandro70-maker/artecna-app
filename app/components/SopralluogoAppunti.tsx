@@ -68,6 +68,10 @@ export default function SopralluogoAppunti({
 const [checklist, setChecklist] = useState<VoceChecklistNota[]>([])
 const [disegni, setDisegni] = useState<SegnoNota[]>([])
 
+const [pinSelezionatoId, setPinSelezionatoId] = useState<string | null>(null)
+const [sfondoDisegno, setSfondoDisegno] = useState<string | null>(null)
+const [undoStack, setUndoStack] = useState<SegnoNota[][]>([])
+const [redoStack, setRedoStack] = useState<SegnoNota[][]>([])
 
 const pinSelezionato = disegni.find(
   (segno) => segno.id === pinSelezionatoId
@@ -95,10 +99,6 @@ const aggiornaMetadatiPin = (
   )
 }
 
-const [pinSelezionatoId, setPinSelezionatoId] = useState<string | null>(null)
-const [sfondoDisegno, setSfondoDisegno] = useState<string | null>(null)
-const [undoStack, setUndoStack] = useState<SegnoNota[][]>([])
-const [redoStack, setRedoStack] = useState<SegnoNota[][]>([])
 
 const [strumentoDisegno, setStrumentoDisegno] =
   useState<StrumentoDisegno>('penna')
