@@ -821,6 +821,51 @@ osservaNotaConDecisionEngine()
                 </div>
               ))}
             </div>
+<div
+  style={{
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  }}
+>
+  <button
+    type="button"
+    onClick={() =>
+      setPaginaCorrenteIndex((indice) => Math.max(0, indice - 1))
+    }
+    disabled={paginaCorrenteIndex === 0}
+    style={buttonSecondary}
+  >
+    ◀
+  </button>
+
+  <strong>
+    Pagina {paginaCorrenteIndex + 1} di {pagineQuaderno.length}
+  </strong>
+
+  <button
+    type="button"
+    onClick={() =>
+      setPaginaCorrenteIndex((indice) =>
+        Math.min(pagineQuaderno.length - 1, indice + 1)
+      )
+    }
+    disabled={paginaCorrenteIndex === pagineQuaderno.length - 1}
+    style={buttonSecondary}
+  >
+    ▶
+  </button>
+
+  <button
+    type="button"
+    onClick={aggiungiPagina}
+    style={buttonPrimary}
+  >
+    ➕ Pagina
+  </button>
+</div>
           </div>
 
           <div style={{ marginTop: 18 }}>
