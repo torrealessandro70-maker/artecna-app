@@ -963,9 +963,11 @@ osservaNotaConDecisionEngine()
 
         const reader = new FileReader()
 
-        reader.onload = () => {
-          setSfondoDisegno(reader.result as string)
-        }
+       reader.onload = () => {
+  const nuovoSfondo = reader.result as string
+  setSfondoDisegno(nuovoSfondo)
+  aggiornaPaginaCorrente(disegni, nuovoSfondo)
+}
 
         reader.readAsDataURL(file)
       }}
