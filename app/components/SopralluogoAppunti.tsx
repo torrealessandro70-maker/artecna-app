@@ -199,7 +199,19 @@ const aggiungiPagina = () => {
   setUndoStack([])
   setRedoStack([])
 }
-  
+ 
+const vaiAllaPagina = (nuovoIndex: number) => {
+  const pagina = pagineQuaderno[nuovoIndex]
+  if (!pagina) return
+
+  setPaginaCorrenteIndex(nuovoIndex)
+  setDisegni(pagina.disegni)
+  setSfondoDisegno(pagina.sfondoDisegno)
+  setPinSelezionatoId(null)
+  setUndoStack([])
+  setRedoStack([])
+}
+ 
 const [allegati, setAllegati] = useState<AllegatoNota[]>([])
   const [analisiAi, setAnalisiAi] = useState<AnalisiNota | null>(null)
 const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
@@ -846,9 +858,7 @@ osservaNotaConDecisionEngine()
 >
   <button
     type="button"
-    onClick={() =>
-      setPaginaCorrenteIndex((indice) => Math.max(0, indice - 1))
-    }
+   onClick={() => vaiAllaPagina(paginaCorrenteIndex - 1)}
     disabled={paginaCorrenteIndex === 0}
     style={buttonSecondary}
   >
@@ -861,11 +871,7 @@ osservaNotaConDecisionEngine()
 
   <button
     type="button"
-    onClick={() =>
-      setPaginaCorrenteIndex((indice) =>
-        Math.min(pagineQuaderno.length - 1, indice + 1)
-      )
-    }
+  onClick={() => vaiAllaPagina(paginaCorrenteIndex + 1)}
     disabled={paginaCorrenteIndex === pagineQuaderno.length - 1}
     style={buttonSecondary}
   >
