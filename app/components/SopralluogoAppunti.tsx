@@ -118,6 +118,32 @@ const [strumentoDisegno, setStrumentoDisegno] =
 const [coloreDisegno, setColoreDisegno] = useState('#111827')
 
 const [spessoreDisegno, setSpessoreDisegno] = useState(4)
+
+useEffect(() => {
+  const preferenze = window.localStorage.getItem('artecna-quaderno-preferenze')
+  if (!preferenze) return
+
+  try {
+    const dati = JSON.parse(preferenze)
+    if (dati.strumentoDisegno) setStrumentoDisegno(dati.strumentoDisegno)
+    if (dati.coloreDisegno) setColoreDisegno(dati.coloreDisegno)
+    if (dati.spessoreDisegno) setSpessoreDisegno(dati.spessoreDisegno)
+  } catch {
+    window.localStorage.removeItem('artecna-quaderno-preferenze')
+  }
+}, [])
+
+useEffect(() => {
+  window.localStorage.setItem(
+    'artecna-quaderno-preferenze',
+    JSON.stringify({
+      strumentoDisegno,
+      coloreDisegno,
+      spessoreDisegno,
+    })
+  )
+}, [strumentoDisegno, coloreDisegno, spessoreDisegno])
+
 const aggiornaDisegni = (
   nuoviDisegni: SegnoNota[],
   registraCronologia = true
@@ -302,7 +328,7 @@ if (sonoPagineQuaderno) {
     id: crypto.randomUUID(),
     titolo: 'Pagina 1',
     disegni: disegniSalvati,
-    sfondoDisegno: data.sfondo_disegno || null,
+    sfondoDisegno: null,
   }
 
   setPagineQuaderno([paginaIniziale])
@@ -382,7 +408,7 @@ setPagineQuaderno(pagineAggiornate)
           checklist,
           disegni: pagineAggiornate,
           analisi_ai: analisiAi,
-sfondo_disegno: null,
+
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id,sopralluogo_id' }
