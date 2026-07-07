@@ -184,8 +184,22 @@ const resettaFoglio = () => {
 }
 
 const aggiungiPagina = () => {
-  alert('La gestione pagine sarà il prossimo step: Pagina 1, Pagina 2, Pagina 3.')
+  const nuovaPagina: PaginaQuadernoNota = {
+    id: crypto.randomUUID(),
+    titolo: `Pagina ${pagineQuaderno.length + 1}`,
+    disegni: [],
+    sfondoDisegno: null,
+  }
+
+  setPagineQuaderno((pagineCorrenti) => [...pagineCorrenti, nuovaPagina])
+  setPaginaCorrenteIndex(pagineQuaderno.length)
+  setDisegni([])
+  setSfondoDisegno(null)
+  setPinSelezionatoId(null)
+  setUndoStack([])
+  setRedoStack([])
 }
+  
 const [allegati, setAllegati] = useState<AllegatoNota[]>([])
   const [analisiAi, setAnalisiAi] = useState<AnalisiNota | null>(null)
 const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
