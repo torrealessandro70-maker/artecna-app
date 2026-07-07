@@ -15,9 +15,21 @@ export type PuntoNota = {
 
 export type MetadatiSegnoNota = {
   numero?: number
+
+  titolo?: string
+
   testo?: string
+
   descrizione?: string
-  categoria?: 'rilievo' | 'difetto' | 'impianto' | 'misura' | 'promemoria'
+
+  stato?: 'nuovo' | 'in_lavorazione' | 'risolto'
+
+  categoria?:
+    | 'rilievo'
+    | 'difetto'
+    | 'impianto'
+    | 'misura'
+    | 'promemoria'
 }
 
 export type SegnoNota = {
@@ -29,6 +41,12 @@ export type SegnoNota = {
   metadati?: MetadatiSegnoNota
 }
 
+export type PaginaQuadernoNota = {
+  id: string
+  titolo: string
+  disegni: SegnoNota[]
+  sfondoDisegno: string | null
+}
 export type VoceChecklistNota = {
   id: string
   testo: string
