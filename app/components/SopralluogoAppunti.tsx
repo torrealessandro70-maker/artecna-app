@@ -17,6 +17,7 @@ import { DecisionBuilder, type DecisionPlan } from '../engines/decision'
 import type {
   AllegatoNota,
   AnalisiNota,
+  PaginaQuadernoNota,
   SegnoNota,
   StrumentoDisegno,
   VoceChecklistNota,
@@ -73,6 +74,17 @@ const [sfondoDisegno, setSfondoDisegno] = useState<string | null>(null)
 const [undoStack, setUndoStack] = useState<SegnoNota[][]>([])
 const [redoStack, setRedoStack] = useState<SegnoNota[][]>([])
 
+const [pagineQuaderno, setPagineQuaderno] = useState<PaginaQuadernoNota[]>([
+  {
+    id: crypto.randomUUID(),
+    titolo: 'Pagina 1',
+    disegni: [],
+    sfondoDisegno: null,
+  },
+])
+
+const [paginaCorrenteIndex, setPaginaCorrenteIndex] = useState(0)
+
 const pinSelezionato = disegni.find(
   (segno) => segno.id === pinSelezionatoId
 )
@@ -116,6 +128,7 @@ const aggiornaDisegni = (
   }
 
   setDisegni(nuoviDisegni)
+aggiornaPaginaCorrente(nuoviDisegni)
 }
 
 const annullaDisegno = () => {
@@ -141,6 +154,24 @@ const ripristinaDisegno = () => {
     return precedenti.slice(1)
   })
 }
+
+const aggiornaPaginaCorrente = (
+  nuoviDisegni: SegnoNota[],
+  nuovoSfondoDisegno = sfondoDisegno
+) => {
+  setPagineQuaderno((pagineCorrenti) =>
+    pagineCorrenti.map((pagina, index) =>
+      index === paginaCorrenteIndex
+        ? {
+            ...pagina,
+            disegni: nuoviDisegni,
+            sfondoDisegno: nuovoSfondoDisegno,
+          }
+        : pagina
+    )
+  )
+}
+
 
 const resettaFoglio = () => {
   if (!window.confirm('Vuoi resettare il foglio tecnico? Disegni, nodi e base di lavoro verranno rimossi.')) {
