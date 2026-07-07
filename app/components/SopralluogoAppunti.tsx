@@ -270,10 +270,36 @@ const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
         setNotaId(data.id)
         setTitolo(data.titolo || '')
         setTesto(data.testo || '')
-        setChecklist(data.checklist || [])
-        setDisegni(data.disegni || [])
-setSfondoDisegno(data.sfondo_disegno || null)
-        setAnalisiAi(data.analisi_ai || null)
+       setChecklist(data.checklist || [])
+
+const disegniSalvati = data.disegni || []
+const sonoPagineQuaderno =
+  Array.isArray(disegniSalvati) &&
+  disegniSalvati.length > 0 &&
+  'disegni' in disegniSalvati[0]
+
+if (sonoPagineQuaderno) {
+  const pagineSalvate = disegniSalvati as PaginaQuadernoNota[]
+
+  setPagineQuaderno(pagineSalvate)
+  setPaginaCorrenteIndex(0)
+  setDisegni(pagineSalvate[0]?.disegni || [])
+  setSfondoDisegno(pagineSalvate[0]?.sfondoDisegno || null)
+} else {
+  const paginaIniziale: PaginaQuadernoNota = {
+    id: crypto.randomUUID(),
+    titolo: 'Pagina 1',
+    disegni: disegniSalvati,
+    sfondoDisegno: data.sfondo_disegno || null,
+  }
+
+  setPagineQuaderno([paginaIniziale])
+  setPaginaCorrenteIndex(0)
+  setDisegni(paginaIniziale.disegni)
+  setSfondoDisegno(paginaIniziale.sfondoDisegno)
+}
+
+setAnalisiAi(data.analisi_ai || null)
 
         const { data: file } = await supabase
           .from('note_allegati')
