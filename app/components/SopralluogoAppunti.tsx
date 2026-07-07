@@ -989,13 +989,6 @@ osservaNotaConDecisionEngine()
   🧹 Reset
 </button>
 
-<button
-  type="button"
-  onClick={aggiungiPagina}
-  style={buttonSecondary}
->
-  ➕ pagina
-</button>
   {sfondoDisegno && (
     <span style={{ fontSize: 13, color: '#16a34a' }}>
       ✅ Base caricata
