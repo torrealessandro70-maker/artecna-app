@@ -319,7 +319,15 @@ setSfondoDisegno(null)
       setStato('Accedi per salvare la nota')
       return null
     }
-
+const pagineAggiornate = pagineQuaderno.map((pagina, index) =>
+  index === paginaCorrenteIndex
+    ? {
+        ...pagina,
+        disegni,
+        sfondoDisegno,
+      }
+    : pagina
+)
     setStato('Salvataggio…')
     const { data, error } = await supabase
       .from('note_sopralluogo')
@@ -330,9 +338,9 @@ setSfondoDisegno(null)
           titolo: titolo.trim(),
           testo,
           checklist,
-          disegni,
+          disegni: pagineAggiornate,
           analisi_ai: analisiAi,
-sfondo_disegno: sfondoDisegno,
+sfondo_disegno: null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id,sopralluogo_id' }
