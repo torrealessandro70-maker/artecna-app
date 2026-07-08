@@ -16,7 +16,8 @@ import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
 import EconomiaGeneralePanel from './components/EconomiaGeneralePanel'
 import { creaVociPreventivoDaDocumento } from './engines/preventivo-from-document'
-
+import { createPreventivoRevision } from './engines/preventivo'
+import { extractDocumentTotal } from './engines/document-intelligence'
 
 
 
@@ -1377,20 +1378,31 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
     return false
   }
 
-  const vociDocumento = creaVociPreventivoDaDocumento(vociAnalizzate)
+    const preventivoRevision = createPreventivoRevision({
+    sourceType: 'document',
+    title: 'Preventivo da documento',
+    sourceName: nomeFileAnalisiDocumento || 'documento',
+    voci: vociAnalizzate,
+  })
 
-  const totalePreventivoDocumento = vociDocumento.reduce(
-    (tot: number, voce: any) =>
-      tot +
-      Number(voce.quantita || 0) *
-        Number(voce.prezzo_unitario || 0),
-    0
-  )
+  const vociDocumento = preventivoRevision.voci.map((voce) => ({
+    descrizione: voce.descrizione,
+    quantita: voce.quantita,
+    prezzo_unitario: voce.prezzoUnitario,
+    unita_misura: voce.unitaMisura,
+    categoria: voce.categoria,
+    note: voce.note,
+  }))
 
-  const descrizioneDocumento =
+  const totalePreventivoDocumento = preventivoRevision.totals.imponibile
+
+   const descrizioneDocumento =
     `Preventivo generato da documento analizzato: ${
       nomeFileAnalisiDocumento || 'documento'
-    }`
+    }` +
+    `\nMotore: Preventivo Engine V2` +
+    `\nVoci: ${preventivoRevision.voci.length}` +
+    `\nSegnalazioni revisione: ${preventivoRevision.issues.length}`
 
   const { data: preventivoDocumentoCreato, error } = await supabase
     .from('preventivi_cantiere')
@@ -4157,20 +4169,24 @@ const { error: uploadError } = await supabase.storage
       totaleRilevato !== null ? Number(totaleRilevato.toFixed(2)) : 0
   }
 
-  if (tipo === 'pdf') {
+   if (tipo === 'pdf') {
     const testo = await leggiPdfTesto(file)
     anteprima = testo.slice(0, 2000)
 
-    const totale = estraiTotaleScontrino(testo)
-    importoTotale = totale || 0
+    const totaleDocumento = extractDocumentTotal(testo)
+    const totaleScontrino = estraiTotaleScontrino(testo)
+
+    importoTotale = totaleDocumento || totaleScontrino || 0
   }
 
-  if (tipo === 'img') {
+   if (tipo === 'img') {
     const testo = await leggiTestoDaImmagine(file)
     anteprima = testo.slice(0, 2000)
 
-    const totale = estraiTotaleScontrino(testo)
-    importoTotale = totale || 0
+    const totaleDocumento = extractDocumentTotal(testo)
+    const totaleScontrino = estraiTotaleScontrino(testo)
+
+    importoTotale = totaleDocumento || totaleScontrino || 0
   }
 
   const { error } = await supabase.from('preventivi_cantiere').insert([

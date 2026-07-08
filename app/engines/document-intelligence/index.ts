@@ -27,3 +27,5 @@ export async function analyzeDocument(
     suggestions: [],
   }
 }
+export { extractDocumentTotal } from './total-extractor'
+export { runDocumentTotalExtractorSmokeTest } from './total-extractor-smoke-test'
