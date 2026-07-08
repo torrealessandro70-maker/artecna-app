@@ -107,3 +107,79 @@ export const extractDocumentTotal = (text: string): number => {
 
   return Number(fallback.toFixed(2))
 }
+export type ExtractDocumentTotalResult = {
+  value: number
+  confidence: 'high' | 'medium' | 'low' | 'none'
+  sourceLine?: string
+  method: 'keyword' | 'fallback' | 'none'
+}
+
+export const extractDocumentTotalDetailed = (
+  text: string,
+): ExtractDocumentTotalResult => {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const candidates: TotalCandidate[] = []
+
+  lines.forEach((line) => {
+    const values = extractMoneyValues(line)
+    if (values.length === 0) return
+
+    const score = scoreLine(line)
+    if (score <= 0) return
+
+    const value = values[values.length - 1]
+
+    candidates.push({
+      label: 'document-total',
+      value,
+      score,
+      line,
+    })
+  })
+
+  const best = candidates.sort((a, b) => b.score - a.score || b.value - a.value)[0]
+
+  if (best) {
+    return {
+      value: Number(best.value.toFixed(2)),
+      confidence:
+        best.score >= 90 ? 'high' : best.score >= 65 ? 'medium' : 'low',
+      sourceLine: best.line,
+      method: 'keyword',
+    }
+  }
+
+  const fallbackValues = lines
+    .filter((line) => {
+      const text = line.toLowerCase()
+
+      return (
+        !text.includes('iva') &&
+        !text.includes('imposta') &&
+        !text.includes('ritenuta') &&
+        !text.includes('acconto') &&
+        !text.includes('saldo')
+      )
+    })
+    .flatMap(extractMoneyValues)
+
+  const fallback = fallbackValues.length > 0 ? Math.max(...fallbackValues) : 0
+
+  if (fallback > 0) {
+    return {
+      value: Number(fallback.toFixed(2)),
+      confidence: 'low',
+      method: 'fallback',
+    }
+  }
+
+  return {
+    value: 0,
+    confidence: 'none',
+    method: 'none',
+  }
+}

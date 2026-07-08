@@ -17,7 +17,7 @@ import StatCard from './components/StatCard'
 import EconomiaGeneralePanel from './components/EconomiaGeneralePanel'
 import { creaVociPreventivoDaDocumento } from './engines/preventivo-from-document'
 import { createPreventivoRevision } from './engines/preventivo'
-import { extractDocumentTotal } from './engines/document-intelligence'
+import { extractDocumentTotalDetailed } from './engines/document-intelligence'
 
 
 
@@ -4145,6 +4145,7 @@ const { error: uploadError } = await supabase.storage
   let anteprima = ''
   let importoTotale = 0
   let totaleExcelAffidabile = true
+let notaImportoDocumento = ''
 
   if (tipo === 'excel') {
     const buffer = await file.arrayBuffer()
@@ -4170,24 +4171,41 @@ const { error: uploadError } = await supabase.storage
   }
 
    if (tipo === 'pdf') {
-    const testo = await leggiPdfTesto(file)
-    anteprima = testo.slice(0, 2000)
+  const testo = await leggiPdfTesto(file)
+  anteprima = testo.slice(0, 2000)
 
-    const totaleDocumento = extractDocumentTotal(testo)
-    const totaleScontrino = estraiTotaleScontrino(testo)
+  const totaleDocumento = extractDocumentTotalDetailed(testo)
+  const totaleScontrino = estraiTotaleScontrino(testo)
 
-    importoTotale = totaleDocumento || totaleScontrino || 0
-  }
+  importoTotale = totaleDocumento.value || totaleScontrino || 0
+
+  notaImportoDocumento =
+    `Importo rilevato da Document Total Extractor` +
+    `\nMetodo: ${totaleDocumento.method}` +
+    `\nAffidabilità: ${totaleDocumento.confidence}` +
+    (totaleDocumento.sourceLine
+      ? `\nRiga sorgente: ${totaleDocumento.sourceLine}`
+      : '')
+}
 
    if (tipo === 'img') {
     const testo = await leggiTestoDaImmagine(file)
     anteprima = testo.slice(0, 2000)
 
-    const totaleDocumento = extractDocumentTotal(testo)
+    const totaleDocumento = extractDocumentTotalDetailed(testo)
     const totaleScontrino = estraiTotaleScontrino(testo)
 
-    importoTotale = totaleDocumento || totaleScontrino || 0
+    importoTotale = totaleDocumento.value || totaleScontrino || 0
+
+    notaImportoDocumento =
+      `Importo rilevato da Document Total Extractor` +
+      `\nMetodo: ${totaleDocumento.method}` +
+      `\nAffidabilità: ${totaleDocumento.confidence}` +
+      (totaleDocumento.sourceLine
+        ? `\nRiga sorgente: ${totaleDocumento.sourceLine}`
+        : '')
   }
+
 
   const { error } = await supabase.from('preventivi_cantiere').insert([
     {
@@ -4198,6 +4216,7 @@ const { error: uploadError } = await supabase.storage
     file_tipo: tipo,
     anteprima_testo: anteprima,
     importo_totale: importoTotale,
+note: notaImportoDocumento,
     },
   ])
 
