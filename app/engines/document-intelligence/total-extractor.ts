@@ -1,3 +1,4 @@
+import type { DocumentKind } from './document-classifier'
 type TotalCandidate = {
   label: string
   value: number
@@ -116,6 +117,7 @@ export type ExtractDocumentTotalResult = {
 
 export const extractDocumentTotalDetailed = (
   text: string,
+  documentKind: DocumentKind = 'sconosciuto',
 ): ExtractDocumentTotalResult => {
   const lines = text
     .split('\n')
@@ -128,7 +130,31 @@ export const extractDocumentTotalDetailed = (
     const values = extractMoneyValues(line)
     if (values.length === 0) return
 
-    const score = scoreLine(line)
+    let score = scoreLine(line)
+
+const normalizedLine = line.toLowerCase()
+
+if (documentKind === 'computo') {
+  if (normalizedLine.includes('totale lavori')) score += 40
+  if (normalizedLine.includes('importo lavori')) score += 40
+  if (normalizedLine.includes('importo computo')) score += 35
+}
+
+if (documentKind === 'fattura') {
+  if (normalizedLine.includes('totale documento')) score += 40
+  if (normalizedLine.includes('totale da pagare')) score += 40
+  if (normalizedLine.includes('totale fattura')) score += 35
+}
+
+if (documentKind === 'offerta') {
+  if (normalizedLine.includes('totale offerta')) score += 40
+  if (normalizedLine.includes('totale iva esclusa')) score += 35
+}
+
+if (documentKind === 'sal') {
+  if (normalizedLine.includes('importo sal')) score += 40
+  if (normalizedLine.includes('stato avanzamento lavori')) score += 35
+}
     if (score <= 0) return
 
     const value = values[values.length - 1]

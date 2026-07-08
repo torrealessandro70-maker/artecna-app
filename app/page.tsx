@@ -21,8 +21,8 @@ import { createPreventivoRevision } from './engines/preventivo'
 import {
   classifyDocument,
   extractDocumentTotalDetailed,
+  type DocumentKind,
 } from './engines/document-intelligence'
-
 
 
 
@@ -4150,7 +4150,7 @@ const { error: uploadError } = await supabase.storage
   let importoTotale = 0
   let totaleExcelAffidabile = true
 let notaImportoDocumento = ''
-let tipoDocumentoRilevato = 'sconosciuto'
+let tipoDocumentoRilevato: DocumentKind = 'sconosciuto'
 
   if (tipo === 'excel') {
     const buffer = await file.arrayBuffer()
@@ -4200,7 +4200,10 @@ tipoDocumentoRilevato = classifyDocument(testo)
     anteprima = testo.slice(0, 2000)
 tipoDocumentoRilevato = classifyDocument(testo)
 
-    const totaleDocumento = extractDocumentTotalDetailed(testo)
+    const totaleDocumento = extractDocumentTotalDetailed(
+  testo,
+  tipoDocumentoRilevato,
+)
     const totaleScontrino = estraiTotaleScontrino(testo)
 
     importoTotale = totaleDocumento.value || totaleScontrino || 0
