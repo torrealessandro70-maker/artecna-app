@@ -17,7 +17,11 @@ import StatCard from './components/StatCard'
 import EconomiaGeneralePanel from './components/EconomiaGeneralePanel'
 import { creaVociPreventivoDaDocumento } from './engines/preventivo-from-document'
 import { createPreventivoRevision } from './engines/preventivo'
-import { extractDocumentTotalDetailed } from './engines/document-intelligence'
+
+import {
+  classifyDocument,
+  extractDocumentTotalDetailed,
+} from './engines/document-intelligence'
 
 
 
@@ -4146,6 +4150,7 @@ const { error: uploadError } = await supabase.storage
   let importoTotale = 0
   let totaleExcelAffidabile = true
 let notaImportoDocumento = ''
+let tipoDocumentoRilevato = 'sconosciuto'
 
   if (tipo === 'excel') {
     const buffer = await file.arrayBuffer()
@@ -4173,24 +4178,27 @@ let notaImportoDocumento = ''
    if (tipo === 'pdf') {
   const testo = await leggiPdfTesto(file)
   anteprima = testo.slice(0, 2000)
+tipoDocumentoRilevato = classifyDocument(testo)
 
   const totaleDocumento = extractDocumentTotalDetailed(testo)
   const totaleScontrino = estraiTotaleScontrino(testo)
 
   importoTotale = totaleDocumento.value || totaleScontrino || 0
 
-  notaImportoDocumento =
-    `Importo rilevato da Document Total Extractor` +
-    `\nMetodo: ${totaleDocumento.method}` +
-    `\nAffidabilità: ${totaleDocumento.confidence}` +
-    (totaleDocumento.sourceLine
-      ? `\nRiga sorgente: ${totaleDocumento.sourceLine}`
-      : '')
+ notaImportoDocumento =
+  `Tipo documento rilevato: ${tipoDocumentoRilevato}` +
+  `\nImporto rilevato da Document Total Extractor` +
+  `\nMetodo: ${totaleDocumento.method}` +
+  `\nAffidabilità: ${totaleDocumento.confidence}` +
+  (totaleDocumento.sourceLine
+    ? `\nRiga sorgente: ${totaleDocumento.sourceLine}`
+    : '')
 }
 
    if (tipo === 'img') {
     const testo = await leggiTestoDaImmagine(file)
     anteprima = testo.slice(0, 2000)
+tipoDocumentoRilevato = classifyDocument(testo)
 
     const totaleDocumento = extractDocumentTotalDetailed(testo)
     const totaleScontrino = estraiTotaleScontrino(testo)

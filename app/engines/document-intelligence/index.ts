@@ -36,3 +36,6 @@ export {
 } from './total-extractor'
 
 export type { ExtractDocumentTotalResult } from './total-extractor'
+export { classifyDocument } from './document-classifier'
+export type { DocumentKind } from './document-classifier'
+export { runDocumentClassifierSmokeTest } from './document-classifier-smoke-test'
