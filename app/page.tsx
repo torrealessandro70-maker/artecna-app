@@ -12093,6 +12093,15 @@ WebkitOverflowScrolling: 'touch',
     notaFotoSopralluogo={notaFotoSopralluogo}
     setNotaFotoSopralluogo={setNotaFotoSopralluogo}
     salvaFotoSopralluogo={salvaFotoSopralluogo}
+documentIntelligence={{
+  fileAnalisiDocumento,
+  nomeFileAnalisiDocumento,
+  testoEstrattoDocumento,
+  importoRilevatoDocumento,
+  vociAnalizzate,
+  caricaFileAnalisiDocumento,
+  inputStyle,
+}}
   />
 )}
 

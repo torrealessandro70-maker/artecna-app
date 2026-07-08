@@ -1,30 +1,57 @@
 'use client'
 
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import SopralluogoDettaglioHeader from './SopralluogoDettaglioHeader'
 import SopralluogoFirmaCliente from './SopralluogoFirmaCliente'
 import SopralluogoAppunti from './SopralluogoAppunti'
 import SopralluogoFotoGallery from './SopralluogoFotoGallery'
 import SopralluogoAzioniPreventivo from './SopralluogoAzioniPreventivo'
+import DocumentIntelligencePanel from './DocumentIntelligencePanel'
 
 type Props = {
   [key: string]: any
 }
 
-type SezioneFascicolo = 'informazioni' | 'quaderno' | 'galleria' | 'ai' | 'azioni'
+type SezioneFascicolo =
+  | 'informazioni'
+  | 'quaderno'
+  | 'documenti'
+  | 'galleria'
+  | 'ai'
+  | 'azioni'
 
 const sezioni: Array<{ id: SezioneFascicolo; etichetta: string }> = [
   { id: 'informazioni', etichetta: 'Informazioni' },
   { id: 'quaderno', etichetta: 'Quaderno' },
+  { id: 'documenti', etichetta: 'Documenti' },
   { id: 'galleria', etichetta: 'Galleria' },
   { id: 'ai', etichetta: 'AI' },
   { id: 'azioni', etichetta: 'Azioni' },
 ]
-
 export default function SopralluogoDettaglio(props: Props) {
   const { sopralluogoAperto, buttonPrimary, buttonSecondary, supabase } = props
   const [sezioneAttiva, setSezioneAttiva] = useState<SezioneFascicolo>('informazioni')
+useEffect(() => {
+  if (!sopralluogoAperto?.id) return
 
+  const salvata = localStorage.getItem(
+    `artecna:sopralluogo:${sopralluogoAperto.id}:sezione`
+  )
+
+ if (
+  salvata === 'informazioni' ||
+  salvata === 'quaderno' ||
+  salvata === 'documenti' ||
+  salvata === 'galleria' ||
+  salvata === 'ai' ||
+  salvata === 'azioni'
+)
+{
+    setSezioneAttiva(salvata)
+  } else {
+    setSezioneAttiva('informazioni')
+  }
+}, [sopralluogoAperto?.id])
   if (!sopralluogoAperto) return null
 
   const fotoDelSopralluogo = props.fotoSopralluoghi.filter(
@@ -103,8 +130,7 @@ export default function SopralluogoDettaglio(props: Props) {
             <button
               type="button"
               onClick={() => {
-                setSezioneAttiva('informazioni')
-                props.setSopralluogoAperto(null)
+               props.setSopralluogoAperto(null)
               }}
               aria-label="Chiudi fascicolo"
               style={{
@@ -129,7 +155,16 @@ export default function SopralluogoDettaglio(props: Props) {
               <button
                 key={sezione.id}
                 type="button"
-                onClick={() => setSezioneAttiva(sezione.id)}
+                onClick={() => {
+  setSezioneAttiva(sezione.id)
+
+  if (sopralluogoAperto?.id) {
+    localStorage.setItem(
+      `artecna:sopralluogo:${sopralluogoAperto.id}:sezione`,
+      sezione.id
+    )
+  }
+}}
                 aria-current={sezioneAttiva === sezione.id ? 'page' : undefined}
                 style={stileScheda(sezioneAttiva === sezione.id)}
               >
@@ -196,7 +231,21 @@ export default function SopralluogoDettaglio(props: Props) {
                 onApriGalleria={() => setSezioneAttiva('galleria')}
               />
           </section>
-
+<section
+  aria-label="Documenti del sopralluogo"
+  style={{ display: sezioneAttiva === 'documenti' ? 'block' : 'none' }}
+>
+  {props.documentIntelligence ? (
+    <DocumentIntelligencePanel
+      titolo="Documenti del sopralluogo"
+      {...props.documentIntelligence}
+    />
+  ) : (
+    <div style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 12 }}>
+      Document Intelligence non disponibile.
+    </div>
+  )}
+</section>
           <section
             aria-label="Galleria fotografica"
             style={{ display: sezioneAttiva === 'galleria' ? 'block' : 'none' }}

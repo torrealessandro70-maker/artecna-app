@@ -90,6 +90,7 @@ type Props = {
   notaFotoSopralluogo: string
   setNotaFotoSopralluogo: any
   salvaFotoSopralluogo: any
+documentIntelligence: any
 }
 
 export default function SopralluoghiPanel(props: Props) {
@@ -225,6 +226,7 @@ const [mostraNuovoSopralluogo, setMostraNuovoSopralluogo] = useState(false)
         apriPreventivoAiGeneratoInModifica={props.apriPreventivoAiGeneratoInModifica}
         convertiSopralluogoInCantiere={props.convertiSopralluogoInCantiere}
         generaPdfSopralluogo={props.generaPdfSopralluogo}
+documentIntelligence={props.documentIntelligence}
         supabase={props.supabase}
         buttonPrimary={props.buttonPrimary}
         buttonSecondary={props.buttonSecondary}
