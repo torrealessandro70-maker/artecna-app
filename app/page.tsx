@@ -15,7 +15,7 @@ import PopupModificaTimbratura from './components/PopupModificaTimbratura'
 import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
 import EconomiaGeneralePanel from './components/EconomiaGeneralePanel'
-
+import { creaVociPreventivoDaDocumento } from './engines/preventivo-from-document'
 
 
 
@@ -1249,7 +1249,6 @@ const generaVociAutomatiche = (
   return voci
 }
 
-
 const generaPreventivoAiDaSopralluogo = async (s: Sopralluogo) => {
   if (!s.id) {
     alert('Sopralluogo non valido')
@@ -1259,16 +1258,17 @@ const generaPreventivoAiDaSopralluogo = async (s: Sopralluogo) => {
   const fotoDelSopralluogo = fotoSopralluoghi.filter(
     (f) => f.sopralluogo_id === s.id
   )
-const { data: prezziRiferimento, error: errorePrezzi } =
-  await supabase
+
+  const { data: prezziRiferimento, error: errorePrezzi } = await supabase
     .from('prezzi_lavorazioni')
     .select('*')
     .limit(80)
 
-if (errorePrezzi) {
-  alert('Errore caricamento prezzi riferimento: ' + errorePrezzi.message)
-  return false
-}
+  if (errorePrezzi) {
+    alert('Errore caricamento prezzi riferimento: ' + errorePrezzi.message)
+    return false
+  }
+
   const response = await fetch('/api/genera-preventivo-ai', {
     method: 'POST',
     headers: {
@@ -1276,13 +1276,11 @@ if (errorePrezzi) {
     },
     body: JSON.stringify({
       sopralluogo: s,
-      foto: fotoDelSopralluogo
-  .slice(0, 4)
-  .map((f) => ({
+      foto: fotoDelSopralluogo.slice(0, 4).map((f) => ({
         nota: f.nota || '',
         immagine_base64: f.immagine_base64,
       })),
-prezzi_riferimento: prezziRiferimento || [],
+      prezzi_riferimento: prezziRiferimento || [],
     }),
   })
 
@@ -1293,137 +1291,157 @@ prezzi_riferimento: prezziRiferimento || [],
     return false
   }
 
-const vociAi = (risultato.voci || []).map((voce: any) => {
-  const prezzoTrovato = cercaPrezzoMigliore(
-    voce.descrizione || ''
+  const vociAi = (risultato.voci || []).map((voce: any) => {
+    const prezzoTrovato = cercaPrezzoMigliore(voce.descrizione || '')
+    const prezzoBaseGrezzo = Number(prezzoTrovato?.prezzo_unitario || 0)
+    const prezzoBase =
+      prezzoBaseGrezzo >= 5 ? prezzoBaseGrezzo : Number(voce.prezzo_unitario || 0)
+
+    const prezzoFinale = prezzoBase > 0 ? prezzoBase * 1.25 : 0
+
+    return {
+      ...voce,
+      prezzo_unitario: Number(prezzoFinale.toFixed(2)),
+      quantita: Number(voce.quantita || 1),
+      unita_misura:
+        voce.unita_misura || prezzoTrovato?.unita_misura || 'a corpo',
+      fonte_prezzo:
+        prezzoTrovato?.fonte_prezzo ||
+        prezzoTrovato?.fonte ||
+        prezzoTrovato?.origine_prezzo ||
+        'Da verificare',
+    }
+  })
+
+  if (vociAi.length === 0) {
+    alert('AI non ha generato voci')
+    return false
+  }
+
+  const totalePreventivoAi = vociAi.reduce(
+    (tot: number, voce: any) =>
+      tot + Number(voce.quantita || 0) * Number(voce.prezzo_unitario || 0),
+    0
   )
 
-  const prezzoBaseGrezzo = Number(
-  prezzoTrovato?.prezzo_unitario || 0
-)
+  const { data: preventivoAiCreato, error: erroreSalvataggioAi } =
+    await supabase
+      .from('preventivi_cantiere')
+      .insert([
+        {
+          cantiere: `${s.cliente} - ${s.tipo_lavoro || 'Preventivo AI'}`,
+          cliente_ai: s.cliente || '',
+          telefono_ai: s.telefono || '',
+          indirizzo_ai: s.indirizzo || '',
+          data_preventivo: new Date().toISOString().slice(0, 10),
+          importo_totale: totalePreventivoAi,
+          note:
+            risultato.descrizione_intervento ||
+            'Preventivo generato con AI da sopralluogo.',
+          sopralluogo_id: s.id,
+          nome_file: `Preventivo_AI_${s.cliente || 'sopralluogo'}`,
+          origine_ai: true,
+          stato_preventivo: 'bozza_ai',
+          descrizione_ai: risultato.descrizione_intervento || '',
+          json_voci_ai: vociAi,
+        },
+      ])
+      .select()
+      .single()
 
-const prezzoBase =
-  prezzoBaseGrezzo >= 5
-    ? prezzoBaseGrezzo
-    : Number(voce.prezzo_unitario || 0)
-
-const coefficienteImpresa = 1.25
-
-const prezzoFinale =
-  prezzoBase > 0
-    ? prezzoBase * coefficienteImpresa
-    : 0
-
-  return {
-    ...voce,
-
-    prezzo_unitario: Number(
-      prezzoFinale.toFixed(2)
-    ),
-
-    quantita: Number(voce.quantita || 1),
-
-    unita_misura:
-      voce.unita_misura ||
-      prezzoTrovato?.unita_misura ||
-      'a corpo',
-
-    fonte_prezzo:
-      prezzoTrovato?.fonte_prezzo ||
-      prezzoTrovato?.fonte ||
-      prezzoTrovato?.origine_prezzo ||
-      'Da verificare',
+  if (erroreSalvataggioAi) {
+    alert('Errore salvataggio preventivo AI: ' + erroreSalvataggioAi.message)
+    return false
   }
-})
 
-const totalePreventivoAi = vociAi.reduce(
-  (tot: number, voce: any) =>
-    tot +
-    Number(voce.quantita || 0) *
-      Number(voce.prezzo_unitario || 0),
-  0
-)
+  setPreventivoAiGenerato(preventivoAiCreato)
+  setVociPreventivoAi(vociAi)
+  setDescrizionePreventivoAi(risultato.descrizione_intervento || '')
+  setMostraRevisionePreventivoAi(true)
 
-const { data: preventivoAiCreato, error: erroreSalvataggioAi } =
-  await supabase
+  await caricaSopralluoghi()
+  await caricaEconomia()
+
+  alert(`Preventivo AI salvato nel Registro preventivi con ${vociAi.length} voci`)
+  return true
+}
+
+const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
+  if (!s.id) {
+    alert('Sopralluogo non valido')
+    return false
+  }
+
+  if (vociAnalizzate.length === 0) {
+    alert('Analizza prima un documento.')
+    return false
+  }
+
+  const vociDocumento = creaVociPreventivoDaDocumento(vociAnalizzate)
+
+  const totalePreventivoDocumento = vociDocumento.reduce(
+    (tot: number, voce: any) =>
+      tot +
+      Number(voce.quantita || 0) *
+        Number(voce.prezzo_unitario || 0),
+    0
+  )
+
+  const descrizioneDocumento =
+    `Preventivo generato da documento analizzato: ${
+      nomeFileAnalisiDocumento || 'documento'
+    }`
+
+  const { data: preventivoDocumentoCreato, error } = await supabase
     .from('preventivi_cantiere')
     .insert([
       {
-        cantiere: `${s.cliente} - ${s.tipo_lavoro || 'Preventivo AI'}`,
+        cantiere: `${s.cliente} - ${s.tipo_lavoro || 'Preventivo da documento'}`,
 
         cliente_ai: s.cliente || '',
         telefono_ai: s.telefono || '',
         indirizzo_ai: s.indirizzo || '',
 
-        data_preventivo: new Date()
-          .toISOString()
-          .slice(0, 10),
+        data_preventivo: new Date().toISOString().slice(0, 10),
 
-        importo_totale: totalePreventivoAi,
+        importo_totale: totalePreventivoDocumento,
 
-        note:
-          risultato.descrizione_intervento ||
-          'Preventivo generato con AI da sopralluogo.',
+        note: descrizioneDocumento,
 
         sopralluogo_id: s.id,
 
-        nome_file:
-          `Preventivo_AI_${s.cliente || 'sopralluogo'}`,
+        nome_file: `Preventivo_Documento_${s.cliente || 'sopralluogo'}`,
 
         origine_ai: true,
 
-        stato_preventivo: 'bozza_ai',
+        stato_preventivo: 'bozza_documento',
 
-        descrizione_ai:
-          risultato.descrizione_intervento || '',
+        descrizione_ai: descrizioneDocumento,
 
-        json_voci_ai: vociAi,
+        json_voci_ai: vociDocumento,
       },
     ])
     .select()
     .single()
 
+  if (error) {
+    alert('Errore salvataggio preventivo da documento: ' + error.message)
+    return false
+  }
 
-if (erroreSalvataggioAi) {
+  setPreventivoAiGenerato(preventivoDocumentoCreato)
+  setVociPreventivoAi(vociDocumento)
+  setVociPreventivoAiOriginali(vociDocumento)
+  setDescrizionePreventivoAi(descrizioneDocumento)
+  setMostraRevisionePreventivoAi(true)
+
   alert(
-    'Errore salvataggio preventivo AI: ' +
-      erroreSalvataggioAi.message
+    `Preventivo da documento creato con ${vociDocumento.length} voci. Ora puoi revisionarlo come un Preventivo AI.`
   )
-  return false
+
+  return true
 }
 
-if (vociAi.length === 0) {
-  alert('AI non ha generato voci')
-  return false
-}
-
-setPreventivoAiGenerato(preventivoAiCreato)
-
-setVociPreventivoAi(vociAi)
-setDescrizionePreventivoAi(
-  risultato.descrizione_intervento || ''
-)
-
-const { error: erroreAggiornaSopralluogo } = await supabase
-  .from('sopralluoghi')
-  .update({ stato: 'preventivato' })
-  .eq('id', s.id)
-
-if (erroreAggiornaSopralluogo) {
-  alert(
-    'Preventivo creato, ma errore aggiornamento stato sopralluogo: ' +
-      erroreAggiornaSopralluogo.message
-  )
-}
-
-await caricaSopralluoghi()
-await caricaEconomia()
-
-alert(
-  `Preventivo AI salvato nel Registro preventivi con ${vociAi.length} voci`
-)
-return true
-}
 const miglioraVocePreventivoAi = async (
   index: number
 ) => {
@@ -8124,9 +8142,17 @@ setFileTipoAnalisi(tipo)
 
     let testo = ''
 
-    if (nome.endsWith('.pdf')) {
-      testo = await leggiPdfTesto(file)
-    } else if (
+   if (nome.endsWith('.pdf')) {
+  testo = await leggiPdfTesto(file)
+
+  if (!testo.trim()) {
+    setTestoEstrattoDocumento(
+      'PDF caricato, ma il testo non è leggibile automaticamente. Prova a caricare il computo in formato Excel oppure esporta il PDF come testo.'
+    )
+  }
+}
+
+ else if (
       nome.endsWith('.jpg') ||
       nome.endsWith('.jpeg') ||
       nome.endsWith('.png') ||
@@ -12077,7 +12103,8 @@ WebkitOverflowScrolling: 'touch',
     caricaFotoSopralluoghi={caricaFotoSopralluoghi}
     preventivoAiGenerato={preventivoAiGenerato}
     generaPreventivoAiDaSopralluogo={generaPreventivoAiDaSopralluogo}
-    generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo}
+generaPreventivoDaDocumentoAnalizzato={generaPreventivoDaDocumentoAnalizzato}
+generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo}
     apriPreventivoAiGeneratoInModifica={apriPreventivoAiGeneratoInModifica}
     convertiSopralluogoInCantiere={convertiSopralluogoInCantiere}
     generaPdfSopralluogo={generaPdfSopralluogo}
