@@ -15,7 +15,10 @@ type Props = {
   colore: string
   spessore: number
   sfondo?: string | null
+  pinSelezionatoId?: string | null
+  onSelezionaPin?: (id: string) => void
 }
+
 const LARGHEZZA = 900
 const ALTEZZA = 520
 
@@ -26,7 +29,10 @@ export default function NotaDisegno({
   colore,
   spessore,
   sfondo,
+  pinSelezionatoId,
+  onSelezionaPin,
 }: Props) {
+
   const svgRef = useRef<SVGSVGElement>(null)
   const segnoAttivo = useRef<SegnoNota | null>(null)
   const markerId = useId().replace(/:/g, '')
@@ -197,16 +203,31 @@ if (isStrumentoTecnico(strumento)) {
 if (segno.strumento === 'pin') {
   const numero = segno.metadati?.numero || 0
 
+  const colorePin =
+    segno.metadati?.stato === 'risolto'
+      ? '#16a34a'
+      : segno.metadati?.stato === 'in_lavorazione'
+        ? '#eab308'
+        : '#ef4444'
+
   return (
-    <g key={segno.id}>
+    <g
+      key={segno.id}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        onSelezionaPin?.(segno.id)
+      }}
+      style={{ cursor: 'pointer' }}
+    >
       <circle
         cx={primo.x}
         cy={primo.y}
-        r={16}
-        fill="#ef4444"
-        stroke="#ffffff"
-        strokeWidth={3}
+        r={pinSelezionatoId === segno.id ? 20 : 16}
+        fill={colorePin}
+        stroke={pinSelezionatoId === segno.id ? '#2563eb' : '#ffffff'}
+        strokeWidth={pinSelezionatoId === segno.id ? 5 : 3}
       />
+
       <text
         x={primo.x}
         y={primo.y + 5}
@@ -214,6 +235,7 @@ if (segno.strumento === 'pin') {
         fontSize={15}
         fontWeight={800}
         fill="#ffffff"
+        pointerEvents="none"
       >
         {numero}
       </text>

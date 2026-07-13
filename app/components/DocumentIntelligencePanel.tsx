@@ -2,6 +2,8 @@
 
 import DocumentDestinationSelector from './DocumentDestinationSelector'
 import DocumentUploadBox from './DocumentUploadBox'
+import type { DocumentInsights } from '@/app/engines/document-intelligence'
+import { DocumentUnderstandingCard } from './ui/DocumentUnderstandingCard'
 
 type Props = {
   titolo?: string
@@ -10,6 +12,8 @@ type Props = {
   testoEstrattoDocumento: string
   importoRilevatoDocumento: string
   vociAnalizzate: any[]
+  documentInsights?: DocumentInsights
+  onDocumentAction?: (actionId: string) => void
   caricaFileAnalisiDocumento: (file: File) => void | Promise<void>
   inputStyle: any
 }
@@ -21,6 +25,8 @@ export default function DocumentIntelligencePanel({
   testoEstrattoDocumento,
   importoRilevatoDocumento,
   vociAnalizzate,
+  documentInsights,
+onDocumentAction,
   caricaFileAnalisiDocumento,
   inputStyle,
 }: Props) {
@@ -90,8 +96,12 @@ export default function DocumentIntelligencePanel({
           )}
         </div>
       )}
+<DocumentUnderstandingCard
+  insights={documentInsights}
+  onAction={onDocumentAction}
+/>
 
-      <DocumentDestinationSelector />
+<DocumentDestinationSelector insights={documentInsights} />
     </>
   )
 }

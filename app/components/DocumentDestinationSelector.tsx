@@ -1,16 +1,22 @@
-'use client'
+import type { DocumentInsights } from '@/app/engines/document-intelligence'
 
-const destinazioni = [
-  'Preventivo ufficiale',
-  'Documento tecnico',
-  'Importa lavorazioni',
-  'SAL',
-  'Materiali',
-  'Fattura fornitore',
-  'Archivio Fascicolo',
-]
+type Props = {
+  insights?: DocumentInsights
+}
 
-export default function DocumentDestinationSelector() {
+const labels: Record<string, string> = {
+  preventivo_ufficiale: 'Registro Preventivi',
+  preventivo_ai: 'Preventivo AI',
+  fattura_fornitore: 'Fattura fornitore',
+  sal: 'SAL',
+  materiali: 'Materiali',
+  attrezzi: 'Attrezzi',
+  archivio_fascicolo: 'Archivio Fascicolo',
+}
+
+export default function DocumentDestinationSelector({ insights }: Props) {
+  const destination = insights?.destination
+
   return (
     <section
       aria-labelledby="document-intelligence-destinazioni"
@@ -21,36 +27,49 @@ export default function DocumentDestinationSelector() {
         background: '#f8fafc',
       }}
     >
-      <h3
-        id="document-intelligence-destinazioni"
-        style={{ margin: '0 0 6px' }}
-      >
-        Destinazioni
+      <h3 id="document-intelligence-destinazioni" style={{ marginTop: 0 }}>
+        Destinazione documento
       </h3>
 
-      <p style={{ margin: '0 0 12px', color: '#64748b' }}>
-        Le destinazioni saranno disponibili in un passaggio successivo.
-      </p>
+      {!destination && (
+        <p style={{ color: '#64748b', marginBottom: 0 }}>
+          Carica un documento per ricevere una destinazione suggerita.
+        </p>
+      )}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {destinazioni.map((destinazione) => (
-          <button
-            key={destinazione}
-            type="button"
-            disabled
-            style={{
-              padding: '8px 12px',
-              border: '1px solid #cbd5e1',
-              borderRadius: 8,
-              background: '#e2e8f0',
-              color: '#64748b',
-              cursor: 'not-allowed',
-            }}
-          >
-            {destinazione}
-          </button>
-        ))}
-      </div>
+      {destination && (
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div>
+            <strong>Destinazione suggerita:</strong>{' '}
+            {labels[destination.suggested] || destination.suggested}
+          </div>
+
+          <div>
+            <strong>Affidabilità:</strong>{' '}
+            {Math.round(destination.confidence * 100)}%
+          </div>
+
+          {destination.reasons.length > 0 && (
+            <div>
+              <strong>Motivo:</strong>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+                {destination.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {destination.alternatives.length > 0 && (
+            <div>
+              <strong>Alternative:</strong>{' '}
+              {destination.alternatives
+                .map((item) => labels[item] || item)
+                .join(', ')}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   )
 }

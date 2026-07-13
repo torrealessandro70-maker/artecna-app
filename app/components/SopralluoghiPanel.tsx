@@ -1,6 +1,11 @@
 'use client'
 
-import { useState, type CSSProperties, type RefObject } from 'react'
+import {
+  useEffect,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from 'react'
 import type Webcam from 'react-webcam'
 import SopralluogoForm from './SopralluogoForm'
 import SopralluoghiList from './SopralluoghiList'
@@ -44,6 +49,7 @@ type Props = {
   eliminaSopralluogo: any
   supabase: any
   sopralluogoAperto: any
+sopralluogoModificaId: string | null
   setSopralluogoModificaId: any
   coloreStatoSopralluogo: any
   firmaRef: any
@@ -91,10 +97,19 @@ type Props = {
   setNotaFotoSopralluogo: any
   salvaFotoSopralluogo: any
 documentIntelligence: any
+generaPreventivoDaDocumentoAnalizzato: any
 }
 
 export default function SopralluoghiPanel(props: Props) {
-const [mostraNuovoSopralluogo, setMostraNuovoSopralluogo] = useState(false)
+  const [mostraNuovoSopralluogo, setMostraNuovoSopralluogo] =
+    useState(false)
+
+  useEffect(() => {
+    if (props.sopralluogoModificaId) {
+      setMostraNuovoSopralluogo(true)
+    }
+  }, [props.sopralluogoModificaId])
+
   return (
     <div style={props.cardStyle}>
       <h2>📍 Sopralluoghi</h2>
@@ -223,6 +238,9 @@ const [mostraNuovoSopralluogo, setMostraNuovoSopralluogo] = useState(false)
         preventivoAiGenerato={props.preventivoAiGenerato}
         generaPreventivoAiDaSopralluogo={props.generaPreventivoAiDaSopralluogo}
         generaPreventivoDaSopralluogo={props.generaPreventivoDaSopralluogo}
+generaPreventivoDaDocumentoAnalizzato={
+  props.generaPreventivoDaDocumentoAnalizzato
+}
         apriPreventivoAiGeneratoInModifica={props.apriPreventivoAiGeneratoInModifica}
         convertiSopralluogoInCantiere={props.convertiSopralluogoInCantiere}
         generaPdfSopralluogo={props.generaPdfSopralluogo}
@@ -230,6 +248,7 @@ documentIntelligence={props.documentIntelligence}
         supabase={props.supabase}
         buttonPrimary={props.buttonPrimary}
         buttonSecondary={props.buttonSecondary}
+
       />
 
       <PopupFotoSopralluogo

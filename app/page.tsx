@@ -17,13 +17,23 @@ import StatCard from './components/StatCard'
 import EconomiaGeneralePanel from './components/EconomiaGeneralePanel'
 import { creaVociPreventivoDaDocumento } from './engines/preventivo-from-document'
 import { createPreventivoRevision } from './engines/preventivo'
+import { buildSopralluogoMemory } from './engines/sopralluogo-memory'
+import PriceImportPanel from './components/PriceImportPanel'
+import {
+  parseExcelDocument,
+  matchDocumentRowPrice,
+} from './engines/document-parser'
 
 import {
+  buildDocumentInsights,
+  buildDocumentProfileFromText,
+  buildDocumentWorkflowIntent,
   classifyDocument,
   extractDocumentTotalDetailed,
+  type DocumentActionId,
+  type DocumentInsights,
   type DocumentKind,
 } from './engines/document-intelligence'
-
 
 
 
@@ -169,12 +179,12 @@ type FotoSopralluogo = {
 }
 
 type VoceAnalizzata = {
+  codice?: string
   descrizione: string
   quantita?: number
   unita?: string
   prezzo?: number
 }
-
 
 
 
@@ -1090,17 +1100,43 @@ const caricaUtilizzoAi = async () => {
 }
 
 const caricaPrezziarioSicilia = async () => {
-  const { data, error } = await supabase
-    .from('prezziario_sicilia')
-    .select('*')
-    .order('descrizione', { ascending: true })
+  const dimensioneBlocco = 1000
+  const tutteLeRighe: any[] = []
 
-  if (error) {
-    alert('Errore caricamento prezzario Sicilia: ' + error.message)
-    return
+  let inizio = 0
+  let continua = true
+
+  while (continua) {
+    const fine = inizio + dimensioneBlocco - 1
+
+    const { data, error } = await supabase
+      .from('prezzi_lavorazioni')
+      .select('*')
+      .order('descrizione', { ascending: true })
+      .range(inizio, fine)
+
+    if (error) {
+      alert(
+        'Errore caricamento prezzi lavorazioni: ' +
+          error.message,
+      )
+      return
+    }
+
+    const blocco = data || []
+
+    tutteLeRighe.push(...blocco)
+
+    continua = blocco.length === dimensioneBlocco
+    inizio += dimensioneBlocco
   }
 
-  setPrezziarioSicilia(data || [])
+  console.log('CARICAMENTO PREZZI LAVORAZIONI:', {
+    numeroRighe: tutteLeRighe.length,
+    primeRighe: tutteLeRighe.slice(0, 5),
+  })
+
+  setPrezziarioSicilia(tutteLeRighe)
 }
 
 const caricaSopralluoghi = async () => {
@@ -1116,7 +1152,6 @@ const caricaSopralluoghi = async () => {
 
   setSopralluoghi(data || [])
 }
-
 
 const caricaFotoSopralluoghi = async (sopralluogoId?: string) => {
   const id = sopralluogoId || sopralluogoAperto?.id
@@ -1254,40 +1289,109 @@ const generaVociAutomatiche = (
   return voci
 }
 
-const generaPreventivoAiDaSopralluogo = async (s: Sopralluogo) => {
+
+ const generaPreventivoAiDaSopralluogo = async (s: Sopralluogo) => {
   if (!s.id) {
     alert('Sopralluogo non valido')
     return false
   }
 
+  const { data: userData } = await supabase.auth.getUser()
+
+  if (!userData.user) {
+    alert('Accedi per generare il preventivo AI')
+    return false
+  }
+
+  const { data: notaQuaderno, error: erroreNotaQuaderno } = await supabase
+    .from('note_sopralluogo')
+    .select('titolo, testo')
+    .eq('sopralluogo_id', s.id)
+    .eq('user_id', userData.user.id)
+    .maybeSingle()
+
+  if (erroreNotaQuaderno) {
+    alert(
+      'Errore caricamento Quaderno: ' +
+        erroreNotaQuaderno.message
+    )
+    return false
+  }
+
+  const memoriaSopralluogo = buildSopralluogoMemory({
+    sopralluogoId: s.id,
+    descrizioneIniziale: s.note || '',
+    quaderno: notaQuaderno
+      ? {
+          titolo: notaQuaderno.titolo || '',
+          testo: notaQuaderno.testo || '',
+        }
+      : null,
+  })
+console.group('=== SOPRALLUOGO MEMORY ===')
+
+console.log(memoriaSopralluogo)
+
+console.log(
+  memoriaSopralluogo.testoUnificato,
+)
+
+console.groupEnd()
+
+  const sopralluogoConMemoria = {
+    ...s,
+    note: memoriaSopralluogo.testoUnificato,
+  }
   const fotoDelSopralluogo = fotoSopralluoghi.filter(
+
     (f) => f.sopralluogo_id === s.id
   )
 
   const { data: prezziRiferimento, error: errorePrezzi } = await supabase
-    .from('prezzi_lavorazioni')
-    .select('*')
-    .limit(80)
+  .from('prezzi_lavorazioni')
+  .select(
+    'codice,descrizione,unita_misura,prezzo_unitario,fonte,regione,anno,versione,tipo_prezzo',
+  )
+  .order('codice', { ascending: true })
 
   if (errorePrezzi) {
     alert('Errore caricamento prezzi riferimento: ' + errorePrezzi.message)
     return false
   }
 
-  const response = await fetch('/api/genera-preventivo-ai', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      sopralluogo: s,
-      foto: fotoDelSopralluogo.slice(0, 4).map((f) => ({
-        nota: f.nota || '',
-        immagine_base64: f.immagine_base64,
-      })),
-      prezzi_riferimento: prezziRiferimento || [],
-    }),
-  })
+console.log('PREZZI RIFERIMENTO CARICATI:', {
+  numeroRighe: prezziRiferimento?.length || 0,
+  primiCodici:
+    prezziRiferimento?.slice(0, 10).map((prezzo) => ({
+      codice: prezzo.codice,
+      prezzo: prezzo.prezzo_unitario,
+      fonte: prezzo.fonte,
+    })) || [],
+})
+
+const payloadPreventivoAi = {
+  sopralluogo: sopralluogoConMemoria,
+  foto: [],
+  prezzi_riferimento: prezziRiferimento || [],
+}
+
+console.log('PREZZI INVIATI AL PREVENTIVO AI:', {
+  numeroRighe: payloadPreventivoAi.prezzi_riferimento.length,
+  primeRighe: payloadPreventivoAi.prezzi_riferimento.slice(0, 5),
+})
+
+console.log(
+  'PAYLOAD PREVENTIVO AI BYTES:',
+  new Blob([JSON.stringify(payloadPreventivoAi)]).size,
+)
+
+const response = await fetch('/api/genera-preventivo-ai', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(payloadPreventivoAi),
+})
 
   const risultato = await response.json()
 
@@ -1391,6 +1495,7 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
 
   const vociDocumento = preventivoRevision.voci.map((voce) => ({
     descrizione: voce.descrizione,
+codice: voce.codice,
     quantita: voce.quantita,
     prezzo_unitario: voce.prezzoUnitario,
     unita_misura: voce.unitaMisura,
@@ -1445,15 +1550,17 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
     return false
   }
 
-  setPreventivoAiGenerato(preventivoDocumentoCreato)
-  setVociPreventivoAi(vociDocumento)
-  setVociPreventivoAiOriginali(vociDocumento)
-  setDescrizionePreventivoAi(descrizioneDocumento)
-  setMostraRevisionePreventivoAi(true)
+ setPreventivoAiGenerato(preventivoDocumentoCreato)
+setVociPreventivoAi(vociDocumento)
+setVociPreventivoAiOriginali(vociDocumento)
+setDescrizionePreventivoAi(descrizioneDocumento)
+setMostraRevisionePreventivoAi(true)
 
-  alert(
-    `Preventivo da documento creato con ${vociDocumento.length} voci. Ora puoi revisionarlo come un Preventivo AI.`
-  )
+await caricaEconomia()
+
+alert(
+  `Preventivo da documento creato con ${vociDocumento.length} voci. Ora puoi revisionarlo come un Preventivo AI.`
+)
 
   return true
 }
@@ -4153,27 +4260,39 @@ let notaImportoDocumento = ''
 let tipoDocumentoRilevato: DocumentKind = 'sconosciuto'
 
   if (tipo === 'excel') {
-    const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const json = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-      header: 1,
-      raw: false,
-      defval: '',
-    })
-    const righeVisibili = json.filter(
-      (riga) =>
-        Array.isArray(riga) &&
-        riga.some((cella) => String(cella).trim() !== '')
-    )
+  const parsedDocument = await parseExcelDocument(file)
 
-    anteprima = JSON.stringify(righeVisibili.slice(0, 100))
 
-    const totaleRilevato = rilevaTotalePreventivoExcel(righeVisibili)
-    totaleExcelAffidabile = totaleRilevato !== null
-    importoTotale =
-      totaleRilevato !== null ? Number(totaleRilevato.toFixed(2)) : 0
-  }
+  console.group('=== DOCUMENT PARSER IN PAGE ===')
+  console.log('File:', parsedDocument.fileName)
+  console.log('DocumentRow:', parsedDocument.rows.length)
+  console.log('Warnings:', parsedDocument.warnings)
+  console.table(parsedDocument.rows)
+  console.groupEnd()
+
+  anteprima = parsedDocument.rows
+    .slice(0, 100)
+    .map((row) => row.rawText)
+    .join('\n')
+
+  const righeVisibili = parsedDocument.rows.map((row) => [
+    row.codice ?? '',
+    row.descrizione,
+    row.unitaMisura ?? '',
+    row.quantita ?? '',
+    row.prezzoUnitario ?? '',
+    row.totale ?? '',
+  ])
+
+  const totaleRilevato = rilevaTotalePreventivoExcel(righeVisibili)
+
+  totaleExcelAffidabile = totaleRilevato !== null
+
+  importoTotale =
+    totaleRilevato !== null
+      ? Number(totaleRilevato.toFixed(2))
+      : 0
+}
 
    if (tipo === 'pdf') {
   const testo = await leggiPdfTesto(file)
@@ -4652,6 +4771,10 @@ const [graficoTotaliAperto, setGraficoTotaliAperto] =
   useState(false)
 
 const [importoRilevatoDocumento, setImportoRilevatoDocumento] = useState('')
+
+const [documentInsightsDocumento, setDocumentInsightsDocumento] =
+  useState<DocumentInsights | undefined>(undefined)
+
 const [modalitaMulti, setModalitaMulti] = useState(false)
 const menuButtonStyle = (attivo: boolean): CSSProperties => ({
   width: '100%',
@@ -5451,6 +5574,7 @@ const avviaDettaturaMateriali = () => {
 
   recognition.onresult = (event: any) => {
     let testo = ''
+let vociExcelStrutturate: VoceAnalizzata[] | null = null
 
     for (let i = event.resultIndex; i < event.results.length; i++) {
       testo += event.results[i][0].transcript + ' '
@@ -8117,13 +8241,26 @@ const caricaFileAnalisiDocumento = async (file: File) => {
 
   await analizzaDocumentoCantiere(fakeEvent)
 }
+const gestisciAzioneDocumento = (actionId: string) => {
+  if (!documentInsightsDocumento) {
+    alert('Analizza prima un documento.')
+    return
+  }
 
+  const intent = buildDocumentWorkflowIntent(
+    actionId as DocumentActionId,
+    documentInsightsDocumento,
+  )
+
+  alert(`Workflow creato: ${intent.type}`)
+}
 const analizzaDocumentoCantiere = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
   const file = e.target.files?.[0] || null
   setFileAnalisiDocumento(file)
   setNomeFileAnalisiDocumento(file ? file.name : '')
   setTestoEstrattoDocumento('')
+setDocumentInsightsDocumento(undefined)
 
   if (!file) {
     alert('Nessun file selezionato')
@@ -8187,7 +8324,7 @@ setFileTipoAnalisi(tipo)
     setAnalisiInCorso(true)
 
     let testo = ''
-
+let vociExcelStrutturate: VoceAnalizzata[] | null = null
    if (nome.endsWith('.pdf')) {
   testo = await leggiPdfTesto(file)
 
@@ -8205,17 +8342,87 @@ setFileTipoAnalisi(tipo)
       nome.endsWith('.webp')
     ) {
       testo = await leggiTestoDaImmagine(file)
-    } else if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) {
-      const arrayBuffer = await file.arrayBuffer()
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-      const firstSheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[firstSheetName]
-      const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+   } else if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) {
+  const parsedDocument = await parseExcelDocument(file)
 
-      testo = rows
-        .map((row) => (Array.isArray(row) ? row.join(' | ') : ''))
-        .join('\n')
-    } else {
+const priceReferences = prezziarioSicilia.map((prezzo) => ({
+  codice: prezzo.codice,
+  descrizione: prezzo.descrizione,
+  unitaMisura: prezzo.unita_misura,
+  prezzoUnitario: Number(prezzo.prezzo_unitario || 0),
+  fonte: prezzo.fonte,
+}))
+
+console.log(
+  'PREZZIARIO SICILIA PRIMI CODICI:',
+  prezziarioSicilia.slice(0, 10).map((prezzo) => ({
+    codice: prezzo.codice,
+    descrizione: prezzo.descrizione,
+    prezzo: prezzo.prezzo_unitario,
+  })),
+)
+
+  const righeVoce = parsedDocument.rows.filter(
+  (row) => row.rowType === 'voce',
+)
+
+vociExcelStrutturate = righeVoce.map((row) => {
+  const match = matchDocumentRowPrice(
+    row,
+    priceReferences,
+  )
+
+  if (!match.prezzoUnitario && !row.prezzoUnitario) {
+    console.warn('VOCE SENZA PREZZO:', {
+      codice: row.codice,
+      descrizione: row.descrizione,
+      unitaMisura: row.unitaMisura,
+      metodoMatch: match.metodo,
+    })
+  }
+
+  const prezzo =
+    match.prezzoUnitario ??
+    row.prezzoUnitario
+
+  const unitaMisura = row.unitaMisura || ''
+
+  return {
+    codice: row.codice,
+    descrizione: row.descrizione,
+    quantita: row.quantita,
+
+    unita: unitaMisura,
+    unita_misura: unitaMisura,
+
+    prezzo,
+    prezzo_unitario: prezzo,
+  }
+})
+  testo = parsedDocument.rows
+    .map((row) => row.rawText)
+    .join('\n')
+
+ console.group('=== EXCEL DIRETTO IN VOCI ANALIZZATE ===')
+console.log('DocumentRow totali:', parsedDocument.rows.length)
+console.log('Righe VOCE:', righeVoce.length)
+console.log('Voci create:', vociExcelStrutturate.length)
+console.log('Warnings:', parsedDocument.warnings)
+
+console.table(
+  righeVoce.map((row) => ({
+    codice: row.codice,
+    descrizione: row.descrizione,
+    quantita: row.quantita,
+    unita: row.unitaMisura,
+  })),
+)
+
+console.table(vociExcelStrutturate)
+console.groupEnd()
+}
+
+else {
       alert('Formato non supportato. Usa PDF, immagine o Excel.')
       return
     }
@@ -8227,7 +8434,35 @@ let testoPulito = testo
   .replace(/€/g, '')
     setTestoEstrattoDocumento(testoPulito || 'Nessun testo estratto')
 
-    analizzaTestoInVoci(testoPulito)
+
+if (testoPulito.trim()) {
+  const documentProfile = buildDocumentProfileFromText(testoPulito)
+  const documentInsights = buildDocumentInsights(documentProfile)
+
+  setDocumentInsightsDocumento(documentInsights)
+}
+
+    if (vociExcelStrutturate) {
+  setVociAnalizzate(vociExcelStrutturate)
+
+  const totaleExcel = vociExcelStrutturate.reduce((totale, voce) => {
+    const quantita = Number(voce.quantita || 0)
+    const prezzo = Number(voce.prezzo || 0)
+
+    return totale + quantita * prezzo
+  }, 0)
+
+  if (totaleExcel > 0) {
+    setImportoRilevatoDocumento(
+      totaleExcel.toLocaleString('it-IT', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    )
+  }
+} else {
+  analizzaTestoInVoci(testoPulito)
+}
 
     setTimeout(() => {
       const totale = vociAnalizzate.reduce((tot, voce) => {
@@ -11116,6 +11351,17 @@ textarea:not(.impostazioni-input) {
 >
   📚 Registro
 </button>
+
+<button
+  onClick={() => {
+    setSezioneAttiva('prezzari')
+    setMenuAperto(null)
+  }}
+  style={menuButtonStyle(sezioneAttiva === 'prezzari')}
+>
+  💰 Prezzari
+</button>
+
     <button
       onClick={() => {
         setSezioneAttiva('agenda')
@@ -11168,6 +11414,7 @@ textarea:not(.impostazioni-input) {
       ['pagamenti-operai', '👷 Pagamenti operai'],
       ['pagamenti-fornitori', '🧾 Pagamenti fornitori'],
       ['economia', '💶 Economia generale'],
+['prezzari', '💰 Prezzari'],
       ['attivita', '📅 Attività'],
     ].map(([key, testo]) => (
       <label
@@ -11748,6 +11995,7 @@ WebkitOverflowScrolling: 'touch',
   fileAnalisiDocumento={fileAnalisiDocumento}
   nomeFileAnalisiDocumento={nomeFileAnalisiDocumento}
   testoEstrattoDocumento={testoEstrattoDocumento}
+onDocumentAction={gestisciAzioneDocumento}
   importoRilevatoDocumento={importoRilevatoDocumento}
   vociAnalizzate={vociAnalizzate}
 />
@@ -11944,6 +12192,13 @@ WebkitOverflowScrolling: 'touch',
   setFotoFullscreen={setFotoFullscreen}
 />
 
+{/* ================= PREZZARI ================= */}
+{(
+  pagineAperte.includes('prezzari') ||
+  (!modalitaMulti && sezioneAttiva === 'prezzari')
+) && (
+  <PriceImportPanel supabase={supabase} />
+)}
 
 <OperaiContainer
   pagineAperte={pagineAperte}
@@ -12119,6 +12374,7 @@ WebkitOverflowScrolling: 'touch',
     eliminaSopralluogo={eliminaSopralluogo}
     supabase={supabase}
     sopralluogoAperto={sopralluogoAperto}
+sopralluogoModificaId={sopralluogoModificaId}
     setSopralluogoModificaId={setSopralluogoModificaId}
     coloreStatoSopralluogo={coloreStatoSopralluogo}
     firmaRef={firmaRef}
@@ -12173,6 +12429,7 @@ documentIntelligence={{
   importoRilevatoDocumento,
   vociAnalizzate,
   caricaFileAnalisiDocumento,
+onDocumentAction: gestisciAzioneDocumento,
   inputStyle,
 }}
   />

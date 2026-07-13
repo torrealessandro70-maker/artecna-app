@@ -236,16 +236,48 @@ useEffect(() => {
   style={{ display: sezioneAttiva === 'documenti' ? 'block' : 'none' }}
 >
   {props.documentIntelligence ? (
-    <DocumentIntelligencePanel
-      titolo="Documenti del sopralluogo"
-      {...props.documentIntelligence}
-    />
+    <>
+      <DocumentIntelligencePanel
+        titolo="Documenti del sopralluogo"
+        {...props.documentIntelligence}
+      />
+
+      {props.documentIntelligence?.vociAnalizzate?.length > 0 && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 16,
+            border: '1px solid #bbf7d0',
+            borderRadius: 12,
+            background: '#f0fdf4',
+          }}
+        >
+          <strong>Documento pronto per il preventivo</strong>
+
+          <p style={{ marginTop: 6, color: '#166534' }}>
+            Sono state rilevate {props.documentIntelligence.vociAnalizzate.length} voci.
+            Puoi usare queste informazioni per generare il preventivo.
+          </p>
+
+          <button
+            type="button"
+            onClick={() =>
+  props.generaPreventivoDaDocumentoAnalizzato(sopralluogoAperto)
+}
+            style={buttonPrimary}
+          >
+            💰 Genera preventivo da documento
+          </button>
+        </div>
+      )}
+    </>
   ) : (
     <div style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 12 }}>
       Document Intelligence non disponibile.
     </div>
   )}
 </section>
+
           <section
             aria-label="Galleria fotografica"
             style={{ display: sezioneAttiva === 'galleria' ? 'block' : 'none' }}

@@ -5,14 +5,30 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
-  type ChangeEvent,
+type CSSProperties,
+type ChangeEvent,
+type ClipboardEvent,
+type DragEvent,
 } from 'react'
 import { flushSync } from 'react-dom'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import NotaDisegno from './note/NotaDisegno'
 import { STRUMENTI_DISEGNO } from './note/drawing-tools'
-import { DecisionBuilder, type DecisionPlan } from '../engines/decision'
+import {
+  DecisionBuilder,
+  type DecisionPlan,
+  type DecisionProposal,
+} from '../engines/decision'
+import WorkflowPreview from './WorkflowPreview'
+import {
+  mergePhotoMemory,
+  fotoGalleriaToArtecnaPhoto,
+} from '@/app/engines/photo-memory'
+
+import {
+  allegatoToArtecnaPhoto,
+  isAllegatoImmagine,
+} from '@/app/engines/photo-memory/adapter'
 
 import type {
   AllegatoNota,
@@ -22,6 +38,10 @@ import type {
   StrumentoDisegno,
   VoceChecklistNota,
 } from './note/types'
+
+import {
+  executeWorkflowProposal,
+} from '@/app/engines/workflow-actions'
 
 type SopralluogoNota = {
   id?: string
@@ -50,7 +70,11 @@ type Props = {
   integrato?: boolean
   fotoGalleria?: FotoGalleriaNota[]
   onApriGalleria?: () => void
+  generaPreventivoAiDaSopralluogo?: (
+    sopralluogo: SopralluogoNota,
+  ) => boolean | void | Promise<boolean | void>
 }
+
 
 export default function SopralluogoAppunti({
   mostraAppuntiSopralluogo,
@@ -62,7 +86,10 @@ export default function SopralluogoAppunti({
   integrato = false,
   fotoGalleria = [],
   onApriGalleria,
+  generaPreventivoAiDaSopralluogo,
 }: Props) {
+
+
   const [notaId, setNotaId] = useState<string | null>(null)
   const [titolo, setTitolo] = useState('')
   const [testo, setTesto] = useState('')
@@ -251,6 +278,13 @@ const vaiAllaPagina = (nuovoIndex: number) => {
 }
  
 const [allegati, setAllegati] = useState<AllegatoNota[]>([])
+const fotoMemoria = allegati
+  .map(allegatoToArtecnaPhoto)
+  .filter(
+    (foto): foto is NonNullable<typeof foto> => foto !== null,
+  )
+const [trascinamentoAllegatiAttivo, setTrascinamentoAllegatiAttivo] =
+  useState(false)
   const [analisiAi, setAnalisiAi] = useState<AnalisiNota | null>(null)
 const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
   const [stato, setStato] = useState('')
@@ -267,6 +301,15 @@ const [decisionPlan, setDecisionPlan] = useState<DecisionPlan | null>(null)
       foto.sopralluogo_id === sopralluogoAperto.id &&
       (foto.tag || '').split(',').map((tag) => tag.trim()).includes('smart-note')
   )
+
+const fotoGalleriaMemoria = fotoCollegate.map(
+  fotoGalleriaToArtecnaPhoto,
+)
+
+const fotoSopralluogo = mergePhotoMemory(
+  fotoMemoria,
+  fotoGalleriaMemoria,
+)
 
   useLayoutEffect(() => {
     const textarea = testoNotaRef.current
@@ -507,7 +550,43 @@ setPagineQuaderno(pagineAggiornate)
     event.target.value = ''
     void salvaFile(files, tipo)
   }
+const gestisciTrascinamentoAllegati = (
+  event: DragEvent<HTMLLabelElement>
+) => {
+  event.preventDefault()
+  event.stopPropagation()
+  setTrascinamentoAllegatiAttivo(true)
+}
 
+const terminaTrascinamentoAllegati = (
+  event: DragEvent<HTMLLabelElement>
+) => {
+  event.preventDefault()
+  event.stopPropagation()
+  setTrascinamentoAllegatiAttivo(false)
+}
+
+const rilasciaAllegati = (
+  event: DragEvent<HTMLLabelElement>
+) => {
+  event.preventDefault()
+  event.stopPropagation()
+  setTrascinamentoAllegatiAttivo(false)
+
+  const files = Array.from(event.dataTransfer.files || [])
+  void salvaFile(files, 'allegato')
+}
+
+const incollaAllegati = (
+  event: ClipboardEvent<HTMLLabelElement>
+) => {
+  const files = Array.from(event.clipboardData.files || [])
+
+  if (files.length === 0) return
+
+  event.preventDefault()
+  void salvaFile(files, 'allegato')
+}
   const eliminaAllegato = async (allegato: AllegatoNota) => {
     await supabase.storage.from('preventivi').remove([allegato.storage_path])
     const { error } = await supabase
@@ -581,34 +660,83 @@ const osservaNotaConDecisionEngine = () => {
 
   setDecisionPlan(piano)
 }
+const annullaPropostaDecisione = (proposalId: string) => {
+  setDecisionPlan((pianoCorrente) => {
+    if (!pianoCorrente) return null
 
-  const analizzaNota = async () => {
-    setStato('L’AI osserva la nota…')
-osservaNotaConDecisionEngine()
-    const immagini = allegati
-      .filter((allegato) => allegato.tipo === 'foto')
-      .map((allegato) => allegato.url)
-      .concat(fotoCollegate.map((foto) => foto.immagine_base64))
-    const audio = allegati
-      .filter((allegato) => allegato.tipo === 'audio')
-      .map((allegato) => ({
-        url: allegato.url,
-        nome: allegato.nome_file,
-      }))
+    const proposals = pianoCorrente.proposals.filter(
+      (proposal) => proposal.id !== proposalId,
+    )
 
-    const response = await fetch('/api/analizza-nota-ai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        titolo,
-        testo,
-        checklist,
-        immagini,
-        audio,
-        disegni,
-        contesto: sopralluogoAperto,
-      }),
-    })
+    if (proposals.length === 0) {
+      return null
+    }
+
+    return {
+      ...pianoCorrente,
+      proposals,
+    }
+  })
+
+  setStato('Proposta annullata')
+}
+
+const eseguiPropostaDecisione = async (
+  proposal: DecisionProposal,
+) => {
+  setStato(`Esecuzione: ${proposal.title}`)
+
+  if (
+    proposal.type === 'create_estimate' &&
+    generaPreventivoAiDaSopralluogo
+  ) {
+    const completato =
+      await generaPreventivoAiDaSopralluogo(
+        sopralluogoAperto,
+      )
+
+    if (completato !== false) {
+      setStato('Preventivo AI generato')
+      return
+    }
+  }
+
+  const risultato =
+    await executeWorkflowProposal(proposal)
+
+  setStato(risultato.message)
+}
+const analizzaNota = async () => {
+  setStato('L’AI osserva la nota…')
+  osservaNotaConDecisionEngine()
+
+  const immagini = fotoMemoria
+    .map((foto) => foto.url)
+    .concat(
+      fotoCollegate.map((foto) => foto.immagine_base64)
+    )
+
+  const audio = allegati
+    .filter((allegato) => allegato.tipo === 'audio')
+    .map((allegato) => ({
+      url: allegato.url,
+      nome: allegato.nome_file,
+    }))
+
+  const response = await fetch('/api/analizza-nota-ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      titolo,
+      testo,
+      checklist,
+      immagini,
+      audio,
+      disegni,
+      contesto: sopralluogoAperto,
+    }),
+  })
+
     const risultato = await response.json()
 
     if (!response.ok) {
@@ -1133,15 +1261,48 @@ boxShadow: strumentoDisegno === strumento.id ? '0 0 0 2px #2563eb' : 'none',
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
-            <label style={{ ...buttonSecondary, cursor: 'pointer' }}>
-              📎 Allegati
-              <input
-                type="file"
-                multiple
-                onChange={(event) => void caricaFile(event, 'allegato')}
-                style={{ display: 'none' }}
-              />
-            </label>
+            <label
+  tabIndex={0}
+  onDragEnter={gestisciTrascinamentoAllegati}
+  onDragOver={gestisciTrascinamentoAllegati}
+  onDragLeave={terminaTrascinamentoAllegati}
+  onDrop={rilasciaAllegati}
+  onPaste={incollaAllegati}
+  style={{
+    minWidth: 280,
+    padding: '14px 18px',
+    border: trascinamentoAllegatiAttivo
+      ? '2px dashed #2563eb'
+      : '2px dashed #94a3b8',
+    borderRadius: 12,
+    background: trascinamentoAllegatiAttivo
+      ? '#eff6ff'
+      : '#f8fafc',
+    color: '#0f172a',
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'all 150ms ease',
+  }}
+>
+  <div style={{ fontWeight: 800 }}>📎 Allegati</div>
+
+  <div
+    style={{
+      marginTop: 4,
+      fontSize: 13,
+      color: '#64748b',
+    }}
+  >
+    Clicca, incolla con Ctrl+V oppure trascina qui
+  </div>
+
+  <input
+    type="file"
+    multiple
+    onChange={(event) => void caricaFile(event, 'allegato')}
+    style={{ display: 'none' }}
+  />
+</label>
             <button
               type="button"
               onClick={registrazioneAttiva ? fermaRegistrazione : () => void avviaRegistrazione()}
@@ -1180,7 +1341,7 @@ boxShadow: strumentoDisegno === strumento.id ? '0 0 0 2px #2563eb' : 'none',
             )}
           </div>
 
-          {allegati.some((allegato) => allegato.tipo !== 'foto') && (
+          {allegati.length > 0 && (
             <div
               style={{
                 display: 'grid',
@@ -1189,15 +1350,33 @@ boxShadow: strumentoDisegno === strumento.id ? '0 0 0 2px #2563eb' : 'none',
                 marginTop: 14,
               }}
             >
-              {allegati.filter((allegato) => allegato.tipo !== 'foto').map((allegato) => (
+              {allegati.map((allegato) => (
                 <article
                   key={allegato.id}
                   style={{ padding: 10, border: '1px solid #cbd5e1', borderRadius: 10, background: '#fff' }}
                 >
-                  {allegato.tipo === 'foto' && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={allegato.url} alt={allegato.nome_file} style={{ width: '100%', borderRadius: 8 }} />
-                  )}
+                {isAllegatoImmagine(allegato) && (
+  <a
+    href={allegato.url}
+    target="_blank"
+    rel="noreferrer"
+    style={{ display: 'block' }}
+  >
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img
+      src={allegato.url}
+      alt={allegato.nome_file}
+      style={{
+        width: '100%',
+        height: 140,
+        objectFit: 'cover',
+        borderRadius: 8,
+        display: 'block',
+      }}
+    />
+  </a>
+)}
+
                   {allegato.tipo === 'audio' && <audio controls src={allegato.url} style={{ width: '100%' }} />}
                   <a href={allegato.url} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 8 }}>
                     {allegato.nome_file}
@@ -1439,7 +1618,7 @@ pinSelezionatoId={null}
            </section>
           )}
 
-          {fotoCollegate.length > 0 && (
+          {fotoSopralluogo.length > 0 && (
             <section style={{ marginTop: 18 }}>
               <h2 style={{ fontSize: 17, margin: '0 0 8px' }}>Foto collegate</h2>
               <div
@@ -1449,15 +1628,19 @@ pinSelezionatoId={null}
                   gap: 12,
                 }}
               >
-                {fotoCollegate.map((foto, indice) => (
+                {fotoSopralluogo.map((foto, indice) => (
                   <figure key={foto.id || indice} style={{ margin: 0 }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={foto.immagine_base64}
-                      alt={foto.nota || `Foto collegata ${indice + 1}`}
+                      src={foto.url}
+                      alt={foto.nome || `Foto ${indice + 1}`}
                       style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'contain' }}
                     />
-                    {foto.nota && <figcaption style={{ marginTop: 4 }}>{foto.nota}</figcaption>}
+                   {foto.nome && (
+  <figcaption style={{ marginTop: 4 }}>
+    {foto.nome}
+  </figcaption>
+)}
                   </figure>
                 ))}
               </div>
@@ -1508,6 +1691,15 @@ pinSelezionatoId={null}
               )}
               <small>{analisiAi.avvertenza}</small>
             </section>
+          )}
+          {decisionPlan && (
+         <WorkflowPreview
+  plan={decisionPlan}
+  buttonPrimary={buttonPrimary}
+  buttonSecondary={buttonSecondary}
+  onCancelProposal={annullaPropostaDecisione}
+  onExecuteProposal={eseguiPropostaDecisione}
+/>
           )}
         </article>
       )}

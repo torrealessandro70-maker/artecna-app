@@ -1,0 +1,25 @@
+export type SopralluogoMemoryPage = {
+  id: string
+  titolo: string
+  testo: string
+}
+
+export type SopralluogoMemory = {
+  sopralluogoId: string
+
+  descrizione: string
+
+  pagineQuaderno: SopralluogoMemoryPage[]
+
+  testoUnificato: string
+
+  lastUpdated: Date
+}
+
+export type BuildSopralluogoMemoryInput = {
+  sopralluogoId: string
+
+  descrizione?: string
+
+  pagineQuaderno?: SopralluogoMemoryPage[]
+}

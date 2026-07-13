@@ -1,8 +1,14 @@
 import type { WorkflowInput, WorkflowResult } from '../workflow'
-import { buildPhotoWorkflow } from '../workflow'
+import { getWorkflowHandler } from './workflow-registry'
 
-export function runPhotoWorkflowRuntime(
+export function runWorkflowRuntime(
   input: WorkflowInput
 ): WorkflowResult {
-  return buildPhotoWorkflow(input)
+  const handler = getWorkflowHandler(input.type)
+
+  if (!handler) {
+    throw new Error(`Workflow non supportato: ${input.type}`)
+  }
+
+  return handler(input)
 }

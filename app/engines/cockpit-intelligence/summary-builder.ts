@@ -12,6 +12,10 @@ export function buildCockpitSummary(input: CockpitSummaryInput): CockpitSummary 
 const documentCount = feedItems.filter(
   (item) => item.metadata?.sourceKind === 'document',
 ).length
+
+const salCount = feedItems.filter(
+  (item) => item.metadata?.sourceKind === 'sal',
+).length
   const attentionItems = feedItems.filter(
     (item) => item.severity === 'warning' || item.severity === 'error',
   )
@@ -22,7 +26,9 @@ const situationParts = [
   photoCount > 0 ? `${photoCount} foto acquisite` : null,
   reportCount > 0 ? `${reportCount} rapportini registrati` : null,
   documentCount > 0 ? `${documentCount} gruppi documenti collegati` : null,
+  salCount > 0 ? `${salCount} SAL collegati` : null,
 ].filter(Boolean)
+
   return {
     level: hasAttention ? 'attention' : 'stable',
     title: hasAttention ? 'Situazione da verificare' : 'Situazione stabile',
@@ -39,7 +45,10 @@ const situationParts = [
       ? attentionItems.slice(0, 3).map((item) => item.title)
       : ['Nessuna criticità rilevata.'],
     suggestions:
-      photoCount > 0 || reportCount > 0 || documentCount > 0
+      photoCount > 0 ||
+reportCount > 0 ||
+documentCount > 0 ||
+salCount > 0
         ? ['Verificare il materiale recente collegato al Fascicolo Cantiere.']
         : ['Continuare a monitorare il cantiere dal Cockpit.'],
     nextAction:

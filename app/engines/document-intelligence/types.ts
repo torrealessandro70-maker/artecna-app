@@ -94,3 +94,65 @@ export type DocumentAnalysisResult = {
   warnings: DocumentWarning[]
   suggestions: DocumentSuggestion[]
 }
+export type DocumentProfileTotal = {
+  value: number
+  confidence: number
+  method: string
+  sourceLine?: string
+}
+
+export type DocumentProfile = {
+  kind: DocumentType
+
+  confidence: number
+
+  total?: DocumentProfileTotal
+
+  hasItems: boolean
+  hasUnitPrices: boolean
+  hasQuantities: boolean
+  hasVat: boolean
+  hasClient: boolean
+  hasSupplier: boolean
+
+  anomalies: string[]
+}
+export type DocumentPartyInfo = {
+  name?: string
+  vatNumber?: string
+  taxCode?: string
+}
+
+export type DocumentAmountsInfo = {
+  subtotal?: number
+  vat?: number
+  total?: number
+}
+
+export type DocumentInsights = {
+  profile: DocumentProfile
+
+  destination?: {
+    suggested: string
+    confidence: number
+    alternatives: string[]
+    reasons: string[]
+  }
+
+  actions: {
+    id: string
+    title: string
+    description: string
+    primary: boolean
+  }[]
+
+  client?: DocumentPartyInfo
+  supplier?: DocumentPartyInfo
+
+  amounts: DocumentAmountsInfo
+
+  itemsDetected: number
+
+  warnings: string[]
+  suggestions: string[]
+}

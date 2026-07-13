@@ -589,31 +589,18 @@ salvaRevisionePreventivoAi,
           ↩ Ripristina originale
         </button>
 
-        <button
-          onClick={async () => {
-            for (const voce of vociPreventivoAi) {
-              await salvaInMemoriaPrezzi({
-                descrizione: voce.descrizione || '',
-                categoria: 'preventivo AI',
-                unita_misura: voce.unita_misura || '',
-                quantita: Number(voce.quantita || 0),
-                prezzo_unitario: Number(voce.prezzo_unitario || 0),
-                prezzo_totale:
-                  Number(voce.quantita || 0) *
-                  Number(voce.prezzo_unitario || 0),
-                cantiere: preventivoRegistroCantiere || '',
-                fonte: 'preventivo AI approvato',
-                provincia: 'Catania',
-              })
-            }
+       <button
+  onClick={async () => {
+    await salvaRevisionePreventivoAi()
+  }}
+  style={{
+    ...buttonPrimary,
+    backgroundColor: '#16a34a',
+  }}
+>
+  💾 Salva revisione
+</button>
 
-            await generaExcelDefinitivoPreventivoAi()
-          }}
-          style={{
-            ...buttonPrimary,
-            backgroundColor: '#2563eb',
-          }}
-        >
 <button
   onClick={async () => {
     await salvaRevisionePreventivoAi()
@@ -626,9 +613,33 @@ salvaRevisionePreventivoAi,
   💾 Salva revisione
 </button>
 
-          📄 Genera Excel definitivo
-        </button>
+<button
+  onClick={async () => {
+    for (const voce of vociPreventivoAi) {
+      await salvaInMemoriaPrezzi({
+        descrizione: voce.descrizione || '',
+        categoria: 'preventivo AI',
+        unita_misura: voce.unita_misura || '',
+        quantita: Number(voce.quantita || 0),
+        prezzo_unitario: Number(voce.prezzo_unitario || 0),
+        prezzo_totale:
+          Number(voce.quantita || 0) *
+          Number(voce.prezzo_unitario || 0),
+        cantiere: preventivoRegistroCantiere || '',
+        fonte: 'preventivo AI approvato',
+        provincia: 'Catania',
+      })
+    }
 
+    await generaExcelDefinitivoPreventivoAi()
+  }}
+  style={{
+    ...buttonPrimary,
+    backgroundColor: '#2563eb',
+  }}
+>
+  📄 Genera Excel definitivo
+</button>
         <button
           onClick={() => setMostraRevisionePreventivoAi(false)}
           style={buttonSecondary}
