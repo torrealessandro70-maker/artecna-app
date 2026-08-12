@@ -1,12 +1,26 @@
+import type { BackgroundTransform }
+  from '../../engines/quaderno-layout'
+import type { QuadernoLayer } from "@/app/engines/quaderno-layers/types"
+import type { QuadernoLayerId } from '@/app/engines/quaderno-layers/types'
+import type {
+  CadDimensionEntity,
+  CadEntity,
+} from '@/app/engines/cad/entities'
+
+import type { CadScaleCalibration } from '@/app/engines/cad/scale-manager'
+
 export type StrumentoDisegno =
   | 'penna'
   | 'evidenziatore'
   | 'freccia'
   | 'linea'
+  | 'perpendicolare'
   | 'rettangolo'
   | 'cerchio'
+  | 'testo'
   | 'gomma'
   | 'pin'
+
 
 export type PuntoNota = {
   x: number
@@ -19,8 +33,17 @@ export type MetadatiSegnoNota = {
   titolo?: string
 
   testo?: string
-
   descrizione?: string
+
+  fontSize?: number
+  fontFamily?: string
+  fontWeight?: 'normal' | 'bold'
+ fontStyle?: 'normal' | 'italic'
+textDecoration?: 'none' | 'underline'
+rotation?: number
+
+textBoxWidth?: number
+textBoxHeight?: number
 
   stato?: 'nuovo' | 'in_lavorazione' | 'risolto'
 
@@ -31,7 +54,6 @@ export type MetadatiSegnoNota = {
     | 'misura'
     | 'promemoria'
 }
-
 export type SegnoNota = {
   id: string
   strumento: StrumentoDisegno
@@ -39,13 +61,37 @@ export type SegnoNota = {
   spessore: number
   punti: PuntoNota[]
   metadati?: MetadatiSegnoNota
+  layerId?: QuadernoLayerId
+}
+
+
+export type OggettoGraficoQuaderno = {
+  id: string
+  tipo: 'immagine'
+  sorgente: string
+  transform: BackgroundTransform
+  larghezzaIniziale?: number
+  altezzaIniziale?: number
+  layerId?: QuadernoLayerId
 }
 
 export type PaginaQuadernoNota = {
   id: string
   titolo: string
+
   disegni: SegnoNota[]
+  cadDimensions?: CadDimensionEntity[]
+cadEntities?: CadEntity[]
+  scaleCalibration?: CadScaleCalibration | null
+
   sfondoDisegno: string | null
+
+  zoomSfondo?: number
+
+  oggettiGrafici?: OggettoGraficoQuaderno[]
+
+  layers?: QuadernoLayer[]
+  backgroundTransform?: BackgroundTransform
 }
 export type VoceChecklistNota = {
   id: string
@@ -76,3 +122,4 @@ export type PinNota = {
   x: number
   y: number
 }
+

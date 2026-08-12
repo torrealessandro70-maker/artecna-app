@@ -56,6 +56,14 @@ export const matchDocumentRowPrice = (
 
   console.log('Reference disponibili:', references.length)
 
+console.table(
+  references.slice(0, 20).map((r) => ({
+    codice: r.codice,
+    descrizione: r.descrizione,
+    prezzo: r.prezzoUnitario,
+  })),
+)
+
   if (codiceRiga) {
     const matchCodice = references.find(
       (reference) =>

@@ -8,6 +8,7 @@ import SopralluogoFotoGallery from './SopralluogoFotoGallery'
 import SopralluogoAzioniPreventivo from './SopralluogoAzioniPreventivo'
 import DocumentIntelligencePanel from './DocumentIntelligencePanel'
 
+
 type Props = {
   [key: string]: any
 }

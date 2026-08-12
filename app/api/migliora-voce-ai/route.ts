@@ -1,18 +1,52 @@
 import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+export const runtime = 'nodejs'
 
 export async function POST(req: Request) {
   try {
-    const { descrizione } = await req.json()
+    const apiKey = process.env.OPENAI_API_KEY
 
-    const response = await openai.responses.create({
-      model: 'gpt-4.1-mini',
+    if (!apiKey) {
+      console.error(
+        'OPENAI_API_KEY non configurata sul server',
+      )
 
-      input: `
+      return NextResponse.json(
+        {
+          error:
+            'Servizio AI non configurato: manca OPENAI_API_KEY',
+        },
+        { status: 500 },
+      )
+    }
+
+    const body = await req.json()
+
+    const descrizione =
+      typeof body?.descrizione === 'string'
+        ? body.descrizione.trim()
+        : ''
+
+    if (!descrizione) {
+      return NextResponse.json(
+        {
+          error:
+            'La descrizione della voce è obbligatoria',
+        },
+        { status: 400 },
+      )
+    }
+
+    const openai = new OpenAI({
+      apiKey,
+    })
+
+    const response =
+      await openai.responses.create({
+        model: 'gpt-4.1-mini',
+
+        input: `
 Sei un preventivista edile italiano.
 
 Riscrivi questa voce in stile:
@@ -24,7 +58,7 @@ NON essere breve.
 NON usare inglese.
 NON aggiungere spiegazioni.
 
-Rispondi SOLO JSON valido:
+Rispondi SOLO con JSON valido:
 
 {
   "descrizione": "...",
@@ -34,24 +68,64 @@ Rispondi SOLO JSON valido:
 Voce:
 ${descrizione}
 `,
-    })
+      })
 
-    let testo = response.output_text || '{}'
-
-    testo = testo
-      .replace(/```json/g, '')
+    const testo = (
+      response.output_text || '{}'
+    )
+      .replace(/```json/gi, '')
       .replace(/```/g, '')
       .trim()
 
-    return NextResponse.json(JSON.parse(testo))
-  } catch (error: any) {
+    let risultato: {
+      descrizione?: string
+      prezzo_unitario?: number
+    }
+
+    try {
+      risultato = JSON.parse(testo)
+    } catch {
+      console.error(
+        'Risposta AI non valida:',
+        testo,
+      )
+
+      return NextResponse.json(
+        {
+          error:
+            'La risposta AI non contiene un JSON valido',
+        },
+        { status: 502 },
+      )
+    }
+
+    return NextResponse.json({
+      descrizione:
+        risultato.descrizione ||
+        descrizione,
+
+      prezzo_unitario:
+        typeof risultato.prezzo_unitario ===
+        'number'
+          ? risultato.prezzo_unitario
+          : 0,
+    })
+  } catch (error) {
+    const messaggio =
+      error instanceof Error
+        ? error.message
+        : 'Errore miglioramento voce'
+
+    console.error(
+      'Errore API migliora-voce-ai:',
+      error,
+    )
+
     return NextResponse.json(
       {
-        error:
-          error.message ||
-          'Errore miglioramento voce',
+        error: messaggio,
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

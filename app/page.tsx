@@ -34,7 +34,7 @@ import {
   type DocumentInsights,
   type DocumentKind,
 } from './engines/document-intelligence'
-
+import { resolvePrice } from './engines/price-resolution'
 
 
 import PopupModificaOperaio from './components/PopupModificaOperaio'
@@ -1486,22 +1486,151 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
     return false
   }
 
+  const knowledgeBasePrezzi = prezziarioSicilia
+    .filter(
+      (prezzo) =>
+        prezzo.descrizione &&
+        Number.isFinite(Number(prezzo.prezzo_unitario)),
+    )
+    .map((prezzo) => ({
+      id: prezzo.id,
+      codice: prezzo.codice ?? null,
+      descrizione: String(prezzo.descrizione),
+      unita_misura: prezzo.unita_misura ?? null,
+      prezzo_unitario: Number(prezzo.prezzo_unitario),
+      fonte: prezzo.fonte ?? null,
+      regione: prezzo.regione ?? null,
+      anno: prezzo.anno ?? null,
+      versione: prezzo.versione ?? null,
+      tipo_prezzo: prezzo.tipo_prezzo ?? null,
+    }))
+
+
+
+ const statisticheRisoluzione = {
+  exactCode: 0,
+  normalizedCode: 0,
+  descriptionUnit: 0,
+  description: 0,
+  similarity: 0,
+  noMatch: 0,
+}
+
+  const vociRisolte = vociAnalizzate.map((voce) => {
+    const risoluzione = resolvePrice(
+      {
+        codice: voce.codice,
+        descrizione: voce.descrizione,
+        unitaMisura: voce.unita,
+        quantita: voce.quantita,
+      },
+      knowledgeBasePrezzi,
+    )
+
+  switch (risoluzione.strategy) {
+  case 'exact_code':
+    statisticheRisoluzione.exactCode += 1
+    break
+
+  case 'normalized_code':
+    statisticheRisoluzione.normalizedCode += 1
+    break
+
+  case 'description_unit':
+    statisticheRisoluzione.descriptionUnit += 1
+    break
+
+  case 'description':
+    statisticheRisoluzione.description += 1
+    break
+
+  case 'similarity':
+    statisticheRisoluzione.similarity += 1
+    break
+
+  default:
+    statisticheRisoluzione.noMatch += 1
+    break
+}
+
+
+
+
+      const prezzoDocumento = Number(voce.prezzo || 0)
+    const prezzoRisolto = Number(risoluzione.prezzoUnitario || 0)
+
+    return {
+      ...voce,
+
+      prezzo:
+        prezzoDocumento > 0
+          ? prezzoDocumento
+          : prezzoRisolto,
+
+      unita:
+        voce.unita ||
+        risoluzione.unitaMisuraRisolta ||
+        'a.c.',
+
+      priceResolution: {
+        matched: risoluzione.matched,
+        status: risoluzione.status,
+        strategy: risoluzione.strategy,
+        confidence: risoluzione.confidence,
+        evaluatedStrategies: risoluzione.evaluatedStrategies,
+
+        codiceRisolto: risoluzione.codiceRisolto,
+        descrizioneRisolta: risoluzione.descrizioneRisolta,
+        unitaMisuraRisolta: risoluzione.unitaMisuraRisolta,
+        prezzoUnitarioRisolto: risoluzione.prezzoUnitario,
+
+        reasons: risoluzione.reasons,
+      },
+    }
+  })
+
+  const prezziRisolti = vociRisolte.filter(
+    (voce) => Number(voce.prezzo || 0) > 0,
+  ).length
+
+  const senzaPrezzo = vociRisolte.filter(
+    (voce) => Number(voce.prezzo || 0) <= 0,
+  ).length
+
+  console.table(statisticheRisoluzione)
+
+  console.log('PRICE RESOLUTION ENGINE — DOCUMENTO:', {
+    totaleVoci: vociRisolte.length,
+    prezziRisolti,
+    senzaPrezzo,
+    statistiche: statisticheRisoluzione,
+  })
+
+
+
+
+
     const preventivoRevision = createPreventivoRevision({
     sourceType: 'document',
     title: 'Preventivo da documento',
     sourceName: nomeFileAnalisiDocumento || 'documento',
-    voci: vociAnalizzate,
+   voci: vociRisolte,
   })
 
-  const vociDocumento = preventivoRevision.voci.map((voce) => ({
+  const vociDocumento = preventivoRevision.voci.map(
+  (voce, index) => ({
     descrizione: voce.descrizione,
-codice: voce.codice,
+    codice: voce.codice,
     quantita: voce.quantita,
     prezzo_unitario: voce.prezzoUnitario,
     unita_misura: voce.unitaMisura,
     categoria: voce.categoria,
     note: voce.note,
-  }))
+
+    priceResolution:
+      vociRisolte[index]?.priceResolution,
+  }),
+)
 
   const totalePreventivoDocumento = preventivoRevision.totals.imponibile
 
@@ -1630,12 +1759,12 @@ const salvaRevisionePreventivoAi = async () => {
   const { error } = await supabase
     .from('preventivi_cantiere')
     .update({
-      descrizione_intervento: descrizionePreventivoAi,
-      voci_ai: vociPreventivoAi,
-      importo_totale: importoTotale,
-      stato_preventivo: 'revisionato',
-      approvato: false,
-    })
+  descrizione_ai: descrizionePreventivoAi,
+  json_voci_ai: vociPreventivoAi,
+  importo_totale: importoTotale,
+  stato_preventivo: 'revisionato',
+  approvato: false,
+})
     .eq('id', preventivoAiGenerato.id)
 
   if (error) {
@@ -1644,13 +1773,13 @@ const salvaRevisionePreventivoAi = async () => {
   }
 
   setPreventivoAiGenerato({
-    ...preventivoAiGenerato,
-    descrizione_intervento: descrizionePreventivoAi,
-    voci_ai: vociPreventivoAi,
-    importo_totale: importoTotale,
-    stato_preventivo: 'revisionato',
-    approvato: false,
-  })
+  ...preventivoAiGenerato,
+  descrizione_ai: descrizionePreventivoAi,
+  json_voci_ai: vociPreventivoAi,
+  importo_totale: importoTotale,
+  stato_preventivo: 'revisionato',
+  approvato: false,
+})
 
   await caricaEconomia()
 

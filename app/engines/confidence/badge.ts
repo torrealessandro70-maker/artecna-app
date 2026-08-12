@@ -1,0 +1,1 @@
+﻿export { getConfidenceBadge } from './confidence'

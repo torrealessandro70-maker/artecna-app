@@ -8,8 +8,10 @@ export const STRUMENTI_DISEGNO: {
   { id: 'evidenziatore', label: '🖍 Evidenziatore' },
   { id: 'freccia', label: '↗️ Freccia' },
   { id: 'linea', label: '📏 Linea' },
+{ id: 'perpendicolare', label: '⟂ Perpendicolare' },
   { id: 'rettangolo', label: '▭ Rettangolo' },
   { id: 'cerchio', label: '⭕ Cerchio' },
+{ id: 'testo', label: '🅰️ Testo' },
   { id: 'gomma', label: '🧽 Gomma' },
   { id: 'pin', label: '📍 Pin' },
 ]
@@ -20,11 +22,15 @@ export const isStrumentoManoLibera = (strumento: StrumentoDisegno) =>
 export const isStrumentoForma = (strumento: StrumentoDisegno) =>
   strumento === 'freccia' ||
   strumento === 'linea' ||
+strumento === 'perpendicolare' ||
   strumento === 'rettangolo' ||
   strumento === 'cerchio'
 
 export const isStrumentoGomma = (strumento: StrumentoDisegno) =>
   strumento === 'gomma'
 
-export const isStrumentoTecnico = (strumento: StrumentoDisegno) =>
-  strumento === 'pin'
+export const isStrumentoTecnico = (
+  strumento: StrumentoDisegno,
+) =>
+  strumento === 'pin' ||
+  strumento === 'testo'

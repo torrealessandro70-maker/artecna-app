@@ -5,14 +5,23 @@ import { artecnaTheme } from '../design/artecna-theme'
 import { createCockpitFromRuntime } from '../adapters/runtime-cockpit-adapter'
 import { RuntimeFeedPanel, RuntimeSummaryCard, StatusCard } from './ui'
 import type { RuntimeFeedItem } from '../runtime/feed'
+import {
+  buildPreventivoQuality,
+} from '../engines/preventivo-quality'
 
 const theme = artecnaTheme.dark
 
+type PreventivoQualityVoice = {
+  priceResolution?: {
+    confidence?: number
+  }
+}
 type FascicoloCockpitProps = {
   cantiereName?: string
   subtitle?: string
   focus?: string
   feed?: RuntimeFeedItem[]
+  vociPreventivoQualita?: PreventivoQualityVoice[]
 }
 
 export default function FascicoloCockpit({
@@ -20,6 +29,7 @@ export default function FascicoloCockpit({
   subtitle,
   focus,
   feed,
+  vociPreventivoQualita = [],
 }: FascicoloCockpitProps) {
 
 const cockpitSnapshot = createCockpitFromRuntime({
@@ -29,6 +39,19 @@ const cockpitSnapshot = createCockpitFromRuntime({
   feed,
 })
 
+const preventivoQuality =
+  buildPreventivoQuality(vociPreventivoQualita)
+
+const preventivoQualityAccent =
+  preventivoQuality.level === 'excellent'
+    ? '#16a34a'
+    : preventivoQuality.level === 'good'
+      ? '#22c55e'
+      : preventivoQuality.level === 'review'
+        ? '#eab308'
+        : preventivoQuality.level === 'weak'
+          ? '#f97316'
+          : '#dc2626'
   return (
     <section
       aria-label="ARTECNA Cockpit"
@@ -245,6 +268,22 @@ const cockpitSnapshot = createCockpitFromRuntime({
           value="4"
           detail="Eventi rilevati"
           accent="#06b6d4"
+        />
+
+        <StatusCard
+          icon="📊"
+          title="Qualità Preventivo"
+          value={
+            preventivoQuality.total > 0
+              ? `${preventivoQuality.score}%`
+              : 'N/D'
+          }
+          detail={
+            preventivoQuality.total > 0
+              ? `${preventivoQuality.label} · ${preventivoQuality.reviewNeeded} da verificare`
+              : 'Nessun preventivo analizzato'
+          }
+          accent={preventivoQualityAccent}
         />
 
         <StatusCard

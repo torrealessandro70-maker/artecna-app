@@ -1,0 +1,8 @@
+﻿export const SNAP_PRIORITY = {
+  ENDPOINT: 500,
+  INTERSECTION: 450,
+  MIDPOINT: 400,
+  CENTER: 300,
+  PIN: 250,
+  NEAREST: 100,
+} as const

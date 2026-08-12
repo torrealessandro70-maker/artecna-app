@@ -1,6 +1,11 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import PriceResolutionSummary from './PriceResolutionSummary'
+import {
+  formatConfidence,
+  getConfidenceBadge,
+} from '../engines/confidence'
 
 type EsitoCalcolo =
   | { valore: number; errore?: never }
@@ -10,7 +15,7 @@ function calcolaEspressione(input: string): EsitoCalcolo {
   const formula = input.replace(/,/g, '.').replace(/\s+/g, '')
   if (!formula) return { errore: 'Inserisci un calcolo' }
   if (!/^[0-9.+\-*/()]+$/.test(formula)) {
-    return { errore: 'Sono ammessi solo numeri e operatori + − × ÷' }
+    return { errore: 'Sono ammessi solo numeri e operatori + âˆ’ Ã— Ã·' }
   }
 
   let posizione = 0
@@ -139,19 +144,174 @@ salvaRevisionePreventivoAi,
   const formulaRef = useRef<HTMLInputElement>(null)
   const indiceCalcolatrice = calcolatrice?.indice
 
+
+useEffect(() => {
+  const onKeyDown = (event: KeyboardEvent) => {
+    const isCtrl = event.ctrlKey || event.metaKey
+
+    if (!isCtrl) return
+
+    if (event.key.toLowerCase() === 'z' && !event.shiftKey) {
+      event.preventDefault()
+      annullaModifica()
+      return
+    }
+
+    if (
+      event.key.toLowerCase() === 'y' ||
+      (event.key.toLowerCase() === 'z' && event.shiftKey)
+    ) {
+      event.preventDefault()
+      ripristinaModifica()
+    }
+  }
+
+  window.addEventListener('keydown', onKeyDown)
+
+  return () => {
+    window.removeEventListener('keydown', onKeyDown)
+  }
+}, [])
+
   useEffect(() => {
     if (indiceCalcolatrice === undefined) return
     formulaRef.current?.focus()
     formulaRef.current?.select()
   }, [indiceCalcolatrice])
 
-  const subTotale = vociPreventivoAi.reduce(
+  const undoStackRef = useRef<any[][]>([])
+  const redoStackRef = useRef<any[][]>([])
+  const vociCorrentiRef = useRef<any[]>(vociPreventivoAi)
+
+  const clonaVoci = (voci: any[]) =>
+    JSON.parse(JSON.stringify(voci)) as any[]
+
+  useEffect(() => {
+    vociCorrentiRef.current = vociPreventivoAi
+  }, [vociPreventivoAi])
+
+  const aggiornaVociConCronologia = (nuoveVoci: any[]) => {
+    undoStackRef.current.push(clonaVoci(vociCorrentiRef.current))
+
+    if (undoStackRef.current.length > 100) {
+      undoStackRef.current.shift()
+    }
+
+    redoStackRef.current = []
+
+    const copiaNuoveVoci = clonaVoci(nuoveVoci)
+    vociCorrentiRef.current = copiaNuoveVoci
+    setVociPreventivoAi(copiaNuoveVoci)
+  }
+
+  const annullaModifica = () => {
+    const statoPrecedente = undoStackRef.current.pop()
+    if (!statoPrecedente) return
+
+    redoStackRef.current.push(clonaVoci(vociCorrentiRef.current))
+
+    const copiaStatoPrecedente = clonaVoci(statoPrecedente)
+    vociCorrentiRef.current = copiaStatoPrecedente
+    setVociPreventivoAi(copiaStatoPrecedente)
+  }
+
+  const ripristinaModifica = () => {
+    const statoSuccessivo = redoStackRef.current.pop()
+    if (!statoSuccessivo) return
+
+    undoStackRef.current.push(clonaVoci(vociCorrentiRef.current))
+
+    const copiaStatoSuccessivo = clonaVoci(statoSuccessivo)
+    vociCorrentiRef.current = copiaStatoSuccessivo
+    setVociPreventivoAi(copiaStatoSuccessivo)
+  }
+
+   const subTotale = vociPreventivoAi.reduce(
     (tot, voce) =>
       tot +
       Number(voce.quantita || 0) *
         Number(voce.prezzo_unitario || 0),
     0
   )
+
+  const priceResolutionStatistics = vociPreventivoAi.reduce(
+  (stats, voce) => {
+    const strategy = voce.priceResolution?.strategy
+
+    switch (strategy) {
+      case 'exact_code':
+        stats.exactCode += 1
+        break
+
+      case 'normalized_code':
+        stats.normalizedCode += 1
+        break
+
+      case 'description_unit':
+        stats.descriptionUnit += 1
+        break
+
+      case 'description':
+        stats.description += 1
+        break
+
+      case 'similarity':
+        stats.similarity += 1
+        break
+
+      default:
+        stats.noMatch += 1
+        break
+    }
+
+    const confidencePercent =
+      Number(voce.priceResolution?.confidence || 0) * 100
+
+    const confidenceBadge =
+      getConfidenceBadge(confidencePercent)
+
+    switch (confidenceBadge.level) {
+      case 'perfect':
+        stats.perfect += 1
+        break
+
+      case 'reliable':
+        stats.reliable += 1
+        break
+
+      case 'review':
+        stats.review += 1
+        break
+
+      case 'weak':
+        stats.weak += 1
+        break
+
+      case 'none':
+        stats.none += 1
+        break
+    }
+
+    return stats
+  },
+  {
+    exactCode: 0,
+    normalizedCode: 0,
+    descriptionUnit: 0,
+    description: 0,
+    similarity: 0,
+    noMatch: 0,
+    perfect: 0,
+    reliable: 0,
+    review: 0,
+    weak: 0,
+    none: 0,
+  },
+)
+
+  const mostraPriceResolutionSummary =
+    vociPreventivoAi.some((voce) => voce.priceResolution)
+
   const esitoCalcolo = calcolatrice
     ? calcolaEspressione(calcolatrice.formula)
     : null
@@ -170,22 +330,31 @@ salvaRevisionePreventivoAi,
         ? { ...voce, quantita: esitoCalcolo.valore }
         : voce
     )
-    setVociPreventivoAi(nuove)
+    aggiornaVociConCronologia(nuove)
     setCalcolatrice(null)
   }
 
-  const spostaVoce = (indice: number, direzione: -1 | 1) => {
-    const destinazione = indice + direzione
-    if (destinazione < 0 || destinazione >= vociPreventivoAi.length) return
-    const nuove = [...vociPreventivoAi]
-    ;[nuove[indice], nuove[destinazione]] = [
-      nuove[destinazione],
-      nuove[indice],
-    ]
-    setVociPreventivoAi(nuove)
+ const spostaVoce = (indice: number, direzione: -1 | 1) => {
+  const destinazione = indice + direzione
+
+  if (
+    destinazione < 0 ||
+    destinazione >= vociPreventivoAi.length
+  ) {
+    return
   }
 
-  return (
+  const nuove = [...vociPreventivoAi]
+
+  ;[nuove[indice], nuove[destinazione]] = [
+    nuove[destinazione],
+    nuove[indice],
+  ]
+
+  aggiornaVociConCronologia(nuove)
+}
+
+   return (
     <div
       style={{
         marginTop: 20,
@@ -201,19 +370,27 @@ salvaRevisionePreventivoAi,
           marginBottom: 20,
         }}
       >
-        🤖 Revisione preventivo AI
+        ðŸ¤– Revisione preventivo AI
       </h3>
 
-      {messaggioAi && (
+      {mostraPriceResolutionSummary && (
+        <div style={{ marginBottom: 16 }}>
+          <PriceResolutionSummary
+            statistics={priceResolutionStatistics}
+          />
+        </div>
+      )}
+
+           {messaggioAi && (
         <div
           style={{
-            marginBottom: 15,
+            marginBottom: 16,
             padding: 12,
-            borderRadius: 8,
-            background: '#dcfce7',
-            color: '#166534',
-            fontWeight: 600,
-            fontSize: 18,
+            border: '1px solid #bfdbfe',
+            borderRadius: 10,
+            background: '#eff6ff',
+            color: '#1e3a8a',
+            fontWeight: 700,
           }}
         >
           {messaggioAi}
@@ -242,12 +419,12 @@ salvaRevisionePreventivoAi,
         }}
       >
         <strong style={{ fontSize: 20 }}>
-          🧠 Memoria prezzi ARTECNA
+          ðŸ§  Memoria prezzi ARTECNA
         </strong>
 
         <div style={{ marginTop: 10, fontSize: 15, color: '#475569' }}>
           La memoria prezzi confronta le lavorazioni del preventivo con i prezzi
-          reali già usati da ARTECNA a Catania.
+          reali giÃ  usati da ARTECNA a Catania.
         </div>
 
         {vociPreventivoAi.length === 0 ? (
@@ -299,7 +476,7 @@ salvaRevisionePreventivoAi,
                     style={{
                       marginTop: 6,
                       fontWeight: 700,
-                      color: avviso.includes('⚠️')
+                      color: avviso.includes('âš ï¸')
                         ? '#b45309'
                         : '#166534',
                     }}
@@ -308,30 +485,80 @@ salvaRevisionePreventivoAi,
                   </div>
 
                   {media && (
-                    <button
-                      onClick={() => {
-                        const nuove = [...vociPreventivoAi]
-                        nuove[index].prezzo_unitario = Number(
-                          media.toFixed(2)
-                        )
-                        setVociPreventivoAi(nuove)
-                      }}
-                      style={{
-                        ...buttonSecondary,
-                        marginTop: 8,
-                        backgroundColor: '#0f766e',
-                        color: '#fff',
-                      }}
-                    >
-                      Usa media memoria prezzi
-                    </button>
-                  )}
+  <button
+    onClick={() => {
+      const nuove = vociPreventivoAi.map((voce, i) =>
+        i === index
+          ? {
+              ...voce,
+              prezzo_unitario: Number(media.toFixed(2)),
+            }
+          : voce
+      )
+
+      aggiornaVociConCronologia(nuove)
+    }}
+    style={{
+      ...buttonSecondary,
+      marginTop: 8,
+      backgroundColor: '#0f766e',
+      color: '#fff',
+    }}
+  >
+    Usa media memoria prezzi
+  </button>
+)}
+
                 </div>
               )
             })}
           </div>
         )}
       </div>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 14,
+          flexWrap: 'wrap',
+        }}
+      >
+        <button
+          type="button"
+          onClick={annullaModifica}
+          title="Annulla ultima modifica — Ctrl+Z"
+          style={{
+            ...buttonSecondary,
+            minWidth: 120,
+          }}
+        >
+          Annulla
+        </button>
+
+        <button
+          type="button"
+          onClick={ripristinaModifica}
+          title="Ripristina modifica — Ctrl+Y"
+          style={{
+            ...buttonSecondary,
+            minWidth: 120,
+          }}
+        >
+          Ripristina
+        </button>
+
+        <span
+          style={{
+            fontSize: 14,
+            color: '#64748b',
+          }}
+        >
+          Scorciatoie: Ctrl+Z / Ctrl+Y
+        </span>
+      </div>
+
 
       <table
         style={{
@@ -344,7 +571,7 @@ salvaRevisionePreventivoAi,
           <tr>
             <th style={excelTh}>Descrizione</th>
             <th style={excelTh}>UM</th>
-            <th style={excelTh}>Q.tà</th>
+            <th style={excelTh}>Q.tÃ </th>
             <th style={excelTh}>Prezzo</th>
             <th style={excelTh}>Totale</th>
             <th style={excelTh}>Azioni</th>
@@ -354,35 +581,150 @@ salvaRevisionePreventivoAi,
         <tbody>
           {vociPreventivoAi.map((voce, index) => {
             const totale =
-              Number(voce.quantita || 0) *
-              Number(voce.prezzo_unitario || 0)
+  Number(voce.quantita || 0) *
+  Number(voce.prezzo_unitario || 0)
 
-            return (
-              <tr key={index}>
-                <td style={excelTd}>
-                  <textarea
-                    value={voce.descrizione || ''}
-                    onChange={(e) => {
-                      const nuove = [...vociPreventivoAi]
-                      nuove[index].descrizione = e.target.value
-                      setVociPreventivoAi(nuove)
-                    }}
-                    style={{
-                      width: '100%',
-                      minHeight: 90,
-                      fontSize: 17,
-                      padding: 10,
-                    }}
-                  />
-                </td>
+console.log('CALCOLO VOCE PREVENTIVO', {
+  index,
+  descrizione: voce.descrizione,
+  quantitaOriginale: voce.quantita,
+  quantitaNumero: Number(voce.quantita || 0),
+  prezzoOriginale: voce.prezzo_unitario,
+  prezzoNumero: Number(voce.prezzo_unitario || 0),
+  totale,
+})
+console.log("PRICE RESOLUTION", voce.priceResolution)
+
+const confidencePercent =
+  Number(voce.priceResolution?.confidence || 0) * 100
+
+const confidenceBadge =
+  getConfidenceBadge(confidencePercent)
+
+return (
+  <tr key={index}>
+
+               <td style={excelTd}>
+  <textarea
+    value={voce.descrizione || ''}
+    onChange={(e) => {
+     const nuove = vociPreventivoAi.map((voce, i) =>
+  i === index
+    ? { ...voce, descrizione: e.target.value }
+    : voce
+)
+
+aggiornaVociConCronologia(nuove)
+    }}
+    style={{
+      width: '100%',
+      minHeight: 90,
+      fontSize: 17,
+      padding: 10,
+    }}
+  />
+
+  {voce.priceResolution && (
+    <div
+      style={{
+        marginTop: 8,
+        padding: 10,
+        borderRadius: 8,
+        background:
+          voce.priceResolution.matched
+            ? '#f0fdf4'
+            : '#fef2f2',
+        border:
+          voce.priceResolution.matched
+            ? '1px solid #86efac'
+            : '1px solid #fca5a5',
+        fontSize: 14,
+        lineHeight: 1.5,
+      }}
+    >
+
+      <div
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          marginBottom: 8,
+          padding: '5px 9px',
+          borderRadius: 999,
+          background: `${confidenceBadge.color}18`,
+          color: confidenceBadge.color,
+          fontWeight: 800,
+        }}
+      >
+        <span>{confidenceBadge.icon}</span>
+        <span>{confidenceBadge.label}</span>
+        <span>
+          {formatConfidence(confidencePercent)}
+        </span>
+      </div>
+      <div>
+        <strong>Strategia:</strong>{' '}
+        {voce.priceResolution.strategy}
+      </div>
+
+      <div>
+        <strong>AffidabilitÃ :</strong>{' '}
+        {Math.round(
+          Number(voce.priceResolution.confidence || 0) * 100,
+        )}
+        %
+      </div>
+
+      {voce.priceResolution.codiceRisolto && (
+        <div>
+          <strong>Codice trovato:</strong>{' '}
+          {voce.priceResolution.codiceRisolto}
+        </div>
+      )}
+
+      {voce.priceResolution.prezzoUnitarioRisolto !== undefined && (
+        <div>
+          <strong>Prezzo risolto:</strong>{' '}
+          {formatMoney(
+            voce.priceResolution.prezzoUnitarioRisolto,
+          )}
+        </div>
+      )}
+
+      {Array.isArray(voce.priceResolution.reasons) &&
+        voce.priceResolution.reasons.length > 0 && (
+          <div>
+            <strong>Motivo:</strong>{' '}
+            {voce.priceResolution.reasons.join(' ')}
+          </div>
+        )}
+
+      {!voce.priceResolution.matched && (
+        <div
+          style={{
+            marginTop: 6,
+            fontWeight: 700,
+            color: '#b91c1c',
+          }}
+        >
+          Nessuna corrispondenza trovata
+        </div>
+      )}
+    </div>
+  )}
+</td>
 
                 <td style={excelTd}>
                   <input
                     value={voce.unita_misura || ''}
                     onChange={(e) => {
-                      const nuove = [...vociPreventivoAi]
-                      nuove[index].unita_misura = e.target.value
-                      setVociPreventivoAi(nuove)
+                     const nuove = vociPreventivoAi.map((voce, i) =>
+  i === index
+    ? { ...voce, unita_misura: e.target.value }
+    : voce
+)
+
+aggiornaVociConCronologia(nuove)
                     }}
                     style={{ width: 80 }}
                   />
@@ -404,9 +746,9 @@ salvaRevisionePreventivoAi,
                           ...nuove[index],
                           quantita: Number(e.target.value),
                         }
-                        setVociPreventivoAi(nuove)
+                        aggiornaVociConCronologia(nuove)
                       }}
-                      aria-label={`Quantità voce ${index + 1}`}
+                      aria-label={`QuantitÃ  voce ${index + 1}`}
                       style={{ width: 80, minHeight: 44 }}
                     />
                     <button
@@ -415,7 +757,7 @@ salvaRevisionePreventivoAi,
                         event.stopPropagation()
                         apriCalcolatrice(index)
                       }}
-                      aria-label={`Calcola quantità voce ${index + 1}`}
+                      aria-label={`Calcola quantitÃ  voce ${index + 1}`}
                       style={{
                         width: 44,
                         height: 44,
@@ -426,7 +768,7 @@ salvaRevisionePreventivoAi,
                         cursor: 'pointer',
                       }}
                     >
-                      ÷
+                      Ã·
                     </button>
                   </div>
                 </td>
@@ -436,9 +778,13 @@ salvaRevisionePreventivoAi,
                     type="number"
                     value={voce.prezzo_unitario || 0}
                     onChange={(e) => {
-                      const nuove = [...vociPreventivoAi]
-                      nuove[index].prezzo_unitario = Number(e.target.value)
-                      setVociPreventivoAi(nuove)
+                     const nuove = vociPreventivoAi.map((voce, i) =>
+  i === index
+    ? { ...voce, prezzo_unitario: Number(e.target.value) }
+    : voce
+)
+
+aggiornaVociConCronologia(nuove)
                     }}
                     style={{ width: 100 }}
                   />
@@ -470,7 +816,7 @@ salvaRevisionePreventivoAi,
                         opacity: index === 0 ? 0.4 : 1,
                       }}
                     >
-                      ↑
+                      â†‘
                     </button>
 
                     <button
@@ -492,7 +838,7 @@ salvaRevisionePreventivoAi,
                         opacity: index === vociPreventivoAi.length - 1 ? 0.4 : 1,
                       }}
                     >
-                      ↓
+                      â†“
                     </button>
 
                     <button
@@ -507,16 +853,16 @@ salvaRevisionePreventivoAi,
                         cursor: 'pointer',
                       }}
                     >
-                      ✨
+                      âœ¨
                     </button>
 
                     <button
                       type="button"
-                      onClick={() =>
-                        setVociPreventivoAi(
-                          vociPreventivoAi.filter((_, i) => i !== index)
-                        )
-                      }
+                     onClick={() =>
+  aggiornaVociConCronologia(
+    vociPreventivoAi.filter((_, i) => i !== index)
+  )
+}
                       style={{
                         background: '#dc2626',
                         color: '#fff',
@@ -526,7 +872,7 @@ salvaRevisionePreventivoAi,
                         cursor: 'pointer',
                       }}
                     >
-                      🗑
+                      ðŸ—‘
                     </button>
                   </div>
                 </td>
@@ -557,26 +903,26 @@ salvaRevisionePreventivoAi,
       <div style={{ marginTop: 15, display: 'flex', gap: 10 }}>
         <button
           onClick={() =>
-            setVociPreventivoAi([
-              ...vociPreventivoAi,
-              {
-                descrizione: '',
-                unita_misura: 'a corpo',
-                quantita: 1,
-                prezzo_unitario: 0,
-              },
-            ])
+           aggiornaVociConCronologia([
+  ...vociPreventivoAi,
+  {
+    descrizione: '',
+    unita_misura: 'a corpo',
+    quantita: 1,
+    prezzo_unitario: 0,
+  },
+])
           }
           style={buttonSecondary}
         >
-          ➕ Aggiungi voce
+          âž• Aggiungi voce
         </button>
 
         <button
           onClick={() => {
-            setVociPreventivoAi(
-              JSON.parse(JSON.stringify(vociPreventivoAiOriginali))
-            )
+           aggiornaVociConCronologia(
+  JSON.parse(JSON.stringify(vociPreventivoAiOriginali))
+)
 
             alert('Versione originale ripristinata')
           }}
@@ -586,7 +932,7 @@ salvaRevisionePreventivoAi,
             color: '#fff',
           }}
         >
-          ↩ Ripristina originale
+          â†© Ripristina originale
         </button>
 
        <button
@@ -598,7 +944,7 @@ salvaRevisionePreventivoAi,
     backgroundColor: '#16a34a',
   }}
 >
-  💾 Salva revisione
+  ðŸ’¾ Salva revisione
 </button>
 
 <button
@@ -610,7 +956,7 @@ salvaRevisionePreventivoAi,
     backgroundColor: '#16a34a',
   }}
 >
-  💾 Salva revisione
+  ðŸ’¾ Salva revisione
 </button>
 
 <button
@@ -638,7 +984,7 @@ salvaRevisionePreventivoAi,
     backgroundColor: '#2563eb',
   }}
 >
-  📄 Genera Excel definitivo
+  ðŸ“„ Genera Excel definitivo
 </button>
         <button
           onClick={() => setMostraRevisionePreventivoAi(false)}
@@ -676,7 +1022,7 @@ salvaRevisionePreventivoAi,
             }}
           >
             <h4 id="titolo-calcolatrice-quantita" style={{ margin: 0, fontSize: 22 }}>
-              Calcola quantità
+              Calcola quantitÃ 
             </h4>
             <div style={{ marginTop: 8, color: '#64748b' }}>
               Valore attuale:{' '}
@@ -772,3 +1118,4 @@ salvaRevisionePreventivoAi,
     </div>
   )
 }
+

@@ -51,9 +51,11 @@ type FascicoloCantiereContainerProps = {
   riepilogoEconomia?: string
   numeroOperai?: number
   numeroAttivita?: number
+  vociPreventivoQualita?: PreventivoQualityVoice[]
   eventiTimeline?: TimelineEvent[]
   fotoCantiere?: TimelineFoto[]
   rapportiniCantiere?: TimelineRapportino[]
+
   panoramica?: ReactNode
   foto?: ReactNode
   documenti?: ReactNode
@@ -85,6 +87,12 @@ type TimelineRapportino = {
   created_at?: string
 }
 
+type PreventivoQualityVoice = {
+  priceResolution?: {
+    confidence?: number
+  }
+}
+
 const tabs: Array<{ id: FascicoloCantiereTab; label: string }> = [
   { id: 'panoramica', label: '📋 Panoramica' },
   { id: 'foto', label: '📸 Foto' },
@@ -109,6 +117,7 @@ export default function FascicoloCantiereContainer({
   riepilogoEconomia,
   numeroOperai,
   numeroAttivita,
+  vociPreventivoQualita = [],
   eventiTimeline: _eventiTimeline = [],
   fotoCantiere = [],
   rapportiniCantiere = [],
@@ -337,6 +346,7 @@ const assistantObservations = buildAssistantObservations(context)
   cantiereName={cantiere?.nome || nomeCantiere}
   subtitle={cliente ? `Cliente: ${cliente}` : 'Fascicolo di Cantiere · ARTECNA OS'}
   focus={statoLavori || 'Stato lavori da aggiornare'}
+  vociPreventivoQualita={vociPreventivoQualita}
  feed={createRuntimeFeedSnapshot([
   ...createPhotoRuntimeFeed(fotoCantiere),
   ...createReportRuntimeFeed(rapportiniCantiere),
