@@ -56,11 +56,14 @@ import { applyOrtho } from '@/app/engines/cad/ortho'
 import { applyGridSnap } from '@/app/engines/cad/grid'
 import { applyPolar } from '@/app/engines/cad/polar'
 import type { CadScaleCalibration } from '@/app/engines/cad/scale-manager'
+
 import type {
+  CadAreaEntity,
   CadDimensionEntity,
   CadEntity,
   CadSelectionItem,
 } from '@/app/engines/cad/entities'
+
 import CadEntityRenderer from "@/app/engines/cad/render/CadEntityRenderer"
 import {
   applyTrimToSegni,
@@ -77,6 +80,7 @@ import {
   handleAreaPointerMove,
   updateCadAreaVertex,
   type CadAreaPoint,
+findNearestAreaBoundaryPoint,
 } from "@/app/engines/cad/area";
 
 import {
@@ -2226,43 +2230,127 @@ const disegna = (
 
   const puntoCursore = puntoDaEvento(event)
 
-const areaSottoCursore =
-  cadEntities.find((entity) => {
-    if (entity.type !== "area") {
-      return false
+if (areaAttiva) {
+  const areaSottoCursore =
+    cadEntities
+      .filter(
+        (entity): entity is CadAreaEntity =>
+          entity.type === "area",
+      )
+      .map((entity) => ({
+        entity,
+        snap:
+          findNearestAreaBoundaryPoint(
+            entity.points,
+            puntoCursore,
+          ),
+      }))
+      .filter(
+        (item) =>
+          item.snap !== null &&
+          item.snap.distance <= 12,
+      )
+      .sort(
+        (a, b) =>
+          (a.snap?.distance ?? Infinity) -
+          (b.snap?.distance ?? Infinity),
+      )[0]
+
+  // PRIMO CLICK:
+  // aggancio al bordo dell'area
+  if (
+    !areaSplitStartRef.current &&
+    areaSottoCursore?.snap
+  ) {
+    const puntoAgganciato =
+      areaSottoCursore.snap.point
+
+    areaSplitStartRef.current = {
+      x: puntoAgganciato.x,
+      y: puntoAgganciato.y,
     }
 
-    return entity.points.some((point) =>
-      Math.hypot(
-        point.x - puntoCursore.x,
-        point.y - puntoCursore.y,
-      ) <= 12,
-    )
-  })
+    setAreaSplitEnd({
+      x: puntoAgganciato.x,
+      y: puntoAgganciato.y,
+    })
 
-if (
-  areaSottoCursore &&
-  !areaSplitStartRef.current
-) {
-  areaSplitStartRef.current = {
-    x: puntoCursore.x,
-    y: puntoCursore.y,
+    setAreaSplitEntityId(
+      areaSottoCursore.entity.id,
+    )
+
+    event.preventDefault()
+
+    return
   }
 
-  setAreaSplitEnd({
-    x: puntoCursore.x,
-    y: puntoCursore.y,
-  })
+  // SECONDO CLICK:
+  // deve agganciarsi al bordo
+  // della stessa area
+  if (
+    areaSplitStartRef.current &&
+    areaSplitEntityId
+  ) {
+    const areaDaDividere =
+      cadEntities.find(
+        (entity): entity is CadAreaEntity =>
+          entity.id === areaSplitEntityId &&
+          entity.type === "area",
+      )
 
-  setAreaSplitEntityId(
-    areaSottoCursore.id,
-  )
+    if (!areaDaDividere) {
+      areaSplitStartRef.current = null
+      setAreaSplitEnd(null)
+      setAreaSplitEntityId(null)
 
-  event.preventDefault()
+      return
+    }
 
-  return
+    const snapFine =
+      findNearestAreaBoundaryPoint(
+        areaDaDividere.points,
+        puntoCursore,
+      )
+
+    if (
+      !snapFine ||
+      snapFine.distance > 12
+    ) {
+      return
+    }
+
+    const puntoFine = {
+      x: snapFine.point.x,
+      y: snapFine.point.y,
+    }
+
+    const splitResult =
+      splitCadAreaEntityByLine(
+        areaDaDividere,
+        areaSplitStartRef.current,
+        puntoFine,
+        scaleCalibration,
+      )
+
+    if (splitResult) {
+      onReplaceCadEntity?.(
+        areaDaDividere.id,
+        [
+          splitResult.first,
+          splitResult.second,
+        ],
+      )
+    }
+
+    areaSplitStartRef.current = null
+    setAreaSplitEnd(null)
+    setAreaSplitEntityId(null)
+
+    event.preventDefault()
+
+    return
+  }
 }
-
 if (areaAttiva) {
   const snapArea =
     calcolaSnapPoint(puntoCursore)
@@ -2559,13 +2647,21 @@ if (areaAttiva) {
         }
       : puntoCursoreHover
 
+  if (areaSplitStartRef.current) {
+    setAreaSplitEnd({
+      x: puntoAreaHover.x,
+      y: puntoAreaHover.y,
+    })
+
+    return
+  }
+
   setCursoreArea(
     puntoAreaHover,
   )
 
   return
 }
-
   if (
     selezioneMultiplaAttivaRef.current &&  puntoInizioSelezioneRef.current
 ) {
@@ -4713,6 +4809,43 @@ strokeWidth={
 
   </g>
 ))}
+
+{areaAttiva &&
+  areaSplitStartRef.current &&
+  areaSplitEnd && (
+    <g pointerEvents="none">
+      <line
+        x1={areaSplitStartRef.current.x}
+        y1={areaSplitStartRef.current.y}
+        x2={areaSplitEnd.x}
+        y2={areaSplitEnd.y}
+        stroke="#2563eb"
+        strokeWidth={2}
+        strokeDasharray="6 4"
+        vectorEffect="non-scaling-stroke"
+      />
+
+      <circle
+        cx={areaSplitStartRef.current.x}
+        cy={areaSplitStartRef.current.y}
+        r={5}
+        fill="#ffffff"
+        stroke="#2563eb"
+        strokeWidth={2}
+        vectorEffect="non-scaling-stroke"
+      />
+
+      <circle
+        cx={areaSplitEnd.x}
+        cy={areaSplitEnd.y}
+        r={5}
+        fill="#ffffff"
+        stroke="#2563eb"
+        strokeWidth={2}
+        vectorEffect="non-scaling-stroke"
+      />
+    </g>
+  )}
 
 {areaAttiva &&
   puntiAreaTemporanei.length > 0 && (

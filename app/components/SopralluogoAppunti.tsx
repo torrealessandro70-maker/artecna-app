@@ -97,6 +97,10 @@ import {
   explodeCadAreaEntity,
 } from "@/app/engines/cad/operations"
 
+import {
+  mergeCadAreaEntities,
+} from "@/app/engines/cad/area"
+
 type SopralluogoNota = {
   id?: string;
   cliente?: string;
@@ -1418,6 +1422,18 @@ const entitaCadSelezionata =
     selectionStateCad,
   )
 
+const areeCadSelezionate =
+  (
+    pagineQuaderno[
+      paginaCorrenteIndex
+    ]?.cadEntities ?? []
+  ).filter(
+    (entity): entity is CadAreaEntity =>
+      entity.type === "area" &&
+      cadEntitySelezionateIds.includes(
+        entity.id,
+      ),
+  )
 const areaCadSelezionata =
   entitaCadSelezionata?.type === "area"
     ? entitaCadSelezionata
@@ -4961,6 +4977,66 @@ usaPortal
 >
   Esplodi
 </button>
+  </>
+)}
+
+{areeCadSelezionate.length === 2 && (
+  <>
+    <span>|</span>
+
+    <button
+      type="button"
+      onClick={() => {
+        const merged =
+          mergeCadAreaEntities(
+            areeCadSelezionate[0],
+            areeCadSelezionate[1],
+            scaleCalibration,
+          )
+
+        if (!merged) {
+          return
+        }
+
+        setPagineQuaderno((pagineCorrenti) =>
+          pagineCorrenti.map(
+            (pagina, index) =>
+              index === paginaCorrenteIndex
+                ? {
+                    ...pagina,
+                    cadEntities: [
+                      ...(pagina.cadEntities ?? []).filter(
+                        (entity) =>
+                          entity.id !==
+                            areeCadSelezionate[0].id &&
+                          entity.id !==
+                            areeCadSelezionate[1].id,
+                      ),
+                      merged,
+                    ],
+                  }
+                : pagina,
+          ),
+        )
+
+        setCadEntitySelezionateIds([
+          merged.id,
+        ])
+
+        setCadEntitySelezionataId(
+          merged.id,
+        )
+      }}
+      style={{
+        ...buttonSecondary,
+        padding: "4px 8px",
+        minHeight: 28,
+        fontSize: 12,
+        whiteSpace: "nowrap",
+      }}
+    >
+      Unisci aree
+    </button>
   </>
 )}
 
