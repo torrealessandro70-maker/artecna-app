@@ -2231,127 +2231,6 @@ const disegna = (
   const puntoCursore = puntoDaEvento(event)
 
 if (areaAttiva) {
-  const areaSottoCursore =
-    cadEntities
-      .filter(
-        (entity): entity is CadAreaEntity =>
-          entity.type === "area",
-      )
-      .map((entity) => ({
-        entity,
-        snap:
-          findNearestAreaBoundaryPoint(
-            entity.points,
-            puntoCursore,
-          ),
-      }))
-      .filter(
-        (item) =>
-          item.snap !== null &&
-          item.snap.distance <= 12,
-      )
-      .sort(
-        (a, b) =>
-          (a.snap?.distance ?? Infinity) -
-          (b.snap?.distance ?? Infinity),
-      )[0]
-
-  // PRIMO CLICK:
-  // aggancio al bordo dell'area
-  if (
-    !areaSplitStartRef.current &&
-    areaSottoCursore?.snap
-  ) {
-    const puntoAgganciato =
-      areaSottoCursore.snap.point
-
-    areaSplitStartRef.current = {
-      x: puntoAgganciato.x,
-      y: puntoAgganciato.y,
-    }
-
-    setAreaSplitEnd({
-      x: puntoAgganciato.x,
-      y: puntoAgganciato.y,
-    })
-
-    setAreaSplitEntityId(
-      areaSottoCursore.entity.id,
-    )
-
-    event.preventDefault()
-
-    return
-  }
-
-  // SECONDO CLICK:
-  // deve agganciarsi al bordo
-  // della stessa area
-  if (
-    areaSplitStartRef.current &&
-    areaSplitEntityId
-  ) {
-    const areaDaDividere =
-      cadEntities.find(
-        (entity): entity is CadAreaEntity =>
-          entity.id === areaSplitEntityId &&
-          entity.type === "area",
-      )
-
-    if (!areaDaDividere) {
-      areaSplitStartRef.current = null
-      setAreaSplitEnd(null)
-      setAreaSplitEntityId(null)
-
-      return
-    }
-
-    const snapFine =
-      findNearestAreaBoundaryPoint(
-        areaDaDividere.points,
-        puntoCursore,
-      )
-
-    if (
-      !snapFine ||
-      snapFine.distance > 12
-    ) {
-      return
-    }
-
-    const puntoFine = {
-      x: snapFine.point.x,
-      y: snapFine.point.y,
-    }
-
-    const splitResult =
-      splitCadAreaEntityByLine(
-        areaDaDividere,
-        areaSplitStartRef.current,
-        puntoFine,
-        scaleCalibration,
-      )
-
-    if (splitResult) {
-      onReplaceCadEntity?.(
-        areaDaDividere.id,
-        [
-          splitResult.first,
-          splitResult.second,
-        ],
-      )
-    }
-
-    areaSplitStartRef.current = null
-    setAreaSplitEnd(null)
-    setAreaSplitEntityId(null)
-
-    event.preventDefault()
-
-    return
-  }
-}
-if (areaAttiva) {
   const snapArea =
     calcolaSnapPoint(puntoCursore)
 
@@ -4581,6 +4460,7 @@ if (segno.strumento === 'linea') {
        
  
 pointerEvents={
+  areaAttiva ||
   strumento === "linea" ||
   strumento === "perpendicolare" ||
   trimAttivo ||
@@ -4588,7 +4468,6 @@ pointerEvents={
     ? "none"
     : "stroke"
 }
-
        onPointerDown={(event) => {
   event.preventDefault()
   event.stopPropagation()
