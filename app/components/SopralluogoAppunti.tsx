@@ -1601,6 +1601,8 @@ const [trimAttivo, setTrimAttivo] = useState(false)
 
 const [areaAttiva, setAreaAttiva] =
   useState(false)
+const [areaSplitAttivo, setAreaSplitAttivo] =
+  useState(false)
 
 const [gridSize] = useState(24)
 
@@ -4137,7 +4139,8 @@ onClick={() => {
       const prossimoValore =
         !valoreCorrente
 
-      if (prossimoValore) {
+     if (prossimoValore) {
+  setAreaSplitAttivo(false)
   setMetroAttivo(false)
   setCalibrazioneScalaAttiva(false)
 
@@ -4168,6 +4171,47 @@ onClick={() => {
   title="Misura area reale"
 >
   AREA
+</button>
+
+<button
+  type="button"
+  onClick={() => {
+    setAreaSplitAttivo((valoreCorrente) => {
+      const prossimoValore =
+        !valoreCorrente
+
+      if (prossimoValore) {
+        setAreaAttiva(false)
+        setMetroAttivo(false)
+        setCalibrazioneScalaAttiva(false)
+
+        setStrumentoDisegno(null)
+        setManoAttiva(false)
+        setModalitaSelezione(false)
+
+        setCadEntitySelezionataId(null)
+        setCadEntitySelezionateIds([])
+      }
+
+      return prossimoValore
+    })
+  }}
+  style={{
+    ...buttonSecondary,
+    background: areaSplitAttivo
+      ? "#dbeafe"
+      : buttonSecondary.background,
+    transform: areaSplitAttivo
+      ? "scale(1.05)"
+      : "scale(1)",
+    boxShadow: areaSplitAttivo
+      ? "0 0 0 2px #2563eb"
+      : "none",
+    transition: "all .15s ease",
+  }}
+  title="Dividi un'area esistente"
+>
+  DIVIDI
 </button>
 
 {scaleCalibration && (
