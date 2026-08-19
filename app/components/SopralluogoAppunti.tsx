@@ -4156,21 +4156,26 @@ onClick={() => {
     })
   }}
   style={{
-    ...buttonSecondary,
-    background: areaAttiva
-      ? "#dbeafe"
-      : buttonSecondary.background,
-    transform: areaAttiva
-      ? "scale(1.05)"
-      : "scale(1)",
-    boxShadow: areaAttiva
-      ? "0 0 0 2px #2563eb"
-      : "none",
-    transition: "all .15s ease",
-  }}
-  title="Misura area reale"
+  ...buttonSecondary,
+  width: 32,
+  minWidth: 32,
+  height: 32,
+  padding: 0,
+  fontSize: 18,
+  background: areaAttiva
+    ? "#dbeafe"
+    : buttonSecondary.background,
+  transform: areaAttiva
+    ? "scale(1.05)"
+    : "scale(1)",
+  boxShadow: areaAttiva
+    ? "0 0 0 2px #2563eb"
+    : "none",
+  transition: "all .15s ease",
+}}
+ title="Crea area"
 >
-  AREA
+  ▱
 </button>
 
 <button
@@ -4198,6 +4203,11 @@ onClick={() => {
   }}
   style={{
     ...buttonSecondary,
+width: 32,
+minWidth: 32,
+height: 32,
+padding: 0,
+fontSize: 17,
     background: areaSplitAttivo
       ? "#dbeafe"
       : buttonSecondary.background,
@@ -4209,9 +4219,9 @@ onClick={() => {
       : "none",
     transition: "all .15s ease",
   }}
-  title="Dividi un'area esistente"
+ title="Dividi area"
 >
-  DIVIDI
+  ✂
 </button>
 
 {scaleCalibration && (
