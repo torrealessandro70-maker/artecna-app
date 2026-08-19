@@ -1490,21 +1490,24 @@ if (
 
 
 if (calibrazioneScalaAttiva) {
+  const puntoScala =
+    calcolaSnapPoint(puntoCursore) ??
+    puntoCursore
+
   if (!puntoInizioCalibrazioneRef.current) {
     puntoInizioCalibrazioneRef.current =
-      puntoCursore
+      puntoScala
     return
   }
 
   const puntoFineCalibrazione =
-    puntoCursore
+    puntoScala
 
   const distanzaPixel =
     calculatePixelDistance(
       puntoInizioCalibrazioneRef.current,
       puntoFineCalibrazione,
     )
-
   const distanzaReale = window.prompt(
     `Distanza rilevata: ${Math.round(
       distanzaPixel,
@@ -2225,10 +2228,12 @@ const annullaModificaTesto = () => {
 const disegna = (
   event: PointerEvent<SVGSVGElement>,
 ) => {
-  if (
+ if (
   !strumento &&
   !areaAttiva &&
-  !areaSplitAttivo
+  !areaSplitAttivo &&
+  !metroAttivo &&
+  !calibrazioneScalaAttiva
 ) {
   return
 }
@@ -2757,12 +2762,14 @@ if (trascinamentoSelezioneMultiplaRef.current) {
 }
   const snapHoverAttivo =
   metroAttivo ||
+  calibrazioneScalaAttiva ||
   strumento === 'linea' ||
   strumento === 'perpendicolare' ||
   (
     strumento &&
     isStrumentoTecnico(strumento)
   )
+
 
   if (
     snapHoverAttivo &&
@@ -4609,6 +4616,8 @@ if (segno.strumento === 'linea') {
  
 pointerEvents={
   areaAttiva ||
+  metroAttivo ||
+  calibrazioneScalaAttiva ||
   strumento === "linea" ||
   strumento === "perpendicolare" ||
   trimAttivo ||
@@ -4759,19 +4768,23 @@ strokeWidth={
                 entity.id,
               )
             }
+
             onPointerDown={(event) => {
-             if (
-  !modalitaSelezione ||
-  trimAttivo ||
-  areaAttiva ||
-  strumento !== null ||
-  !entity.selectable ||
-  entity.locked ||
-  layer.locked ||
-  !layer.selectable
-) {
-  return
-}
+  if (
+    !modalitaSelezione ||
+    trimAttivo ||
+    areaAttiva ||
+    areaSplitAttivo ||
+    metroAttivo ||
+    calibrazioneScalaAttiva ||
+    strumento !== null ||
+    !entity.selectable ||
+    entity.locked ||
+    layer.locked ||
+    !layer.selectable
+  ) {
+    return
+  }
 
               event.preventDefault()
               event.stopPropagation()
@@ -5051,6 +5064,10 @@ stroke={
   if (
     !modalitaSelezione ||
     trimAttivo ||
+    metroAttivo ||
+    calibrazioneScalaAttiva ||
+    areaAttiva ||
+    areaSplitAttivo ||
     strumento !== null ||
     !entity.selectable ||
     entity.locked
