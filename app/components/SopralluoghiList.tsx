@@ -188,13 +188,26 @@ const toggleInLavorazione = (id: string) => {
 </div>
 
     {sopralluoghiInLavorazioneLista.map((s) => (
-     <button
+    <div
   key={s.id}
-  type="button"
+  role="button"
+  tabIndex={0}
   onClick={() => {
     setUltimoSopralluogo(s)
     setSopralluogoAperto(s)
     setMostraElencoSopralluoghi(false)
+  }}
+  onKeyDown={(event) => {
+    if (
+      event.key === 'Enter' ||
+      event.key === ' '
+    ) {
+      event.preventDefault()
+
+      setUltimoSopralluogo(s)
+      setSopralluogoAperto(s)
+      setMostraElencoSopralluoghi(false)
+    }
   }}
   style={{
     textAlign: 'left',
@@ -323,9 +336,9 @@ const toggleInLavorazione = (id: string) => {
     >
       🤖 Preventivo
     </button>
-  </div>
+   </div>
 </div>
-</button>
+</div>
     ))}
   </section>
 )}
