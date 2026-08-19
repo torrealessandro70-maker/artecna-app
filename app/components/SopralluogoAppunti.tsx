@@ -1422,8 +1422,37 @@ const entitaCadSelezionata =
     selectionStateCad,
   )
 
-const areeCadSelezionate =
-  (
+const entitaCadSelezionate =
+  entitaCadPaginaCorrente.filter(
+    (entity) =>
+      cadEntitySelezionateIds.includes(
+        entity.id,
+      ),
+  )
+
+const layerIdsSelezione =
+  Array.from(
+    new Set(
+      entitaCadSelezionate.map(
+        (entity) => entity.layerId,
+      ),
+    ),
+  )
+
+const layerSelezioneId =
+  layerIdsSelezione.length === 1
+    ? layerIdsSelezione[0]
+    : null
+
+const layerSelezione =
+  layerSelezioneId
+    ? layers.find(
+        (layer) =>
+          layer.id === layerSelezioneId,
+      ) ?? null
+    : null
+
+const areeCadSelezionate =  (
     pagineQuaderno[
       paginaCorrenteIndex
     ]?.cadEntities ?? []
@@ -5055,6 +5084,104 @@ usaPortal
     height: 1,
   }}
 />
+
+{entitaCadSelezionate.length > 0 && (
+  <>
+    <span>
+      Selezionati: {entitaCadSelezionate.length}
+    </span>
+
+    <span>|</span>
+
+    <span>
+      Layer:{" "}
+      {layerIdsSelezione.length > 1
+        ? "Multipli"
+        : layerSelezione?.name ??
+          layerSelezioneId ??
+          "---"}
+    </span>
+  </>
+)}
+
+{entitaCadSelezionate.length > 0 && (
+  <>
+    <span>|</span>
+
+    <select
+      value=""
+      onChange={(event) => {
+        const nuovoLayerId =
+          event.target.value as QuadernoLayerId
+
+        if (!nuovoLayerId) {
+          return
+        }
+
+        registraSnapshotQuaderno()
+
+        const idsSelezionati =
+          new Set(cadEntitySelezionateIds)
+
+        const nuoveEntitaCad =
+          entitaCadPaginaCorrente.map((entity) =>
+            idsSelezionati.has(entity.id)
+              ? {
+                  ...entity,
+                  layerId: nuovoLayerId,
+                  updatedAt: new Date().toISOString(),
+                }
+              : entity,
+          )
+
+        const paginaAggiornata =
+          applyCadEntitiesToPage(
+            {
+              ...paginaQuadernoCorrente!,
+              layers,
+            },
+            nuoveEntitaCad,
+          )
+
+        setPagineQuaderno((pagineCorrenti) =>
+          pagineCorrenti.map((pagina, index) =>
+            index === paginaCorrenteIndex
+              ? paginaAggiornata
+              : pagina,
+          ),
+        )
+
+        setDisegni(
+          paginaAggiornata.disegni ?? [],
+        )
+
+        setOggettiGrafici(
+          paginaAggiornata.oggettiGrafici ?? [],
+        )
+
+        setQuadernoDirty(true)
+      }}
+      style={{
+        minHeight: 28,
+        padding: "4px 6px",
+        fontSize: 12,
+      }}
+    >
+      <option value="" disabled>
+        Sposta nel layer...
+      </option>
+
+      {layers.map((layer) => (
+        <option
+          key={layer.id}
+          value={layer.id}
+        >
+          {layer.name}
+        </option>
+      ))}
+    </select>
+  </>
+)}
 
 {areaCadSelezionata && (
   <>
