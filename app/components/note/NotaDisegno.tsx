@@ -213,12 +213,13 @@ onScaleCalibrationChange?: (
 onFineCalibrazioneScala?: () => void
 metroAttivo?: boolean
 areaAttiva?: boolean
+areaSplitAttivo?: boolean
 onFineArea?: () => void
-
 cadEntities?: CadEntity[]
 onCreateCadEntity?: (
   entity: CadEntity,
 ) => void
+
 
 onUpdateCadEntity?: (
   entity: CadEntity,
@@ -541,6 +542,7 @@ scaleCalibration = null,
 calibrazioneScalaAttiva = false,
 metroAttivo = false,
 areaAttiva = false,
+areaSplitAttivo = false,
 onFineArea,
 onScaleCalibrationChange,
 onFineCalibrazioneScala,
@@ -1408,19 +1410,18 @@ onInizioTrasformazioneOggetto?.()
 ) => {
   event.preventDefault()
 
-if (areaAttiva) {
+if (areaAttiva || areaSplitAttivo) {
   disegna(event)
   return
 }
-
 if (
   !strumento &&
   !trimAttivo &&
   !metroAttivo &&
   !calibrazioneScalaAttiva &&
-  !areaAttiva
+  !areaAttiva &&
+  !areaSplitAttivo
 ) {
-
   if (event.button !== 0) {
     return
   }
@@ -2224,11 +2225,132 @@ const annullaModificaTesto = () => {
 const disegna = (
   event: PointerEvent<SVGSVGElement>,
 ) => {
-  if (!strumento && !areaAttiva) {
+  if (
+  !strumento &&
+  !areaAttiva &&
+  !areaSplitAttivo
+) {
+  return
+}
+
+  const puntoCursore = puntoDaEvento(event)
+
+if (areaSplitAttivo) {
+  const areaSottoCursore =
+    cadEntities
+      .filter(
+        (entity): entity is CadAreaEntity =>
+          entity.type === "area",
+      )
+      .map((entity) => ({
+        entity,
+        snap:
+          findNearestAreaBoundaryPoint(
+            entity.points,
+            puntoCursore,
+          ),
+      }))
+      .filter(
+        (item) =>
+          item.snap !== null &&
+          item.snap.distance <= 12,
+      )
+      .sort(
+        (a, b) =>
+          (a.snap?.distance ?? Infinity) -
+          (b.snap?.distance ?? Infinity),
+      )[0]
+
+  if (
+    !areaSplitStartRef.current &&
+    areaSottoCursore?.snap
+  ) {
+    const puntoAgganciato =
+      areaSottoCursore.snap.point
+
+    areaSplitStartRef.current = {
+      x: puntoAgganciato.x,
+      y: puntoAgganciato.y,
+    }
+
+    setAreaSplitEnd({
+      x: puntoAgganciato.x,
+      y: puntoAgganciato.y,
+    })
+
+    setAreaSplitEntityId(
+      areaSottoCursore.entity.id,
+    )
+
+    event.preventDefault()
+
     return
   }
 
-  const puntoCursore = puntoDaEvento(event)
+  if (
+    areaSplitStartRef.current &&
+    areaSplitEntityId
+  ) {
+    const areaDaDividere =
+      cadEntities.find(
+        (entity): entity is CadAreaEntity =>
+          entity.id === areaSplitEntityId &&
+          entity.type === "area",
+      )
+
+    if (!areaDaDividere) {
+      areaSplitStartRef.current = null
+      setAreaSplitEnd(null)
+      setAreaSplitEntityId(null)
+
+      return
+    }
+
+    const snapFine =
+      findNearestAreaBoundaryPoint(
+        areaDaDividere.points,
+        puntoCursore,
+      )
+
+    if (
+      !snapFine ||
+      snapFine.distance > 12
+    ) {
+      return
+    }
+
+    const puntoFine = {
+      x: snapFine.point.x,
+      y: snapFine.point.y,
+    }
+
+    const splitResult =
+      splitCadAreaEntityByLine(
+        areaDaDividere,
+        areaSplitStartRef.current,
+        puntoFine,
+        scaleCalibration,
+      )
+
+    if (splitResult) {
+      onReplaceCadEntity?.(
+        areaDaDividere.id,
+        [
+          splitResult.first,
+          splitResult.second,
+        ],
+      )
+    }
+
+    areaSplitStartRef.current = null
+    setAreaSplitEnd(null)
+    setAreaSplitEntityId(null)
+
+    event.preventDefault()
+
+    return
+  }
+}
 
 if (areaAttiva) {
   const snapArea =
@@ -2505,6 +2627,32 @@ console.log("AREA UPDATE", areaAggiornata)
     onUpdateCadEntity?.(
       areaAggiornata,
     )
+  }
+
+  return
+}
+
+if (areaSplitAttivo) {
+  const snapArea =
+    calcolaSnapPoint(
+      puntoCursoreHover,
+    )
+
+  setSnapPoint(snapArea)
+
+  const puntoSplitHover =
+    snapArea
+      ? {
+          x: snapArea.x,
+          y: snapArea.y,
+        }
+      : puntoCursoreHover
+
+  if (areaSplitStartRef.current) {
+    setAreaSplitEnd({
+      x: puntoSplitHover.x,
+      y: puntoSplitHover.y,
+    })
   }
 
   return
@@ -4689,7 +4837,7 @@ strokeWidth={
   </g>
 ))}
 
-{areaAttiva &&
+{areaSplitAttivo &&
   areaSplitStartRef.current &&
   areaSplitEnd && (
     <g pointerEvents="none">

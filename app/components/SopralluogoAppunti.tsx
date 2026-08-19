@@ -5597,6 +5597,7 @@ calibrazioneScalaAttiva={calibrazioneScalaAttiva}
 onScaleCalibrationChange={setScaleCalibration}
 metroAttivo={metroAttivo}
 areaAttiva={areaAttiva}
+areaSplitAttivo={areaSplitAttivo}
 onFineArea={() => {
   setAreaAttiva(false)
   setModalitaSelezione(true)
