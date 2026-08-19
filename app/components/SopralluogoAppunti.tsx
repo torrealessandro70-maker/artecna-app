@@ -4224,6 +4224,64 @@ fontSize: 17,
   ✂
 </button>
 
+{areeCadSelezionate.length === 2 && (
+  <button
+    type="button"
+    onClick={() => {
+      const merged =
+        mergeCadAreaEntities(
+          areeCadSelezionate[0],
+          areeCadSelezionate[1],
+          scaleCalibration,
+        )
+
+      if (!merged) {
+        return
+      }
+
+      setPagineQuaderno((pagineCorrenti) =>
+        pagineCorrenti.map(
+          (pagina, index) =>
+            index === paginaCorrenteIndex
+              ? {
+                  ...pagina,
+                  cadEntities: [
+                    ...(pagina.cadEntities ?? []).filter(
+                      (entity) =>
+                        entity.id !==
+                          areeCadSelezionate[0].id &&
+                        entity.id !==
+                          areeCadSelezionate[1].id,
+                    ),
+                    merged,
+                  ],
+                }
+              : pagina,
+        ),
+      )
+
+      setCadEntitySelezionateIds([
+        merged.id,
+      ])
+
+      setCadEntitySelezionataId(
+        merged.id,
+      )
+    }}
+    style={{
+      ...buttonSecondary,
+      width: 32,
+      minWidth: 32,
+      height: 32,
+      padding: 0,
+      fontSize: 17,
+    }}
+    title="Unisci aree"
+  >
+    ⇄
+  </button>
+)}
+
 {scaleCalibration && (
   <div
     style={{
@@ -5034,65 +5092,6 @@ usaPortal
   </>
 )}
 
-{areeCadSelezionate.length === 2 && (
-  <>
-    <span>|</span>
-
-    <button
-      type="button"
-      onClick={() => {
-        const merged =
-          mergeCadAreaEntities(
-            areeCadSelezionate[0],
-            areeCadSelezionate[1],
-            scaleCalibration,
-          )
-
-        if (!merged) {
-          return
-        }
-
-        setPagineQuaderno((pagineCorrenti) =>
-          pagineCorrenti.map(
-            (pagina, index) =>
-              index === paginaCorrenteIndex
-                ? {
-                    ...pagina,
-                    cadEntities: [
-                      ...(pagina.cadEntities ?? []).filter(
-                        (entity) =>
-                          entity.id !==
-                            areeCadSelezionate[0].id &&
-                          entity.id !==
-                            areeCadSelezionate[1].id,
-                      ),
-                      merged,
-                    ],
-                  }
-                : pagina,
-          ),
-        )
-
-        setCadEntitySelezionateIds([
-          merged.id,
-        ])
-
-        setCadEntitySelezionataId(
-          merged.id,
-        )
-      }}
-      style={{
-        ...buttonSecondary,
-        padding: "4px 8px",
-        minHeight: 28,
-        fontSize: 12,
-        whiteSpace: "nowrap",
-      }}
-    >
-      Unisci aree
-    </button>
-  </>
-)}
 
                 {lineaCadSelezionata && (
                   <>
