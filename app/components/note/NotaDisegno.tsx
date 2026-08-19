@@ -627,6 +627,14 @@ const transform = backgroundTransform ?? {
   locked: false,
 }
 
+const ultimiSegniResizeTestoRef =
+  useRef<SegnoNota[] | null>(null)
+
+const segniLiveRef =
+  useRef<SegnoNota[]>(segni)
+
+segniLiveRef.current = segni
+
 const areaStateRef = useRef(
   createInitialAreaState(),
 )
@@ -2984,6 +2992,8 @@ if (modalita.type === 'resizing-text') {
         },
       }
     })
+ultimiSegniResizeTestoRef.current =
+  nuoviSegni
 
   onChange(
     nuoviSegni,
@@ -3565,7 +3575,14 @@ if (modalita === 'resizing-text') {
     )
   }
 
-  onChange(segni, true)
+  onChange(
+    ultimiSegniResizeTestoRef.current ??
+      segni,
+    true,
+  )
+
+  ultimiSegniResizeTestoRef.current =
+    null
 
   return
 }
