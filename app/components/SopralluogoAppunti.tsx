@@ -4710,19 +4710,25 @@ if (!quadernoEspanso) {
   onCambiaDimensioni={setLayerPanelDimensioni}
   larghezzaMinima={220}
   altezzaMinima={140}
-  zIndex={10030}
-usaPortal
+    zIndex={10030}
+  usaPortal
+  contentStyle={{
+    overflow: "auto",
+  }}
 >
 
 
+
   
-  <div
+ <div
   style={{
     display: "flex",
     flexDirection: "column",
     gap: 6,
     minWidth: 0,
     width: "100%",
+    height: "100%",
+    minHeight: 0,
   }}
 >
 
@@ -4742,6 +4748,19 @@ usaPortal
 >
   + Nuovo layer
 </button>
+<div
+  style={{
+    flex: "1 1 auto",
+    minHeight: 0,
+    overflowY: "auto",
+    overflowX: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    paddingRight: 2,
+  }}
+>
+
   {layers.map((layer) => (
 <div
   key={layer.id}
@@ -5045,6 +5064,7 @@ onClick={(event) => {
 
     </div>
   ))}
+</div>
 </div>
 </WorkspacePanel>
 
