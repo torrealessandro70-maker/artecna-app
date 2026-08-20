@@ -532,6 +532,32 @@ const trascinamentoToolbarRef = useRef<{
     useState<string | null>(null);
 
   const [pageLayout, setPageLayout] = useState(createQuadernoPageLayout());
+const aggiornaPageLayout = (
+  format: "A4" | "A3",
+  orientation: "portrait" | "landscape",
+) => {
+  const nuovoPageLayout =
+    createQuadernoPageLayout(
+      format,
+      orientation,
+    )
+
+  setPageLayout(nuovoPageLayout)
+
+  setPagineQuaderno((pagineCorrenti) =>
+    pagineCorrenti.map((pagina, index) =>
+      index === paginaCorrenteIndex
+        ? {
+            ...pagina,
+            pageLayout: nuovoPageLayout,
+          }
+        : pagina,
+    ),
+  )
+
+  setQuadernoDirty(true)
+}
+
 const [layers, setLayers] = useState<QuadernoLayer[]>(
   DEFAULT_QUADERNO_LAYERS,
 );
@@ -2774,19 +2800,24 @@ sfondoDisegno: null,
     setPagineQuaderno((pagineCorrenti) =>
       pagineCorrenti.map((pagina, index) =>
         index === paginaCorrenteIndex
-          ? {
-              ...pagina,
-              disegni,
-              sfondoDisegno,
-              zoomSfondo,
-              oggettiGrafici,
-layers,
-            }
+         ? {
+    ...pagina,
+    disegni,
+    sfondoDisegno,
+    zoomSfondo,
+    oggettiGrafici,
+    layers,
+    pageLayout,
+  }
           : pagina,
       ),
     );
 
     setPaginaCorrenteIndex(nuovoIndex);
+setPageLayout(
+  paginaDestinazione.pageLayout ??
+    createQuadernoPageLayout(),
+);
     setDisegni(paginaDestinazione.disegni || []);
     setSfondoDisegno(paginaDestinazione.sfondoDisegno || null);
     setZoomSfondo(paginaDestinazione.zoomSfondo ?? 1);
@@ -3152,6 +3183,10 @@ const primaPagina = pagineNormalizzate[0];
 
           setPagineQuaderno(pagineNormalizzate);
           setPaginaCorrenteIndex(0);
+setPageLayout(
+  primaPagina?.pageLayout ??
+    createQuadernoPageLayout(),
+);
           setDisegni(primaPagina?.disegni || []);
           setSfondoDisegno(primaPagina?.sfondoDisegno || null);
           setZoomSfondo(primaPagina?.zoomSfondo ?? 1);
@@ -5079,14 +5114,12 @@ if (!quadernoEspanso) {
       Formato{" "}
       <select
         value={pageLayout.format}
-        onChange={(event) =>
-          setPageLayout(
-            createQuadernoPageLayout(
-              event.target.value as "A4" | "A3",
-              pageLayout.orientation,
-            ),
-          )
-        }
+       onChange={(event) =>
+  aggiornaPageLayout(
+    event.target.value as "A4" | "A3",
+    pageLayout.orientation,
+  )
+}
       >
         <option value="A4">A4</option>
         <option value="A3">A3</option>
@@ -5106,13 +5139,13 @@ if (!quadernoEspanso) {
       <select
         value={pageLayout.orientation}
         onChange={(event) =>
-          setPageLayout(
-            createQuadernoPageLayout(
-              pageLayout.format,
-              event.target.value as "portrait" | "landscape",
-            ),
-          )
-        }
+  aggiornaPageLayout(
+    pageLayout.format,
+    event.target.value as
+      | "portrait"
+      | "landscape",
+  )
+}
       >
         <option value="landscape">Orizzontale</option>
         <option value="portrait">Verticale</option>

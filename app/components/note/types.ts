@@ -9,6 +9,10 @@ import type {
 
 import type { CadScaleCalibration } from '@/app/engines/cad/scale-manager'
 
+import type {
+  QuadernoPageLayout,
+} from "@/app/engines/quaderno-page"
+
 export type StrumentoDisegno =
   | 'penna'
   | 'evidenziatore'
@@ -85,6 +89,7 @@ export type PaginaQuadernoNota = {
   cadDimensions?: CadDimensionEntity[]
 cadEntities?: CadEntity[]
   scaleCalibration?: CadScaleCalibration | null
+pageLayout?: QuadernoPageLayout
 
   sfondoDisegno: string | null
 
