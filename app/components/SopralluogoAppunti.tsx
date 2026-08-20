@@ -217,6 +217,9 @@ const pinchRef = useRef<{
   },
 });
 
+const workspaceLineaStartRef =
+  useRef<CadPoint | null>(null)
+
   const [anteprimaQuaderno, setAnteprimaQuaderno] = useState<string | null>(
     null,
   );
@@ -6824,18 +6827,93 @@ ref={viewportRef}
   width={dimensioniWorkspace.width}
   height={dimensioniWorkspace.height}
   viewBox={`0 0 ${dimensioniWorkspace.width} ${dimensioniWorkspace.height}`}
+
+onPointerDown={(event) => {
+  if (strumentoDisegno !== "linea") {
+    return
+  }
+
+  const svg = event.currentTarget
+
+  const rect =
+    svg.getBoundingClientRect()
+
+  const puntoWorkspace: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+
+    y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  const start =
+    workspaceLineaStartRef.current
+
+  if (!start) {
+    workspaceLineaStartRef.current =
+      puntoWorkspace
+
+    return
+  }
+
+  const nuovaLinea =
+    createCadLine({
+      start,
+      end: puntoWorkspace,
+      stroke: {
+        color: coloreDisegno,
+        width: spessoreDisegno,
+      },
+      layerId: layerAttivoId,
+    })
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) => [
+      ...entitiesCorrenti,
+      nuovaLinea,
+    ],
+  )
+
+  workspaceLineaStartRef.current = null
+
+  setQuadernoDirty(true)
+}}
+  onPointerMove={(event) => {
+    if (strumentoDisegno !== "linea") {
+      return
+    }
+
+    console.log(
+      "WORKSPACE POINTER MOVE",
+      {
+        x: event.clientX,
+        y: event.clientY,
+      },
+    )
+  }}
+
   style={{
     position: "absolute",
     left: 0,
     top: 0,
     width: dimensioniWorkspace.width,
     height: dimensioniWorkspace.height,
-    pointerEvents: "none",
+
+    pointerEvents:
+      strumentoDisegno === "linea"
+        ? "auto"
+        : "none",
+
     overflow: "visible",
     zIndex: 50,
   }}
->
-  {workspaceCadEntities.map((entity) => {
+> 
+
+ {workspaceCadEntities.map((entity) => {
     if (entity.type !== "line") {
       return null
     }
