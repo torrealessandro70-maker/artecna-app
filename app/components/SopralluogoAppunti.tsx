@@ -69,6 +69,15 @@ import { DEFAULT_QUADERNO_LAYERS } from "@/app/engines/quaderno-layers/defaults"
 import type { CadScaleCalibration } from '@/app/engines/cad/scale-manager'
 import type { CadDimensionEntity } from '@/app/engines/cad/entities'
 import { ToolButton } from "@/app/components/ui";
+import { applyOrtho } from "@/app/engines/cad/ortho"
+import {
+  resolveSnapPoint,
+} from "@/app/engines/cad/snap"
+
+import {
+  getSnapTolerance,
+} from "@/app/engines/cad/snap/tolerance"
+
 import type {
   CadEntity,
   CadPoint,
@@ -222,6 +231,12 @@ const workspaceLineaStartRef =
 
 const [workspaceLineaPreview, setWorkspaceLineaPreview] =
   useState<CadPoint | null>(null)
+const [workspaceSnapPoint, setWorkspaceSnapPoint] =
+  useState<{
+    x: number
+    y: number
+    type: string
+  } | null>(null)
 
   const [anteprimaQuaderno, setAnteprimaQuaderno] = useState<string | null>(
     null,
@@ -1749,6 +1764,56 @@ const puntoWorkspaceToPaginaAttiva = (
     paginaQuadernoCorrente,
   )
 }
+
+const workspaceSnapEntities: CadEntity[] = [
+  ...pagineQuaderno.flatMap(
+    (pagina, index) => {
+      const paginaPerCad: PaginaQuadernoNota =
+        index === paginaCorrenteIndex
+          ? {
+              ...pagina,
+              disegni,
+              sfondoDisegno,
+              zoomSfondo,
+              oggettiGrafici,
+              layers,
+              backgroundTransform,
+            }
+          : pagina
+
+      const entities =
+        getCadEntitiesFromPage(
+          paginaPerCad,
+        )
+
+      return entities.flatMap(
+        (entity): CadEntity[] => {
+          if (entity.type !== "line") {
+            return []
+          }
+
+          return [
+            {
+              ...entity,
+              start:
+                pagePointToWorkspacePoint(
+                  entity.start,
+                  pagina,
+                ),
+              end:
+                pagePointToWorkspacePoint(
+                  entity.end,
+                  pagina,
+                ),
+            },
+          ]
+        },
+      )
+    },
+  ),
+
+  ...workspaceCadEntities,
+]
 
 const selectionStateCad: CadSelectionState = {
   selectedIds: cadEntitySelezionateIds,
@@ -6832,9 +6897,13 @@ ref={viewportRef}
   viewBox={`0 0 ${dimensioniWorkspace.width} ${dimensioniWorkspace.height}`}
 
 onPointerDown={(event) => {
-  if (strumentoDisegno !== "linea") {
-    return
-  }
+  if (
+  strumentoDisegno !== "linea" ||
+  manoAttiva ||
+  spostaTavolaAttivo
+) {
+  return
+}
 
   const svg = event.currentTarget
 
@@ -6853,25 +6922,80 @@ onPointerDown={(event) => {
       dimensioniWorkspace.height,
   }
 
+const tolerance =
+  getSnapTolerance(
+    dimensioniWorkspace.width,
+    rect.width,
+  )
+
+const snapGlobale =
+  snapAttivo
+    ? resolveSnapPoint({
+        entities: workspaceSnapEntities,
+        cursor: puntoWorkspace,
+        tolerance,
+      })
+    : null
+
+setWorkspaceSnapPoint(
+  snapGlobale
+    ? {
+        x: snapGlobale.x,
+        y: snapGlobale.y,
+        type: snapGlobale.type,
+      }
+    : null,
+)
+
+
+const puntoConSnap =
+  snapGlobale
+    ? {
+        x: snapGlobale.x,
+        y: snapGlobale.y,
+      }
+    : puntoWorkspace
+
+const puntoPreview =
+  snapGlobale
+    ? puntoConSnap
+    : orthoAttivo &&
+        workspaceLineaStartRef.current
+      ? applyOrtho(
+          workspaceLineaStartRef.current,
+          puntoWorkspace,
+        )
+      : puntoWorkspace
   const start =
     workspaceLineaStartRef.current
 
 if (!start) {
   workspaceLineaStartRef.current =
-    puntoWorkspace
+    puntoConSnap
 
   setWorkspaceLineaPreview(
-    puntoWorkspace,
+    puntoConSnap,
   )
 
+ 
   return
 }
+const puntoFinale =
+  snapGlobale
+    ? puntoConSnap
+    : orthoAttivo
+      ? applyOrtho(
+          start,
+          puntoWorkspace,
+        )
+      : puntoWorkspace
+
+
 
 const nuovaLinea =
   createCadLine({
-      start,
-      end: puntoWorkspace,
-      stroke: {
+    start,
+    end: puntoFinale,      stroke: {
         color: coloreDisegno,
         width: spessoreDisegno,
       },
@@ -6891,35 +7015,78 @@ setWorkspaceLineaPreview(null)
   setQuadernoDirty(true)
 }}
  onPointerMove={(event) => {
-  if (strumentoDisegno !== "linea") {
-    return
-  }
+  if (
+  strumentoDisegno !== "linea" ||
+  manoAttiva ||
+  spostaTavolaAttivo
+) {
+  return
+}
 
-  if (!workspaceLineaStartRef.current) {
-    return
-  }
-
+ 
   const svg = event.currentTarget
 
   const rect =
     svg.getBoundingClientRect()
 
   const puntoWorkspace: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
+  x:
+    ((event.clientX - rect.left) /
+      rect.width) *
+    dimensioniWorkspace.width,
 
-    y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  y:
+    ((event.clientY - rect.top) /
+      rect.height) *
+    dimensioniWorkspace.height,
+}
+
+const tolerance =
+  getSnapTolerance(
+    dimensioniWorkspace.width,
+    rect.width,
+  )
+
+const snapGlobale =
+  snapAttivo
+    ? resolveSnapPoint({
+        entities: workspaceSnapEntities,
+        cursor: puntoWorkspace,
+        tolerance,
+      })
+    : null
+
+setWorkspaceSnapPoint(
+  snapGlobale
+    ? {
+        x: snapGlobale.x,
+        y: snapGlobale.y,
+        type: snapGlobale.type,
+      }
+    : null,
+)
+
+const puntoConSnap =
+  snapGlobale
+    ? {
+        x: snapGlobale.x,
+        y: snapGlobale.y,
+      }
+    : puntoWorkspace
+
+if (workspaceLineaStartRef.current) {
+  const puntoPreview =
+    orthoAttivo
+      ? applyOrtho(
+          workspaceLineaStartRef.current,
+          puntoConSnap,
+        )
+      : puntoConSnap
 
   setWorkspaceLineaPreview(
-    puntoWorkspace,
+    puntoPreview,
   )
-}}
+}}}
 
   style={{
     position: "absolute",
@@ -6928,15 +7095,28 @@ setWorkspaceLineaPreview(null)
     width: dimensioniWorkspace.width,
     height: dimensioniWorkspace.height,
 
-    pointerEvents:
-      strumentoDisegno === "linea"
-        ? "auto"
-        : "none",
+   pointerEvents:
+  strumentoDisegno === "linea" &&
+  !manoAttiva &&
+  !spostaTavolaAttivo
+    ? "auto"
+    : "none",
 
     overflow: "visible",
     zIndex: 50,
   }}
 > 
+
+{workspaceSnapPoint && (
+  <circle
+    cx={workspaceSnapPoint.x}
+    cy={workspaceSnapPoint.y}
+    r={6}
+    fill="none"
+    stroke="#dc2626"
+    strokeWidth={2}
+  />
+)}
 
 {workspaceLineaStartRef.current &&
   workspaceLineaPreview && (
@@ -6962,15 +7142,14 @@ setWorkspaceLineaPreview(null)
     }
 
     return (
-     <line
+  <line
   key={entity.id}
   x1={entity.start.x}
   y1={entity.start.y}
   x2={entity.end.x}
   y2={entity.end.y}
-  stroke="#ff0000"
-  strokeWidth={8}
-  strokeDasharray="14 8"
+  stroke={entity.stroke.color}
+  strokeWidth={entity.stroke.width}
   fill="none"
 />
     )
@@ -7120,7 +7299,10 @@ setWorkspaceLineaPreview(null)
 
              <NotaDisegno
   svgRefEsterno={quadernoSvgRef}
-  solaLettura={spostaTavolaAttivo}
+  solaLettura={
+  spostaTavolaAttivo ||
+  manoAttiva
+}
   larghezza={pageLayout.width}
   altezza={pageLayout.height}
   orthoAttivo={orthoAttivo}
@@ -7158,17 +7340,7 @@ onCreateWorkspaceLine={(
   width,
   layerId,
 ) => {
-  console.log(
-    "WORKSPACE LINE CALLBACK",
-    {
-      start,
-      end,
-      color,
-      width,
-      layerId,
-    },
-  )
-
+ 
   const startWorkspace =
     puntoPaginaAttivaToWorkspace(start)
 
@@ -7193,10 +7365,7 @@ onCreateWorkspaceLine={(
     ],
   )
 
-  console.log(
-    "WORKSPACE LINE CREATA",
-    nuovaLineaWorkspace,
-  )
+ 
 }}
 onCreateCadEntity={(entity) => {
   setPagineQuaderno((pagineCorrenti) =>
@@ -7221,10 +7390,7 @@ onCreateCadEntity={(entity) => {
 }}
 
 onUpdateCadEntity={(entityAggiornata) => {
-  console.log(
-    "AREA UPDATE PADRE",
-    entityAggiornata.id,
-  )
+  
 
   setPagineQuaderno((pagineCorrenti) =>
     pagineCorrenti.map((pagina, index) =>
@@ -7466,7 +7632,12 @@ onFineTrasformazioneOggetto={() => {
 }}
                   segni={disegni}
                   onChange={aggiornaDisegni}
-                  strumento={strumentoDisegno}
+                  strumento={
+  manoAttiva ||
+  spostaTavolaAttivo
+    ? false
+    : strumentoDisegno
+}
                   colore={coloreDisegno}
 spessore={spessoreDisegno}
                   dimensioneTesto={dimensioneTesto}
