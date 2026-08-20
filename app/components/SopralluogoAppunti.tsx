@@ -220,6 +220,9 @@ const pinchRef = useRef<{
 const workspaceLineaStartRef =
   useRef<CadPoint | null>(null)
 
+const [workspaceLineaPreview, setWorkspaceLineaPreview] =
+  useState<CadPoint | null>(null)
+
   const [anteprimaQuaderno, setAnteprimaQuaderno] = useState<string | null>(
     null,
   );
@@ -6853,15 +6856,19 @@ onPointerDown={(event) => {
   const start =
     workspaceLineaStartRef.current
 
-  if (!start) {
-    workspaceLineaStartRef.current =
-      puntoWorkspace
+if (!start) {
+  workspaceLineaStartRef.current =
+    puntoWorkspace
 
-    return
-  }
+  setWorkspaceLineaPreview(
+    puntoWorkspace,
+  )
 
-  const nuovaLinea =
-    createCadLine({
+  return
+}
+
+const nuovaLinea =
+  createCadLine({
       start,
       end: puntoWorkspace,
       stroke: {
@@ -6879,22 +6886,40 @@ onPointerDown={(event) => {
   )
 
   workspaceLineaStartRef.current = null
+setWorkspaceLineaPreview(null)
 
   setQuadernoDirty(true)
 }}
-  onPointerMove={(event) => {
-    if (strumentoDisegno !== "linea") {
-      return
-    }
+ onPointerMove={(event) => {
+  if (strumentoDisegno !== "linea") {
+    return
+  }
 
-    console.log(
-      "WORKSPACE POINTER MOVE",
-      {
-        x: event.clientX,
-        y: event.clientY,
-      },
-    )
-  }}
+  if (!workspaceLineaStartRef.current) {
+    return
+  }
+
+  const svg = event.currentTarget
+
+  const rect =
+    svg.getBoundingClientRect()
+
+  const puntoWorkspace: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+
+    y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  setWorkspaceLineaPreview(
+    puntoWorkspace,
+  )
+}}
 
   style={{
     position: "absolute",
@@ -6912,6 +6937,24 @@ onPointerDown={(event) => {
     zIndex: 50,
   }}
 > 
+
+{workspaceLineaStartRef.current &&
+  workspaceLineaPreview && (
+    <line
+      x1={
+        workspaceLineaStartRef.current.x
+      }
+      y1={
+        workspaceLineaStartRef.current.y
+      }
+      x2={workspaceLineaPreview.x}
+      y2={workspaceLineaPreview.y}
+      stroke="#2563eb"
+      strokeWidth={2}
+      strokeDasharray="8 6"
+      fill="none"
+    />
+  )}
 
  {workspaceCadEntities.map((entity) => {
     if (entity.type !== "line") {
