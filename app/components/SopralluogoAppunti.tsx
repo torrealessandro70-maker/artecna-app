@@ -2009,6 +2009,427 @@ const eliminaImmagineSelezionata = () => {
    setOggettoGraficoSelezionatoId(null);
 };
 
+const portaSegniSelezionatiAvanti = () => {
+  if (cadEntitySelezionateIds.length === 0) {
+    return
+  }
+
+  const idsSelezionati =
+    new Set(cadEntitySelezionateIds)
+
+  const nuoviDisegni = [...disegni]
+
+  const layerIds = Array.from(
+    new Set(
+      disegni
+        .filter((segno) =>
+          idsSelezionati.has(segno.id),
+        )
+        .map(
+          (segno) =>
+            segno.layerId ??
+            (segno.strumento === "pin"
+              ? "pins"
+              : "drawing"),
+        ),
+    ),
+  )
+
+  for (const layerId of layerIds) {
+    const segniLayer = disegni
+      .map((segno, index) => ({
+        segno,
+        indexOriginale: index,
+      }))
+      .filter(({ segno }) => {
+        const layerIdSegno =
+          segno.layerId ??
+          (segno.strumento === "pin"
+            ? "pins"
+            : "drawing")
+
+        return layerIdSegno === layerId
+      })
+      .sort((a, b) => {
+        const zA =
+          typeof a.segno.metadati?.zOrder ===
+          "number"
+            ? a.segno.metadati.zOrder
+            : a.indexOriginale
+
+        const zB =
+          typeof b.segno.metadati?.zOrder ===
+          "number"
+            ? b.segno.metadati.zOrder
+            : b.indexOriginale
+
+        return zA - zB
+      })
+
+    for (
+      let index = segniLayer.length - 2;
+      index >= 0;
+      index--
+    ) {
+      const corrente = segniLayer[index]
+      const successivo = segniLayer[index + 1]
+
+      if (
+        idsSelezionati.has(
+          corrente.segno.id,
+        ) &&
+        !idsSelezionati.has(
+          successivo.segno.id,
+        )
+      ) {
+        segniLayer[index] = successivo
+        segniLayer[index + 1] = corrente
+      }
+    }
+
+    segniLayer.forEach(
+      ({ segno }, zOrder) => {
+        const indice =
+          nuoviDisegni.findIndex(
+            (item) =>
+              item.id === segno.id,
+          )
+
+        if (indice === -1) {
+          return
+        }
+
+        nuoviDisegni[indice] = {
+          ...nuoviDisegni[indice],
+          metadati: {
+            ...nuoviDisegni[indice]
+              .metadati,
+            zOrder,
+          },
+        }
+      },
+    )
+  }
+
+  aggiornaQuaderno({
+    disegni: nuoviDisegni,
+  })
+}
+
+
+const portaSegniSelezionatiIndietro = () => {
+  if (cadEntitySelezionateIds.length === 0) {
+    return
+  }
+
+  const idsSelezionati =
+    new Set(cadEntitySelezionateIds)
+
+  const nuoviDisegni = [...disegni]
+
+  const layerIds = Array.from(
+    new Set(
+      disegni
+        .filter((segno) =>
+          idsSelezionati.has(segno.id),
+        )
+        .map(
+          (segno) =>
+            segno.layerId ??
+            (segno.strumento === "pin"
+              ? "pins"
+              : "drawing"),
+        ),
+    ),
+  )
+
+  for (const layerId of layerIds) {
+    const segniLayer = disegni
+      .map((segno, index) => ({
+        segno,
+        indexOriginale: index,
+      }))
+      .filter(({ segno }) => {
+        const layerIdSegno =
+          segno.layerId ??
+          (segno.strumento === "pin"
+            ? "pins"
+            : "drawing")
+
+        return layerIdSegno === layerId
+      })
+      .sort((a, b) => {
+        const zA =
+          typeof a.segno.metadati?.zOrder ===
+          "number"
+            ? a.segno.metadati.zOrder
+            : a.indexOriginale
+
+        const zB =
+          typeof b.segno.metadati?.zOrder ===
+          "number"
+            ? b.segno.metadati.zOrder
+            : b.indexOriginale
+
+        return zA - zB
+      })
+
+    for (
+      let index = 1;
+      index < segniLayer.length;
+      index++
+    ) {
+      const corrente = segniLayer[index]
+      const precedente = segniLayer[index - 1]
+
+      if (
+        idsSelezionati.has(
+          corrente.segno.id,
+        ) &&
+        !idsSelezionati.has(
+          precedente.segno.id,
+        )
+      ) {
+        segniLayer[index] = precedente
+        segniLayer[index - 1] = corrente
+      }
+    }
+
+    segniLayer.forEach(
+      ({ segno }, zOrder) => {
+        const indice =
+          nuoviDisegni.findIndex(
+            (item) =>
+              item.id === segno.id,
+          )
+
+        if (indice === -1) {
+          return
+        }
+
+        nuoviDisegni[indice] = {
+          ...nuoviDisegni[indice],
+          metadati: {
+            ...nuoviDisegni[indice]
+              .metadati,
+            zOrder,
+          },
+        }
+      },
+    )
+  }
+
+  aggiornaQuaderno({
+    disegni: nuoviDisegni,
+  })
+}
+
+const portaSegniSelezionatiInPrimoPiano = () => {
+  if (cadEntitySelezionateIds.length === 0) {
+    return
+  }
+
+  const idsSelezionati =
+    new Set(cadEntitySelezionateIds)
+
+  const nuoviDisegni = [...disegni]
+
+  const layerIds = Array.from(
+    new Set(
+      disegni
+        .filter((segno) =>
+          idsSelezionati.has(segno.id),
+        )
+        .map(
+          (segno) =>
+            segno.layerId ??
+            (segno.strumento === "pin"
+              ? "pins"
+              : "drawing"),
+        ),
+    ),
+  )
+
+  for (const layerId of layerIds) {
+    const segniLayer = disegni
+      .map((segno, index) => ({
+        segno,
+        indexOriginale: index,
+      }))
+      .filter(({ segno }) => {
+        const layerIdSegno =
+          segno.layerId ??
+          (segno.strumento === "pin"
+            ? "pins"
+            : "drawing")
+
+        return layerIdSegno === layerId
+      })
+      .sort((a, b) => {
+        const zA =
+          typeof a.segno.metadati?.zOrder ===
+          "number"
+            ? a.segno.metadati.zOrder
+            : a.indexOriginale
+
+        const zB =
+          typeof b.segno.metadati?.zOrder ===
+          "number"
+            ? b.segno.metadati.zOrder
+            : b.indexOriginale
+
+        return zA - zB
+      })
+
+    const nonSelezionati =
+      segniLayer.filter(
+        ({ segno }) =>
+          !idsSelezionati.has(segno.id),
+      )
+
+    const selezionati =
+      segniLayer.filter(
+        ({ segno }) =>
+          idsSelezionati.has(segno.id),
+      )
+
+    const nuovoOrdine = [
+      ...nonSelezionati,
+      ...selezionati,
+    ]
+
+    nuovoOrdine.forEach(
+      ({ segno }, zOrder) => {
+        const indice =
+          nuoviDisegni.findIndex(
+            (item) =>
+              item.id === segno.id,
+          )
+
+        if (indice === -1) {
+          return
+        }
+
+        nuoviDisegni[indice] = {
+          ...nuoviDisegni[indice],
+          metadati: {
+            ...nuoviDisegni[indice]
+              .metadati,
+            zOrder,
+          },
+        }
+      },
+    )
+  }
+
+  aggiornaQuaderno({
+    disegni: nuoviDisegni,
+  })
+}
+
+const portaSegniSelezionatiInFondo = () => {
+  if (cadEntitySelezionateIds.length === 0) {
+    return
+  }
+
+  const idsSelezionati =
+    new Set(cadEntitySelezionateIds)
+
+  const nuoviDisegni = [...disegni]
+
+  const layerIds = Array.from(
+    new Set(
+      disegni
+        .filter((segno) =>
+          idsSelezionati.has(segno.id),
+        )
+        .map(
+          (segno) =>
+            segno.layerId ??
+            (segno.strumento === "pin"
+              ? "pins"
+              : "drawing"),
+        ),
+    ),
+  )
+
+  for (const layerId of layerIds) {
+    const segniLayer = disegni
+      .map((segno, index) => ({
+        segno,
+        indexOriginale: index,
+      }))
+      .filter(({ segno }) => {
+        const layerIdSegno =
+          segno.layerId ??
+          (segno.strumento === "pin"
+            ? "pins"
+            : "drawing")
+
+        return layerIdSegno === layerId
+      })
+      .sort((a, b) => {
+        const zA =
+          typeof a.segno.metadati?.zOrder ===
+          "number"
+            ? a.segno.metadati.zOrder
+            : a.indexOriginale
+
+        const zB =
+          typeof b.segno.metadati?.zOrder ===
+          "number"
+            ? b.segno.metadati.zOrder
+            : b.indexOriginale
+
+        return zA - zB
+      })
+
+    const selezionati =
+      segniLayer.filter(
+        ({ segno }) =>
+          idsSelezionati.has(segno.id),
+      )
+
+    const nonSelezionati =
+      segniLayer.filter(
+        ({ segno }) =>
+          !idsSelezionati.has(segno.id),
+      )
+
+    const nuovoOrdine = [
+      ...selezionati,
+      ...nonSelezionati,
+    ]
+
+    nuovoOrdine.forEach(
+      ({ segno }, zOrder) => {
+        const indice =
+          nuoviDisegni.findIndex(
+            (item) => item.id === segno.id,
+          )
+
+        if (indice === -1) {
+          return
+        }
+
+        nuoviDisegni[indice] = {
+          ...nuoviDisegni[indice],
+          metadati: {
+            ...nuoviDisegni[indice]
+              .metadati,
+            zOrder,
+          },
+        }
+      },
+    )
+  }
+
+  aggiornaQuaderno({
+    disegni: nuoviDisegni,
+  })
+}
+
+
 const eliminaEntitaCadSelezionate = () => {
   const idsCadSelezionati = Array.from(
   new Set([
@@ -5200,6 +5621,68 @@ usaPortal
         </option>
       ))}
     </select>
+  </>
+)}
+
+{entitaCadSelezionate.length > 0 && (
+  <>
+    <span>|</span>
+
+    <button
+      type="button"
+      onClick={portaSegniSelezionatiAvanti}
+      style={{
+        ...buttonSecondary,
+        padding: "4px 8px",
+        minHeight: 28,
+        fontSize: 12,
+        whiteSpace: "nowrap",
+      }}
+    >
+      Porta avanti
+    </button>
+
+    <button
+      type="button"
+      onClick={portaSegniSelezionatiIndietro}
+      style={{
+        ...buttonSecondary,
+        padding: "4px 8px",
+        minHeight: 28,
+        fontSize: 12,
+        whiteSpace: "nowrap",
+      }}
+    >
+      Porta indietro
+    </button>
+
+    <button
+      type="button"
+      onClick={portaSegniSelezionatiInPrimoPiano}
+      style={{
+        ...buttonSecondary,
+        padding: "4px 8px",
+        minHeight: 28,
+        fontSize: 12,
+        whiteSpace: "nowrap",
+      }}
+    >
+      Primo piano
+    </button>
+
+    <button
+      type="button"
+      onClick={portaSegniSelezionatiInFondo}
+      style={{
+        ...buttonSecondary,
+        padding: "4px 8px",
+        minHeight: 28,
+        fontSize: 12,
+        whiteSpace: "nowrap",
+      }}
+    >
+      In fondo
+    </button>
   </>
 )}
 

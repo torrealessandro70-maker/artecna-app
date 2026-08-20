@@ -45,7 +45,9 @@ rotation?: number
 textBoxWidth?: number
 textBoxHeight?: number
 
-  stato?: 'nuovo' | 'in_lavorazione' | 'risolto'
+zOrder?: number
+
+stato?: 'nuovo' | 'in_lavorazione' | 'risolto'
 
   categoria?:
     | 'rilievo'
