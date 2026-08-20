@@ -62,6 +62,7 @@ import type {
   CadDimensionEntity,
   CadEntity,
   CadSelectionItem,
+CadPoint,
 } from '@/app/engines/cad/entities'
 
 import CadEntityRenderer from "@/app/engines/cad/render/CadEntityRenderer"
@@ -219,6 +220,14 @@ onFineArea?: () => void
 cadEntities?: CadEntity[]
 onCreateCadEntity?: (
   entity: CadEntity,
+) => void
+
+onCreateWorkspaceLine?: (
+  start: CadPoint,
+  end: CadPoint,
+  color: string,
+  width: number,
+  layerId?: QuadernoLayerId,
 ) => void
 
 
@@ -551,6 +560,7 @@ onFineCalibrazioneScala,
 cadDimensions = [],
 cadEntities = [],
 onCreateCadEntity,
+onCreateWorkspaceLine,
 onUpdateCadEntity,
 onCreateDimension,
 onDeleteCadEntity,
@@ -1728,6 +1738,16 @@ if (strumento === 'perpendicolare') {
       ],
     }
 
+onCreateWorkspaceLine?.(
+  lineaConfermata.punti[0],
+  lineaConfermata.punti[
+    lineaConfermata.punti.length - 1
+  ],
+  lineaConfermata.colore,
+  lineaConfermata.spessore,
+  lineaConfermata.layerId,
+)
+
     onChange(
       segni.map((segno) =>
         segno.id === lineaAttiva.id
@@ -1889,6 +1909,15 @@ if (
         punto,
       ],
     }
+onCreateWorkspaceLine?.(
+  lineaConfermata.punti[0],
+  lineaConfermata.punti[
+    lineaConfermata.punti.length - 1
+  ],
+  lineaConfermata.colore,
+  lineaConfermata.spessore,
+  lineaConfermata.layerId,
+)
 
     onChange(
       segni.map((segno) =>

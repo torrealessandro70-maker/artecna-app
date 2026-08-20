@@ -71,8 +71,12 @@ import type { CadDimensionEntity } from '@/app/engines/cad/entities'
 import { ToolButton } from "@/app/components/ui";
 import type {
   CadEntity,
+  CadPoint,
 } from "../engines/cad/entities";
 
+import {
+  createCadLine,
+} from "../engines/cad/entities";
 
 import type {
   QuadernoLayer,
@@ -100,6 +104,11 @@ import {
 import {
   mergeCadAreaEntities,
 } from "@/app/engines/cad/area"
+
+import {
+  pagePointToWorkspacePoint,
+  workspacePointToPagePoint,
+} from "@/app/engines/cad/workspace-coordinates"
 
 type SopralluogoNota = {
   id?: string;
@@ -1689,6 +1698,10 @@ trascinamentoPaginaRef.current = {
   }
 }
 
+const [workspaceCadEntities, setWorkspaceCadEntities] =
+  useState<CadEntity[]>([])
+
+
   const [pagineQuaderno, setPagineQuaderno] = useState<PaginaQuadernoNota[]>([
     {
       id: crypto.randomUUID(),
@@ -1704,6 +1717,32 @@ trascinamentoPaginaRef.current = {
 
 const paginaQuadernoCorrente =
   pagineQuaderno[paginaCorrenteIndex] ?? null
+
+const puntoPaginaAttivaToWorkspace = (
+  point: CadPoint,
+): CadPoint => {
+  if (!paginaQuadernoCorrente) {
+    return point
+  }
+
+  return pagePointToWorkspacePoint(
+    point,
+    paginaQuadernoCorrente,
+  )
+}
+
+const puntoWorkspaceToPaginaAttiva = (
+  point: CadPoint,
+): CadPoint => {
+  if (!paginaQuadernoCorrente) {
+    return point
+  }
+
+  return workspacePointToPagePoint(
+    point,
+    paginaQuadernoCorrente,
+  )
+}
 
 const selectionStateCad: CadSelectionState = {
   selectedIds: cadEntitySelezionateIds,
@@ -6781,6 +6820,42 @@ ref={viewportRef}
   }}
 >
 
+<svg
+  width={dimensioniWorkspace.width}
+  height={dimensioniWorkspace.height}
+  viewBox={`0 0 ${dimensioniWorkspace.width} ${dimensioniWorkspace.height}`}
+  style={{
+    position: "absolute",
+    left: 0,
+    top: 0,
+    width: dimensioniWorkspace.width,
+    height: dimensioniWorkspace.height,
+    pointerEvents: "none",
+    overflow: "visible",
+    zIndex: 50,
+  }}
+>
+  {workspaceCadEntities.map((entity) => {
+    if (entity.type !== "line") {
+      return null
+    }
+
+    return (
+     <line
+  key={entity.id}
+  x1={entity.start.x}
+  y1={entity.start.y}
+  x2={entity.end.x}
+  y2={entity.end.y}
+  stroke="#ff0000"
+  strokeWidth={8}
+  strokeDasharray="14 8"
+  fill="none"
+/>
+    )
+  })}
+</svg>
+
 {pagineQuaderno
   .slice(0, paginaCorrenteIndex)
   .map((pagina, index) => {
@@ -6955,6 +7030,53 @@ cadEntities={
   pagineQuaderno[paginaCorrenteIndex]?.cadEntities ?? []
 }
 
+onCreateWorkspaceLine={(
+  start,
+  end,
+  color,
+  width,
+  layerId,
+) => {
+  console.log(
+    "WORKSPACE LINE CALLBACK",
+    {
+      start,
+      end,
+      color,
+      width,
+      layerId,
+    },
+  )
+
+  const startWorkspace =
+    puntoPaginaAttivaToWorkspace(start)
+
+  const endWorkspace =
+    puntoPaginaAttivaToWorkspace(end)
+
+  const nuovaLineaWorkspace =
+    createCadLine({
+      start: startWorkspace,
+      end: endWorkspace,
+      stroke: {
+        color,
+        width,
+      },
+      layerId,
+    })
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) => [
+      ...entitiesCorrenti,
+      nuovaLineaWorkspace,
+    ],
+  )
+
+  console.log(
+    "WORKSPACE LINE CREATA",
+    nuovaLineaWorkspace,
+  )
+}}
 onCreateCadEntity={(entity) => {
   setPagineQuaderno((pagineCorrenti) =>
     pagineCorrenti.map((pagina, index) =>
