@@ -2208,7 +2208,8 @@ const confermaModificaTesto = () => {
     return
   }
 
-  const nuoviSegni = segni.map((segno) => {
+  const nuoviSegni =
+  segniLiveRef.current.map((segno) => {
     if (segno.id !== testoInModificaId) {
       return segno
     }
@@ -4183,12 +4184,55 @@ if (segno.strumento === 'testo') {
     layerSegno?.locked ?? false
 
   const larghezzaStimata = Math.max(
-    fontSize,
-    contenuto.length * fontSize * 0.62,
+  fontSize,
+  contenuto.length * fontSize * 0.62,
+)
+
+const altezzaStimata =
+  fontSize * 1.25
+
+const larghezzaBoxTesto =
+  segno.metadati?.textBoxWidth ??
+  Math.max(
+    120,
+    Math.min(
+      larghezzaStimata + 16,
+      600,
+    ),
   )
 
-  const altezzaStimata =
-    fontSize * 1.25
+const caratteriPerRiga = Math.max(
+  1,
+  Math.floor(
+    larghezzaBoxTesto /
+      (fontSize * 0.62),
+  ),
+)
+
+const righeStimate = Math.max(
+  1,
+  contenuto
+    .split("\n")
+    .reduce(
+      (totale, riga) =>
+        totale +
+        Math.max(
+          1,
+          Math.ceil(
+            riga.length /
+              caratteriPerRiga,
+          ),
+        ),
+      0,
+    ),
+)
+
+const altezzaBoxTesto =
+  segno.metadati?.textBoxHeight ??
+  righeStimate *
+    fontSize *
+    1.25 +
+    12
 
   return (
     <g
@@ -4306,8 +4350,8 @@ onDoubleClick={(event) => {
 <rect
   x={punto.x - 4}
   y={punto.y - altezzaStimata}
-  width={larghezzaStimata + 8}
-  height={altezzaStimata + 8}
+ width={larghezzaBoxTesto + 8}
+height={altezzaBoxTesto + 8}
   fill="transparent"
   pointerEvents="all"
   transform={`rotate(${
@@ -4318,8 +4362,8 @@ onDoubleClick={(event) => {
         <rect
           x={punto.x - 4}
           y={punto.y - 4}
-          width={larghezzaStimata + 8}
-          height={altezzaStimata + 8}
+          width={larghezzaBoxTesto + 8}
+height={altezzaBoxTesto + 8}
           fill="rgba(37, 99, 235, 0.08)"
           stroke="#2563eb"
           strokeWidth={1.5}
@@ -4339,18 +4383,10 @@ onDoubleClick={(event) => {
     y={punto.y}
     pointerEvents="all"
     width={
-  segno.metadati?.textBoxWidth ??
-  Math.max(
-    320,
-    larghezzaStimata + 80,
-  )
+  larghezzaBoxTesto
 }
 height={
-  segno.metadati?.textBoxHeight ??
-  Math.max(
-    140,
-    altezzaStimata + 60,
-  )
+ altezzaBoxTesto
 }
     transform={`rotate(${
       segno.metadati?.rotation ?? 0
@@ -4415,22 +4451,14 @@ overflow: "auto",
   x={
     punto.x +
     (
-      segno.metadati?.textBoxWidth ??
-      Math.max(
-        320,
-        larghezzaStimata + 80,
-      )
+      larghezzaBoxTesto
     ) -
     10
   }
   y={
     punto.y +
     (
-      segno.metadati?.textBoxHeight ??
-      Math.max(
-        140,
-        altezzaStimata + 60,
-      )
+     altezzaBoxTesto
     ) -
     10
   }
@@ -4453,18 +4481,10 @@ data-text-resize-handle="true"
   )
 
     const startWidth =
-      segno.metadati?.textBoxWidth ??
-      Math.max(
-        320,
-        larghezzaStimata + 80,
-      )
+      larghezzaBoxTesto
 
     const startHeight =
-      segno.metadati?.textBoxHeight ??
-      Math.max(
-        140,
-        altezzaStimata + 60,
-      )
+     altezzaBoxTesto
 
     interactionMode.current = {
       type: 'resizing-text',
@@ -4481,51 +4501,51 @@ data-text-resize-handle="true"
 />
 </>
 ) : (
-  <text
-    x={punto.x}
-    y={punto.y}
-    fill={segno.colore}
-    fontSize={fontSize}
-    fontFamily={
-      segno.metadati?.fontFamily ??
-      "Arial"
-    }
-    fontWeight={
-      segno.metadati?.fontWeight ??
-      "normal"
-    }
-    fontStyle={
-      segno.metadati?.fontStyle ??
-      "normal"
-    }
-    textDecoration={
-      segno.metadati?.textDecoration ??
-      "none"
-    }
-    transform={`rotate(${
-      segno.metadati?.rotation ?? 0
-    } ${punto.x} ${punto.y})`}
-    dominantBaseline="hanging"
+  <foreignObject
+  x={punto.x}
+  y={punto.y}
+  width={
+    larghezzaBoxTesto
+  }
+  height={
+   altezzaBoxTesto
+  }
+  pointerEvents="none"
+  transform={`rotate(${
+    segno.metadati?.rotation ?? 0
+  } ${punto.x} ${punto.y})`}
+>
+  <div
     style={{
+      width: "100%",
+      height: "100%",
+      boxSizing: "border-box",
+      margin: 0,
+      padding: 0,
+      fontSize,
+      fontFamily:
+        segno.metadati?.fontFamily ??
+        "Arial",
+      fontWeight:
+        segno.metadati?.fontWeight ??
+        "normal",
+      fontStyle:
+        segno.metadati?.fontStyle ??
+        "normal",
+      textDecoration:
+        segno.metadati?.textDecoration ??
+        "none",
+      color: segno.colore,
+      whiteSpace: "pre-wrap",
+      overflowWrap: "break-word",
+      wordBreak: "normal",
+      lineHeight: 1.25,
       userSelect: "none",
     }}
   >
-   {contenuto.split("\n").map(
-  (riga, index) => (
-    <tspan
-      key={index}
-      x={punto.x}
-      dy={
-        index === 0
-          ? 0
-          : fontSize * 1.25
-      }
-    >
-      {riga || " "}
-    </tspan>
-  ),
-)}
-  </text>
+    {contenuto}
+  </div>
+</foreignObject>
 )}
     </g>
   )
