@@ -2788,6 +2788,111 @@ pageLayout,
     setRedoStack([]);
   };
 
+const eliminaPaginaCorrente = () => {
+  if (pagineQuaderno.length <= 1) {
+    window.alert(
+      "Deve rimanere almeno una pagina nel Quaderno.",
+    )
+    return
+  }
+
+  const paginaAttiva =
+    pagineQuaderno[paginaCorrenteIndex]
+
+  if (!paginaAttiva) {
+    return
+  }
+
+ if (
+  !window.confirm(
+    `Vuoi eliminare Pagina ${paginaCorrenteIndex + 1}?`,
+  )
+) {
+    return
+  }
+
+  const idPaginaDaEliminare =
+    paginaAttiva.id
+
+ const nuovePagine =
+  pagineQuaderno
+    .filter(
+      (pagina) =>
+        pagina.id !== idPaginaDaEliminare,
+    )
+    .map((pagina, index) => ({
+      ...pagina,
+      titolo: `Pagina ${index + 1}`,
+    }))
+
+  const nuovoIndex = Math.min(
+    paginaCorrenteIndex,
+    nuovePagine.length - 1,
+  )
+
+  const nuovaPaginaCorrente =
+    nuovePagine[nuovoIndex]
+
+  if (!nuovaPaginaCorrente) {
+    return
+  }
+
+  setPagineQuaderno(nuovePagine)
+  setPaginaCorrenteIndex(nuovoIndex)
+
+  setPageLayout(
+    nuovaPaginaCorrente.pageLayout ??
+      createQuadernoPageLayout(),
+  )
+
+  setDisegni(
+    nuovaPaginaCorrente.disegni ?? [],
+  )
+
+  setSfondoDisegno(
+    nuovaPaginaCorrente.sfondoDisegno ??
+      null,
+  )
+
+  setZoomSfondo(
+    nuovaPaginaCorrente.zoomSfondo ?? 1,
+  )
+
+  setOggettiGrafici(
+    nuovaPaginaCorrente.oggettiGrafici ??
+      [],
+  )
+
+  setScaleCalibration(
+    nuovaPaginaCorrente.scaleCalibration ??
+      null,
+  )
+
+  setLayers(
+    nuovaPaginaCorrente.layers?.map(
+      (layer) => ({
+        ...layer,
+      }),
+    ) ??
+      DEFAULT_QUADERNO_LAYERS.map(
+        (layer) => ({
+          ...layer,
+        }),
+      ),
+  )
+
+  setOggettoGraficoSelezionatoId(null)
+  setPinSelezionatoId(null)
+  setSfondoSelezionato(false)
+  setCadEntitySelezionataId(null)
+  setCadEntitySelezionateIds([])
+
+  setUndoStack([])
+  setRedoStack([])
+
+  setQuadernoDirty(true)
+}
+
   const vaiAllaPagina = (nuovoIndex: number) => {
     if (
       nuovoIndex < 0 ||
@@ -3684,6 +3789,8 @@ setQuadernoDirty(false);
   ]
     .filter(Boolean)
     .join(", ");
+const paginaAttivaId =
+  pagineQuaderno[paginaCorrenteIndex]?.id
 
   return (
     <section style={{ marginTop: 16 }}>
@@ -3866,6 +3973,27 @@ setQuadernoDirty(false);
               >
                 ➕ Pagina
               </button>
+
+<button
+  type="button"
+  onClick={eliminaPaginaCorrente}
+  disabled={pagineQuaderno.length <= 1}
+  style={{
+    ...buttonSecondary,
+    opacity:
+      pagineQuaderno.length <= 1
+        ? 0.45
+        : 1,
+    cursor:
+      pagineQuaderno.length <= 1
+        ? "not-allowed"
+        : "pointer",
+    borderColor: "#fecaca",
+    color: "#991b1b",
+  }}
+>
+  🗑 Elimina pagina
+</button>
             </div>
          
 
@@ -6263,7 +6391,7 @@ ref={viewportRef}
         onClick={() => vaiAllaPagina(index)}
         title={`Apri ${pagina.titolo}`}
         style={{
-          width: layout.width,
+  width: layout.width,
           height: layout.height,
           background: "#ffffff",
           border: "1px solid #94a3b8",
@@ -6274,6 +6402,7 @@ ref={viewportRef}
           cursor: "pointer",
         }}
       >
+
         <div
           style={{
             position: "absolute",
@@ -6293,16 +6422,16 @@ ref={viewportRef}
   })}
 
               <div
-                style={{
-                  width: pageLayout.width,
-                  height: pageLayout.height,
-                  background: "#ffffff",
-                  border: "1px solid #d1d5db",
-                  boxShadow: "0 10px 30px rgba(15,23,42,0.25)",
-                  overflow: "hidden",
-                  flexShrink: 0,
-                  position: "relative",
-                }}
+  style={{
+    width: pageLayout.width,
+  height: pageLayout.height,
+  background: "#ffffff",
+  border: "1px solid #d1d5db",
+  boxShadow: "0 10px 30px rgba(15,23,42,0.25)",
+  overflow: "hidden",
+  flexShrink: 0,
+  position: "relative",
+}}
               >
 
 
