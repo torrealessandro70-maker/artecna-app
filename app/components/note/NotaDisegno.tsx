@@ -158,6 +158,7 @@ type Props = {
  colore: string
 spessore: number
 dimensioneTesto?: number
+solaLettura?: boolean
 sfondo?: string | null
 
   oggettiGrafici?: OggettoGraficoQuaderno[]
@@ -500,6 +501,7 @@ export default function NotaDisegno({
   colore,
   spessore,
 dimensioneTesto = 12,
+solaLettura = false,
   sfondo,
  oggettiGrafici = [],
   oggettoGraficoSelezionatoId = null,
@@ -3704,7 +3706,7 @@ const segniOrdinati = [...segni].sort((a, b) => {
 })
 
 return (
-  <svg
+ <svg
   ref={(elemento) => {
     svgRef.current = elemento
 
@@ -3712,17 +3714,33 @@ return (
       svgRefEsterno.current = elemento
     }
   }}
-      viewBox={`0 0 ${larghezza} ${altezza}`}
-      onPointerDown={inizia}
-      onPointerMove={gestisciPointerMove}
-      onPointerUp={termina}
-      onPointerCancel={termina}
-onPointerLeave={() => setSnapPoint(null)}
+  viewBox={`0 0 ${larghezza} ${altezza}`}
+  onPointerDown={
+    solaLettura ? undefined : inizia
+  }
+  onPointerMove={
+    solaLettura
+      ? undefined
+      : gestisciPointerMove
+  }
+  onPointerUp={
+    solaLettura ? undefined : termina
+  }
+  onPointerCancel={
+    solaLettura ? undefined : termina
+  }
+  onPointerLeave={
+    solaLettura
+      ? undefined
+      : () => setSnapPoint(null)
+  }
 
-      style={{
-        width: '100%',
-height: '100%',
-display: 'block',
+  style={{
+    width: '100%',
+    height: '100%',
+    display: 'block',
+pointerEvents:
+  solaLettura ? 'none' : 'auto',
         border: '1px solid #cbd5e1',
         borderRadius: 12,
         backgroundColor: '#fff',

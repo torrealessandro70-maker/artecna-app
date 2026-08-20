@@ -6403,6 +6403,64 @@ ref={viewportRef}
         }}
       >
 
+             
+        <NotaDisegno
+          solaLettura
+          larghezza={layout.width}
+          altezza={layout.height}
+
+          segni={pagina.disegni ?? []}
+          onChange={() => {}}
+
+          strumento={false}
+          colore="#111827"
+          spessore={1}
+
+          sfondo={
+            pagina.sfondoDisegno ?? null
+          }
+
+          zoomSfondo={
+            pagina.zoomSfondo ?? 1
+          }
+
+          backgroundTransform={
+            pagina.backgroundTransform
+          }
+
+          oggettiGrafici={
+            pagina.oggettiGrafici ?? []
+          }
+
+          layers={
+            pagina.layers ??
+            DEFAULT_QUADERNO_LAYERS
+          }
+
+          scaleCalibration={
+            pagina.scaleCalibration ?? null
+          }
+
+          cadDimensions={
+            pagina.cadDimensions ?? []
+          }
+
+          cadEntities={
+            pagina.cadEntities ?? []
+          }
+
+          modalitaSelezione={false}
+          snapAttivo={false}
+          gridSnapAttivo={false}
+          orthoAttivo={false}
+          polarTrackingAttivo={false}
+          perpTrackingAttivo={false}
+          metroAttivo={false}
+          areaAttiva={false}
+          areaSplitAttivo={false}
+          calibrazioneScalaAttiva={false}
+        />
+
         <div
           style={{
             position: "absolute",
@@ -6827,12 +6885,68 @@ onCambiaRettangoloSelezione={setRettangoloSelezione}
           position: "relative",
           cursor: "pointer",
         }}
-      >
+           >
+        <NotaDisegno
+          solaLettura
+          larghezza={layout.width}
+          altezza={layout.height}
+
+          segni={pagina.disegni ?? []}
+          onChange={() => {}}
+
+          strumento={false}
+          colore="#111827"
+          spessore={1}
+
+          sfondo={
+            pagina.sfondoDisegno ?? null
+          }
+
+          zoomSfondo={
+            pagina.zoomSfondo ?? 1
+          }
+
+          backgroundTransform={
+            pagina.backgroundTransform
+          }
+
+          oggettiGrafici={
+            pagina.oggettiGrafici ?? []
+          }
+
+          layers={
+            pagina.layers ??
+            DEFAULT_QUADERNO_LAYERS
+          }
+
+          scaleCalibration={
+            pagina.scaleCalibration ?? null
+          }
+
+          cadDimensions={
+            pagina.cadDimensions ?? []
+          }
+
+          cadEntities={
+            pagina.cadEntities ?? []
+          }
+
+          modalitaSelezione={false}
+          snapAttivo={false}
+          gridSnapAttivo={false}
+          orthoAttivo={false}
+          polarTrackingAttivo={false}
+          perpTrackingAttivo={false}
+          metroAttivo={false}
+          areaAttiva={false}
+          areaSplitAttivo={false}
+          calibrazioneScalaAttiva={false}
+        />
+
         <div
           style={{
             position: "absolute",
             top: 8,
-            left: 8,
             padding: "3px 7px",
             background:
               "rgba(255,255,255,0.9)",
