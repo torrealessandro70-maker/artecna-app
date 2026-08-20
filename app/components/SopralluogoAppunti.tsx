@@ -1404,6 +1404,187 @@ const gestisciZoomMouse = (
 
 const [manoAttiva, setManoAttiva] = useState(false);
 const [panInCorso, setPanInCorso] = useState(false);
+const [spostaTavolaAttivo, setSpostaTavolaAttivo] =
+  useState(false);
+
+const trascinamentoPaginaRef = useRef<{
+  attivo: boolean
+  paginaId: string | null
+
+  startClientX: number
+  startClientY: number
+
+  startWorkspaceX: number
+  startWorkspaceY: number
+
+  currentWorkspaceX: number
+  currentWorkspaceY: number
+
+  elemento: HTMLDivElement | null
+}>({
+  attivo: false,
+  paginaId: null,
+
+  startClientX: 0,
+  startClientY: 0,
+
+  startWorkspaceX: 0,
+  startWorkspaceY: 0,
+
+  currentWorkspaceX: 0,
+  currentWorkspaceY: 0,
+
+  elemento: null,
+})
+const iniziaTrascinamentoPagina = (
+  event: React.PointerEvent<HTMLDivElement>,
+  pagina: PaginaQuadernoNota,
+) => {
+ if (
+  !spostaTavolaAttivo ||
+  manoAttiva ||
+  strumentoDisegno !== null ||
+  areaAttiva ||
+  areaSplitAttivo ||
+  metroAttivo ||
+  calibrazioneScalaAttiva ||
+  trimAttivo
+) {
+  return
+}
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  const startWorkspaceX =
+  pagina.workspaceX ?? 0
+
+const startWorkspaceY =
+  pagina.workspaceY ?? 0
+
+trascinamentoPaginaRef.current = {
+  attivo: true,
+  paginaId: pagina.id,
+
+  startClientX: event.clientX,
+  startClientY: event.clientY,
+
+  startWorkspaceX,
+  startWorkspaceY,
+
+  currentWorkspaceX:
+    startWorkspaceX,
+
+  currentWorkspaceY:
+    startWorkspaceY,
+
+  elemento: event.currentTarget,
+}
+
+  event.currentTarget.setPointerCapture(
+    event.pointerId,
+  )
+}
+
+const trascinaPagina = (
+  event: React.PointerEvent<HTMLDivElement>,
+) => {
+  const stato =
+    trascinamentoPaginaRef.current
+
+  if (
+    !stato.attivo ||
+    !stato.paginaId
+  ) {
+    return
+  }
+
+  const deltaX =
+    (event.clientX - stato.startClientX) /
+    viewportScale
+
+  const deltaY =
+    (event.clientY - stato.startClientY) /
+    viewportScale
+
+  const nuovoX =
+    stato.startWorkspaceX + deltaX
+
+  const nuovoY =
+    stato.startWorkspaceY + deltaY
+
+  stato.currentWorkspaceX = nuovoX
+stato.currentWorkspaceY = nuovoY
+
+if (stato.elemento) {
+  stato.elemento.style.left =
+    `${nuovoX}px`
+
+  stato.elemento.style.top =
+    `${nuovoY}px`
+}
+}
+
+const terminaTrascinamentoPagina = (
+
+  event: React.PointerEvent<HTMLDivElement>,
+) => {
+  if (
+  !trascinamentoPaginaRef.current.attivo
+) {
+  return
+}
+
+const stato =
+  trascinamentoPaginaRef.current
+
+if (stato.paginaId) {
+  setPagineQuaderno((pagineCorrenti) =>
+    pagineCorrenti.map((pagina) =>
+      pagina.id === stato.paginaId
+        ? {
+            ...pagina,
+            workspaceX:
+              stato.currentWorkspaceX,
+            workspaceY:
+              stato.currentWorkspaceY,
+          }
+        : pagina,
+    ),
+  )
+
+  setQuadernoDirty(true)
+}
+
+trascinamentoPaginaRef.current = {
+  attivo: false,
+  paginaId: null,
+
+  startClientX: 0,
+  startClientY: 0,
+
+  startWorkspaceX: 0,
+  startWorkspaceY: 0,
+
+  currentWorkspaceX: 0,
+  currentWorkspaceY: 0,
+
+  elemento: null,
+}
+
+  if (
+    event.currentTarget.hasPointerCapture(
+      event.pointerId,
+    )
+  ) {
+
+
+
+    event.currentTarget.releasePointerCapture(
+      event.pointerId,
+    )
+  }
+}
 
   const [pagineQuaderno, setPagineQuaderno] = useState<PaginaQuadernoNota[]>([
     {
@@ -4071,6 +4252,32 @@ const dimensioniWorkspace =
 
 <button
   type="button"
+  onClick={() =>
+    setSpostaTavolaAttivo(
+      (attivo) => !attivo,
+    )
+  }
+  style={{
+    ...buttonSecondary,
+    background:
+      spostaTavolaAttivo
+        ? "#dbeafe"
+        : buttonSecondary.background,
+    borderColor:
+      spostaTavolaAttivo
+        ? "#2563eb"
+        : undefined,
+    color:
+      spostaTavolaAttivo
+        ? "#1d4ed8"
+        : undefined,
+  }}
+>
+  ↔ Sposta tavola
+</button>
+
+<button
+  type="button"
   onClick={eliminaPaginaCorrente}
   disabled={pagineQuaderno.length <= 1}
   style={{
@@ -6482,6 +6689,15 @@ ref={viewportRef}
      <div
   key={pagina.id}
   onClick={() => vaiAllaPagina(index)}
+  onPointerDown={(event) =>
+    iniziaTrascinamentoPagina(
+      event,
+      pagina,
+    )
+  }
+  onPointerMove={trascinaPagina}
+  onPointerUp={terminaTrascinamentoPagina}
+  onPointerCancel={terminaTrascinamentoPagina}
   title={`Apri ${pagina.titolo}`}
   style={{
     position: "absolute",
@@ -6494,7 +6710,7 @@ ref={viewportRef}
     boxShadow:
       "0 10px 30px rgba(15,23,42,0.16)",
     flexShrink: 0,
-    cursor: "pointer",
+    cursor: "move",
   }}
 >
   <NotaDisegno
@@ -6572,24 +6788,40 @@ ref={viewportRef}
     )
   })}
 
-              <div
- style={{
-  position: "absolute",
-  left: paginaAttiva?.workspaceX ?? 0,
-  top: paginaAttiva?.workspaceY ?? 0,
-  width: pageLayout.width,
-  height: pageLayout.height,
-  background: "#ffffff",
-  border: "1px solid #d1d5db",
-  boxShadow: "0 10px 30px rgba(15,23,42,0.25)",
-  overflow: "hidden",
-  flexShrink: 0,
-}}
-              >
+             <div
+  onPointerDown={(event) => {
+    if (paginaAttiva) {
+      iniziaTrascinamentoPagina(
+        event,
+        paginaAttiva,
+      )
+    }
+  }}
+  onPointerMove={trascinaPagina}
+  onPointerUp={terminaTrascinamentoPagina}
+  onPointerCancel={terminaTrascinamentoPagina}
+  style={{
+    position: "absolute",
+    left: paginaAttiva?.workspaceX ?? 0,
+    top: paginaAttiva?.workspaceY ?? 0,
+    width: pageLayout.width,
+    height: pageLayout.height,
+    background: "#ffffff",
+    border: "1px solid #d1d5db",
+    boxShadow: "0 10px 30px rgba(15,23,42,0.25)",
+    overflow: "hidden",
+    flexShrink: 0,
+    cursor:
+      spostaTavolaAttivo
+        ? "move"
+        : "default",
+  }}
+>
 
 
-               <NotaDisegno
+             <NotaDisegno
   svgRefEsterno={quadernoSvgRef}
+  solaLettura={spostaTavolaAttivo}
   larghezza={pageLayout.width}
   altezza={pageLayout.height}
   orthoAttivo={orthoAttivo}
