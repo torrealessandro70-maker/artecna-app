@@ -1507,13 +1507,116 @@ const trascinaPagina = (
     (event.clientY - stato.startClientY) /
     viewportScale
 
-  const nuovoX =
-    stato.startWorkspaceX + deltaX
+  let nuovoX =
+  stato.startWorkspaceX + deltaX
 
-  const nuovoY =
-    stato.startWorkspaceY + deltaY
+let nuovoY =
+  stato.startWorkspaceY + deltaY
 
-  stato.currentWorkspaceX = nuovoX
+const paginaTrascinata =
+  pagineQuaderno.find(
+    (pagina) =>
+      pagina.id === stato.paginaId,
+  )
+
+if (paginaTrascinata) {
+  const layoutTrascinata =
+    paginaTrascinata.pageLayout ??
+    createQuadernoPageLayout()
+
+  const tolleranzaSnap = 20
+
+  for (const altraPagina of pagineQuaderno) {
+    if (
+      altraPagina.id ===
+      paginaTrascinata.id
+    ) {
+      continue
+    }
+
+    const altroLayout =
+      altraPagina.pageLayout ??
+      createQuadernoPageLayout()
+
+    const altroX =
+      altraPagina.workspaceX ?? 0
+
+    const altroY =
+      altraPagina.workspaceY ?? 0
+
+    const bordoDestroTrascinata =
+      nuovoX +
+      layoutTrascinata.width
+
+    const bordoSinistroTrascinata =
+      nuovoX
+
+    const bordoBassoTrascinata =
+      nuovoY +
+      layoutTrascinata.height
+
+    const bordoAltoTrascinata =
+      nuovoY
+
+    const bordoDestroAltra =
+      altroX +
+      altroLayout.width
+
+    const bordoSinistroAltra =
+      altroX
+
+    const bordoBassoAltra =
+      altroY +
+      altroLayout.height
+
+    const bordoAltoAltra =
+      altroY
+
+    if (
+      Math.abs(
+        bordoDestroTrascinata -
+          bordoSinistroAltra,
+      ) <= tolleranzaSnap
+    ) {
+      nuovoX =
+        bordoSinistroAltra -
+        layoutTrascinata.width
+    }
+
+    if (
+      Math.abs(
+        bordoSinistroTrascinata -
+          bordoDestroAltra,
+      ) <= tolleranzaSnap
+    ) {
+      nuovoX =
+        bordoDestroAltra
+    }
+
+    if (
+      Math.abs(
+        bordoBassoTrascinata -
+          bordoAltoAltra,
+      ) <= tolleranzaSnap
+    ) {
+      nuovoY =
+        bordoAltoAltra -
+        layoutTrascinata.height
+    }
+
+    if (
+      Math.abs(
+        bordoAltoTrascinata -
+          bordoBassoAltra,
+      ) <= tolleranzaSnap
+    ) {
+      nuovoY =
+        bordoBassoAltra
+    }
+  }
+}
+
+stato.currentWorkspaceX = nuovoX
 stato.currentWorkspaceY = nuovoY
 
 if (stato.elemento) {
