@@ -2740,23 +2740,25 @@ sfondoDisegno: null,
   );
 };
 
-  const aggiungiPagina = () => {
-    const nuovoIndex = pagineQuaderno.length;
+const aggiungiPagina = () => {
+  const nuovoIndex = pagineQuaderno.length;
 
-   const nuovaPagina: PaginaQuadernoNota = {
-  id: crypto.randomUUID(),
-  titolo: `Pagina ${nuovoIndex + 1}`,
- disegni: [],
-cadDimensions: [],
-cadEntities: [],
-sfondoDisegno: null,
+  const nuovaPagina: PaginaQuadernoNota = {
+    id: crypto.randomUUID(),
+    titolo: `Pagina ${nuovoIndex + 1}`,
+  disegni: [],
+  cadDimensions: [],
+  cadEntities: [],
+  sfondoDisegno: null,
   zoomSfondo: 1,
   oggettiGrafici: [],
+  pageLayout: {
+    ...pageLayout,
+  },
   layers: DEFAULT_QUADERNO_LAYERS.map((layer) => ({
     ...layer,
   })),
 }
-
     setPagineQuaderno((pagineCorrenti) => [
       ...pagineCorrenti.map((pagina, index) =>
         index === paginaCorrenteIndex
@@ -2767,6 +2769,7 @@ sfondoDisegno: null,
   zoomSfondo,
   oggettiGrafici,
   layers,
+pageLayout,
 }
           : pagina,
       ),
@@ -6236,6 +6239,59 @@ ref={viewportRef}
   }}
 >
 
+<div
+ style={{
+  display: "grid",
+  gridTemplateColumns: "repeat(2, max-content)",
+  gap: 0,
+  alignItems: "start",
+  justifyItems: "start",
+  flexShrink: 0,
+}}
+>
+
+{pagineQuaderno
+  .slice(0, paginaCorrenteIndex)
+  .map((pagina, index) => {
+    const layout =
+      pagina.pageLayout ??
+      createQuadernoPageLayout()
+
+    return (
+      <div
+        key={pagina.id}
+        onClick={() => vaiAllaPagina(index)}
+        title={`Apri ${pagina.titolo}`}
+        style={{
+          width: layout.width,
+          height: layout.height,
+          background: "#ffffff",
+          border: "1px solid #94a3b8",
+          boxShadow:
+            "0 10px 30px rgba(15,23,42,0.16)",
+          flexShrink: 0,
+          position: "relative",
+          cursor: "pointer",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            padding: "3px 7px",
+            background: "rgba(255,255,255,0.9)",
+            borderRadius: 4,
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          {pagina.titolo}
+        </div>
+      </div>
+    )
+  })}
+
               <div
                 style={{
                   width: pageLayout.width,
@@ -6614,12 +6670,58 @@ rettangoloSelezione={rettangoloSelezione}
 onCambiaRettangoloSelezione={setRettangoloSelezione}
 />
 
+</div>
 
+{pagineQuaderno
+  .slice(paginaCorrenteIndex + 1)
+  .map((pagina, offset) => {
+    const index =
+      paginaCorrenteIndex + 1 + offset
 
-       </div>
-          </div>
+    const layout =
+      pagina.pageLayout ??
+      createQuadernoPageLayout()
+
+    return (
+      <div
+        key={pagina.id}
+        onClick={() => vaiAllaPagina(index)}
+        title={`Apri ${pagina.titolo}`}
+        style={{
+          width: layout.width,
+          height: layout.height,
+          background: "#ffffff",
+          border: "1px solid #94a3b8",
+          boxShadow:
+            "0 10px 30px rgba(15,23,42,0.16)",
+          flexShrink: 0,
+          position: "relative",
+          cursor: "pointer",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            padding: "3px 7px",
+            background:
+              "rgba(255,255,255,0.9)",
+            borderRadius: 4,
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          {pagina.titolo}
         </div>
+      </div>
+    )
+  })}
 
+</div>
+
+</div>
+</div>
 <div
   style={{
     position: "absolute",
