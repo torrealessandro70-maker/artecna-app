@@ -87,9 +87,12 @@ export type PaginaQuadernoNota = {
 
   disegni: SegnoNota[]
   cadDimensions?: CadDimensionEntity[]
-cadEntities?: CadEntity[]
+  cadEntities?: CadEntity[]
   scaleCalibration?: CadScaleCalibration | null
-pageLayout?: QuadernoPageLayout
+  pageLayout?: QuadernoPageLayout
+
+  workspaceX?: number
+  workspaceY?: number
 
   sfondoDisegno: string | null
 
@@ -100,6 +103,7 @@ pageLayout?: QuadernoPageLayout
   layers?: QuadernoLayer[]
   backgroundTransform?: BackgroundTransform
 }
+
 export type VoceChecklistNota = {
   id: string
   testo: string

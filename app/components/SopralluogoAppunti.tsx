@@ -2740,6 +2740,60 @@ sfondoDisegno: null,
   );
 };
 
+const calcolaPosizioniWorkspace = (
+  pagine: PaginaQuadernoNota[],
+): PaginaQuadernoNota[] => {
+  let yCorrente = 0
+
+  const risultato: PaginaQuadernoNota[] = []
+
+  for (
+    let index = 0;
+    index < pagine.length;
+    index += 2
+  ) {
+    const paginaSinistra = pagine[index]
+    const paginaDestra = pagine[index + 1]
+
+    if (!paginaSinistra) {
+      continue
+    }
+
+    const layoutSinistra =
+      paginaSinistra.pageLayout ??
+      createQuadernoPageLayout()
+
+    const layoutDestra =
+      paginaDestra?.pageLayout ??
+      createQuadernoPageLayout()
+
+    risultato.push({
+      ...paginaSinistra,
+      workspaceX: 0,
+      workspaceY: yCorrente,
+    })
+
+    if (paginaDestra) {
+      risultato.push({
+        ...paginaDestra,
+        workspaceX: layoutSinistra.width,
+        workspaceY: yCorrente,
+      })
+    }
+
+    const altezzaRiga = Math.max(
+      layoutSinistra.height,
+      paginaDestra
+        ? layoutDestra.height
+        : 0,
+    )
+
+    yCorrente += altezzaRiga
+  }
+
+  return risultato
+}
+
 const aggiungiPagina = () => {
   const nuovoIndex = pagineQuaderno.length;
 
@@ -2759,22 +2813,28 @@ const aggiungiPagina = () => {
     ...layer,
   })),
 }
-    setPagineQuaderno((pagineCorrenti) => [
-      ...pagineCorrenti.map((pagina, index) =>
-        index === paginaCorrenteIndex
-          ? {
-              ...pagina,
-  disegni,
-  sfondoDisegno,
-  zoomSfondo,
-  oggettiGrafici,
-  layers,
-pageLayout,
-}
-          : pagina,
-      ),
-      nuovaPagina,
-    ]);
+    setPagineQuaderno((pagineCorrenti) => {
+  const pagineAggiornate = [
+    ...pagineCorrenti.map((pagina, index) =>
+      index === paginaCorrenteIndex
+        ? {
+            ...pagina,
+            disegni,
+            sfondoDisegno,
+            zoomSfondo,
+            oggettiGrafici,
+            layers,
+            pageLayout,
+          }
+        : pagina,
+    ),
+    nuovaPagina,
+  ]
+
+  return calcolaPosizioniWorkspace(
+    pagineAggiornate,
+  )
+})
 
     setPaginaCorrenteIndex(nuovoIndex);
     setDisegni([]);
@@ -2815,15 +2875,17 @@ const eliminaPaginaCorrente = () => {
     paginaAttiva.id
 
  const nuovePagine =
-  pagineQuaderno
-    .filter(
-      (pagina) =>
-        pagina.id !== idPaginaDaEliminare,
-    )
-    .map((pagina, index) => ({
-      ...pagina,
-      titolo: `Pagina ${index + 1}`,
-    }))
+  calcolaPosizioniWorkspace(
+    pagineQuaderno
+      .filter(
+        (pagina) =>
+          pagina.id !== idPaginaDaEliminare,
+      )
+      .map((pagina, index) => ({
+        ...pagina,
+        titolo: `Pagina ${index + 1}`,
+      })),
+  )
 
   const nuovoIndex = Math.min(
     paginaCorrenteIndex,
@@ -3791,6 +3853,39 @@ setQuadernoDirty(false);
     .join(", ");
 const paginaAttivaId =
   pagineQuaderno[paginaCorrenteIndex]?.id
+
+const paginaAttiva =
+  pagineQuaderno[paginaCorrenteIndex]
+
+const dimensioniWorkspace =
+  pagineQuaderno.reduce(
+    (dimensioni, pagina) => {
+      const layout =
+        pagina.pageLayout ??
+        createQuadernoPageLayout()
+
+      const x =
+        pagina.workspaceX ?? 0
+
+      const y =
+        pagina.workspaceY ?? 0
+
+      return {
+        width: Math.max(
+          dimensioni.width,
+          x + layout.width,
+        ),
+        height: Math.max(
+          dimensioni.height,
+          y + layout.height,
+        ),
+      }
+    },
+    {
+      width: 0,
+      height: 0,
+    },
+  )
 
   return (
     <section style={{ marginTop: 16 }}>
@@ -6368,14 +6463,12 @@ ref={viewportRef}
 >
 
 <div
- style={{
-  display: "grid",
-  gridTemplateColumns: "repeat(2, max-content)",
-  gap: 0,
-  alignItems: "start",
-  justifyItems: "start",
-  flexShrink: 0,
-}}
+  style={{
+    position: "relative",
+    width: dimensioniWorkspace.width,
+    height: dimensioniWorkspace.height,
+    flexShrink: 0,
+  }}
 >
 
 {pagineQuaderno
@@ -6386,26 +6479,26 @@ ref={viewportRef}
       createQuadernoPageLayout()
 
     return (
-      <div
-        key={pagina.id}
-        onClick={() => vaiAllaPagina(index)}
-        title={`Apri ${pagina.titolo}`}
-        style={{
-  width: layout.width,
-          height: layout.height,
-          background: "#ffffff",
-          border: "1px solid #94a3b8",
-          boxShadow:
-            "0 10px 30px rgba(15,23,42,0.16)",
-          flexShrink: 0,
-          position: "relative",
-          cursor: "pointer",
-        }}
-      >
-
-             
-        <NotaDisegno
-          solaLettura
+     <div
+  key={pagina.id}
+  onClick={() => vaiAllaPagina(index)}
+  title={`Apri ${pagina.titolo}`}
+  style={{
+    position: "absolute",
+    left: pagina.workspaceX ?? 0,
+    top: pagina.workspaceY ?? 0,
+    width: layout.width,
+    height: layout.height,
+    background: "#ffffff",
+    border: "1px solid #94a3b8",
+    boxShadow:
+      "0 10px 30px rgba(15,23,42,0.16)",
+    flexShrink: 0,
+    cursor: "pointer",
+  }}
+>
+  <NotaDisegno
+    solaLettura
           larghezza={layout.width}
           altezza={layout.height}
 
@@ -6480,15 +6573,17 @@ ref={viewportRef}
   })}
 
               <div
-  style={{
-    width: pageLayout.width,
+ style={{
+  position: "absolute",
+  left: paginaAttiva?.workspaceX ?? 0,
+  top: paginaAttiva?.workspaceY ?? 0,
+  width: pageLayout.width,
   height: pageLayout.height,
   background: "#ffffff",
   border: "1px solid #d1d5db",
   boxShadow: "0 10px 30px rgba(15,23,42,0.25)",
   overflow: "hidden",
   flexShrink: 0,
-  position: "relative",
 }}
               >
 
@@ -6874,17 +6969,19 @@ onCambiaRettangoloSelezione={setRettangoloSelezione}
         key={pagina.id}
         onClick={() => vaiAllaPagina(index)}
         title={`Apri ${pagina.titolo}`}
-        style={{
-          width: layout.width,
-          height: layout.height,
-          background: "#ffffff",
-          border: "1px solid #94a3b8",
-          boxShadow:
-            "0 10px 30px rgba(15,23,42,0.16)",
-          flexShrink: 0,
-          position: "relative",
-          cursor: "pointer",
-        }}
+       style={{
+  position: "absolute",
+  left: pagina.workspaceX ?? 0,
+  top: pagina.workspaceY ?? 0,
+  width: layout.width,
+  height: layout.height,
+  background: "#ffffff",
+  border: "1px solid #94a3b8",
+  boxShadow:
+    "0 10px 30px rgba(15,23,42,0.16)",
+  flexShrink: 0,
+  cursor: "pointer",
+}}
            >
         <NotaDisegno
           solaLettura
