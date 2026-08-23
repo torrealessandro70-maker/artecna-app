@@ -1855,6 +1855,13 @@ const workspaceRenderEntities: CadEntity[] = [
   ...workspaceSnapEntities,
 ]
 
+const workspaceRenderEntitiesOrdinati =
+  [...workspaceRenderEntities].sort(
+    (a, b) =>
+      (a.zOrder ?? 0) -
+      (b.zOrder ?? 0),
+  )
+
 const selectionStateCad: CadSelectionState = {
   selectedIds: cadEntitySelezionateIds,
   primarySelectionId:
@@ -2577,6 +2584,278 @@ const portaSegniSelezionatiAvanti = () => {
   aggiornaQuaderno({
     disegni: nuoviDisegni,
   })
+}
+
+
+const portaWorkspaceCadSelezionatiAvanti = () => {
+  if (cadEntitySelezionateIds.length === 0) {
+    return false
+  }
+
+const portaWorkspaceCadSelezionatiIndietro = () => {
+  if (cadEntitySelezionateIds.length === 0) {
+    return false
+  }
+
+  const idsSelezionati =
+    new Set(cadEntitySelezionateIds)
+
+  const minZOrder =
+    workspaceRenderEntities.reduce(
+      (minCorrente, entity) =>
+        Math.min(
+          minCorrente,
+          entity.zOrder ?? 0,
+        ),
+      0,
+    )
+
+  let prossimoZOrder =
+    minZOrder - 1
+
+  let modificato = false
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) =>
+      entitiesCorrenti.map((entity) => {
+        if (
+          !idsSelezionati.has(entity.id)
+        ) {
+          return entity
+        }
+
+        modificato = true
+
+        const entityAggiornata = {
+          ...entity,
+          zOrder: prossimoZOrder,
+          updatedAt:
+            new Date().toISOString(),
+        }
+
+        prossimoZOrder -= 1
+
+        return entityAggiornata
+      }),
+  )
+
+  if (modificato) {
+    setQuadernoDirty(true)
+  }
+
+  return modificato
+}
+
+  const idsSelezionati =
+    new Set(cadEntitySelezionateIds)
+
+  const maxZOrder =
+    workspaceRenderEntities.reduce(
+      (maxCorrente, entity) =>
+        Math.max(
+          maxCorrente,
+          entity.zOrder ?? 0,
+        ),
+      0,
+    )
+
+  let prossimoZOrder =
+    maxZOrder + 1
+
+  let modificato = false
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) =>
+      entitiesCorrenti.map((entity) => {
+        if (
+          !idsSelezionati.has(entity.id)
+        ) {
+          return entity
+        }
+
+        modificato = true
+
+        const entityAggiornata = {
+          ...entity,
+          zOrder: prossimoZOrder,
+          updatedAt:
+            new Date().toISOString(),
+        }
+
+        prossimoZOrder += 1
+
+        return entityAggiornata
+      }),
+  )
+
+  if (modificato) {
+    setQuadernoDirty(true)
+  }
+
+  return modificato
+}
+
+const portaWorkspaceCadSelezionatiIndietro = () => {
+  if (cadEntitySelezionateIds.length === 0) {
+    return false
+  }
+
+  const idsSelezionati =
+    new Set(cadEntitySelezionateIds)
+
+  const minZOrder =
+    workspaceRenderEntities.reduce(
+      (minCorrente, entity) =>
+        Math.min(
+          minCorrente,
+          entity.zOrder ?? 0,
+        ),
+      0,
+    )
+
+  let prossimoZOrder =
+    minZOrder - 1
+
+  let modificato = false
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) =>
+      entitiesCorrenti.map((entity) => {
+        if (
+          !idsSelezionati.has(entity.id)
+        ) {
+          return entity
+        }
+
+        modificato = true
+
+        const entityAggiornata = {
+          ...entity,
+          zOrder: prossimoZOrder,
+          updatedAt:
+            new Date().toISOString(),
+        }
+
+        prossimoZOrder -= 1
+
+        return entityAggiornata
+      }),
+  )
+
+  if (modificato) {
+    setQuadernoDirty(true)
+  }
+
+  return modificato
+}
+
+
+const portaWorkspaceCadSelezionatiInPrimoPiano = () => {
+  if (cadEntitySelezionateIds.length === 0) {
+    return false
+  }
+
+  const idsSelezionati =
+    new Set(cadEntitySelezionateIds)
+
+  const maxZOrder =
+    workspaceRenderEntities.reduce(
+      (maxCorrente, entity) =>
+        Math.max(
+          maxCorrente,
+          entity.zOrder ?? 0,
+        ),
+      0,
+    )
+
+  let prossimoZOrder =
+    maxZOrder + 100
+
+  let modificato = false
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) =>
+      entitiesCorrenti.map((entity) => {
+        if (
+          !idsSelezionati.has(entity.id)
+        ) {
+          return entity
+        }
+
+        modificato = true
+
+        const entityAggiornata = {
+          ...entity,
+          zOrder: prossimoZOrder,
+          updatedAt:
+            new Date().toISOString(),
+        }
+
+        prossimoZOrder += 1
+
+        return entityAggiornata
+      }),
+  )
+
+  if (modificato) {
+    setQuadernoDirty(true)
+  }
+
+  return modificato
+}
+
+const portaWorkspaceCadSelezionatiInFondo = () => {
+  if (cadEntitySelezionateIds.length === 0) {
+    return false
+  }
+
+  const idsSelezionati =
+    new Set(cadEntitySelezionateIds)
+
+  const minZOrder =
+    workspaceRenderEntities.reduce(
+      (minCorrente, entity) =>
+        Math.min(
+          minCorrente,
+          entity.zOrder ?? 0,
+        ),
+      0,
+    )
+
+  let prossimoZOrder =
+    minZOrder - 100
+
+  let modificato = false
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) =>
+      entitiesCorrenti.map((entity) => {
+        if (
+          !idsSelezionati.has(entity.id)
+        ) {
+          return entity
+        }
+
+        modificato = true
+
+        const entityAggiornata = {
+          ...entity,
+          zOrder: prossimoZOrder,
+          updatedAt:
+            new Date().toISOString(),
+        }
+
+        prossimoZOrder -= 1
+
+        return entityAggiornata
+      }),
+  )
+
+  if (modificato) {
+    setQuadernoDirty(true)
+  }
+
+  return modificato
 }
 
 const portaImmagineAvanti = () => {
@@ -6510,14 +6789,22 @@ setWorkspaceCadEntities(
 
     <button
       type="button"
-      onClick={() => {
+   onClick={() => {
   if (oggettoGraficoSelezionatoId) {
     portaImmagineAvanti()
     return
   }
 
+  const gestitoWorkspace =
+    portaWorkspaceCadSelezionatiAvanti()
+
+  if (gestitoWorkspace) {
+    return
+  }
+
   portaSegniSelezionatiAvanti()
 }}
+
       style={{
         ...buttonSecondary,
         padding: "4px 8px",
@@ -6531,9 +6818,16 @@ setWorkspaceCadEntities(
 
     <button
       type="button"
-      onClick={() => {
+     onClick={() => {
   if (oggettoGraficoSelezionatoId) {
     portaImmagineIndietro()
+    return
+  }
+
+  const gestitoWorkspace =
+    portaWorkspaceCadSelezionatiIndietro()
+
+  if (gestitoWorkspace) {
     return
   }
 
@@ -6553,7 +6847,16 @@ setWorkspaceCadEntities(
 
     <button
       type="button"
-      onClick={portaSegniSelezionatiInPrimoPiano}
+      onClick={() => {
+  const gestitoWorkspace =
+    portaWorkspaceCadSelezionatiInPrimoPiano()
+
+  if (gestitoWorkspace) {
+    return
+  }
+
+  portaSegniSelezionatiInPrimoPiano()
+}}
       style={{
         ...buttonSecondary,
         padding: "4px 8px",
@@ -6567,7 +6870,16 @@ setWorkspaceCadEntities(
 
     <button
       type="button"
-      onClick={portaSegniSelezionatiInFondo}
+      onClick={() => {
+  const gestitoWorkspace =
+    portaWorkspaceCadSelezionatiInFondo()
+
+  if (gestitoWorkspace) {
+    return
+  }
+
+  portaSegniSelezionatiInFondo()
+}}
       style={{
         ...buttonSecondary,
         padding: "4px 8px",
@@ -7474,7 +7786,7 @@ zIndex: 50,  }}
     />
   )}
 
- {workspaceRenderEntities.map((entity) => {
+ {workspaceRenderEntitiesOrdinati.map((entity) => {
 
 const layerEntity =
   layers.find(

@@ -68,12 +68,13 @@ export type CadEntityBase = {
   locked: boolean
   selectable: boolean
 
+  zOrder?: number
+
   createdAt: string
   updatedAt: string
 
   metadata?: CadEntityMetadata
 }
-
 export type CadFreehandEntity = CadEntityBase & {
   type: 'freehand'
   points: CadPoint[]
