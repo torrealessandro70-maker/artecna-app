@@ -1808,32 +1808,51 @@ const workspaceSnapEntities: CadEntity[] = [
         )
 
       return entities.flatMap(
-        (entity): CadEntity[] => {
-          if (entity.type !== "line") {
-            return []
-          }
-
-          return [
-            {
-              ...entity,
-              start:
-                pagePointToWorkspacePoint(
-                  entity.start,
-                  pagina,
-                ),
-              end:
-                pagePointToWorkspacePoint(
-                  entity.end,
-                  pagina,
-                ),
-            },
-          ]
+  (entity): CadEntity[] => {
+    if (entity.type === "line") {
+      return [
+        {
+          ...entity,
+          start:
+            pagePointToWorkspacePoint(
+              entity.start,
+              pagina,
+            ),
+          end:
+            pagePointToWorkspacePoint(
+              entity.end,
+              pagina,
+            ),
         },
-      )
+      ]
+    }
+
+    if (entity.type === "area") {
+      return [
+        {
+          ...entity,
+          points: entity.points.map(
+            (point) =>
+              pagePointToWorkspacePoint(
+                point,
+                pagina,
+              ),
+          ),
+        },
+      ]
+    }
+
+    return []
+  },
+)
     },
   ),
 
   ...workspaceCadEntities,
+]
+
+const workspaceRenderEntities: CadEntity[] = [
+  ...workspaceSnapEntities,
 ]
 
 const selectionStateCad: CadSelectionState = {
@@ -1897,17 +1916,16 @@ const layerSelezione =
       ) ?? null
     : null
 
-const areeCadSelezionate =  (
-    pagineQuaderno[
-      paginaCorrenteIndex
-    ]?.cadEntities ?? []
-  ).filter(
-    (entity): entity is CadAreaEntity =>
-      entity.type === "area" &&
-      cadEntitySelezionateIds.includes(
-        entity.id,
-      ),
-  )
+const areeCadSelezionate = [
+  ...entitaCadPaginaCorrente,
+  ...workspaceCadEntities,
+].filter(
+  (entity): entity is CadAreaEntity =>
+    entity.type === "area" &&
+    cadEntitySelezionateIds.includes(
+      entity.id,
+    ),
+)
 const areaCadSelezionata =
   entitaCadSelezionata?.type === "area"
     ? entitaCadSelezionata
@@ -3848,14 +3866,33 @@ layers: Array.isArray(pagina.layers)
 }))
 
 const primaPagina = pagineNormalizzate[0];
-setWorkspaceCadEntities(
+const workspaceCadEntitiesNormalizzate =
   Array.isArray(
     primaPagina?.workspaceCadEntities,
   )
-    ? primaPagina.workspaceCadEntities
-    : [],
-)
+    ? primaPagina.workspaceCadEntities.map(
+        (entity) => {
+          const layerEsiste =
+            primaPagina?.layers?.some(
+              (layer) =>
+                layer.id === entity.layerId,
+            ) ?? false
 
+          if (layerEsiste) {
+            return entity
+          }
+
+          return {
+            ...entity,
+            layerId: "drawing",
+          }
+        },
+      )
+    : []
+
+setWorkspaceCadEntities(
+  workspaceCadEntitiesNormalizzate,
+)
           setPagineQuaderno(pagineNormalizzate);
           setPaginaCorrenteIndex(0);
 setPageLayout(
@@ -7346,17 +7383,31 @@ if (workspaceLineaStartRef.current) {
     height: dimensioniWorkspace.height,
 
 pointerEvents:
-  (
-    strumentoDisegno === "linea" ||
-    areaAttiva
-  ) &&
-  !manoAttiva &&
-  !spostaTavolaAttivo
+  modalitaSelezione ||
+  strumentoDisegno === "linea" ||
+  areaAttiva
     ? "auto"
-    : "none",    overflow: "visible",
-    zIndex: 50,
-  }}
+    : "none",
+
+overflow: "visible",
+zIndex: 50,  }}
 > 
+{(
+  strumentoDisegno === "linea" ||
+  areaAttiva
+) &&
+  !manoAttiva &&
+  !spostaTavolaAttivo && (
+    <rect
+      x={0}
+      y={0}
+      width={dimensioniWorkspace.width}
+      height={dimensioniWorkspace.height}
+      fill="transparent"
+      pointerEvents="all"
+    />
+)}
+
 
 {workspaceSnapPoint && (
   <circle
@@ -7423,11 +7474,20 @@ pointerEvents:
     />
   )}
 
- {workspaceCadEntities.map((entity) => {
+ {workspaceRenderEntities.map((entity) => {
+
 const layerEntity =
   layers.find(
     (layer) =>
       layer.id === entity.layerId,
+  ) ??
+  layers.find(
+    (layer) =>
+      layer.id === layerAttivoId,
+  ) ??
+  layers.find(
+    (layer) =>
+      layer.id === "drawing",
   )
 
 if (
@@ -7452,45 +7512,59 @@ if (
   }
 
   if (entity.type === "area") {
-    return (
-      <polygon
-        key={entity.id}
+  return (
+    <g key={entity.id}>
 
+      <polygon
+        points={entity.points
+          .map(
+            (point) =>
+              `${point.x},${point.y}`,
+          )
+          .join(" ")}
+        stroke="transparent"
+strokeWidth={12}
+fill="transparent"
 pointerEvents={
   modalitaSelezione
-    ? "visiblePainted"
+    ? "all"
     : "none"
 }
 
-onPointerDown={(event) => {
-  if (!modalitaSelezione) {
-    return
-  }
+        onPointerDown={(event) => {
 
-if (
-  layerEntity?.locked ||
-  layerEntity?.selectable === false
-) {
-  return
-}
-  event.preventDefault()
-  event.stopPropagation()
+          if (!modalitaSelezione) {
+            return
+          }
 
-  setCadEntitySelezionataId(
-    entity.id,
-  )
+          if (
+            layerEntity?.locked ||
+            layerEntity?.selectable === false
+          ) {
+            return
+          }
 
-  setCadEntitySelezionateIds([
-    entity.id,
-  ])
+          event.preventDefault()
+          event.stopPropagation()
 
-  setOggettoGraficoSelezionatoId(
-    null,
-  )
+          setCadEntitySelezionataId(
+            entity.id,
+          )
 
-  setSfondoSelezionato(false)
-  setPinSelezionatoId(null)
-}}
+          setCadEntitySelezionateIds([
+            entity.id,
+          ])
+
+          setOggettoGraficoSelezionatoId(
+            null,
+          )
+
+          setSfondoSelezionato(false)
+          setPinSelezionatoId(null)
+        }}
+      />
+
+      <polygon
         points={entity.points
           .map(
             (point) =>
@@ -7506,11 +7580,48 @@ if (
         fillOpacity={
           entity.fill?.opacity ?? 0
         }
+        pointerEvents="none"
       />
-    )
-  }
 
-  return null
+{cadEntitySelezionateIds.includes(
+  entity.id,
+) && (
+  <>
+    <polygon
+      points={entity.points
+        .map(
+          (point) =>
+            `${point.x},${point.y}`,
+        )
+        .join(" ")}
+      fill="none"
+      stroke="#2563eb"
+      strokeWidth={2}
+      strokeDasharray="6 4"
+      pointerEvents="none"
+    />
+
+    {entity.points.map(
+      (point, index) => (
+        <circle
+          key={`${entity.id}-grip-${index}`}
+          cx={point.x}
+          cy={point.y}
+          r={5}
+          fill="#ffffff"
+          stroke="#2563eb"
+          strokeWidth={2}
+          pointerEvents="none"
+        />
+      ),
+    )}
+  </>
+)}
+    </g>
+  )
+}
+
+return null
 })}
 </svg>
 
