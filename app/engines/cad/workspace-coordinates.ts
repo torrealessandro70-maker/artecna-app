@@ -1,5 +1,6 @@
 ﻿import type { CadPoint } from "./entities/types"
 
+
 export type CadWorkspacePagePosition = {
   workspaceX?: number
   workspaceY?: number

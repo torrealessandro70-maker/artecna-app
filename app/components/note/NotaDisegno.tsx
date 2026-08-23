@@ -3619,6 +3619,27 @@ if (modalita === 'resizing-text') {
   return
 }
 
+if (modalita === 'dragging-object') {
+  interactionMode.current = {
+    type: 'idle',
+  }
+
+  if (
+    event &&
+    svgRef.current?.hasPointerCapture(
+      event.pointerId,
+    )
+  ) {
+    svgRef.current.releasePointerCapture(
+      event.pointerId,
+    )
+  }
+
+  onFineTrasformazioneOggetto?.()
+
+  return
+}
+
 if (modalita === 'dragging-text') {
     interactionMode.current = {
       type: 'idle',

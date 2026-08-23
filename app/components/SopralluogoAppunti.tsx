@@ -70,6 +70,13 @@ import type { CadScaleCalibration } from '@/app/engines/cad/scale-manager'
 import type { CadDimensionEntity } from '@/app/engines/cad/entities'
 import { ToolButton } from "@/app/components/ui";
 import { applyOrtho } from "@/app/engines/cad/ortho"
+
+import {
+  createInitialAreaState,
+  handleAreaPointerDown,
+  type CadAreaState,
+} from "@/app/engines/cad/area"
+
 import {
   resolveSnapPoint,
 } from "@/app/engines/cad/snap"
@@ -231,12 +238,26 @@ const workspaceLineaStartRef =
 
 const [workspaceLineaPreview, setWorkspaceLineaPreview] =
   useState<CadPoint | null>(null)
+
+const [workspaceAreaPoints, setWorkspaceAreaPoints] =
+  useState<CadPoint[]>([])
+
+const [workspaceAreaPreview, setWorkspaceAreaPreview] =
+  useState<CadPoint | null>(null)
+
+const workspaceAreaStateRef =
+  useRef<CadAreaState>(
+    createInitialAreaState(),
+  )
+
 const [workspaceSnapPoint, setWorkspaceSnapPoint] =
   useState<{
     x: number
     y: number
     type: string
   } | null>(null)
+
+
 
   const [anteprimaQuaderno, setAnteprimaQuaderno] = useState<string | null>(
     null,
@@ -1838,18 +1859,22 @@ const entitaCadPaginaCorrente =
 
 const entitaCadSelezionata =
   getPrimarySelectedEntity(
-    entitaCadPaginaCorrente,
+    [
+      ...entitaCadPaginaCorrente,
+      ...workspaceCadEntities,
+    ],
     selectionStateCad,
   )
-
 const entitaCadSelezionate =
-  entitaCadPaginaCorrente.filter(
+  [
+    ...entitaCadPaginaCorrente,
+    ...workspaceCadEntities,
+  ].filter(
     (entity) =>
       cadEntitySelezionateIds.includes(
         entity.id,
       ),
   )
-
 const layerIdsSelezione =
   Array.from(
     new Set(
@@ -2536,6 +2561,78 @@ const portaSegniSelezionatiAvanti = () => {
   })
 }
 
+const portaImmagineAvanti = () => {
+  if (!oggettoGraficoSelezionatoId) {
+    return
+  }
+
+  const index =
+    oggettiGrafici.findIndex(
+      (oggetto) =>
+        oggetto.id ===
+        oggettoGraficoSelezionatoId,
+    )
+
+  if (
+    index < 0 ||
+    index >= oggettiGrafici.length - 1
+  ) {
+    return
+  }
+
+  const nuoviOggetti =
+    [...oggettiGrafici]
+
+  const temporaneo =
+    nuoviOggetti[index]
+
+  nuoviOggetti[index] =
+    nuoviOggetti[index + 1]
+
+  nuoviOggetti[index + 1] =
+    temporaneo
+
+  aggiornaQuaderno({
+    oggettiGrafici: nuoviOggetti,
+  })
+
+  setQuadernoDirty(true)
+}
+
+const portaImmagineIndietro = () => {
+  if (!oggettoGraficoSelezionatoId) {
+    return
+  }
+
+  const index =
+    oggettiGrafici.findIndex(
+      (oggetto) =>
+        oggetto.id ===
+        oggettoGraficoSelezionatoId,
+    )
+
+  if (index <= 0) {
+    return
+  }
+
+  const nuoviOggetti =
+    [...oggettiGrafici]
+
+  const temporaneo =
+    nuoviOggetti[index]
+
+  nuoviOggetti[index] =
+    nuoviOggetti[index - 1]
+
+  nuoviOggetti[index - 1] =
+    temporaneo
+
+  aggiornaQuaderno({
+    oggettiGrafici: nuoviOggetti,
+  })
+
+  setQuadernoDirty(true)
+}
 
 const portaSegniSelezionatiIndietro = () => {
   if (cadEntitySelezionateIds.length === 0) {
@@ -3734,6 +3831,13 @@ useEffect(() => {
               ? pagina.oggettiGrafici
               : [],
 
+workspaceCadEntities:
+  Array.isArray(
+    pagina.workspaceCadEntities,
+  )
+    ? pagina.workspaceCadEntities
+    : [],
+
 layers: Array.isArray(pagina.layers)
   ? pagina.layers.map((layer) => ({
       ...layer,
@@ -3744,6 +3848,13 @@ layers: Array.isArray(pagina.layers)
 }))
 
 const primaPagina = pagineNormalizzate[0];
+setWorkspaceCadEntities(
+  Array.isArray(
+    primaPagina?.workspaceCadEntities,
+  )
+    ? primaPagina.workspaceCadEntities
+    : [],
+)
 
           setPagineQuaderno(pagineNormalizzate);
           setPaginaCorrenteIndex(0);
@@ -3784,9 +3895,11 @@ sfondoDisegno: null,
 }
 
           setPagineQuaderno([paginaIniziale]);
+setWorkspaceCadEntities([])
           setPaginaCorrenteIndex(0);
           setDisegni(paginaIniziale.disegni);
           setSfondoDisegno(null);
+
           setZoomSfondo(1);
           setOggettiGrafici([]);
           setOggettoGraficoSelezionatoId(null);
@@ -3811,6 +3924,7 @@ setScaleCalibration(null);
         setChecklist([]);
         setDisegni([]);
         setSfondoDisegno(null);
+setWorkspaceCadEntities([])
         setZoomSfondo(1);
         setOggettiGrafici([]);
         setOggettoGraficoSelezionatoId(null);
@@ -3846,20 +3960,33 @@ setScaleCalibration(null);
       return null;
     }
 
-    const pagineAggiornate = pagineQuaderno.map((pagina, index) =>
-  index === paginaCorrenteIndex
-    ? {
-        ...pagina,
-        disegni,
-        sfondoDisegno,
-        zoomSfondo,
-        oggettiGrafici,
-        layers,
-        backgroundTransform,
-        scaleCalibration,
+    const pagineAggiornate =
+  pagineQuaderno.map((pagina, index) => {
+    const paginaAggiornata =
+      index === paginaCorrenteIndex
+        ? {
+            ...pagina,
+            disegni,
+            sfondoDisegno,
+            zoomSfondo,
+            oggettiGrafici,
+            layers,
+            backgroundTransform,
+            scaleCalibration,
+          }
+        : {
+            ...pagina,
+          }
+
+    if (index === 0) {
+      return {
+        ...paginaAggiornata,
+        workspaceCadEntities,
       }
-    : pagina,
-);
+    }
+
+    return paginaAggiornata
+  })
 
     setStato("Salvataggio…");
 
@@ -6167,9 +6294,9 @@ onClick={(event) => {
 </div>
 </div>
 </WorkspacePanel>
-
 <WorkspacePanel
-  titolo="Proprietà"  aperto={proprietaPanelAperto}
+  titolo="Proprietà"  
+aperto={proprietaPanelAperto}
   posizione={proprietaPosizione}
   dimensioni={proprietaDimensioni}
   onChiudi={() => setProprietaPanelAperto(false)}
@@ -6179,9 +6306,34 @@ onClick={(event) => {
   altezzaMinima={100}
   zIndex={10040}
 usaPortal
- 
-  
 >
+
+{oggettoGraficoSelezionatoId && (
+  <div
+    style={{
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+      marginBottom: 10,
+    }}
+  >
+    <button
+      type="button"
+      onClick={portaImmagineAvanti}
+      style={buttonSecondary}
+    >
+      Porta avanti
+    </button>
+
+    <button
+      type="button"
+      onClick={portaImmagineIndietro}
+      style={buttonSecondary}
+    >
+      Porta indietro
+    </button>
+  </div>
+)}
   <div
   style={{
     display: "flex",
@@ -6254,6 +6406,18 @@ usaPortal
               : entity,
           )
 
+setWorkspaceCadEntities(
+  (entitiesCorrenti) =>
+    entitiesCorrenti.map((entity) =>
+      idsSelezionati.has(entity.id)
+        ? {
+            ...entity,
+            layerId: nuovoLayerId,
+          }
+        : entity,
+    ),
+)
+
         const paginaAggiornata =
           applyCadEntitiesToPage(
             {
@@ -6309,7 +6473,14 @@ usaPortal
 
     <button
       type="button"
-      onClick={portaSegniSelezionatiAvanti}
+      onClick={() => {
+  if (oggettoGraficoSelezionatoId) {
+    portaImmagineAvanti()
+    return
+  }
+
+  portaSegniSelezionatiAvanti()
+}}
       style={{
         ...buttonSecondary,
         padding: "4px 8px",
@@ -6323,7 +6494,15 @@ usaPortal
 
     <button
       type="button"
-      onClick={portaSegniSelezionatiIndietro}
+      onClick={() => {
+  if (oggettoGraficoSelezionatoId) {
+    portaImmagineIndietro()
+    return
+  }
+
+  portaSegniSelezionatiIndietro()
+}}
+
       style={{
         ...buttonSecondary,
         padding: "4px 8px",
@@ -6897,8 +7076,11 @@ ref={viewportRef}
   viewBox={`0 0 ${dimensioniWorkspace.width} ${dimensioniWorkspace.height}`}
 
 onPointerDown={(event) => {
-  if (
-  strumentoDisegno !== "linea" ||
+ if (
+  (
+    strumentoDisegno !== "linea" &&
+    !areaAttiva
+  ) ||
   manoAttiva ||
   spostaTavolaAttivo
 ) {
@@ -6955,6 +7137,63 @@ const puntoConSnap =
         y: snapGlobale.y,
       }
     : puntoWorkspace
+
+if (areaAttiva) {
+  const risultatoArea =
+    handleAreaPointerDown(
+      workspaceAreaStateRef.current,
+      puntoConSnap,
+      {
+        layerId: layerAttivoId,
+
+        stroke: {
+          color: coloreDisegno,
+          width: spessoreDisegno,
+        },
+
+        fill: {
+          color: coloreDisegno,
+          opacity: 0.12,
+        },
+
+        scaleCalibration,
+      },
+    )
+
+  workspaceAreaStateRef.current =
+    risultatoArea.state
+
+  setWorkspaceAreaPoints(
+    risultatoArea.state.points,
+  )
+
+  setWorkspaceAreaPreview(
+    puntoConSnap,
+  )
+
+  if (risultatoArea.entity) {
+    setWorkspaceCadEntities(
+      (entitiesCorrenti) => [
+        ...entitiesCorrenti,
+        risultatoArea.entity!,
+      ],
+    )
+
+    workspaceAreaStateRef.current =
+      createInitialAreaState()
+
+    setWorkspaceAreaPoints([])
+    setWorkspaceAreaPreview(null)
+    setWorkspaceSnapPoint(null)
+
+    setAreaAttiva(false)
+    setModalitaSelezione(true)
+
+    setQuadernoDirty(true)
+  }
+
+  return
+}
 
 const puntoPreview =
   snapGlobale
@@ -7015,8 +7254,11 @@ setWorkspaceLineaPreview(null)
   setQuadernoDirty(true)
 }}
  onPointerMove={(event) => {
-  if (
-  strumentoDisegno !== "linea" ||
+ if (
+  (
+    strumentoDisegno !== "linea" &&
+    !areaAttiva
+  ) ||
   manoAttiva ||
   spostaTavolaAttivo
 ) {
@@ -7074,6 +7316,14 @@ const puntoConSnap =
       }
     : puntoWorkspace
 
+if (areaAttiva) {
+  setWorkspaceAreaPreview(
+    puntoConSnap,
+  )
+
+  return
+}
+
 if (workspaceLineaStartRef.current) {
   const puntoPreview =
     orthoAttivo
@@ -7095,14 +7345,15 @@ if (workspaceLineaStartRef.current) {
     width: dimensioniWorkspace.width,
     height: dimensioniWorkspace.height,
 
-   pointerEvents:
-  strumentoDisegno === "linea" &&
+pointerEvents:
+  (
+    strumentoDisegno === "linea" ||
+    areaAttiva
+  ) &&
   !manoAttiva &&
   !spostaTavolaAttivo
     ? "auto"
-    : "none",
-
-    overflow: "visible",
+    : "none",    overflow: "visible",
     zIndex: 50,
   }}
 > 
@@ -7116,6 +7367,42 @@ if (workspaceLineaStartRef.current) {
     stroke="#dc2626"
     strokeWidth={2}
   />
+)}
+
+{workspaceAreaPoints.length > 0 && (
+  <>
+    <polyline
+      points={[
+        ...workspaceAreaPoints,
+        ...(workspaceAreaPreview
+          ? [workspaceAreaPreview]
+          : []),
+      ]
+        .map(
+          (point) =>
+            `${point.x},${point.y}`,
+        )
+        .join(" ")}
+      fill="none"
+      stroke="#2563eb"
+      strokeWidth={2}
+      strokeDasharray="8 6"
+      pointerEvents="none"
+    />
+
+    {workspaceAreaPoints.map(
+      (point, index) => (
+        <circle
+          key={`workspace-area-point-${index}`}
+          cx={point.x}
+          cy={point.y}
+          r={4}
+          fill="#2563eb"
+          pointerEvents="none"
+        />
+      ),
+    )}
+  </>
 )}
 
 {workspaceLineaStartRef.current &&
@@ -7137,23 +7424,94 @@ if (workspaceLineaStartRef.current) {
   )}
 
  {workspaceCadEntities.map((entity) => {
-    if (entity.type !== "line") {
-      return null
-    }
+const layerEntity =
+  layers.find(
+    (layer) =>
+      layer.id === entity.layerId,
+  )
 
+if (
+  layerEntity &&
+  !layerEntity.visible
+) {
+  return null
+}
+  if (entity.type === "line") {
     return (
-  <line
-  key={entity.id}
-  x1={entity.start.x}
-  y1={entity.start.y}
-  x2={entity.end.x}
-  y2={entity.end.y}
-  stroke={entity.stroke.color}
-  strokeWidth={entity.stroke.width}
-  fill="none"
-/>
+      <line
+        key={entity.id}
+        x1={entity.start.x}
+        y1={entity.start.y}
+        x2={entity.end.x}
+        y2={entity.end.y}
+        stroke={entity.stroke.color}
+        strokeWidth={entity.stroke.width}
+        fill="none"
+      />
     )
-  })}
+  }
+
+  if (entity.type === "area") {
+    return (
+      <polygon
+        key={entity.id}
+
+pointerEvents={
+  modalitaSelezione
+    ? "visiblePainted"
+    : "none"
+}
+
+onPointerDown={(event) => {
+  if (!modalitaSelezione) {
+    return
+  }
+
+if (
+  layerEntity?.locked ||
+  layerEntity?.selectable === false
+) {
+  return
+}
+  event.preventDefault()
+  event.stopPropagation()
+
+  setCadEntitySelezionataId(
+    entity.id,
+  )
+
+  setCadEntitySelezionateIds([
+    entity.id,
+  ])
+
+  setOggettoGraficoSelezionatoId(
+    null,
+  )
+
+  setSfondoSelezionato(false)
+  setPinSelezionatoId(null)
+}}
+        points={entity.points
+          .map(
+            (point) =>
+              `${point.x},${point.y}`,
+          )
+          .join(" ")}
+        stroke={entity.stroke.color}
+        strokeWidth={entity.stroke.width}
+        fill={
+          entity.fill?.color ??
+          "transparent"
+        }
+        fillOpacity={
+          entity.fill?.opacity ?? 0
+        }
+      />
+    )
+  }
+
+  return null
+})}
 </svg>
 
 {pagineQuaderno
@@ -7267,14 +7625,32 @@ if (workspaceLineaStartRef.current) {
   })}
 
              <div
-  onPointerDown={(event) => {
-    if (paginaAttiva) {
-      iniziaTrascinamentoPagina(
-        event,
-        paginaAttiva,
-      )
-    }
-  }}
+onPointerDown={(event) => {
+  if (
+    modalitaSelezione &&
+    !spostaTavolaAttivo
+  ) {
+    setOggettoGraficoSelezionatoId(null)
+    setCadEntitySelezionataId(null)
+    setCadEntitySelezionateIds([])
+    setPinSelezionatoId(null)
+    setSfondoSelezionato(false)
+
+    return
+  }
+
+  if (
+    spostaTavolaAttivo &&
+    paginaAttiva
+  ) {
+    iniziaTrascinamentoPagina(
+      event,
+      paginaAttiva,
+    )
+  }
+}}
+ 
+
   onPointerMove={trascinaPagina}
   onPointerUp={terminaTrascinamentoPagina}
   onPointerCancel={terminaTrascinamentoPagina}
