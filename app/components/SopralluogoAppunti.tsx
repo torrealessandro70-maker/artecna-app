@@ -336,6 +336,17 @@ const rettangoloSelezioneIniziale = {
 };
 const [rettangoloSelezione, setRettangoloSelezione] =
   useState<typeof rettangoloSelezioneIniziale | null>(null);
+
+const selezioneWorkspaceRef = useRef<{
+  attiva: boolean
+  start: CadPoint | null
+  ctrlKey: boolean
+}>({
+  attiva: false,
+  start: null,
+  ctrlKey: false,
+})
+
 const lineaCadSelezionata =
   cadEntitySelezionataId == null
     ? null
@@ -5382,20 +5393,23 @@ usaPortal
   !spostaEntitaAttivo
 }
   compact={toolbarCompatta}
-  onClick={() => {
-    setManoAttiva(false)
-    setPanInCorso(false)
+ onClick={() => {
+  setManoAttiva(false)
+  setPanInCorso(false)
+  setSpostaEntitaAttivo(false)
+  setSpostaTavolaAttivo(false)
 
-   setStrumentoDisegno(null)
-setAreaAttiva(false)
-setMetroAttivo(false)
-setCalibrazioneScalaAttiva(false)
-setModalitaSelezione(true)
+  setStrumentoDisegno(null)
+  setAreaAttiva(false)
+  setMetroAttivo(false)
+  setCalibrazioneScalaAttiva(false)
 
-    setSfondoSelezionato(false)
-    setPinSelezionatoId(null)
-    setOggettoGraficoSelezionatoId(null)
-  }}
+  setModalitaSelezione(true)
+
+  setSfondoSelezionato(false)
+  setPinSelezionatoId(null)
+  setOggettoGraficoSelezionatoId(null)
+}}
 />
 
 
@@ -5404,31 +5418,24 @@ setModalitaSelezione(true)
   label="Sposta"
   active={spostaEntitaAttivo}
   compact={toolbarCompatta}
-  onClick={() => {
-    const prossimoValore =
-      !spostaEntitaAttivo
+ onClick={() => {
+  setSpostaEntitaAttivo(true)
 
-    setSpostaEntitaAttivo(
-      prossimoValore,
-    )
+  setManoAttiva(false)
+  setPanInCorso(false)
+  setSpostaTavolaAttivo(false)
 
-    if (prossimoValore) {
-      setManoAttiva(false)
-      setPanInCorso(false)
-      setSpostaTavolaAttivo(false)
+  setModalitaSelezione(true)
 
-      setStrumentoDisegno(null)
-      setAreaAttiva(false)
-      setMetroAttivo(false)
-      setCalibrazioneScalaAttiva(false)
+  setStrumentoDisegno(null)
+  setAreaAttiva(false)
+  setMetroAttivo(false)
+  setCalibrazioneScalaAttiva(false)
 
-      setModalitaSelezione(true)
-
-      setSfondoSelezionato(false)
-      setPinSelezionatoId(null)
-      setOggettoGraficoSelezionatoId(null)
-    }
-  }}
+  setSfondoSelezionato(false)
+  setPinSelezionatoId(null)
+  setOggettoGraficoSelezionatoId(null)
+}}
 />
 
 <ToolButton
@@ -5436,21 +5443,26 @@ setModalitaSelezione(true)
   label="Mano"
   active={manoAttiva}
   compact={toolbarCompatta}
-  onClick={() => {
-    const prossimaManoAttiva = !manoAttiva;
+ onClick={() => {
+  setManoAttiva(true)
+  setPanInCorso(false)
 
-    setManoAttiva(prossimaManoAttiva);
-    setModalitaSelezione(!prossimaManoAttiva);
-    setPanInCorso(false);
+  setModalitaSelezione(false)
+  setSpostaEntitaAttivo(false)
+  setSpostaTavolaAttivo(false)
 
-    setSfondoSelezionato(false);
-    setPinSelezionatoId(null);
-    setOggettoGraficoSelezionatoId(null);
-    setCadEntitySelezionataId(null);
-    setCadEntitySelezionateIds([]);
+  setStrumentoDisegno(null)
+  setAreaAttiva(false)
+  setMetroAttivo(false)
+  setCalibrazioneScalaAttiva(false)
 
-    setSpostaEntitaAttivo(false)
-  }}
+  setSfondoSelezionato(false)
+  setPinSelezionatoId(null)
+  setOggettoGraficoSelezionatoId(null)
+
+  setCadEntitySelezionataId(null)
+  setCadEntitySelezionateIds([])
+}}
 />
 
 <button
@@ -7491,18 +7503,77 @@ ref={viewportRef}
 
 onPointerDown={(event) => {
  if (
-  (
-    strumentoDisegno !== "linea" &&
-    !areaAttiva
-  ) ||
-  manoAttiva ||
-  spostaTavolaAttivo
+  modalitaSelezione &&
+  event.target === event.currentTarget &&
+  !manoAttiva &&
+  !spostaTavolaAttivo
 ) {
+  const svg = event.currentTarget
+  const rect =
+    svg.getBoundingClientRect()
+
+  const puntoWorkspace: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+
+    y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  spostaEntitaRef.current = {
+    attivo: false,
+    start: null,
+  }
+
+  selezioneWorkspaceRef.current = {
+    attiva: true,
+    start: puntoWorkspace,
+    ctrlKey:
+      event.ctrlKey || event.metaKey,
+  }
+
+  setRettangoloSelezione({
+    startX: puntoWorkspace.x,
+    startY: puntoWorkspace.y,
+    endX: puntoWorkspace.x,
+    endY: puntoWorkspace.y,
+  })
+
+  if (
+    !event.ctrlKey &&
+    !event.metaKey
+  ) {
+    setCadEntitySelezionataId(null)
+    setCadEntitySelezionateIds([])
+  }
+
+  setOggettoGraficoSelezionatoId(null)
+  setPinSelezionatoId(null)
+  setSfondoSelezionato(false)
+
+  event.currentTarget.setPointerCapture(
+    event.pointerId,
+  )
+
   return
 }
 
-  const svg = event.currentTarget
+  if (
+    (
+      strumentoDisegno !== "linea" &&
+      !areaAttiva
+    ) ||
+    manoAttiva ||
+    spostaTavolaAttivo
+  ) {
+    return
+  }
 
+  const svg = event.currentTarget
   const rect =
     svg.getBoundingClientRect()
 
@@ -7667,18 +7738,50 @@ setWorkspaceLineaPreview(null)
 
   setQuadernoDirty(true)
 }}
- onPointerMove={(event) => {
- if (
-  (
-    strumentoDisegno !== "linea" &&
-    !areaAttiva
-  ) ||
-  manoAttiva ||
-  spostaTavolaAttivo
-) {
-  return
-}
+onPointerMove={(event) => {
+  if (
+    selezioneWorkspaceRef.current.attiva &&
+    selezioneWorkspaceRef.current.start
+  ) {
+    const svg = event.currentTarget
+    const rect =
+      svg.getBoundingClientRect()
 
+    const puntoWorkspace: CadPoint = {
+      x:
+        ((event.clientX - rect.left) /
+          rect.width) *
+        dimensioniWorkspace.width,
+
+      y:
+        ((event.clientY - rect.top) /
+          rect.height) *
+        dimensioniWorkspace.height,
+    }
+
+    const start =
+      selezioneWorkspaceRef.current.start
+
+    setRettangoloSelezione({
+      startX: start.x,
+      startY: start.y,
+      endX: puntoWorkspace.x,
+      endY: puntoWorkspace.y,
+    })
+
+    return
+  }
+
+  if (
+    (
+      strumentoDisegno !== "linea" &&
+      !areaAttiva
+    ) ||
+    manoAttiva ||
+    spostaTavolaAttivo
+  ) {
+    return
+  }
  
   const svg = event.currentTarget
 
@@ -7747,12 +7850,134 @@ if (workspaceLineaStartRef.current) {
         )
       : puntoConSnap
 
-  setWorkspaceLineaPreview(
+    setWorkspaceLineaPreview(
     puntoPreview,
   )
 }}}
 
-  style={{
+onPointerUp={(event) => {
+  if (
+    !selezioneWorkspaceRef.current.attiva ||
+    !selezioneWorkspaceRef.current.start
+  ) {
+    return
+  }
+
+  const svg = event.currentTarget
+  const rect =
+    svg.getBoundingClientRect()
+
+  const puntoFinale: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+
+    y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  const start =
+    selezioneWorkspaceRef.current.start
+
+  const minX =
+    Math.min(start.x, puntoFinale.x)
+  const maxX =
+    Math.max(start.x, puntoFinale.x)
+  const minY =
+    Math.min(start.y, puntoFinale.y)
+  const maxY =
+    Math.max(start.y, puntoFinale.y)
+
+  const dentroRettangolo = (
+    punto: CadPoint,
+  ) =>
+    punto.x >= minX &&
+    punto.x <= maxX &&
+    punto.y >= minY &&
+    punto.y <= maxY
+
+  const idsTrovati =
+    workspaceRenderEntitiesOrdinati
+      .filter((entity) => {
+        const layerEntity =
+          layers.find(
+            (layer) =>
+              layer.id === entity.layerId,
+          )
+
+        if (
+          layerEntity?.visible === false ||
+          layerEntity?.locked ||
+          layerEntity?.selectable === false
+        ) {
+          return false
+        }
+
+        if (entity.type === "line") {
+          return (
+            dentroRettangolo(entity.start) &&
+            dentroRettangolo(entity.end)
+          )
+        }
+
+        if (entity.type === "area") {
+          return entity.points.every(
+            (point) =>
+              dentroRettangolo(point),
+          )
+        }
+
+        return false
+      })
+      .map((entity) => entity.id)
+
+  if (
+    selezioneWorkspaceRef.current.ctrlKey
+  ) {
+    setCadEntitySelezionateIds(
+      (idsCorrenti) =>
+        Array.from(
+          new Set([
+            ...idsCorrenti,
+            ...idsTrovati,
+          ]),
+        ),
+    )
+  } else {
+    setCadEntitySelezionateIds(
+      idsTrovati,
+    )
+  }
+
+  setCadEntitySelezionataId(
+    idsTrovati.length === 1
+      ? idsTrovati[0]
+      : null,
+  )
+
+  selezioneWorkspaceRef.current = {
+    attiva: false,
+    start: null,
+    ctrlKey: false,
+  }
+
+  setRettangoloSelezione(null)
+
+  if (
+    event.currentTarget.hasPointerCapture(
+      event.pointerId,
+    )
+  ) {
+    event.currentTarget.releasePointerCapture(
+      event.pointerId,
+    )
+  }
+}}
+
+style={{
     position: "absolute",
     left: 0,
     top: 0,
@@ -7785,6 +8010,32 @@ zIndex: 50,  }}
     />
 )}
 
+{rettangoloSelezione &&
+  selezioneWorkspaceRef.current.attiva && (
+    <rect
+      x={Math.min(
+        rettangoloSelezione.startX,
+        rettangoloSelezione.endX,
+      )}
+      y={Math.min(
+        rettangoloSelezione.startY,
+        rettangoloSelezione.endY,
+      )}
+      width={Math.abs(
+        rettangoloSelezione.endX -
+          rettangoloSelezione.startX,
+      )}
+      height={Math.abs(
+        rettangoloSelezione.endY -
+          rettangoloSelezione.startY,
+      )}
+      fill="rgba(37, 99, 235, 0.12)"
+      stroke="#2563eb"
+      strokeWidth={1.5}
+      strokeDasharray="8 6"
+      pointerEvents="none"
+    />
+)}
 
 {workspaceSnapPoint && (
   <circle
@@ -7957,6 +8208,42 @@ if (
     return
   }
 
+ const selezioneMultipla =
+  event.ctrlKey || event.metaKey
+
+if (selezioneMultipla) {
+  setCadEntitySelezionateIds(
+    (idsCorrenti) => {
+      if (
+        idsCorrenti.includes(entity.id)
+      ) {
+        const nuoviIds =
+          idsCorrenti.filter(
+            (id) => id !== entity.id,
+          )
+
+        setCadEntitySelezionataId(
+          nuoviIds.length > 0
+            ? nuoviIds[
+                nuoviIds.length - 1
+              ]
+            : null,
+        )
+
+        return nuoviIds
+      }
+
+      setCadEntitySelezionataId(
+        entity.id,
+      )
+
+      return [
+        ...idsCorrenti,
+        entity.id,
+      ]
+    },
+  )
+} else {
   setCadEntitySelezionataId(
     entity.id,
   )
@@ -7964,11 +8251,13 @@ if (
   setCadEntitySelezionateIds([
     entity.id,
   ])
+}
 
-  setOggettoGraficoSelezionatoId(null)
-  setSfondoSelezionato(false)
-  setPinSelezionatoId(null)
+setOggettoGraficoSelezionatoId(null)
+setSfondoSelezionato(false)
+setPinSelezionatoId(null)
 }}
+
 
 onPointerMove={(event) => {
   if (
@@ -8513,6 +8802,11 @@ onPointerDown={(event) => {
     modalitaSelezione &&
     !spostaTavolaAttivo
   ) {
+    spostaEntitaRef.current = {
+      attivo: false,
+      start: null,
+    }
+
     setOggettoGraficoSelezionatoId(null)
     setCadEntitySelezionataId(null)
     setCadEntitySelezionateIds([])
@@ -8531,8 +8825,7 @@ onPointerDown={(event) => {
       paginaAttiva,
     )
   }
-}}
- 
+}} 
 
   onPointerMove={trascinaPagina}
   onPointerUp={terminaTrascinamentoPagina}
