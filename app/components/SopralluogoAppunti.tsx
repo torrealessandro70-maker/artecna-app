@@ -1810,6 +1810,33 @@ const puntoPaginaAttivaToWorkspace = (
   )
 }
 
+const trovaPaginaDaPuntoWorkspace = (
+  point: CadPoint,
+): PaginaQuadernoNota | null => {
+  for (const pagina of pagineQuaderno) {
+    const layout =
+      pagina.pageLayout ??
+      createQuadernoPageLayout()
+
+    const x =
+      pagina.workspaceX ?? 0
+
+    const y =
+      pagina.workspaceY ?? 0
+
+    if (
+      point.x >= x &&
+      point.x <= x + layout.width &&
+      point.y >= y &&
+      point.y <= y + layout.height
+    ) {
+      return pagina
+    }
+  }
+
+  return null
+}
+
 const puntoWorkspaceToPaginaAttiva = (
   point: CadPoint,
 ): CadPoint => {
@@ -8120,12 +8147,11 @@ style={{
     height: dimensioniWorkspace.height,
 
 pointerEvents:
-  modalitaSelezione ||
   strumentoDisegno === "linea" ||
-  areaAttiva
+  areaAttiva ||
+  selezioneWorkspaceRef.current.attiva
     ? "auto"
     : "none",
-
 overflow: "visible",
 zIndex: 50,  }}
 > 
@@ -9257,22 +9283,164 @@ onInizioTrasformazioneOggetto={() => {
   setTrasformazioneOggettoAttiva(true);
 }}
 onFineTrasformazioneOggetto={() => {
-  setTrasformazioneOggettoAttiva(false);
+  setTrasformazioneOggettoAttiva(false)
+
+  const oggettiLive =
+    oggettiGraficiLiveRef.current
+
+  const immagineSelezionata =
+    oggettiLive.find(
+      (oggetto) =>
+        oggetto.id ===
+        oggettoGraficoSelezionatoId,
+    )
+
+  if (
+    immagineSelezionata &&
+    paginaQuadernoCorrente
+  ) {
+    const centroPagina: CadPoint = {
+      x:
+        immagineSelezionata.transform.x +
+        immagineSelezionata.transform.width / 2,
+
+      y:
+        immagineSelezionata.transform.y +
+        immagineSelezionata.transform.height / 2,
+    }
+
+    const centroWorkspace =
+      pagePointToWorkspacePoint(
+        centroPagina,
+        paginaQuadernoCorrente,
+      )
+
+    const paginaDestinazione =
+      trovaPaginaDaPuntoWorkspace(
+        centroWorkspace,
+      )
+
+    if (
+      paginaDestinazione &&
+      paginaDestinazione.id !==
+        paginaQuadernoCorrente.id
+    ) {
+      const altoSinistraWorkspace =
+        pagePointToWorkspacePoint(
+          {
+            x:
+              immagineSelezionata
+                .transform.x,
+
+            y:
+              immagineSelezionata
+                .transform.y,
+          },
+          paginaQuadernoCorrente,
+        )
+
+      const altoSinistraDestinazione =
+        workspacePointToPagePoint(
+          altoSinistraWorkspace,
+          paginaDestinazione,
+        )
+
+      const immagineTrasferita = {
+        ...immagineSelezionata,
+
+        transform: {
+          ...immagineSelezionata.transform,
+
+          x:
+            altoSinistraDestinazione.x,
+
+          y:
+            altoSinistraDestinazione.y,
+        },
+      }
+
+      setPagineQuaderno(
+        (pagineCorrenti) =>
+          pagineCorrenti.map(
+            (pagina) => {
+              if (
+                pagina.id ===
+                paginaQuadernoCorrente.id
+              ) {
+                return {
+                  ...pagina,
+
+                  oggettiGrafici:
+                    oggettiLive.filter(
+                      (oggetto) =>
+                        oggetto.id !==
+                        immagineSelezionata.id,
+                    ),
+                }
+              }
+
+              if (
+                pagina.id ===
+                paginaDestinazione.id
+              ) {
+                return {
+                  ...pagina,
+
+                  oggettiGrafici: [
+                    ...(
+                      pagina
+                        .oggettiGrafici ??
+                      []
+                    ),
+
+                    immagineTrasferita,
+                  ],
+                }
+              }
+
+              return pagina
+            },
+          ),
+      )
+
+      setOggettiGrafici(
+        oggettiLive.filter(
+          (oggetto) =>
+            oggetto.id !==
+            immagineSelezionata.id,
+        ),
+      )
+
+      oggettiGraficiLiveRef.current =
+        oggettiLive.filter(
+          (oggetto) =>
+            oggetto.id !==
+            immagineSelezionata.id,
+        )
+
+      setOggettoGraficoSelezionatoId(
+        null,
+      )
+
+      setQuadernoDirty(true)
+
+      return
+    }
+  }
 
   aggiornaQuaderno(
     {
       disegni,
       sfondoDisegno,
       backgroundTransform,
-    oggettiGrafici:
-  oggettiGraficiLiveRef.current,
+      oggettiGrafici: oggettiLive,
       layers,
       zoomSfondo,
       sfondoX,
       sfondoY,
     },
     false,
-  );
+  )
 }}
 
 
@@ -9289,9 +9457,11 @@ onFineTrasformazioneOggetto={() => {
     disegni,
     sfondoDisegno,
     zoomSfondo,
-    oggettiGrafici,
+    oggettiGrafici:
+  oggettiGraficiLiveRef.current,
     layers,
     backgroundTransform,
+cadEntities: undefined,
   };
 
   const entities =
