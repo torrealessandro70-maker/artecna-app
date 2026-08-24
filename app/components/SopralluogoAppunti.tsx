@@ -7985,7 +7985,7 @@ const modalitaCrossing =
   )
 }
 
-       if (entity.type === "area") {
+   if (entity.type === "area") {
   if (!modalitaCrossing) {
     return entity.points.every(
       (point) =>
@@ -7993,10 +7993,76 @@ const modalitaCrossing =
     )
   }
 
-  return entity.points.some(
-    (point) =>
-      dentroRettangolo(point),
-  )
+  // Se almeno un vertice entra nel rettangolo
+  if (
+    entity.points.some(
+      (point) =>
+        dentroRettangolo(point),
+    )
+  ) {
+    return true
+  }
+
+  const altoSinistra: CadPoint = {
+    x: minX,
+    y: minY,
+  }
+
+  const altoDestra: CadPoint = {
+    x: maxX,
+    y: minY,
+  }
+
+  const bassoDestra: CadPoint = {
+    x: maxX,
+    y: maxY,
+  }
+
+  const bassoSinistra: CadPoint = {
+    x: minX,
+    y: maxY,
+  }
+
+  const latiRettangolo = [
+    [altoSinistra, altoDestra],
+    [altoDestra, bassoDestra],
+    [bassoDestra, bassoSinistra],
+    [bassoSinistra, altoSinistra],
+  ] as const
+
+  for (
+    let index = 0;
+    index < entity.points.length;
+    index++
+  ) {
+    const inizioLato =
+      entity.points[index]
+
+    const fineLato =
+      entity.points[
+        (index + 1) %
+          entity.points.length
+      ]
+
+    const attraversaRettangolo =
+      latiRettangolo.some(
+        ([inizioRect, fineRect]) =>
+          Boolean(
+            segmentIntersection(
+              inizioLato,
+              fineLato,
+              inizioRect,
+              fineRect,
+            ),
+          ),
+      )
+
+    if (attraversaRettangolo) {
+      return true
+    }
+  }
+
+  return false
 }
 
         return false
