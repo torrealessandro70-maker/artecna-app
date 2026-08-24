@@ -34,6 +34,10 @@ import type {
   CadAreaEntity,
 } from "@/app/engines/cad/entities"
 
+import {
+  registerDefaultBehaviors,
+} from "../engines/cad/behaviors"
+
 import type {
   AllegatoNota,
   AnalisiNota,
@@ -57,6 +61,10 @@ import {
 import {
   transformEntity,
 } from "../engines/cad/commands";
+
+import {
+  moveEntities,
+} from '../engines/cad/commands'
 
 import { executeWorkflowProposal } from "@/app/engines/workflow-actions";
 
@@ -953,6 +961,10 @@ const ripristinaModificaQuaderno = () => {
 };
 
 useEffect(() => {
+  registerDefaultBehaviors()
+}, [])
+
+useEffect(() => {
   const aggiornaPosizioni = () => {
     setLayerPanelPosizione((pos) => ({
       ...pos,
@@ -1457,6 +1469,17 @@ const [manoAttiva, setManoAttiva] = useState(false);
 const [panInCorso, setPanInCorso] = useState(false);
 const [spostaTavolaAttivo, setSpostaTavolaAttivo] =
   useState(false);
+
+const [spostaEntitaAttivo, setSpostaEntitaAttivo] =
+  useState(false)
+
+const spostaEntitaRef = useRef<{
+  attivo: boolean
+  start: CadPoint | null
+}>({
+  attivo: false,
+  start: null,
+})
 
 const trascinamentoPaginaRef = useRef<{
   attivo: boolean
@@ -5353,7 +5376,11 @@ usaPortal
     <ToolButton
   icon="↖"
   label="Selezione"
-  active={modalitaSelezione && !manoAttiva}
+  active={
+  modalitaSelezione &&
+  !manoAttiva &&
+  !spostaEntitaAttivo
+}
   compact={toolbarCompatta}
   onClick={() => {
     setManoAttiva(false)
@@ -5368,6 +5395,39 @@ setModalitaSelezione(true)
     setSfondoSelezionato(false)
     setPinSelezionatoId(null)
     setOggettoGraficoSelezionatoId(null)
+  }}
+/>
+
+
+<ToolButton
+  icon="✥"
+  label="Sposta"
+  active={spostaEntitaAttivo}
+  compact={toolbarCompatta}
+  onClick={() => {
+    const prossimoValore =
+      !spostaEntitaAttivo
+
+    setSpostaEntitaAttivo(
+      prossimoValore,
+    )
+
+    if (prossimoValore) {
+      setManoAttiva(false)
+      setPanInCorso(false)
+      setSpostaTavolaAttivo(false)
+
+      setStrumentoDisegno(null)
+      setAreaAttiva(false)
+      setMetroAttivo(false)
+      setCalibrazioneScalaAttiva(false)
+
+      setModalitaSelezione(true)
+
+      setSfondoSelezionato(false)
+      setPinSelezionatoId(null)
+      setOggettoGraficoSelezionatoId(null)
+    }
   }}
 />
 
@@ -5388,8 +5448,12 @@ setModalitaSelezione(true)
     setOggettoGraficoSelezionatoId(null);
     setCadEntitySelezionataId(null);
     setCadEntitySelezionateIds([]);
+
+    setSpostaEntitaAttivo(false)
   }}
-/><button
+/>
+
+<button
   type="button"
   onClick={() =>
     setViewportScale((scalaCorrente) =>
@@ -5469,6 +5533,7 @@ setCadEntitySelezionataId(null);
 setCadEntitySelezionateIds([]);
 
 setManoAttiva(false);
+setSpostaEntitaAttivo(false)
 setPanInCorso(false);
 }}
                  style={{
@@ -7809,9 +7874,213 @@ if (
   return null
 }
   if (entity.type === "line") {
-    return (
+  const lineaSelezionata =
+    cadEntitySelezionateIds.includes(
+      entity.id,
+    )
+
+  return (
+    <g key={entity.id}>
       <line
-        key={entity.id}
+        x1={entity.start.x}
+        y1={entity.start.y}
+        x2={entity.end.x}
+        y2={entity.end.y}
+        stroke="transparent"
+        strokeWidth={12}
+        pointerEvents={
+          modalitaSelezione
+            ? "stroke"
+            : "none"
+        }
+      onPointerDown={(event) => {
+  if (!modalitaSelezione) {
+    return
+  }
+
+  if (
+    layerEntity?.locked ||
+    layerEntity?.selectable === false
+  ) {
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  if (spostaEntitaAttivo) {
+    const svg =
+      event.currentTarget.ownerSVGElement
+
+    if (!svg) {
+      return
+    }
+
+    const rect =
+      svg.getBoundingClientRect()
+
+    const puntoWorkspace: CadPoint = {
+      x:
+        ((event.clientX - rect.left) /
+          rect.width) *
+        dimensioniWorkspace.width,
+
+      y:
+        ((event.clientY - rect.top) /
+          rect.height) *
+        dimensioniWorkspace.height,
+    }
+
+    spostaEntitaRef.current = {
+      attivo: true,
+      start: puntoWorkspace,
+    }
+
+    if (
+      !cadEntitySelezionateIds.includes(
+        entity.id,
+      )
+    ) {
+      setCadEntitySelezionataId(
+        entity.id,
+      )
+
+      setCadEntitySelezionateIds([
+        entity.id,
+      ])
+    }
+
+    event.currentTarget.setPointerCapture(
+      event.pointerId,
+    )
+
+    return
+  }
+
+  setCadEntitySelezionataId(
+    entity.id,
+  )
+
+  setCadEntitySelezionateIds([
+    entity.id,
+  ])
+
+  setOggettoGraficoSelezionatoId(null)
+  setSfondoSelezionato(false)
+  setPinSelezionatoId(null)
+}}
+
+onPointerMove={(event) => {
+  if (
+    !spostaEntitaAttivo ||
+    !spostaEntitaRef.current.attivo ||
+    !spostaEntitaRef.current.start
+  ) {
+    return
+  }
+
+  const svg =
+    event.currentTarget.ownerSVGElement
+
+  if (!svg) {
+    return
+  }
+
+  const rect =
+    svg.getBoundingClientRect()
+
+  const puntoWorkspace: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+
+    y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  const start =
+    spostaEntitaRef.current.start
+
+  const dx =
+    puntoWorkspace.x - start.x
+
+  const dy =
+    puntoWorkspace.y - start.y
+
+  const idsDaSpostare =
+    cadEntitySelezionateIds.includes(
+      entity.id,
+    )
+      ? cadEntitySelezionateIds
+      : [entity.id]
+
+  const risultato =
+    moveEntities(
+      workspaceCadEntities,
+      idsDaSpostare,
+      dx,
+      dy,
+    )
+
+  if (!risultato.changed) {
+    return
+  }
+
+  setWorkspaceCadEntities(
+    risultato.entities,
+  )
+
+  spostaEntitaRef.current = {
+    attivo: true,
+    start: puntoWorkspace,
+  }
+
+  setQuadernoDirty(true)
+}}
+
+onPointerUp={(event) => {
+  if (!spostaEntitaRef.current.attivo) {
+    return
+  }
+
+  spostaEntitaRef.current = {
+    attivo: false,
+    start: null,
+  }
+
+  if (
+    event.currentTarget.hasPointerCapture(
+      event.pointerId,
+    )
+  ) {
+    event.currentTarget.releasePointerCapture(
+      event.pointerId,
+    )
+  }
+}}
+
+onPointerCancel={(event) => {
+  spostaEntitaRef.current = {
+    attivo: false,
+    start: null,
+  }
+
+  if (
+    event.currentTarget.hasPointerCapture(
+      event.pointerId,
+    )
+  ) {
+    event.currentTarget.releasePointerCapture(
+      event.pointerId,
+    )
+  }
+}}
+/>
+
+      <line
         x1={entity.start.x}
         y1={entity.start.y}
         x2={entity.end.x}
@@ -7819,62 +8088,253 @@ if (
         stroke={entity.stroke.color}
         strokeWidth={entity.stroke.width}
         fill="none"
+        pointerEvents="none"
       />
-    )
-  }
+
+      {lineaSelezionata && (
+        <>
+          <line
+            x1={entity.start.x}
+            y1={entity.start.y}
+            x2={entity.end.x}
+            y2={entity.end.y}
+            stroke="#2563eb"
+            strokeWidth={2}
+            strokeDasharray="6 4"
+            pointerEvents="none"
+          />
+
+          <circle
+            cx={entity.start.x}
+            cy={entity.start.y}
+            r={5}
+            fill="#ffffff"
+            stroke="#2563eb"
+            strokeWidth={2}
+            pointerEvents="none"
+          />
+
+          <circle
+            cx={entity.end.x}
+            cy={entity.end.y}
+            r={5}
+            fill="#ffffff"
+            stroke="#2563eb"
+            strokeWidth={2}
+            pointerEvents="none"
+          />
+        </>
+      )}
+    </g>
+  )
+}
 
   if (entity.type === "area") {
   return (
     <g key={entity.id}>
 
       <polygon
-        points={entity.points
-          .map(
-            (point) =>
-              `${point.x},${point.y}`,
-          )
-          .join(" ")}
-        stroke="transparent"
-strokeWidth={12}
-fill="transparent"
-pointerEvents={
-  modalitaSelezione
-    ? "all"
-    : "none"
-}
+  points={entity.points
+    .map(
+      (point) =>
+        `${point.x},${point.y}`,
+    )
+    .join(" ")}
+  stroke="transparent"
+  strokeWidth={12}
+  fill="transparent"
+  pointerEvents={
+    modalitaSelezione
+      ? "all"
+      : "none"
+  }
 
-        onPointerDown={(event) => {
+  onPointerDown={(event) => {
+    if (!modalitaSelezione) {
+      return
+    }
 
-          if (!modalitaSelezione) {
-            return
-          }
+    if (
+      layerEntity?.locked ||
+      layerEntity?.selectable === false
+    ) {
+      return
+    }
 
-          if (
-            layerEntity?.locked ||
-            layerEntity?.selectable === false
-          ) {
-            return
-          }
+    event.preventDefault()
+    event.stopPropagation()
 
-          event.preventDefault()
-          event.stopPropagation()
+    if (spostaEntitaAttivo) {
+      const svg =
+        event.currentTarget.ownerSVGElement
 
-          setCadEntitySelezionataId(
-            entity.id,
-          )
+      if (!svg) {
+        return
+      }
 
-          setCadEntitySelezionateIds([
-            entity.id,
-          ])
+      const rect =
+        svg.getBoundingClientRect()
 
-          setOggettoGraficoSelezionatoId(
-            null,
-          )
+      const puntoWorkspace: CadPoint = {
+        x:
+          ((event.clientX - rect.left) /
+            rect.width) *
+          dimensioniWorkspace.width,
 
-          setSfondoSelezionato(false)
-          setPinSelezionatoId(null)
-        }}
-      />
+        y:
+          ((event.clientY - rect.top) /
+            rect.height) *
+          dimensioniWorkspace.height,
+      }
+
+      spostaEntitaRef.current = {
+        attivo: true,
+        start: puntoWorkspace,
+      }
+
+      if (
+        !cadEntitySelezionateIds.includes(
+          entity.id,
+        )
+      ) {
+        setCadEntitySelezionataId(
+          entity.id,
+        )
+
+        setCadEntitySelezionateIds([
+          entity.id,
+        ])
+      }
+
+      event.currentTarget.setPointerCapture(
+        event.pointerId,
+      )
+
+      return
+    }
+
+    setCadEntitySelezionataId(
+      entity.id,
+    )
+
+    setCadEntitySelezionateIds([
+      entity.id,
+    ])
+
+    setOggettoGraficoSelezionatoId(null)
+    setSfondoSelezionato(false)
+    setPinSelezionatoId(null)
+  }}
+
+  onPointerMove={(event) => {
+    if (
+      !spostaEntitaAttivo ||
+      !spostaEntitaRef.current.attivo ||
+      !spostaEntitaRef.current.start
+    ) {
+      return
+    }
+
+    const svg =
+      event.currentTarget.ownerSVGElement
+
+    if (!svg) {
+      return
+    }
+
+    const rect =
+      svg.getBoundingClientRect()
+
+    const puntoWorkspace: CadPoint = {
+      x:
+        ((event.clientX - rect.left) /
+          rect.width) *
+        dimensioniWorkspace.width,
+
+      y:
+        ((event.clientY - rect.top) /
+          rect.height) *
+        dimensioniWorkspace.height,
+    }
+
+    const start =
+      spostaEntitaRef.current.start
+
+    const dx =
+      puntoWorkspace.x - start.x
+
+    const dy =
+      puntoWorkspace.y - start.y
+
+    const idsDaSpostare =
+      cadEntitySelezionateIds.includes(
+        entity.id,
+      )
+        ? cadEntitySelezionateIds
+        : [entity.id]
+
+    const risultato =
+      moveEntities(
+        workspaceCadEntities,
+        idsDaSpostare,
+        dx,
+        dy,
+      )
+
+    if (!risultato.changed) {
+      return
+    }
+
+    setWorkspaceCadEntities(
+      risultato.entities,
+    )
+
+    spostaEntitaRef.current = {
+      attivo: true,
+      start: puntoWorkspace,
+    }
+
+    setQuadernoDirty(true)
+  }}
+
+  onPointerUp={(event) => {
+    if (!spostaEntitaRef.current.attivo) {
+      return
+    }
+
+    spostaEntitaRef.current = {
+      attivo: false,
+      start: null,
+    }
+
+    if (
+      event.currentTarget.hasPointerCapture(
+        event.pointerId,
+      )
+    ) {
+      event.currentTarget.releasePointerCapture(
+        event.pointerId,
+      )
+    }
+  }}
+
+  onPointerCancel={(event) => {
+    spostaEntitaRef.current = {
+      attivo: false,
+      start: null,
+    }
+
+    if (
+      event.currentTarget.hasPointerCapture(
+        event.pointerId,
+      )
+    ) {
+      event.currentTarget.releasePointerCapture(
+        event.pointerId,
+      )
+    }
+  }}
+/>
 
       <polygon
         points={entity.points

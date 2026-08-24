@@ -5,6 +5,7 @@ import { freehandBehavior } from './freehand.behavior'
 import { pinBehavior } from './pin.behavior'
 import { imageBehavior } from './image.behavior'
 import { dimensionBehavior } from './dimension.behavior'
+import { areaBehavior } from './area.behavior'
 
 let initialized = false
 
@@ -18,6 +19,7 @@ registerBehavior(freehandBehavior)
 registerBehavior(pinBehavior)
 registerBehavior(imageBehavior)
 registerBehavior(dimensionBehavior)
+registerBehavior(areaBehavior)
 
   initialized = true
 }
