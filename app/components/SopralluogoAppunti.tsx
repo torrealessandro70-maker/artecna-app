@@ -78,6 +78,9 @@ import type { CadScaleCalibration } from '@/app/engines/cad/scale-manager'
 import type { CadDimensionEntity } from '@/app/engines/cad/entities'
 import { ToolButton } from "@/app/components/ui";
 import { applyOrtho } from "@/app/engines/cad/ortho"
+import {
+  segmentIntersection,
+} from "@/app/engines/cad/geometry"
 
 import {
   createInitialAreaState,
@@ -7882,6 +7885,9 @@ onPointerUp={(event) => {
   const start =
     selezioneWorkspaceRef.current.start
 
+const modalitaCrossing =
+  puntoFinale.x < start.x
+
   const minX =
     Math.min(start.x, puntoFinale.x)
   const maxX =
@@ -7916,19 +7922,82 @@ onPointerUp={(event) => {
           return false
         }
 
-        if (entity.type === "line") {
-          return (
-            dentroRettangolo(entity.start) &&
-            dentroRettangolo(entity.end)
-          )
-        }
+      if (entity.type === "line") {
+  if (!modalitaCrossing) {
+    return (
+      dentroRettangolo(entity.start) &&
+      dentroRettangolo(entity.end)
+    )
+  }
 
-        if (entity.type === "area") {
-          return entity.points.every(
-            (point) =>
-              dentroRettangolo(point),
-          )
-        }
+  if (
+    dentroRettangolo(entity.start) ||
+    dentroRettangolo(entity.end)
+  ) {
+    return true
+  }
+
+  const altoSinistra: CadPoint = {
+    x: minX,
+    y: minY,
+  }
+
+  const altoDestra: CadPoint = {
+    x: maxX,
+    y: minY,
+  }
+
+  const bassoDestra: CadPoint = {
+    x: maxX,
+    y: maxY,
+  }
+
+  const bassoSinistra: CadPoint = {
+    x: minX,
+    y: maxY,
+  }
+
+  return Boolean(
+    segmentIntersection(
+      entity.start,
+      entity.end,
+      altoSinistra,
+      altoDestra,
+    ) ||
+      segmentIntersection(
+        entity.start,
+        entity.end,
+        altoDestra,
+        bassoDestra,
+      ) ||
+      segmentIntersection(
+        entity.start,
+        entity.end,
+        bassoDestra,
+        bassoSinistra,
+      ) ||
+      segmentIntersection(
+        entity.start,
+        entity.end,
+        bassoSinistra,
+        altoSinistra,
+      ),
+  )
+}
+
+       if (entity.type === "area") {
+  if (!modalitaCrossing) {
+    return entity.points.every(
+      (point) =>
+        dentroRettangolo(point),
+    )
+  }
+
+  return entity.points.some(
+    (point) =>
+      dentroRettangolo(point),
+  )
+}
 
         return false
       })
@@ -8029,8 +8098,18 @@ zIndex: 50,  }}
         rettangoloSelezione.endY -
           rettangoloSelezione.startY,
       )}
-      fill="rgba(37, 99, 235, 0.12)"
-      stroke="#2563eb"
+      fill={
+  rettangoloSelezione.endX <
+  rettangoloSelezione.startX
+    ? "rgba(22, 163, 74, 0.12)"
+    : "rgba(37, 99, 235, 0.12)"
+}
+     stroke={
+  rettangoloSelezione.endX <
+  rettangoloSelezione.startX
+    ? "#16a34a"
+    : "#2563eb"
+}
       strokeWidth={1.5}
       strokeDasharray="8 6"
       pointerEvents="none"
