@@ -199,8 +199,32 @@ export default function SopralluogoAppunti({
 
 const quadernoContainerRef = useRef<HTMLDivElement | null>(null);
 
+const [
+  workspacePosterImages,
+  setWorkspacePosterImages,
+] = useState<OggettoGraficoQuaderno[]>([])
+
+const [
+  workspacePosterSelezionatoId,
+  setWorkspacePosterSelezionatoId,
+] = useState<string | null>(null)
+
+const workspacePosterDragRef = useRef<{
+  attivo: boolean
+  id: string | null
+  start: CadPoint | null
+  transformIniziale:
+    OggettoGraficoQuaderno["transform"] | null
+}>({
+  attivo: false,
+  id: null,
+  start: null,
+  transformIniziale: null,
+})
+
 const [quadernoEspansoTop, setQuadernoEspansoTop] =
   useState(2);
+
   const quadernoSvgRef = useRef<SVGSVGElement | null>(null);
 const viewportRef = useRef<HTMLDivElement | null>(null);
 const viewportContentRef =
@@ -5142,6 +5166,292 @@ const dimensioniWorkspace =
 
 <button
   type="button"
+  onClick={() => {
+  // POSTER -> IMMAGINE NORMALE
+  if (workspacePosterSelezionatoId) {
+    const immaginePoster =
+      workspacePosterImages.find(
+        (oggetto) =>
+          oggetto.id ===
+          workspacePosterSelezionatoId,
+      )
+
+       if (!immaginePoster) {
+      return
+    }
+
+    const centroPosterWorkspace: CadPoint = {
+      x:
+        immaginePoster.transform.x +
+        immaginePoster.transform.width / 2,
+
+      y:
+        immaginePoster.transform.y +
+        immaginePoster.transform.height / 2,
+    }
+
+    const paginaDestinazione =
+      trovaPaginaDaPuntoWorkspace(
+        centroPosterWorkspace,
+      )
+
+    if (!paginaDestinazione) {
+      return
+    }
+
+    const posizioneLocale =
+      workspacePointToPagePoint(
+        {
+          x: immaginePoster.transform.x,
+          y: immaginePoster.transform.y,
+        },
+        paginaDestinazione,
+      )
+
+    const immaginePagina = {
+      ...immaginePoster,
+
+      transform: {
+        ...immaginePoster.transform,
+
+        x: posizioneLocale.x,
+        y: posizioneLocale.y,
+      },
+    }
+
+    setWorkspacePosterImages(
+      (correnti) =>
+        correnti.filter(
+          (oggetto) =>
+            oggetto.id !==
+            workspacePosterSelezionatoId,
+        ),
+    )
+
+   if (
+  paginaDestinazione.id ===
+  paginaQuadernoCorrente?.id
+) {
+  aggiornaQuaderno({
+    oggettiGrafici: [
+      ...oggettiGrafici,
+      immaginePagina,
+    ],
+  })
+} else {
+  const nuovoIndex =
+    pagineQuaderno.findIndex(
+      (pagina) =>
+        pagina.id ===
+        paginaDestinazione.id,
+    )
+
+  if (nuovoIndex < 0) {
+    return
+  }
+
+  const oggettiDestinazione = [
+    ...(
+      paginaDestinazione.oggettiGrafici ??
+      []
+    ),
+    immaginePagina,
+  ]
+
+  setPagineQuaderno(
+    (pagineCorrenti) =>
+      pagineCorrenti.map(
+        (pagina, index) => {
+          if (
+            index === paginaCorrenteIndex
+          ) {
+            return {
+              ...pagina,
+              disegni,
+              sfondoDisegno,
+              zoomSfondo,
+              oggettiGrafici,
+              layers,
+              pageLayout,
+            }
+          }
+
+          if (
+            pagina.id ===
+            paginaDestinazione.id
+          ) {
+            return {
+              ...pagina,
+              oggettiGrafici:
+                oggettiDestinazione,
+            }
+          }
+
+          return pagina
+        },
+      ),
+  )
+
+  setPaginaCorrenteIndex(nuovoIndex)
+
+  setPageLayout(
+    paginaDestinazione.pageLayout ??
+      createQuadernoPageLayout(),
+  )
+
+  setDisegni(
+    paginaDestinazione.disegni || [],
+  )
+
+  setSfondoDisegno(
+    paginaDestinazione.sfondoDisegno ||
+      null,
+  )
+
+  setZoomSfondo(
+    paginaDestinazione.zoomSfondo ?? 1,
+  )
+
+  setOggettiGrafici(
+    oggettiDestinazione,
+  )
+
+  setScaleCalibration(
+    paginaDestinazione
+      .scaleCalibration ?? null,
+  )
+
+  setLayers(
+    paginaDestinazione.layers?.map(
+      (layer) => ({
+        ...layer,
+      }),
+    ) ||
+      DEFAULT_QUADERNO_LAYERS.map(
+        (layer) => ({
+          ...layer,
+        }),
+      ),
+  )
+
+  setPinSelezionatoId(null)
+  setSfondoSelezionato(false)
+}
+
+    setWorkspacePosterSelezionatoId(null)
+
+    setOggettoGraficoSelezionatoId(
+      immaginePagina.id,
+    )
+
+    setQuadernoDirty(true)
+
+    return
+  }
+
+  // IMMAGINE NORMALE -> POSTER
+  if (!oggettoGraficoSelezionato) {
+    return
+  }
+
+  const posizioneWorkspace =
+    paginaQuadernoCorrente
+      ? pagePointToWorkspacePoint(
+          {
+            x:
+              oggettoGraficoSelezionato
+                .transform.x,
+
+            y:
+              oggettoGraficoSelezionato
+                .transform.y,
+          },
+          paginaQuadernoCorrente,
+        )
+      : {
+          x:
+            oggettoGraficoSelezionato
+              .transform.x,
+
+          y:
+            oggettoGraficoSelezionato
+              .transform.y,
+        }
+
+  const immaginePoster = {
+    ...oggettoGraficoSelezionato,
+
+    transform: {
+      ...oggettoGraficoSelezionato.transform,
+
+      x: posizioneWorkspace.x,
+      y: posizioneWorkspace.y,
+    },
+  }
+
+  setWorkspacePosterImages(
+    (correnti) => [
+      ...correnti,
+      immaginePoster,
+    ],
+  )
+
+  const nuoviOggetti =
+    oggettiGrafici.filter(
+      (oggetto) =>
+        oggetto.id !==
+        oggettoGraficoSelezionato.id,
+    )
+
+  aggiornaQuaderno({
+    oggettiGrafici:
+      nuoviOggetti,
+  })
+
+  setOggettoGraficoSelezionatoId(null)
+
+  setWorkspacePosterSelezionatoId(
+    immaginePoster.id,
+  )
+
+  setQuadernoDirty(true)
+}}
+
+  disabled={
+  !oggettoGraficoSelezionatoId &&
+  !workspacePosterSelezionatoId
+}
+style={{
+  ...buttonSecondary,
+
+  opacity:
+    oggettoGraficoSelezionatoId ||
+    workspacePosterSelezionatoId
+      ? 1
+      : 0.45,
+
+  cursor:
+    oggettoGraficoSelezionatoId ||
+    workspacePosterSelezionatoId
+      ? "pointer"
+      : "not-allowed",
+
+  background:
+    workspacePosterSelezionatoId
+      ? "#dbeafe"
+      : buttonSecondary.background,
+
+  borderColor:
+    workspacePosterSelezionatoId
+      ? "#2563eb"
+      : buttonSecondary.borderColor,
+}}
+>
+  Poster
+</button>
+
+<button
+  type="button"
   onClick={duplicaImmagineSelezionata}
   disabled={!oggettoGraficoSelezionatoId}
   style={{
@@ -7768,11 +8078,78 @@ setWorkspaceLineaPreview(null)
 
   setQuadernoDirty(true)
 }}
+
 onPointerMove={(event) => {
+  if (
+    workspacePosterDragRef.current.attivo &&
+    workspacePosterDragRef.current.id &&
+    workspacePosterDragRef.current.start &&
+    workspacePosterDragRef.current.transformIniziale
+  ) {
+    const svg = event.currentTarget
+
+    const rect =
+      svg.getBoundingClientRect()
+
+    const puntoWorkspace: CadPoint = {
+      x:
+        ((event.clientX - rect.left) /
+          rect.width) *
+        dimensioniWorkspace.width,
+
+      y:
+        ((event.clientY - rect.top) /
+          rect.height) *
+        dimensioniWorkspace.height,
+    }
+
+    const deltaX =
+      puntoWorkspace.x -
+      workspacePosterDragRef.current.start.x
+
+    const deltaY =
+      puntoWorkspace.y -
+      workspacePosterDragRef.current.start.y
+
+    const transformIniziale =
+      workspacePosterDragRef.current
+        .transformIniziale
+
+    const idPoster =
+      workspacePosterDragRef.current.id
+
+    setWorkspacePosterImages(
+      (correnti) =>
+        correnti.map(
+          (oggetto) =>
+            oggetto.id === idPoster
+              ? {
+                  ...oggetto,
+
+                  transform: {
+                    ...oggetto.transform,
+
+                    x:
+                      transformIniziale.x +
+                      deltaX,
+
+                    y:
+                      transformIniziale.y +
+                      deltaY,
+                  },
+                }
+              : oggetto,
+        ),
+    )
+
+    return
+  }
+
   if (
     selezioneWorkspaceRef.current.attiva &&
     selezioneWorkspaceRef.current.start
   ) {
+
     const svg = event.currentTarget
     const rect =
       svg.getBoundingClientRect()
@@ -7886,6 +8263,30 @@ if (workspaceLineaStartRef.current) {
 }}}
 
 onPointerUp={(event) => {
+
+if (workspacePosterDragRef.current.attivo) {
+  workspacePosterDragRef.current = {
+    attivo: false,
+    id: null,
+    start: null,
+    transformIniziale: null,
+  }
+
+  if (
+    event.currentTarget.hasPointerCapture(
+      event.pointerId,
+    )
+  ) {
+    event.currentTarget.releasePointerCapture(
+      event.pointerId,
+    )
+  }
+
+  setQuadernoDirty(true)
+
+  return
+}
+
   if (
     !selezioneWorkspaceRef.current.attiva ||
     !selezioneWorkspaceRef.current.start
@@ -8128,7 +8529,7 @@ const modalitaCrossing =
 
   setRettangoloSelezione(null)
 
-  if (
+   if (
     event.currentTarget.hasPointerCapture(
       event.pointerId,
     )
@@ -8138,6 +8539,30 @@ const modalitaCrossing =
     )
   }
 }}
+
+onPointerCancel={(event) => {
+  if (workspacePosterDragRef.current.attivo) {
+    workspacePosterDragRef.current = {
+      attivo: false,
+      id: null,
+      start: null,
+      transformIniziale: null,
+    }
+
+    if (
+      event.currentTarget.hasPointerCapture(
+        event.pointerId,
+      )
+    ) {
+      event.currentTarget.releasePointerCapture(
+        event.pointerId,
+      )
+    }
+
+    return
+  }
+}}
+
 
 style={{
     position: "absolute",
@@ -8154,12 +8579,119 @@ pointerEvents:
     : "none",
 overflow: "visible",
 zIndex: 50,  }}
-> 
+>
+
+{workspacePosterImages.map(
+  (oggetto) => {
+    const selezionato =
+      workspacePosterSelezionatoId ===
+      oggetto.id
+
+    return (
+      <g key={oggetto.id}>
+        <image
+          href={oggetto.sorgente}
+          x={oggetto.transform.x}
+          y={oggetto.transform.y}
+          width={oggetto.transform.width}
+          height={oggetto.transform.height}
+          preserveAspectRatio="none"
+         pointerEvents={
+  !manoAttiva &&
+  !spostaTavolaAttivo
+    ? "all"
+    : "none"
+}
+        onPointerDown={(event) => {
+  if (
+    manoAttiva ||
+    spostaTavolaAttivo
+  ) {
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  setWorkspacePosterSelezionatoId(
+    oggetto.id,
+  )
+
+  setOggettoGraficoSelezionatoId(null)
+
+  setCadEntitySelezionataId(null)
+  setCadEntitySelezionateIds([])
+  setPinSelezionatoId(null)
+  setSfondoSelezionato(false)
+
+  const svg =
+    event.currentTarget.ownerSVGElement
+
+  if (!svg) {
+    return
+  }
+
+  const rect =
+    svg.getBoundingClientRect()
+
+  const puntoWorkspace: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+
+    y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  workspacePosterDragRef.current = {
+    attivo: true,
+    id: oggetto.id,
+    start: puntoWorkspace,
+    transformIniziale: {
+      ...oggetto.transform,
+    },
+  }
+
+  svg.setPointerCapture(
+    event.pointerId,
+  )
+}}
+
+          style={{
+          cursor:
+  !manoAttiva &&
+  !spostaTavolaAttivo
+    ? "pointer"
+    : "default",
+          }}
+        />
+
+        {selezionato && (
+          <rect
+            x={oggetto.transform.x}
+            y={oggetto.transform.y}
+            width={oggetto.transform.width}
+            height={oggetto.transform.height}
+            fill="none"
+            stroke="#2563eb"
+            strokeWidth={3}
+            strokeDasharray="10 6"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        )}
+
+      </g>
+    )
+  },
+)}
 {(
   strumentoDisegno === "linea" ||
   areaAttiva
-) &&
-  !manoAttiva &&
+) &&  !manoAttiva &&
   !spostaTavolaAttivo && (
     <rect
       x={0}
