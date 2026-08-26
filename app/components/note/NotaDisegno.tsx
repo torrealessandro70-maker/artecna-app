@@ -475,7 +475,6 @@ export default function NotaDisegno({
   spessore,
 dimensioneTesto = 12,
 solaLettura = false,
-paginaId,
 sfondo,
 
  oggettiGrafici = [],
@@ -3808,7 +3807,7 @@ pointerEvents:
   y={rettangoloImmagine.y}
   width={rettangoloImmagine.width}
   height={rettangoloImmagine.height}
-  preserveAspectRatio="none"
+  preserveAspectRatio="xMidYMid meet"
   onPointerDown={
   strumento === null &&
   !sfondoBloccato

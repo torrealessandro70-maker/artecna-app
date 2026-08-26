@@ -3864,6 +3864,8 @@ const eliminaPaginaCorrente = () => {
     );
 
     setPaginaCorrenteIndex(nuovoIndex);
+setStrumentoDisegno(null)
+setModalitaSelezione(true)
 setPageLayout(
   paginaDestinazione.pageLayout ??
     createQuadernoPageLayout(),
@@ -3872,6 +3874,8 @@ setPageLayout(
     setSfondoDisegno(paginaDestinazione.sfondoDisegno || null);
     setZoomSfondo(paginaDestinazione.zoomSfondo ?? 1);
     setOggettiGrafici(paginaDestinazione.oggettiGrafici || []);
+
+
 setScaleCalibration(
   paginaDestinazione.scaleCalibration ?? null,
 );
@@ -9448,42 +9452,12 @@ return null
      <div
   key={pagina.id}
   onClick={() => vaiAllaPagina(index)}
-  onPointerDown={(event) => {
-  if (
-    modalitaSelezione &&
-    !manoAttiva &&
-    !spostaTavolaAttivo
-  ) {
-    const rect =
-      event.currentTarget.getBoundingClientRect()
+onPointerDown={(event) => {
+  if (!spostaTavolaAttivo) {
+    event.preventDefault()
+    event.stopPropagation()
 
-    const puntoWorkspace: CadPoint = {
-      x:
-        (pagina.workspaceX ?? 0) +
-        ((event.clientX - rect.left) /
-          rect.width) *
-          layout.width,
-
-      y:
-        (pagina.workspaceY ?? 0) +
-        ((event.clientY - rect.top) /
-          rect.height) *
-          layout.height,
-    }
-
-    selezioneWorkspaceRef.current = {
-      attiva: true,
-      start: puntoWorkspace,
-      ctrlKey:
-        event.ctrlKey || event.metaKey,
-    }
-
-    setRettangoloSelezione({
-      startX: puntoWorkspace.x,
-      startY: puntoWorkspace.y,
-      endX: puntoWorkspace.x,
-      endY: puntoWorkspace.y,
-    })
+    vaiAllaPagina(index)
 
     return
   }
@@ -9493,6 +9467,7 @@ return null
     pagina,
   )
 }}
+
   onPointerMove={(event) => {
   if (
     selezioneWorkspaceRef.current.attiva &&
