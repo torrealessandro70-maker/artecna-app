@@ -5,6 +5,10 @@ import {
   type ResizeHandle,
 } from '@/app/engines/quaderno-layout'
 
+import {
+  calculateVisibleImageRect,
+} from "@/app/engines/cad/image-geometry"
+
 
 import {
   useEffect,
@@ -160,6 +164,7 @@ type Props = {
 spessore: number
 dimensioneTesto?: number
 solaLettura?: boolean
+paginaId?: string
 sfondo?: string | null
 
   oggettiGrafici?: OggettoGraficoQuaderno[]
@@ -334,52 +339,11 @@ modalitaSelezione,
     }
   }, [oggetto.sorgente])
 
-  const rettangolo = (() => {
-    const transform = oggetto.transform
-
-    if (
-      !dimensioniNaturali ||
-      dimensioniNaturali.width <= 0 ||
-      dimensioniNaturali.height <= 0
-    ) {
-      return transform
-    }
-
-    const rapportoImmagine =
-      dimensioniNaturali.width /
-      dimensioniNaturali.height
-
-    const rapportoContenitore =
-      transform.width / transform.height
-
-    if (rapportoImmagine > rapportoContenitore) {
-      const width = transform.width
-      const height = width / rapportoImmagine
-
-      return {
-        ...transform,
-        x: transform.x,
-        y:
-          transform.y +
-          (transform.height - height) / 2,
-        width,
-        height,
-      }
-    }
-
-    const height = transform.height
-    const width = height * rapportoImmagine
-
-    return {
-      ...transform,
-      x:
-        transform.x +
-        (transform.width - width) / 2,
-      y: transform.y,
-      width,
-      height,
-    }
-  })()
+  const rettangolo =
+  calculateVisibleImageRect(
+    oggetto.transform,
+    dimensioniNaturali,
+  )
 
   return (
     <g data-oggetto-grafico-id={oggetto.id}>
@@ -511,7 +475,9 @@ export default function NotaDisegno({
   spessore,
 dimensioneTesto = 12,
 solaLettura = false,
-  sfondo,
+paginaId,
+sfondo,
+
  oggettiGrafici = [],
   oggettoGraficoSelezionatoId = null,
  onSelezionaOggettoGrafico,
@@ -839,6 +805,7 @@ useEffect(() => {
 const interactionMode = useRef<InteractionMode>({
   type: 'idle',
 })
+
 
 const [dimensioniImmagine, setDimensioniImmagine] =
   useState<{

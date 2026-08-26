@@ -93,6 +93,10 @@ import {
 } from "@/app/engines/cad/snap"
 
 import {
+  calculateVisibleImageRect,
+} from "@/app/engines/cad/image-geometry"
+
+import {
   getSnapTolerance,
 } from "@/app/engines/cad/snap/tolerance"
 
@@ -5085,6 +5089,34 @@ const dimensioniWorkspace =
     return;
   }
 
+const dimensioniNaturali =
+  await new Promise<{
+    width: number
+    height: number
+  } | null>((resolve) => {
+    const urlLocale =
+      URL.createObjectURL(file)
+
+    const immagine =
+      new Image()
+
+    immagine.onload = () => {
+      resolve({
+        width: immagine.naturalWidth,
+        height: immagine.naturalHeight,
+      })
+
+      URL.revokeObjectURL(urlLocale)
+    }
+
+    immagine.onerror = () => {
+      URL.revokeObjectURL(urlLocale)
+      resolve(null)
+    }
+
+    immagine.src = urlLocale
+  })
+
   const nomePulito = file.name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -5116,12 +5148,19 @@ const dimensioniWorkspace =
       .from("preventivi")
       .getPublicUrl(storagePath);
 
-  const nuovoOggetto: OggettoGraficoQuaderno = {
-    id: crypto.randomUUID(),
-    layerId: layerAttivoId,
-    tipo: "immagine",
-    sorgente: urlData.publicUrl,
-    transform: {
+ const nuovoOggetto: OggettoGraficoQuaderno = {
+  id: crypto.randomUUID(),
+  layerId: layerAttivoId,
+  tipo: "immagine",
+  sorgente: urlData.publicUrl,
+
+  larghezzaNaturale:
+    dimensioniNaturali?.width,
+
+  altezzaNaturale:
+    dimensioniNaturali?.height,
+
+  transform: {
       x: 40,
       y: 40,
       width: Math.min(
@@ -5354,40 +5393,49 @@ const dimensioniWorkspace =
     return
   }
 
-  const posizioneWorkspace =
-    paginaQuadernoCorrente
-      ? pagePointToWorkspacePoint(
-          {
-            x:
-              oggettoGraficoSelezionato
-                .transform.x,
-
-            y:
-              oggettoGraficoSelezionato
-                .transform.y,
-          },
-          paginaQuadernoCorrente,
-        )
-      : {
-          x:
+  const rettangoloVisibile =
+  calculateVisibleImageRect(
+    oggettoGraficoSelezionato.transform,
+    oggettoGraficoSelezionato
+      .larghezzaNaturale &&
+    oggettoGraficoSelezionato
+      .altezzaNaturale
+      ? {
+          width:
             oggettoGraficoSelezionato
-              .transform.x,
+              .larghezzaNaturale,
 
-          y:
+          height:
             oggettoGraficoSelezionato
-              .transform.y,
+              .altezzaNaturale,
         }
+      : null,
+  )
 
-  const immaginePoster = {
-    ...oggettoGraficoSelezionato,
+const posizioneWorkspace =
+  paginaQuadernoCorrente
+    ? pagePointToWorkspacePoint(
+        {
+          x: rettangoloVisibile.x,
+          y: rettangoloVisibile.y,
+        },
+        paginaQuadernoCorrente,
+      )
+    : {
+        x: rettangoloVisibile.x,
+        y: rettangoloVisibile.y,
+      }
 
-    transform: {
-      ...oggettoGraficoSelezionato.transform,
+const immaginePoster = {
+  ...oggettoGraficoSelezionato,
 
-      x: posizioneWorkspace.x,
-      y: posizioneWorkspace.y,
-    },
-  }
+  transform: {
+    ...rettangoloVisibile,
+
+    x: posizioneWorkspace.x,
+    y: posizioneWorkspace.y,
+  },
+}
 
   setWorkspacePosterImages(
     (correnti) => [
@@ -9400,13 +9448,91 @@ return null
      <div
   key={pagina.id}
   onClick={() => vaiAllaPagina(index)}
-  onPointerDown={(event) =>
-    iniziaTrascinamentoPagina(
-      event,
-      pagina,
-    )
+  onPointerDown={(event) => {
+  if (
+    modalitaSelezione &&
+    !manoAttiva &&
+    !spostaTavolaAttivo
+  ) {
+    const rect =
+      event.currentTarget.getBoundingClientRect()
+
+    const puntoWorkspace: CadPoint = {
+      x:
+        (pagina.workspaceX ?? 0) +
+        ((event.clientX - rect.left) /
+          rect.width) *
+          layout.width,
+
+      y:
+        (pagina.workspaceY ?? 0) +
+        ((event.clientY - rect.top) /
+          rect.height) *
+          layout.height,
+    }
+
+    selezioneWorkspaceRef.current = {
+      attiva: true,
+      start: puntoWorkspace,
+      ctrlKey:
+        event.ctrlKey || event.metaKey,
+    }
+
+    setRettangoloSelezione({
+      startX: puntoWorkspace.x,
+      startY: puntoWorkspace.y,
+      endX: puntoWorkspace.x,
+      endY: puntoWorkspace.y,
+    })
+
+    return
   }
-  onPointerMove={trascinaPagina}
+
+  iniziaTrascinamentoPagina(
+    event,
+    pagina,
+  )
+}}
+  onPointerMove={(event) => {
+  if (
+    selezioneWorkspaceRef.current.attiva &&
+    selezioneWorkspaceRef.current.start &&
+    modalitaSelezione &&
+    !manoAttiva &&
+    !spostaTavolaAttivo
+  ) {
+    const rect =
+      event.currentTarget.getBoundingClientRect()
+
+    const puntoWorkspace: CadPoint = {
+      x:
+        (pagina.workspaceX ?? 0) +
+        ((event.clientX - rect.left) /
+          rect.width) *
+          layout.width,
+
+      y:
+        (pagina.workspaceY ?? 0) +
+        ((event.clientY - rect.top) /
+          rect.height) *
+          layout.height,
+    }
+
+    const start =
+      selezioneWorkspaceRef.current.start
+
+    setRettangoloSelezione({
+      startX: start.x,
+      startY: start.y,
+      endX: puntoWorkspace.x,
+      endY: puntoWorkspace.y,
+    })
+
+    return
+  }
+
+  trascinaPagina(event)
+}}
   onPointerUp={terminaTrascinamentoPagina}
   onPointerCancel={terminaTrascinamentoPagina}
   title={`Apri ${pagina.titolo}`}
@@ -9503,16 +9629,55 @@ return null
 onPointerDown={(event) => {
   if (
     modalitaSelezione &&
-    !spostaTavolaAttivo
+    !manoAttiva &&
+    !spostaTavolaAttivo &&
+    paginaAttiva
   ) {
+    const rect =
+      event.currentTarget.getBoundingClientRect()
+
+    const puntoWorkspace: CadPoint = {
+      x:
+        (paginaAttiva.workspaceX ?? 0) +
+        ((event.clientX - rect.left) /
+          rect.width) *
+          pageLayout.width,
+
+      y:
+        (paginaAttiva.workspaceY ?? 0) +
+        ((event.clientY - rect.top) /
+          rect.height) *
+          pageLayout.height,
+    }
+
     spostaEntitaRef.current = {
       attivo: false,
       start: null,
     }
 
+    selezioneWorkspaceRef.current = {
+      attiva: true,
+      start: puntoWorkspace,
+      ctrlKey:
+        event.ctrlKey || event.metaKey,
+    }
+
+    setRettangoloSelezione({
+      startX: puntoWorkspace.x,
+      startY: puntoWorkspace.y,
+      endX: puntoWorkspace.x,
+      endY: puntoWorkspace.y,
+    })
+
+    if (
+      !event.ctrlKey &&
+      !event.metaKey
+    ) {
+      setCadEntitySelezionataId(null)
+      setCadEntitySelezionateIds([])
+    }
+
     setOggettoGraficoSelezionatoId(null)
-    setCadEntitySelezionataId(null)
-    setCadEntitySelezionateIds([])
     setPinSelezionatoId(null)
     setSfondoSelezionato(false)
 
@@ -9528,9 +9693,51 @@ onPointerDown={(event) => {
       paginaAttiva,
     )
   }
-}} 
+}}
+  onPointerMove={(event) => {
+  if (
+    selezioneWorkspaceRef.current.attiva &&
+    selezioneWorkspaceRef.current.start &&
+    modalitaSelezione &&
+    !manoAttiva &&
+    !spostaTavolaAttivo
+  ) {
+    const rect =
+      event.currentTarget.getBoundingClientRect()
 
-  onPointerMove={trascinaPagina}
+  if (!paginaAttiva) {
+  return
+}
+
+const puntoWorkspace: CadPoint = {
+  x:
+    (paginaAttiva.workspaceX ?? 0) +
+    ((event.clientX - rect.left) /
+      rect.width) *
+      pageLayout.width,
+
+  y:
+    (paginaAttiva.workspaceY ?? 0) +
+    ((event.clientY - rect.top) /
+      rect.height) *
+      pageLayout.height,
+}
+
+    const start =
+      selezioneWorkspaceRef.current.start
+
+    setRettangoloSelezione({
+      startX: start.x,
+      startY: start.y,
+      endX: puntoWorkspace.x,
+      endY: puntoWorkspace.y,
+    })
+
+    return
+  }
+
+  trascinaPagina(event)
+}}
   onPointerUp={terminaTrascinamentoPagina}
   onPointerCancel={terminaTrascinamentoPagina}
   style={{
@@ -9935,28 +10142,77 @@ onFineTrasformazioneOggetto={() => {
           ),
       )
 
-      setOggettiGrafici(
-        oggettiLive.filter(
-          (oggetto) =>
-            oggetto.id !==
-            immagineSelezionata.id,
-        ),
-      )
+      const nuovoIndex =
+  pagineQuaderno.findIndex(
+    (pagina) =>
+      pagina.id ===
+      paginaDestinazione.id,
+  )
 
-      oggettiGraficiLiveRef.current =
-        oggettiLive.filter(
-          (oggetto) =>
-            oggetto.id !==
-            immagineSelezionata.id,
-        )
+const oggettiDestinazione = [
+  ...(
+    paginaDestinazione
+      .oggettiGrafici ?? []
+  ),
+  immagineTrasferita,
+]
 
-      setOggettoGraficoSelezionatoId(
-        null,
-      )
+if (nuovoIndex >= 0) {
+  setPaginaCorrenteIndex(
+    nuovoIndex,
+  )
 
-      setQuadernoDirty(true)
+  setPageLayout(
+    paginaDestinazione.pageLayout ??
+      createQuadernoPageLayout(),
+  )
 
-      return
+  setDisegni(
+    paginaDestinazione.disegni ?? [],
+  )
+
+  setSfondoDisegno(
+    paginaDestinazione.sfondoDisegno ??
+      null,
+  )
+
+  setZoomSfondo(
+    paginaDestinazione.zoomSfondo ?? 1,
+  )
+
+  setLayers(
+    paginaDestinazione.layers?.map(
+      (layer) => ({
+        ...layer,
+      }),
+    ) ??
+      DEFAULT_QUADERNO_LAYERS.map(
+        (layer) => ({
+          ...layer,
+        }),
+      ),
+  )
+
+  setScaleCalibration(
+    paginaDestinazione
+      .scaleCalibration ?? null,
+  )
+}
+
+setOggettiGrafici(
+  oggettiDestinazione,
+)
+
+oggettiGraficiLiveRef.current =
+  oggettiDestinazione
+
+setOggettoGraficoSelezionatoId(
+  immagineTrasferita.id,
+)
+
+setQuadernoDirty(true)
+
+return
     }
   }
 

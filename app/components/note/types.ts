@@ -76,11 +76,15 @@ export type OggettoGraficoQuaderno = {
   tipo: 'immagine'
   sorgente: string
   transform: BackgroundTransform
+
   larghezzaIniziale?: number
   altezzaIniziale?: number
+
+  larghezzaNaturale?: number
+  altezzaNaturale?: number
+
   layerId?: QuadernoLayerId
 }
-
 export type PaginaQuadernoNota = {
   id: string
   titolo: string
