@@ -226,11 +226,44 @@ const workspacePosterDragRef = useRef<{
   transformIniziale: null,
 })
 
+const workspacePosterResizeRef = useRef<{
+  attivo: boolean
+  id: string | null
+
+  handle:
+    | "nw"
+    | "n"
+    | "ne"
+    | "e"
+    | "se"
+    | "s"
+    | "sw"
+    | "w"
+    | null
+
+  start: CadPoint | null
+
+  transformIniziale:
+    OggettoGraficoQuaderno["transform"] | null
+}>({
+  attivo: false,
+  id: null,
+  handle: null,
+  start: null,
+  transformIniziale: null,
+})
 const [quadernoEspansoTop, setQuadernoEspansoTop] =
   useState(2);
 
-  const quadernoSvgRef = useRef<SVGSVGElement | null>(null);
-const viewportRef = useRef<HTMLDivElement | null>(null);
+ const quadernoSvgRef =
+  useRef<SVGSVGElement | null>(null);
+
+const workspaceSvgRef =
+  useRef<SVGSVGElement | null>(null);
+
+const viewportRef =
+  useRef<HTMLDivElement | null>(null);
+
 const viewportContentRef =
   useRef<HTMLDivElement | null>(null);
 const viewportTransformRef =
@@ -1954,6 +1987,11 @@ const workspaceRenderEntitiesOrdinati =
       (b.zOrder ?? 0),
   )
 
+const [
+  colonneWorkspace,
+  setColonneWorkspace,
+] = useState(2)
+
 const selectionStateCad: CadSelectionState = {
   selectedIds: cadEntitySelezionateIds,
   primarySelectionId:
@@ -3622,58 +3660,58 @@ sfondoDisegno: null,
 
 const calcolaPosizioniWorkspace = (
   pagine: PaginaQuadernoNota[],
+  numeroColonne = 2,
 ): PaginaQuadernoNota[] => {
+  const colonne =
+    Math.max(
+      1,
+      Math.floor(numeroColonne),
+    )
+
+  const risultato:
+    PaginaQuadernoNota[] = []
+
   let yCorrente = 0
 
-  const risultato: PaginaQuadernoNota[] = []
-
   for (
-    let index = 0;
-    index < pagine.length;
-    index += 2
+    let inizioRiga = 0;
+    inizioRiga < pagine.length;
+    inizioRiga += colonne
   ) {
-    const paginaSinistra = pagine[index]
-    const paginaDestra = pagine[index + 1]
+    const pagineRiga =
+      pagine.slice(
+        inizioRiga,
+        inizioRiga + colonne,
+      )
 
-    if (!paginaSinistra) {
-      continue
-    }
+    let xCorrente = 0
+    let altezzaRiga = 0
 
-    const layoutSinistra =
-      paginaSinistra.pageLayout ??
-      createQuadernoPageLayout()
+    for (const pagina of pagineRiga) {
+      const layout =
+        pagina.pageLayout ??
+        createQuadernoPageLayout()
 
-    const layoutDestra =
-      paginaDestra?.pageLayout ??
-      createQuadernoPageLayout()
-
-    risultato.push({
-      ...paginaSinistra,
-      workspaceX: 0,
-      workspaceY: yCorrente,
-    })
-
-    if (paginaDestra) {
       risultato.push({
-        ...paginaDestra,
-        workspaceX: layoutSinistra.width,
+        ...pagina,
+        workspaceX: xCorrente,
         workspaceY: yCorrente,
       })
-    }
 
-    const altezzaRiga = Math.max(
-      layoutSinistra.height,
-      paginaDestra
-        ? layoutDestra.height
-        : 0,
-    )
+      xCorrente += layout.width
+
+      altezzaRiga =
+        Math.max(
+          altezzaRiga,
+          layout.height,
+        )
+    }
 
     yCorrente += altezzaRiga
   }
 
   return risultato
 }
-
 const aggiungiPagina = () => {
   const nuovoIndex = pagineQuaderno.length;
 
@@ -3712,8 +3750,9 @@ const aggiungiPagina = () => {
   ]
 
   return calcolaPosizioniWorkspace(
-    pagineAggiornate,
-  )
+  pagineAggiornate,
+  colonneWorkspace,
+)
 })
 
     setPaginaCorrenteIndex(nuovoIndex);
@@ -3765,6 +3804,7 @@ const eliminaPaginaCorrente = () => {
         ...pagina,
         titolo: `Pagina ${index + 1}`,
       })),
+    colonneWorkspace,
   )
 
   const nuovoIndex = Math.min(
@@ -3894,33 +3934,245 @@ setLayers(
     setRedoStack([]);
   };
 
+const creaSvgPaginaStampa = (
+  pagina: PaginaQuadernoNota,
+): string | null => {
+  const contenitorePagina =
+    document.querySelector<HTMLElement>(
+      `[data-quaderno-page-id="${pagina.id}"]`,
+    )
+
+  if (!contenitorePagina) {
+    return null
+  }
+
+  const svgPagina =
+    contenitorePagina.querySelector<SVGSVGElement>(
+      "svg",
+    )
+
+  if (!svgPagina) {
+    return null
+  }
+
+  const layout =
+    pagina.pageLayout ??
+    createQuadernoPageLayout()
+
+  const clonePagina =
+    svgPagina.cloneNode(true) as SVGSVGElement
+
+clonePagina
+  .querySelectorAll(
+    '[data-print-ui="true"]',
+  )
+  .forEach((elemento) =>
+    elemento.remove(),
+  )
+
+  clonePagina.setAttribute(
+    "width",
+    String(layout.width),
+  )
+
+  clonePagina.setAttribute(
+    "height",
+    String(layout.height),
+  )
+
+  clonePagina.setAttribute(
+    "viewBox",
+    `0 0 ${layout.width} ${layout.height}`,
+  )
+
+  clonePagina.setAttribute(
+    "xmlns",
+    "http://www.w3.org/2000/svg",
+  )
+
+ clonePagina.style.background =
+  "#ffffff"
+
+const workspaceSvg =
+  workspaceSvgRef.current
+
+if (workspaceSvg) {
+  const cloneWorkspace =
+    workspaceSvg.cloneNode(true) as SVGSVGElement
+
+  cloneWorkspace
+    .querySelectorAll(
+      '[data-print-ui="true"]',
+    )
+    .forEach((elemento) =>
+      elemento.remove(),
+    )
+
+  const workspaceX =
+    pagina.workspaceX ?? 0
+
+  const workspaceY =
+    pagina.workspaceY ?? 0
+
+  cloneWorkspace.setAttribute(
+    "x",
+    String(-workspaceX),
+  )
+
+  cloneWorkspace.setAttribute(
+    "y",
+    String(-workspaceY),
+  )
+
+  cloneWorkspace.setAttribute(
+    "width",
+    String(dimensioniWorkspace.width),
+  )
+
+  cloneWorkspace.setAttribute(
+    "height",
+    String(dimensioniWorkspace.height),
+  )
+
+  cloneWorkspace.setAttribute(
+    "viewBox",
+    `0 0 ${dimensioniWorkspace.width} ${dimensioniWorkspace.height}`,
+  )
+
+  cloneWorkspace.style.overflow =
+    "visible"
+
+  const gruppoWorkspace =
+    document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "g",
+    )
+
+  gruppoWorkspace.setAttribute(
+    "transform",
+    `translate(${-workspaceX} ${-workspaceY})`,
+  )
+
+  Array.from(
+    cloneWorkspace.childNodes,
+  ).forEach((nodo) => {
+    gruppoWorkspace.appendChild(
+      nodo.cloneNode(true),
+    )
+  })
+
+  clonePagina.appendChild(
+    gruppoWorkspace,
+  )
+}
+
+return new XMLSerializer().serializeToString(
+  clonePagina,
+)
+}
+
   const apriAnteprimaQuaderno = () => {
-    const svg = quadernoSvgRef.current;
+  const pagineSvg =
+    pagineQuaderno
+      .map((pagina) => {
+        const svgPagina =
+          creaSvgPaginaStampa(pagina)
 
-    if (!svg) {
-      alert("Foglio del Quaderno non disponibile.");
-      return;
-    }
+        if (!svgPagina) {
+          return null
+        }
 
-    const esportazione = esportaSvgQuaderno(svg, {
-      filename: `quaderno-${titolo || "sopralluogo"}`,
-      backgroundColor: "#ffffff",
-    });
+        const layout =
+          pagina.pageLayout ??
+          createQuadernoPageLayout()
 
-    const blob = new Blob([esportazione.svgText], {
-      type: "image/svg+xml;charset=utf-8",
-    });
+        return `
+          <div
+            class="pagina-quaderno"
+            style="
+              width:${layout.width}px;
+              height:${layout.height}px;
+            "
+          >
+            ${svgPagina}
+          </div>
+        `
+      })
+      .filter(Boolean)
+      .join("")
 
-    const url = URL.createObjectURL(blob);
+  if (!pagineSvg) {
+    alert(
+      "Anteprima del Quaderno non disponibile.",
+    )
+    return
+  }
 
-    setAnteprimaQuaderno((precedente) => {
+  const htmlAnteprima = `
+    <!doctype html>
+    <html lang="it">
+      <head>
+        <meta charset="utf-8" />
+
+        <style>
+          html,
+          body {
+            margin: 0;
+            padding: 0;
+            background: #e2e8f0;
+          }
+
+          body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            padding: 24px;
+            box-sizing: border-box;
+          }
+
+          .pagina-quaderno {
+            flex: 0 0 auto;
+            background: #ffffff;
+            overflow: hidden;
+          }
+
+          .pagina-quaderno > svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+          }
+        </style>
+      </head>
+
+      <body>
+        ${pagineSvg}
+      </body>
+    </html>
+  `
+
+  const blob = new Blob(
+    [htmlAnteprima],
+    {
+      type: "text/html;charset=utf-8",
+    },
+  )
+
+  const url =
+    URL.createObjectURL(blob)
+
+  setAnteprimaQuaderno(
+    (precedente) => {
       if (precedente) {
-        URL.revokeObjectURL(precedente);
+        URL.revokeObjectURL(
+          precedente,
+        )
       }
 
-      return url;
-    });
-  };
+      return url
+    },
+  )
+}
 
   const chiudiAnteprimaQuaderno = () => {
     setAnteprimaQuaderno((precedente) => {
@@ -3933,27 +4185,64 @@ setLayers(
   };
 
   const stampaFoglioQuaderno = () => {
-    const finestraStampa = window.open("", "_blank");
+  const finestraStampa =
+    window.open("", "_blank")
 
-    if (!finestraStampa) {
-      alert(
-        "Il browser ha bloccato la finestra di stampa. Consenti i popup per localhost.",
-      );
-      return;
-    }
+  if (!finestraStampa) {
+    alert(
+      "Il browser ha bloccato la finestra di stampa. Consenti i popup per localhost.",
+    )
+    return
+  }
 
-    if (!anteprimaQuaderno) {
-      finestraStampa.close();
-      alert("Anteprima del foglio non disponibile.");
-      return;
-    }
+  const pagineStampa =
+    pagineQuaderno
+      .map((pagina, index) => {
+        const svgPagina =
+          creaSvgPaginaStampa(pagina)
 
-    const orientamento =
-      pageLayout.orientation === "portrait" ? "portrait" : "landscape";
+        if (!svgPagina) {
+          return null
+        }
 
-    finestraStampa.document.open();
+        const layout =
+          pagina.pageLayout ??
+          createQuadernoPageLayout()
 
-    finestraStampa.document.write(`
+        const orientamento =
+          layout.orientation === "portrait"
+            ? "portrait"
+            : "landscape"
+
+        return `
+          <section
+            class="pagina-stampa"
+            data-formato="${layout.format}"
+            data-orientamento="${orientamento}"
+            style="
+              width:${layout.width}px;
+              height:${layout.height}px;
+            "
+          >
+            ${svgPagina}
+          </section>
+        `
+      })
+      .filter(Boolean)
+      .join("")
+
+  if (!pagineStampa) {
+    finestraStampa.close()
+
+    alert(
+      "Nessuna pagina disponibile per la stampa.",
+    )
+    return
+  }
+
+  finestraStampa.document.open()
+
+  finestraStampa.document.write(`
     <!doctype html>
     <html lang="it">
       <head>
@@ -3962,7 +4251,6 @@ setLayers(
 
         <style>
           @page {
-            size: ${pageLayout.format} ${orientamento};
             margin: 0;
           }
 
@@ -3970,71 +4258,89 @@ setLayers(
           body {
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
             background: #ffffff;
           }
 
           body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            width: 100%;
           }
 
-         object {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: 0;
-}
+          .pagina-stampa {
+            position: relative;
+            display: block;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            overflow: hidden;
+
+            break-after: page;
+            page-break-after: always;
+          }
+
+          .pagina-stampa:last-child {
+            break-after: auto;
+            page-break-after: auto;
+          }
+
+          .pagina-stampa > svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+          }
+
+          @media print {
+            html,
+            body {
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+
+            .pagina-stampa {
+              margin: 0 !important;
+              box-shadow: none !important;
+              border: 0 !important;
+            }
+          }
         </style>
       </head>
 
       <body>
-       <object
-  id="foglio-quaderno"
-  data="${anteprimaQuaderno}"
-  type="image/svg+xml"
-  aria-label="Foglio del Quaderno Tecnico"
-></object>
+        ${pagineStampa}
 
-       <script>
-  const foglio = document.querySelector('#foglio-quaderno');
-  let stampaAvviata = false;
+        <script>
+          let stampaAvviata = false;
 
-  const avviaStampa = () => {
-    if (stampaAvviata) return;
+          const avviaStampa = () => {
+            if (stampaAvviata) return;
 
-    stampaAvviata = true;
-    window.focus();
+            stampaAvviata = true;
 
-    setTimeout(() => {
-      window.print();
-    }, 500);
-  };
+            window.focus();
 
-  if (foglio) {
-    foglio.addEventListener(
-      'load',
-      avviaStampa,
-      { once: true }
-    );
-  }
+            setTimeout(() => {
+              window.print();
+            }, 500);
+          };
 
-  window.addEventListener(
-    'load',
-    avviaStampa,
-    { once: true }
-  );
+          window.addEventListener(
+            "load",
+            avviaStampa,
+            { once: true }
+          );
 
-  setTimeout(avviaStampa, 2000);
-</script>
+          setTimeout(
+            avviaStampa,
+            1500
+          );
+        </script>
       </body>
     </html>
-  `);
+  `)
 
-    finestraStampa.document.close();
-  };
+  finestraStampa.document.close()
+}
+
+
   const condividiFoglioQuaderno = async () => {
     if (!anteprimaQuaderno) {
       alert("Anteprima del foglio non disponibile.");
@@ -4231,6 +4537,11 @@ workspaceCadEntities:
     ? pagina.workspaceCadEntities
     : [],
 
+workspaceColumns:
+  typeof pagina.workspaceColumns === "number"
+    ? pagina.workspaceColumns
+    : undefined,
+
 layers: Array.isArray(pagina.layers)
   ? pagina.layers.map((layer) => ({
       ...layer,
@@ -4268,8 +4579,20 @@ const workspaceCadEntitiesNormalizzate =
 setWorkspaceCadEntities(
   workspaceCadEntitiesNormalizzate,
 )
-          setPagineQuaderno(pagineNormalizzate);
-          setPaginaCorrenteIndex(0);
+          setPagineQuaderno(pagineNormalizzate)
+
+setWorkspacePosterImages(
+  primaPagina?.workspacePosterImages ?? [],
+)
+
+setColonneWorkspace(
+  Math.max(
+    1,
+    primaPagina?.workspaceColumns ?? 2,
+  ),
+)
+
+setPaginaCorrenteIndex(0)
 setPageLayout(
   primaPagina?.pageLayout ??
     createQuadernoPageLayout(),
@@ -4390,12 +4713,14 @@ setWorkspaceCadEntities([])
             ...pagina,
           }
 
-    if (index === 0) {
-      return {
-        ...paginaAggiornata,
-        workspaceCadEntities,
-      }
-    }
+   if (index === 0) {
+  return {
+    ...paginaAggiornata,
+    workspaceCadEntities,
+    workspacePosterImages,
+    workspaceColumns: colonneWorkspace,
+  }
+}
 
     return paginaAggiornata
   })
@@ -4820,8 +5145,61 @@ const dimensioniWorkspace =
     },
   )
 
-  return (
-    <section style={{ marginTop: 16 }}>
+ const iniziaResizePoster = (
+  event: React.PointerEvent<SVGCircleElement>,
+  oggetto: OggettoGraficoQuaderno,
+  handle:
+    | "nw"
+    | "n"
+    | "ne"
+    | "e"
+    | "se"
+    | "s"
+    | "sw"
+    | "w",
+) => {
+  event.preventDefault()
+  event.stopPropagation()
+
+  const svg =
+    event.currentTarget.ownerSVGElement
+
+  if (!svg) {
+    return
+  }
+
+  const rect =
+    svg.getBoundingClientRect()
+
+  const puntoWorkspace: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+
+    y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  workspacePosterResizeRef.current = {
+    attivo: true,
+    id: oggetto.id,
+    handle,
+    start: puntoWorkspace,
+    transformIniziale: {
+      ...oggetto.transform,
+    },
+  }
+
+  svg.setPointerCapture(
+    event.pointerId,
+  )
+}
+
+return (
+  <section style={{ marginTop: 16 }}>
       <style>{`
         .smart-note-print {
           display: none;
@@ -6545,7 +6923,7 @@ if (!quadernoEspanso) {
                 style={{
                   position: "fixed",
                   inset: 0,
-                  zIndex: 10000,
+                  zIndex: 20000,
                   background: "rgba(15, 23, 42, 0.85)",
                   display: "flex",
                   flexDirection: "column",
@@ -6620,7 +6998,8 @@ if (!quadernoEspanso) {
                 >
                  <object
   data={anteprimaQuaderno}
-  type="image/svg+xml"
+  type="text/html"
+
   aria-label="Anteprima del foglio del Quaderno"
   style={{
     display: "block",
@@ -6709,6 +7088,50 @@ if (!quadernoEspanso) {
         <option value="portrait">Verticale</option>
       </select>
     </label>
+
+<label
+  style={{
+    flex: "1 1 150px",
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+  }}
+>
+  Colonne{" "}
+ <input
+  type="number"
+  min={1}
+  
+  step={1}
+  value={colonneWorkspace}
+  onChange={(event) => {
+    const nuoveColonne =
+      Math.max(
+        1,
+        Number(event.target.value) || 1,
+      )
+
+    setColonneWorkspace(
+      nuoveColonne,
+    )
+
+    setPagineQuaderno(
+      (pagineCorrenti) =>
+        calcolaPosizioniWorkspace(
+          pagineCorrenti,
+          nuoveColonne,
+        ),
+    )
+
+    setQuadernoDirty(true)
+  }}
+  style={{
+    width: 64,
+  }}
+/>
+</label>
+
   </div>
 </WorkspacePanel>
 
@@ -7832,8 +8255,8 @@ ref={viewportRef}
   padding: 32,
   overflow: "auto",
   display: "flex",
-  justifyContent: "center",
-  alignItems: "flex-start",
+justifyContent: "flex-start",
+alignItems: "flex-start",
 
   height: quadernoEspanso
     ? `calc(100vh - ${quadernoEspansoTop + 115}px)`
@@ -7889,9 +8312,11 @@ ref={viewportRef}
 >
 
 <svg
+ref={workspaceSvgRef}
   width={dimensioniWorkspace.width}
   height={dimensioniWorkspace.height}
-  viewBox={`0 0 ${dimensioniWorkspace.width} ${dimensioniWorkspace.height}`}
+  viewBox={`0 0 ${dimensioniWorkspace.width}
+ ${dimensioniWorkspace.height}`}
 
 onPointerDown={(event) => {
  if (
@@ -8132,12 +8557,267 @@ setWorkspaceLineaPreview(null)
 }}
 
 onPointerMove={(event) => {
+
+if (
+  workspacePosterResizeRef.current.attivo &&
+  workspacePosterResizeRef.current.id &&
+  workspacePosterResizeRef.current.handle &&
+  workspacePosterResizeRef.current.start &&
+  workspacePosterResizeRef.current.transformIniziale
+) {
+  const svg = event.currentTarget
+
+  const rect =
+    svg.getBoundingClientRect()
+
+  const puntoWorkspace: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+
+    y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  const start =
+    workspacePosterResizeRef.current.start
+
+  const transformIniziale =
+    workspacePosterResizeRef.current
+      .transformIniziale
+
+  const idPoster =
+    workspacePosterResizeRef.current.id
+
+  const handle =
+    workspacePosterResizeRef.current.handle
+
+  const deltaX =
+    puntoWorkspace.x - start.x
+
+  const deltaY =
+    puntoWorkspace.y - start.y
+
+  const rapporto =
+    transformIniziale.width /
+    transformIniziale.height
+
+  const minWidth = 40
+
+  const minHeight =
+    minWidth / rapporto
+
+  const left =
+    transformIniziale.x
+
+  const top =
+    transformIniziale.y
+
+  const right =
+    transformIniziale.x +
+    transformIniziale.width
+
+  const bottom =
+    transformIniziale.y +
+    transformIniziale.height
+
+  const centerX =
+    transformIniziale.x +
+    transformIniziale.width / 2
+
+  const centerY =
+    transformIniziale.y +
+    transformIniziale.height / 2
+
+  let nuovaX =
+    transformIniziale.x
+
+  let nuovaY =
+    transformIniziale.y
+
+  let nuovaWidth =
+    transformIniziale.width
+
+  let nuovaHeight =
+    transformIniziale.height
+
+  if (handle === "e") {
+    nuovaWidth =
+      Math.max(
+        minWidth,
+        transformIniziale.width +
+          deltaX,
+      )
+
+    nuovaHeight =
+      nuovaWidth / rapporto
+
+    nuovaY =
+      centerY -
+      nuovaHeight / 2
+  }
+
+  if (handle === "w") {
+    nuovaWidth =
+      Math.max(
+        minWidth,
+        transformIniziale.width -
+          deltaX,
+      )
+
+    nuovaHeight =
+      nuovaWidth / rapporto
+
+    nuovaX =
+      right - nuovaWidth
+
+    nuovaY =
+      centerY -
+      nuovaHeight / 2
+  }
+
+  if (handle === "s") {
+    nuovaHeight =
+      Math.max(
+        minHeight,
+        transformIniziale.height +
+          deltaY,
+      )
+
+    nuovaWidth =
+      nuovaHeight * rapporto
+
+    nuovaX =
+      centerX -
+      nuovaWidth / 2
+  }
+
+  if (handle === "n") {
+    nuovaHeight =
+      Math.max(
+        minHeight,
+        transformIniziale.height -
+          deltaY,
+      )
+
+    nuovaWidth =
+      nuovaHeight * rapporto
+
+    nuovaX =
+      centerX -
+      nuovaWidth / 2
+
+    nuovaY =
+      bottom - nuovaHeight
+  }
+
+  if (
+    handle === "se" ||
+    handle === "ne" ||
+    handle === "sw" ||
+    handle === "nw"
+  ) {
+    const daSinistra =
+      handle === "nw" ||
+      handle === "sw"
+
+    const daAlto =
+      handle === "nw" ||
+      handle === "ne"
+
+    const widthDaMouse =
+      daSinistra
+        ? transformIniziale.width -
+          deltaX
+        : transformIniziale.width +
+          deltaX
+
+    const heightDaMouse =
+      daAlto
+        ? transformIniziale.height -
+          deltaY
+        : transformIniziale.height +
+          deltaY
+
+    if (
+      Math.abs(
+        widthDaMouse -
+          transformIniziale.width,
+      ) >=
+      Math.abs(
+        (
+          heightDaMouse -
+          transformIniziale.height
+        ) * rapporto,
+      )
+    ) {
+      nuovaWidth =
+        Math.max(
+          minWidth,
+          widthDaMouse,
+        )
+
+      nuovaHeight =
+        nuovaWidth / rapporto
+    } else {
+      nuovaHeight =
+        Math.max(
+          minHeight,
+          heightDaMouse,
+        )
+
+      nuovaWidth =
+        nuovaHeight * rapporto
+    }
+
+    if (daSinistra) {
+      nuovaX =
+        right - nuovaWidth
+    } else {
+      nuovaX = left
+    }
+
+    if (daAlto) {
+      nuovaY =
+        bottom - nuovaHeight
+    } else {
+      nuovaY = top
+    }
+  }
+
+  setWorkspacePosterImages(
+    (correnti) =>
+      correnti.map(
+        (oggetto) =>
+          oggetto.id === idPoster
+            ? {
+                ...oggetto,
+
+                transform: {
+                  ...oggetto.transform,
+
+                  x: nuovaX,
+                  y: nuovaY,
+                  width: nuovaWidth,
+                  height: nuovaHeight,
+                },
+              }
+            : oggetto,
+      ),
+  )
+
+  return
+}
   if (
     workspacePosterDragRef.current.attivo &&
     workspacePosterDragRef.current.id &&
     workspacePosterDragRef.current.start &&
     workspacePosterDragRef.current.transformIniziale
   ) {
+
     const svg = event.currentTarget
 
     const rect =
@@ -8315,6 +8995,30 @@ if (workspaceLineaStartRef.current) {
 }}}
 
 onPointerUp={(event) => {
+
+if (workspacePosterResizeRef.current.attivo) {
+  workspacePosterResizeRef.current = {
+    attivo: false,
+  id: null,
+  handle: null,
+  start: null,
+  transformIniziale: null,
+  }
+
+  if (
+    event.currentTarget.hasPointerCapture(
+      event.pointerId,
+    )
+  ) {
+    event.currentTarget.releasePointerCapture(
+      event.pointerId,
+    )
+  }
+
+  setQuadernoDirty(true)
+
+  return
+}
 
 if (workspacePosterDragRef.current.attivo) {
   workspacePosterDragRef.current = {
@@ -8593,6 +9297,29 @@ const modalitaCrossing =
 }}
 
 onPointerCancel={(event) => {
+
+if (workspacePosterResizeRef.current.attivo) {
+  workspacePosterResizeRef.current = {
+   attivo: false,
+  id: null,
+  handle: null,
+  start: null,
+  transformIniziale: null,
+  }
+
+  if (
+    event.currentTarget.hasPointerCapture(
+      event.pointerId,
+    )
+  ) {
+    event.currentTarget.releasePointerCapture(
+      event.pointerId,
+    )
+  }
+
+  return
+}
+
   if (workspacePosterDragRef.current.attivo) {
     workspacePosterDragRef.current = {
       attivo: false,
@@ -8633,6 +9360,8 @@ overflow: "visible",
 zIndex: 50,  }}
 >
 
+
+
 {workspacePosterImages.map(
   (oggetto) => {
     const selezionato =
@@ -8642,6 +9371,7 @@ zIndex: 50,  }}
     return (
       <g key={oggetto.id}>
         <image
+
           href={oggetto.sorgente}
           x={oggetto.transform.x}
           y={oggetto.transform.y}
@@ -8721,20 +9451,225 @@ zIndex: 50,  }}
           }}
         />
 
-        {selezionato && (
-          <rect
-            x={oggetto.transform.x}
-            y={oggetto.transform.y}
-            width={oggetto.transform.width}
-            height={oggetto.transform.height}
-            fill="none"
-            stroke="#2563eb"
-            strokeWidth={3}
-            strokeDasharray="10 6"
-            vectorEffect="non-scaling-stroke"
-            pointerEvents="none"
-          />
-        )}
+       {selezionato && (
+  <>
+   <rect
+  data-print-ui="true"
+  x={oggetto.transform.x}
+
+      y={oggetto.transform.y}
+      width={oggetto.transform.width}
+      height={oggetto.transform.height}
+      fill="none"
+      stroke="#2563eb"
+      strokeWidth={3}
+      strokeDasharray="10 6"
+      vectorEffect="non-scaling-stroke"
+      pointerEvents="none"
+    />
+
+{/* NW */}
+<circle
+data-print-ui="true"
+  cx={oggetto.transform.x}
+  cy={oggetto.transform.y}
+  r={8}
+  fill="#ffffff"
+  stroke="#2563eb"
+  strokeWidth={3}
+  vectorEffect="non-scaling-stroke"
+  pointerEvents="all"
+  style={{ cursor: "nwse-resize" }}
+  onPointerDown={(event) =>
+    iniziaResizePoster(
+      event,
+      oggetto,
+      "nw",
+    )
+  }
+/>
+
+{/* N */}
+<circle
+data-print-ui="true"
+  cx={
+    oggetto.transform.x +
+    oggetto.transform.width / 2
+  }
+  cy={oggetto.transform.y}
+  r={8}
+  fill="#ffffff"
+  stroke="#2563eb"
+  strokeWidth={3}
+  vectorEffect="non-scaling-stroke"
+  pointerEvents="all"
+  style={{ cursor: "ns-resize" }}
+  onPointerDown={(event) =>
+    iniziaResizePoster(
+      event,
+      oggetto,
+      "n",
+    )
+  }
+/>
+
+{/* NE */}
+<circle
+data-print-ui="true"
+  cx={
+    oggetto.transform.x +
+    oggetto.transform.width
+  }
+  cy={oggetto.transform.y}
+  r={8}
+  fill="#ffffff"
+  stroke="#2563eb"
+  strokeWidth={3}
+  vectorEffect="non-scaling-stroke"
+  pointerEvents="all"
+  style={{ cursor: "nesw-resize" }}
+  onPointerDown={(event) =>
+    iniziaResizePoster(
+      event,
+      oggetto,
+      "ne",
+    )
+  }
+/>
+
+{/* E */}
+<circle
+data-print-ui="true"
+  cx={
+    oggetto.transform.x +
+    oggetto.transform.width
+  }
+  cy={
+    oggetto.transform.y +
+    oggetto.transform.height / 2
+  }
+  r={8}
+  fill="#ffffff"
+  stroke="#2563eb"
+  strokeWidth={3}
+  vectorEffect="non-scaling-stroke"
+  pointerEvents="all"
+  style={{ cursor: "ew-resize" }}
+  onPointerDown={(event) =>
+    iniziaResizePoster(
+      event,
+      oggetto,
+      "e",
+    )
+  }
+/>
+
+{/* S */}
+<circle
+data-print-ui="true"
+  cx={
+    oggetto.transform.x +
+    oggetto.transform.width / 2
+  }
+  cy={
+    oggetto.transform.y +
+    oggetto.transform.height
+  }
+  r={8}
+  fill="#ffffff"
+  stroke="#2563eb"
+  strokeWidth={3}
+  vectorEffect="non-scaling-stroke"
+  pointerEvents="all"
+  style={{ cursor: "ns-resize" }}
+  onPointerDown={(event) =>
+    iniziaResizePoster(
+      event,
+      oggetto,
+      "s",
+    )
+  }
+/>
+
+{/* SW */}
+<circle
+data-print-ui="true"
+  cx={oggetto.transform.x}
+  cy={
+    oggetto.transform.y +
+    oggetto.transform.height
+  }
+  r={8}
+  fill="#ffffff"
+  stroke="#2563eb"
+  strokeWidth={3}
+  vectorEffect="non-scaling-stroke"
+  pointerEvents="all"
+  style={{ cursor: "nesw-resize" }}
+  onPointerDown={(event) =>
+    iniziaResizePoster(
+      event,
+      oggetto,
+      "sw",
+    )
+  }
+/>
+
+{/* W */}
+<circle
+data-print-ui="true"
+  cx={oggetto.transform.x}
+  cy={
+    oggetto.transform.y +
+    oggetto.transform.height / 2
+  }
+  r={8}
+  fill="#ffffff"
+  stroke="#2563eb"
+  strokeWidth={3}
+  vectorEffect="non-scaling-stroke"
+  pointerEvents="all"
+  style={{ cursor: "ew-resize" }}
+  onPointerDown={(event) =>
+    iniziaResizePoster(
+      event,
+      oggetto,
+      "w",
+    )
+  }
+/>
+
+    <circle
+  data-print-ui="true"
+      cx={
+        oggetto.transform.x +
+        oggetto.transform.width
+      }
+      cy={
+        oggetto.transform.y +
+        oggetto.transform.height
+      }
+      r={8}
+      fill="#ffffff"
+      stroke="#2563eb"
+      strokeWidth={3}
+      vectorEffect="non-scaling-stroke"
+      pointerEvents="all"
+      style={{
+        cursor: "nwse-resize",
+      }}
+
+ onPointerDown={(event) =>
+  iniziaResizePoster(
+    event,
+    oggetto,
+    "se",
+  )
+}
+
+    />
+  </>
+)}
 
       </g>
     )
@@ -8758,6 +9693,7 @@ zIndex: 50,  }}
 {rettangoloSelezione &&
   selezioneWorkspaceRef.current.attiva && (
     <rect
+      data-print-ui="true"
       x={Math.min(
         rettangoloSelezione.startX,
         rettangoloSelezione.endX,
@@ -8794,6 +9730,7 @@ zIndex: 50,  }}
 
 {workspaceSnapPoint && (
   <circle
+    data-print-ui="true"
     cx={workspaceSnapPoint.x}
     cy={workspaceSnapPoint.y}
     r={6}
@@ -9451,6 +10388,8 @@ return null
     return (
      <div
   key={pagina.id}
+  data-quaderno-page-id={pagina.id}
+
   onClick={() => vaiAllaPagina(index)}
 onPointerDown={(event) => {
   if (!spostaTavolaAttivo) {
@@ -9711,11 +10650,12 @@ const puntoWorkspace: CadPoint = {
     return
   }
 
-  trascinaPagina(event)
+trascinaPagina(event)
 }}
-  onPointerUp={terminaTrascinamentoPagina}
-  onPointerCancel={terminaTrascinamentoPagina}
-  style={{
+onPointerUp={terminaTrascinamentoPagina}
+onPointerCancel={terminaTrascinamentoPagina}
+data-quaderno-page-id={paginaAttiva?.id}
+style={{
     position: "absolute",
     left: paginaAttiva?.workspaceX ?? 0,
     top: paginaAttiva?.workspaceY ?? 0,
@@ -10344,10 +11284,11 @@ onCambiaRettangoloSelezione={setRettangoloSelezione}
       createQuadernoPageLayout()
 
     return (
-      <div
-        key={pagina.id}
-        onClick={() => vaiAllaPagina(index)}
-        title={`Apri ${pagina.titolo}`}
+     <div
+  key={pagina.id}
+  data-quaderno-page-id={pagina.id}
+  onClick={() => vaiAllaPagina(index)}
+title={`Apri ${pagina.titolo}`}
        style={{
   position: "absolute",
   left: pagina.workspaceX ?? 0,

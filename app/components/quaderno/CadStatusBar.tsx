@@ -19,6 +19,7 @@ export default function CadStatusBar({
 }: CadStatusBarProps) {
   return (
     <div
+data-print-ui="true"
       style={{
         width: "100%",
         minHeight: 34,

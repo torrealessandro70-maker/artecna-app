@@ -93,6 +93,8 @@ export type PaginaQuadernoNota = {
  cadDimensions?: CadDimensionEntity[]
 cadEntities?: CadEntity[]
 workspaceCadEntities?: CadEntity[]
+workspacePosterImages?: OggettoGraficoQuaderno[]
+workspaceColumns?: number
 scaleCalibration?: CadScaleCalibration | null
   pageLayout?: QuadernoPageLayout
 
