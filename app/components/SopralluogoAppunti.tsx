@@ -185,6 +185,7 @@ type Props = {
     sopralluogo: SopralluogoNota,
   ) => boolean | void | Promise<boolean | void>;
 orthoAttivo?: boolean
+onChiudiFascicolo?: () => void;
 };
 
 export default function SopralluogoAppunti({
@@ -198,6 +199,7 @@ export default function SopralluogoAppunti({
   fotoGalleria = [],
   onApriGalleria,
   generaPreventivoAiDaSopralluogo,
+onChiudiFascicolo,
 
 }: Props) {
 
@@ -5295,6 +5297,46 @@ return (
               : "none",
           }}
         >
+
+{quadernoEspanso && (
+  <button
+    type="button"
+   onClick={() => {
+  if (onChiudiFascicolo) {
+    onChiudiFascicolo()
+    return
+  }
+
+  setMostraAppuntiSopralluogo(false)
+}}
+    aria-label="Chiudi Quaderno"
+    title="Chiudi Quaderno"
+    style={{
+      position: "fixed",
+      top: quadernoEspansoTop + 12,
+      right: 16,
+      zIndex: 10100,
+      width: 42,
+      height: 42,
+      padding: 0,
+      borderRadius: "50%",
+      border: "1px solid #cbd5e1",
+      background: "#ffffff",
+      color: "#0f172a",
+      fontSize: 22,
+      fontWeight: 800,
+      lineHeight: 1,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      boxShadow:
+        "0 4px 14px rgba(15,23,42,0.18)",
+    }}
+  >
+    ×
+  </button>
+)}
           <div
             style={{
               display: "flex",

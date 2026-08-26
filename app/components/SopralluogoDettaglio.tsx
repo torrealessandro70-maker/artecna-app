@@ -230,7 +230,11 @@ useEffect(() => {
                 integrato
                 fotoGalleria={props.fotoSopralluoghi}
                 onApriGalleria={() => setSezioneAttiva('galleria')}
+onChiudiFascicolo={() =>
+  props.setSopralluogoAperto(null)
+}
               />
+
           </section>
 <section
   aria-label="Documenti del sopralluogo"
