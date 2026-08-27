@@ -14,6 +14,8 @@ import { flushSync } from "react-dom";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import NotaDisegno from "./note/NotaDisegno";
 import { STRUMENTI_DISEGNO } from "./note/drawing-tools";
+import { jsPDF } from "jspdf";
+import { Canvg } from "canvg";
 import {
   DecisionBuilder,
   type DecisionPlan,
@@ -4342,6 +4344,207 @@ return new XMLSerializer().serializeToString(
   finestraStampa.document.close()
 }
 
+const incorporaImmaginiSvg = async (
+  svgTesto: string,
+): Promise<string> => {
+  const parser =
+    new DOMParser()
+
+  const documento =
+    parser.parseFromString(
+      svgTesto,
+      "image/svg+xml",
+    )
+
+  const immagini =
+    Array.from(
+      documento.querySelectorAll("image"),
+    )
+
+  for (const immagine of immagini) {
+    const href =
+      immagine.getAttribute("href") ||
+      immagine.getAttribute(
+        "xlink:href",
+      )
+
+    if (
+      !href ||
+      href.startsWith("data:")
+    ) {
+      continue
+    }
+
+    try {
+      const risposta =
+        await fetch(href)
+
+      if (!risposta.ok) {
+        continue
+      }
+
+      const blob =
+        await risposta.blob()
+
+      const dataUrl =
+        await new Promise<string>(
+          (resolve, reject) => {
+            const reader =
+              new FileReader()
+
+            reader.onload = () =>
+              resolve(
+                String(reader.result),
+              )
+
+            reader.onerror = () =>
+              reject(reader.error)
+
+            reader.readAsDataURL(blob)
+          },
+        )
+
+      immagine.setAttribute(
+        "href",
+        dataUrl,
+      )
+
+      immagine.removeAttribute(
+        "xlink:href",
+      )
+    } catch (errore) {
+      console.warn(
+        "Immagine non incorporata nel PDF:",
+        href,
+        errore,
+      )
+    }
+  }
+
+  return new XMLSerializer()
+    .serializeToString(
+      documento.documentElement,
+    )
+}
+
+const esportaPdfQuaderno = async () => {
+  const nomePulito =
+    titolo.trim() || "sopralluogo"
+
+  const pdf = new jsPDF({
+    orientation: "landscape",
+    unit: "px",
+    format: "a4",
+  })
+
+  let primaPaginaPdf = true
+
+  for (const pagina of pagineQuaderno) {
+    const svgTesto =
+      creaSvgPaginaStampa(pagina)
+
+    if (!svgTesto) {
+      continue
+    }
+
+const svgConImmagini =
+  await incorporaImmaginiSvg(
+    svgTesto,
+  )
+
+    const layout =
+      pagina.pageLayout ??
+      createQuadernoPageLayout()
+
+    const orientamento =
+      layout.orientation === "portrait"
+        ? "portrait"
+        : "landscape"
+
+    if (!primaPaginaPdf) {
+      pdf.addPage(
+        [layout.width, layout.height],
+        orientamento,
+      )
+    } else {
+      pdf.deletePage(1)
+
+      pdf.addPage(
+        [layout.width, layout.height],
+        orientamento,
+      )
+
+      primaPaginaPdf = false
+    }
+
+    const canvas =
+  document.createElement("canvas")
+
+canvas.width =
+  Math.max(
+    1,
+    Math.round(layout.width),
+  )
+
+canvas.height =
+  Math.max(
+    1,
+    Math.round(layout.height),
+  )
+
+const contesto =
+  canvas.getContext("2d")
+
+if (!contesto) {
+  throw new Error(
+    "Canvas non disponibile.",
+  )
+}
+
+contesto.fillStyle =
+  "#ffffff"
+
+contesto.fillRect(
+  0,
+  0,
+  canvas.width,
+  canvas.height,
+)
+
+const renderer =
+  await Canvg.fromString(
+    contesto,
+    svgConImmagini,
+  )
+await renderer.render()
+
+const immaginePng =
+  canvas.toDataURL(
+    "image/png",
+  )
+
+pdf.addImage(
+  immaginePng,
+  "PNG",
+  0,
+  0,
+  layout.width,
+  layout.height,
+)
+  }
+
+  if (primaPaginaPdf) {
+    alert(
+      "Nessuna pagina disponibile per l'esportazione.",
+    )
+    return
+  }
+
+  pdf.save(
+    `quaderno-${nomePulito}.pdf`,
+  )
+}
+
 
   const condividiFoglioQuaderno = async () => {
     if (!anteprimaQuaderno) {
@@ -7005,6 +7208,16 @@ if (!quadernoEspanso) {
                     >
                       Stampa
                     </button>
+
+<button
+  type="button"
+  onClick={() => {
+    void esportaPdfQuaderno()
+  }}
+  style={buttonSecondary}
+>
+  Esporta PDF
+</button>
 
                     <button
                       type="button"
