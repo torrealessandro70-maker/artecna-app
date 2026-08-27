@@ -4427,10 +4427,7 @@ const incorporaImmaginiSvg = async (
     )
 }
 
-const esportaPdfQuaderno = async () => {
-  const nomePulito =
-    titolo.trim() || "sopralluogo"
-
+const generaPdfQuadernoBlob = async (): Promise<Blob> => {
   const pdf = new jsPDF({
     orientation: "landscape",
     unit: "px",
@@ -4537,30 +4534,49 @@ pdf.addImage(
     alert(
       "Nessuna pagina disponibile per l'esportazione.",
     )
-    return
+
+    throw new Error(
+      "Nessuna pagina disponibile per l'esportazione.",
+    )
   }
 
-  pdf.save(
-    `quaderno-${nomePulito}.pdf`,
+  return pdf.output("blob")
+}
+
+const esportaPdfQuaderno = async () => {
+  const nomePulito =
+    titolo.trim() || "sopralluogo"
+
+  const blob =
+    await generaPdfQuadernoBlob()
+
+  const url =
+    URL.createObjectURL(blob)
+
+  const link =
+    document.createElement("a")
+
+  link.href = url
+  link.download = `quaderno-${nomePulito}.pdf`
+
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+
+  URL.revokeObjectURL(
+    url,
   )
 }
 
 
   const condividiFoglioQuaderno = async () => {
-    if (!anteprimaQuaderno) {
-      alert("Anteprima del foglio non disponibile.");
-      return;
-    }
-
     try {
-      const risposta = await fetch(anteprimaQuaderno);
-
-      const blob = await risposta.blob();
+      const blob = await generaPdfQuadernoBlob();
 
       const nomePulito = titolo.trim() || "sopralluogo";
 
-      const file = new File([blob], `quaderno-${nomePulito}.svg`, {
-        type: "image/svg+xml",
+      const file = new File([blob], `quaderno-${nomePulito}.pdf`, {
+        type: "application/pdf",
       });
 
       if (
@@ -4571,29 +4587,33 @@ pdf.addImage(
       ) {
         await navigator.share({
           title: "Quaderno Tecnico ARTECNA",
-          text: "Foglio del Quaderno Tecnico ARTECNA OS",
+          text: "Quaderno Tecnico ARTECNA OS",
           files: [file],
         });
 
         return;
       }
 
+      const url = URL.createObjectURL(blob);
+
       const link = document.createElement("a");
 
-      link.href = anteprimaQuaderno;
+      link.href = url;
       link.download = file.name;
 
       document.body.appendChild(link);
       link.click();
       link.remove();
 
+      URL.revokeObjectURL(url);
+
       alert(
-        "La condivisione diretta non è disponibile. Il foglio è stato scaricato.",
+        "La condivisione diretta non è disponibile. Il PDF è stato scaricato.",
       );
     } catch (error) {
       console.error("Errore condivisione Quaderno:", error);
 
-      alert("Non è stato possibile condividere il foglio.");
+      alert("Non è stato possibile condividere il Quaderno.");
     }
   };
 
