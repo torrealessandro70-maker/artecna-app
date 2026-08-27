@@ -1141,7 +1141,7 @@ useEffect(() => {
 
     const tasto = event.key.toLowerCase();
 
-   if (
+  if (
   tasto === "delete" ||
   tasto === "backspace"
 ) {
@@ -1154,6 +1154,16 @@ useEffect(() => {
   if (ciSonoEntitaSelezionate) {
     event.preventDefault();
     eliminaEntitaCadSelezionate();
+
+    return;
+  }
+
+ if (
+  spostaTavolaAttivo &&
+  pagineWorkspaceSelezionateIds.length > 0
+) {
+    event.preventDefault();
+    eliminaPagineWorkspaceSelezionate();
 
     return;
   }
@@ -1173,18 +1183,35 @@ if (tasto === "escape") {
 
   setModalitaSelezione(true)
 
-  setCadEntitySelezionataId(null)
-  setCadEntitySelezionateIds([])
+setCadEntitySelezionataId(null)
+setCadEntitySelezionateIds([])
 
-  return
+setPagineWorkspaceSelezionateIds([])
+
+return
 }
 
-    const usaComando =
-      event.ctrlKey || event.metaKey;
+const usaComando =
+  event.ctrlKey || event.metaKey;
 
-    if (!usaComando) return;
+if (!usaComando) return;
 
-    if (tasto === "z" && !event.shiftKey) {
+if (
+  tasto === "a" &&
+  quadernoEspanso
+) {
+  event.preventDefault();
+
+  setPagineWorkspaceSelezionateIds(
+    pagineQuaderno.map(
+      (pagina) => pagina.id,
+    ),
+  );
+
+  return;
+}
+
+if (tasto === "z" && !event.shiftKey) {
       event.preventDefault();
       annullaModificaQuaderno();
 
@@ -3980,6 +4007,121 @@ const eliminaPaginaCorrente = () => {
   setSfondoSelezionato(false)
   setCadEntitySelezionataId(null)
   setCadEntitySelezionateIds([])
+
+  setUndoStack([])
+  setRedoStack([])
+
+  setQuadernoDirty(true)
+}
+
+const eliminaPagineWorkspaceSelezionate = () => {
+  if (
+    pagineWorkspaceSelezionateIds.length === 0
+  ) {
+    return
+  }
+
+  const numeroDaEliminare =
+    pagineWorkspaceSelezionateIds.length
+
+  if (
+    pagineQuaderno.length -
+      numeroDaEliminare <
+    1
+  ) {
+    window.alert(
+      "Deve rimanere almeno una pagina nel Quaderno.",
+    )
+    return
+  }
+
+  if (
+    !window.confirm(
+      `Vuoi eliminare ${numeroDaEliminare} pagine selezionate?`,
+    )
+  ) {
+    return
+  }
+
+  const nuovePagine =
+    calcolaPosizioniWorkspace(
+      pagineQuaderno
+        .filter(
+          (pagina) =>
+            !pagineWorkspaceSelezionateIds.includes(
+              pagina.id,
+            ),
+        )
+        .map((pagina, index) => ({
+          ...pagina,
+          titolo: `Pagina ${index + 1}`,
+        })),
+      colonneWorkspace,
+    )
+
+  const nuovoIndex = Math.min(
+    paginaCorrenteIndex,
+    nuovePagine.length - 1,
+  )
+
+  const nuovaPaginaCorrente =
+    nuovePagine[nuovoIndex]
+
+  if (!nuovaPaginaCorrente) {
+    return
+  }
+
+  setPagineQuaderno(nuovePagine)
+  setPaginaCorrenteIndex(nuovoIndex)
+
+  setPageLayout(
+    nuovaPaginaCorrente.pageLayout ??
+      createQuadernoPageLayout(),
+  )
+
+  setDisegni(
+    nuovaPaginaCorrente.disegni ?? [],
+  )
+
+  setSfondoDisegno(
+    nuovaPaginaCorrente.sfondoDisegno ??
+      null,
+  )
+
+  setZoomSfondo(
+    nuovaPaginaCorrente.zoomSfondo ?? 1,
+  )
+
+  setOggettiGrafici(
+    nuovaPaginaCorrente.oggettiGrafici ??
+      [],
+  )
+
+  setScaleCalibration(
+    nuovaPaginaCorrente.scaleCalibration ??
+      null,
+  )
+
+  setLayers(
+    nuovaPaginaCorrente.layers?.map(
+      (layer) => ({
+        ...layer,
+      }),
+    ) ??
+      DEFAULT_QUADERNO_LAYERS.map(
+        (layer) => ({
+          ...layer,
+        }),
+      ),
+  )
+
+  setOggettoGraficoSelezionatoId(null)
+  setPinSelezionatoId(null)
+  setSfondoSelezionato(false)
+  setCadEntitySelezionataId(null)
+  setCadEntitySelezionateIds([])
+
+  setPagineWorkspaceSelezionateIds([])
 
   setUndoStack([])
   setRedoStack([])
@@ -10773,11 +10915,21 @@ return null
   key={pagina.id}
   data-quaderno-page-id={pagina.id}
 
-  onClick={(event) => {
+ onClick={(event) => {
+  if (
+    spostaTavolaAttivo &&
+    pagineWorkspaceSelezionateIds.includes(
+      pagina.id,
+    )
+  ) {
+    return
+  }
+
   if (
     event.ctrlKey ||
     event.metaKey
   ) {
+
     setPagineWorkspaceSelezionateIds(
       (correnti) =>
         correnti.includes(pagina.id)
@@ -11695,6 +11847,15 @@ onCambiaRettangoloSelezione={setRettangoloSelezione}
   key={pagina.id}
   data-quaderno-page-id={pagina.id}
 onClick={(event) => {
+  if (
+    spostaTavolaAttivo &&
+    pagineWorkspaceSelezionateIds.includes(
+      pagina.id,
+    )
+  ) {
+    return
+  }
+
   if (
     event.ctrlKey ||
     event.metaKey
