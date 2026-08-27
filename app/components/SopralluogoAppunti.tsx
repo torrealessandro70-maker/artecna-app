@@ -1573,6 +1573,12 @@ const trascinamentoPaginaRef = useRef<{
   currentWorkspaceX: number
   currentWorkspaceY: number
 
+  pagineSelezionateIniziali: {
+    id: string
+    x: number
+    y: number
+  }[]
+
   elemento: HTMLDivElement | null
 }>({
   attivo: false,
@@ -1587,8 +1593,11 @@ const trascinamentoPaginaRef = useRef<{
   currentWorkspaceX: 0,
   currentWorkspaceY: 0,
 
+  pagineSelezionateIniziali: [],
+
   elemento: null,
 })
+
 const iniziaTrascinamentoPagina = (
   event: React.PointerEvent<HTMLDivElement>,
   pagina: PaginaQuadernoNota,
@@ -1615,7 +1624,25 @@ const iniziaTrascinamentoPagina = (
 const startWorkspaceY =
   pagina.workspaceY ?? 0
 
+const pagineSelezionateIniziali =
+  pagineWorkspaceSelezionateIds.includes(
+    pagina.id,
+  )
+    ? pagineQuaderno
+        .filter((paginaCorrente) =>
+          pagineWorkspaceSelezionateIds.includes(
+            paginaCorrente.id,
+          ),
+        )
+        .map((paginaCorrente) => ({
+          id: paginaCorrente.id,
+          x: paginaCorrente.workspaceX ?? 0,
+          y: paginaCorrente.workspaceY ?? 0,
+        }))
+    : []
+
 trascinamentoPaginaRef.current = {
+
   attivo: true,
   paginaId: pagina.id,
 
@@ -1625,15 +1652,13 @@ trascinamentoPaginaRef.current = {
   startWorkspaceX,
   startWorkspaceY,
 
-  currentWorkspaceX:
-    startWorkspaceX,
+  currentWorkspaceX: startWorkspaceX,
+  currentWorkspaceY: startWorkspaceY,
 
-  currentWorkspaceY:
-    startWorkspaceY,
+  pagineSelezionateIniziali,
 
   elemento: event.currentTarget,
 }
-
   event.currentTarget.setPointerCapture(
     event.pointerId,
   )
@@ -1680,12 +1705,17 @@ if (paginaTrascinata) {
   const tolleranzaSnap = 20
 
   for (const altraPagina of pagineQuaderno) {
-    if (
-      altraPagina.id ===
-      paginaTrascinata.id
-    ) {
-      continue
-    }
+  if (
+    altraPagina.id ===
+      paginaTrascinata.id ||
+    stato.pagineSelezionateIniziali.some(
+      (paginaSelezionata) =>
+        paginaSelezionata.id ===
+        altraPagina.id,
+    )
+  ) {
+    continue
+  }
 
     const altroLayout =
       altraPagina.pageLayout ??
@@ -1772,6 +1802,45 @@ if (paginaTrascinata) {
 stato.currentWorkspaceX = nuovoX
 stato.currentWorkspaceY = nuovoY
 
+const deltaFinaleX =
+  nuovoX - stato.startWorkspaceX
+
+const deltaFinaleY =
+  nuovoY - stato.startWorkspaceY
+
+for (
+  const paginaSelezionata of
+  stato.pagineSelezionateIniziali
+) {
+  if (
+    paginaSelezionata.id ===
+    stato.paginaId
+  ) {
+    continue
+  }
+
+  const elementoPagina =
+    document.querySelector<HTMLElement>(
+      `[data-quaderno-page-id="${paginaSelezionata.id}"]`,
+    )
+
+  if (!elementoPagina) {
+    continue
+  }
+
+  elementoPagina.style.left =
+    `${
+      paginaSelezionata.x +
+      deltaFinaleX
+    }px`
+
+  elementoPagina.style.top =
+    `${
+      paginaSelezionata.y +
+      deltaFinaleY
+    }px`
+}
+
 if (stato.elemento) {
   stato.elemento.style.left =
     `${nuovoX}px`
@@ -1795,23 +1864,55 @@ const stato =
   trascinamentoPaginaRef.current
 
 if (stato.paginaId) {
-  setPagineQuaderno((pagineCorrenti) =>
-    pagineCorrenti.map((pagina) =>
-      pagina.id === stato.paginaId
-        ? {
+  const deltaFinaleX =
+    stato.currentWorkspaceX -
+    stato.startWorkspaceX
+
+  const deltaFinaleY =
+    stato.currentWorkspaceY -
+    stato.startWorkspaceY
+
+  setPagineQuaderno(
+    (pagineCorrenti) =>
+      pagineCorrenti.map((pagina) => {
+        const posizioneIniziale =
+          stato.pagineSelezionateIniziali.find(
+            (paginaSelezionata) =>
+              paginaSelezionata.id ===
+              pagina.id,
+          )
+
+        if (posizioneIniziale) {
+          return {
+            ...pagina,
+            workspaceX:
+              posizioneIniziale.x +
+              deltaFinaleX,
+            workspaceY:
+              posizioneIniziale.y +
+              deltaFinaleY,
+          }
+        }
+
+        if (
+          pagina.id ===
+          stato.paginaId
+        ) {
+          return {
             ...pagina,
             workspaceX:
               stato.currentWorkspaceX,
             workspaceY:
               stato.currentWorkspaceY,
           }
-        : pagina,
-    ),
+        }
+
+        return pagina
+      }),
   )
 
   setQuadernoDirty(true)
 }
-
 trascinamentoPaginaRef.current = {
   attivo: false,
   paginaId: null,
@@ -1825,9 +1926,10 @@ trascinamentoPaginaRef.current = {
   currentWorkspaceX: 0,
   currentWorkspaceY: 0,
 
+  pagineSelezionateIniziali: [],
+
   elemento: null,
 }
-
   if (
     event.currentTarget.hasPointerCapture(
       event.pointerId,
@@ -1996,7 +2098,13 @@ const [
   setColonneWorkspace,
 ] = useState(2)
 
+const [
+  pagineWorkspaceSelezionateIds,
+  setPagineWorkspaceSelezionateIds,
+] = useState<string[]>([])
+
 const selectionStateCad: CadSelectionState = {
+
   selectedIds: cadEntitySelezionateIds,
   primarySelectionId:
     cadEntitySelezionataId,
@@ -10665,14 +10773,32 @@ return null
   key={pagina.id}
   data-quaderno-page-id={pagina.id}
 
-  onClick={() => vaiAllaPagina(index)}
+  onClick={(event) => {
+  if (
+    event.ctrlKey ||
+    event.metaKey
+  ) {
+    setPagineWorkspaceSelezionateIds(
+      (correnti) =>
+        correnti.includes(pagina.id)
+          ? correnti.filter(
+              (id) => id !== pagina.id,
+            )
+          : [...correnti, pagina.id],
+    )
+
+    return
+  }
+
+  setPagineWorkspaceSelezionateIds([
+    pagina.id,
+  ])
+
+  vaiAllaPagina(index)
+}}
+
 onPointerDown={(event) => {
   if (!spostaTavolaAttivo) {
-    event.preventDefault()
-    event.stopPropagation()
-
-    vaiAllaPagina(index)
-
     return
   }
 
@@ -10732,7 +10858,13 @@ onPointerDown={(event) => {
     width: layout.width,
     height: layout.height,
     background: "#ffffff",
-    border: "1px solid #94a3b8",
+    border:
+  pagineWorkspaceSelezionateIds.includes(
+    pagina.id,
+  )
+    ? "3px solid #2563eb"
+    : "1px solid #94a3b8",
+
     boxShadow:
       "0 10px 30px rgba(15,23,42,0.16)",
     flexShrink: 0,
@@ -11562,7 +11694,30 @@ onCambiaRettangoloSelezione={setRettangoloSelezione}
      <div
   key={pagina.id}
   data-quaderno-page-id={pagina.id}
-  onClick={() => vaiAllaPagina(index)}
+onClick={(event) => {
+  if (
+    event.ctrlKey ||
+    event.metaKey
+  ) {
+    setPagineWorkspaceSelezionateIds(
+      (correnti) =>
+        correnti.includes(pagina.id)
+          ? correnti.filter(
+              (id) => id !== pagina.id,
+            )
+          : [...correnti, pagina.id],
+    )
+
+    return
+  }
+
+  setPagineWorkspaceSelezionateIds([
+    pagina.id,
+  ])
+
+  vaiAllaPagina(index)
+}}
+
 title={`Apri ${pagina.titolo}`}
        style={{
   position: "absolute",
@@ -11571,7 +11726,13 @@ title={`Apri ${pagina.titolo}`}
   width: layout.width,
   height: layout.height,
   background: "#ffffff",
-  border: "1px solid #94a3b8",
+  border:
+  pagineWorkspaceSelezionateIds.includes(
+    pagina.id,
+  )
+    ? "3px solid #2563eb"
+    : "1px solid #94a3b8",
+
   boxShadow:
     "0 10px 30px rgba(15,23,42,0.16)",
   flexShrink: 0,
