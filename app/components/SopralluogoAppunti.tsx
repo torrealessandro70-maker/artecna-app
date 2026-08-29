@@ -5120,6 +5120,34 @@ layers: Array.isArray(pagina.layers)
 }))
 
 const primaPagina = pagineNormalizzate[0];
+
+const trovaPaginaNormalizzataDaPunto = (
+  point: CadPoint,
+) => {
+  for (const pagina of pagineNormalizzate) {
+    const layout =
+      pagina.pageLayout ??
+      createQuadernoPageLayout()
+
+    const x =
+      pagina.workspaceX ?? 0
+
+    const y =
+      pagina.workspaceY ?? 0
+
+    if (
+      point.x >= x &&
+      point.x <= x + layout.width &&
+      point.y >= y &&
+      point.y <= y + layout.height
+    ) {
+      return pagina
+    }
+  }
+
+  return null
+}
+
 const workspaceCadEntitiesNormalizzate =
   Array.isArray(
     primaPagina?.workspaceCadEntities,
@@ -5132,13 +5160,33 @@ const workspaceCadEntitiesNormalizzate =
                 layer.id === entity.layerId,
             ) ?? false
 
-          if (layerEsiste) {
+          const paginaProprietaria =
+            typeof entity.metadata?.workspacePageId === "string"
+              ? null
+              : entity.type === "line"
+                ? trovaPaginaNormalizzataDaPunto(entity.start) ??
+                  trovaPaginaNormalizzataDaPunto(entity.end)
+                : null
+
+          if (
+            layerEsiste &&
+            !paginaProprietaria
+          ) {
             return entity
           }
 
           return {
             ...entity,
-            layerId: "drawing",
+            layerId: layerEsiste
+              ? entity.layerId
+              : "drawing",
+            metadata: paginaProprietaria
+              ? {
+                  ...entity.metadata,
+                  workspacePageId:
+                    paginaProprietaria.id,
+                }
+              : entity.metadata,
           }
         },
       )
