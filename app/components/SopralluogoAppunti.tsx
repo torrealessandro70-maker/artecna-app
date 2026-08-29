@@ -1298,6 +1298,13 @@ if (
     return
   }
 
+  if (tasto === "0") {
+    event.preventDefault()
+    adattaWorkspaceAllaFinestra()
+
+    return
+  }
+
   if (
     spostaTavolaAttivo &&
     pagineWorkspaceSelezionateIds.length > 0
@@ -1358,8 +1365,7 @@ if (
   quadernoEspanso
 ) {
   event.preventDefault();
-
-  setPagineWorkspaceSelezionateIds(
+    setPagineWorkspaceSelezionateIds(
     pagineQuaderno.map(
       (pagina) => pagina.id,
     ),
@@ -1532,6 +1538,109 @@ const [viewportOffset, setViewportOffset] = useState({
   x: 0,
   y: 0,
 });
+const adattaWorkspaceAllaFinestra = () => {
+  const viewport =
+    viewportRef.current
+
+  if (
+    !viewport ||
+    pagineQuaderno.length === 0
+  ) {
+    return
+  }
+
+  const bounds =
+    pagineQuaderno.reduce(
+      (correnti, pagina) => {
+        const layout =
+          pagina.pageLayout ??
+          createQuadernoPageLayout()
+
+        const x =
+          pagina.workspaceX ?? 0
+
+        const y =
+          pagina.workspaceY ?? 0
+
+        return {
+          minX: Math.min(
+            correnti.minX,
+            x,
+          ),
+          minY: Math.min(
+            correnti.minY,
+            y,
+          ),
+          maxX: Math.max(
+            correnti.maxX,
+            x + layout.width,
+          ),
+          maxY: Math.max(
+            correnti.maxY,
+            y + layout.height,
+          ),
+        }
+      },
+      {
+        minX: Infinity,
+        minY: Infinity,
+        maxX: -Infinity,
+        maxY: -Infinity,
+      },
+    )
+
+  const boundsWidth =
+    bounds.maxX - bounds.minX
+
+  const boundsHeight =
+    bounds.maxY - bounds.minY
+
+  if (
+    boundsWidth <= 0 ||
+    boundsHeight <= 0
+  ) {
+    return
+  }
+
+  const rect =
+    viewport.getBoundingClientRect()
+
+  const margine = 48
+
+  const scalaX =
+    Math.max(
+      1,
+      rect.width - margine * 2,
+    ) / boundsWidth
+
+  const scalaY =
+    Math.max(
+      1,
+      rect.height - margine * 2,
+    ) / boundsHeight
+
+  const nuovaScala =
+    clampViewportScale(
+      Math.min(scalaX, scalaY),
+    )
+
+  setViewportScale(nuovaScala)
+
+  const centroBoundsX =
+    bounds.minX + boundsWidth / 2
+
+  const centroBoundsY =
+    bounds.minY + boundsHeight / 2
+
+  setViewportOffset({
+    x:
+      rect.width / 2 -
+      centroBoundsX * nuovaScala,
+    y:
+      rect.height / 2 -
+      centroBoundsY * nuovaScala,
+  })
+}
 
 useEffect(() => {
   if (!testoCadSelezionato) {
@@ -1803,11 +1912,14 @@ const iniziaTrascinamentoPagina = (
 event.stopPropagation()
 
 if (
+  !event.ctrlKey &&
+  !event.metaKey &&
+  !event.shiftKey &&
   !pagineWorkspaceSelezionateIds.includes(
     pagina.id,
   )
 ) {
-  setPagineWorkspaceSelezionateIds([
+    setPagineWorkspaceSelezionateIds([
     pagina.id,
   ])
 }
@@ -2381,6 +2493,13 @@ const [
   pagineWorkspaceSelezionateIds,
   setPagineWorkspaceSelezionateIds,
 ] = useState<string[]>([])
+
+useEffect(() => {
+  }, [
+  paginaCorrenteIndex,
+  paginaQuadernoCorrente?.id,
+  pagineWorkspaceSelezionateIds,
+])
 
 const selectionStateCad: CadSelectionState = {
 
@@ -5242,8 +5361,7 @@ useEffect(() => {
       ]);
 
       setPaginaCorrenteIndex(0);
-
-      setBackgroundTransform(createDefaultBackgroundTransform());
+            setBackgroundTransform(createDefaultBackgroundTransform());
 
       setZoomSfondo(1);
       setSfondoX(0);
@@ -5452,7 +5570,7 @@ sfondoDisegno: null,
           setPagineQuaderno([paginaIniziale]);
 setWorkspaceCadEntities([])
           setPaginaCorrenteIndex(0);
-          setDisegni(paginaIniziale.disegni);
+                    setDisegni(paginaIniziale.disegni);
           setSfondoDisegno(null);
 
           setZoomSfondo(1);
@@ -10070,7 +10188,7 @@ if (spostaTavolaAttivo) {
       })
       .map((pagina) => pagina.id)
   setPagineWorkspaceSelezionateIds((correnti) => {
-    return pagineTrovateIds
+        return pagineTrovateIds
   })
 
 
@@ -11410,19 +11528,21 @@ return null
 
     pagineWorkspaceSelezionateIds.includes(
       pagina.id,
-    )
+    ) &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey
   ) {
     return
   }
-
-  if (
+    if (
     event.ctrlKey ||
-    event.metaKey
+    event.metaKey ||
+    event.shiftKey
   ) {
-
     setPagineWorkspaceSelezionateIds(
       (correnti) => {
-        return correnti.includes(pagina.id)
+                return correnti.includes(pagina.id)
           ? correnti.filter(
               (id) => id !== pagina.id,
             )
@@ -11434,13 +11554,13 @@ return null
   }
 
   setPagineWorkspaceSelezionateIds((correnti) => {
-  return spostaTavolaAttivo &&
+    return spostaTavolaAttivo &&
   correnti.includes(pagina.id)
     ? correnti
     : [pagina.id]
 })
 
-  vaiAllaPagina(index)
+    vaiAllaPagina(index)
 }}
 
 onPointerDown={(event) => {
@@ -12353,18 +12473,21 @@ onClick={(event) => {
     spostaTavolaAttivo &&
     pagineWorkspaceSelezionateIds.includes(
       pagina.id,
-    )
+    ) &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey
   ) {
     return
   }
-
-  if (
+    if (
     event.ctrlKey ||
-    event.metaKey
+    event.metaKey ||
+    event.shiftKey
   ) {
     setPagineWorkspaceSelezionateIds(
       (correnti) => {
-        return correnti.includes(pagina.id)
+                return correnti.includes(pagina.id)
           ? correnti.filter(
               (id) => id !== pagina.id,
             )
@@ -12376,13 +12499,13 @@ onClick={(event) => {
   }
 
   setPagineWorkspaceSelezionateIds((correnti) => {
-  return spostaTavolaAttivo &&
+    return spostaTavolaAttivo &&
   correnti.includes(pagina.id)
     ? correnti
     : [pagina.id]
 })
 
-  vaiAllaPagina(index)
+    vaiAllaPagina(index)
 }}
 
 title={`Apri ${pagina.titolo}`}
