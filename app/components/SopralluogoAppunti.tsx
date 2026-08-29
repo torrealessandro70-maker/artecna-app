@@ -1268,6 +1268,35 @@ if (
 
     return
   }
+
+  if (
+    tasto === "+" ||
+    tasto === "="
+  ) {
+    event.preventDefault()
+
+    setViewportScale((scalaCorrente) =>
+      Math.min(
+        4,
+        Number((scalaCorrente + 0.1).toFixed(2)),
+      ),
+    )
+
+    return
+  }
+
+  if (tasto === "-") {
+    event.preventDefault()
+
+    setViewportScale((scalaCorrente) =>
+      Math.max(
+        0.25,
+        Number((scalaCorrente - 0.1).toFixed(2)),
+      ),
+    )
+
+    return
+  }
 }
 
 
