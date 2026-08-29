@@ -405,6 +405,8 @@ const rettangoloSelezioneIniziale = {
 const [rettangoloSelezione, setRettangoloSelezione] =
   useState<typeof rettangoloSelezioneIniziale | null>(null);
 
+
+
 const selezioneWorkspaceRef = useRef<{
   attiva: boolean
   start: CadPoint | null
@@ -1136,15 +1138,30 @@ useEffect(() => {
       inputDiTesto ||
       tagName === "textarea" ||
       elementoAttivo?.isContentEditable;
-
     if (staScrivendo) return;
 
     const tasto = event.key.toLowerCase();
 
-  if (
+ if (
   tasto === "delete" ||
   tasto === "backspace"
 ) {
+ if (
+  spostaTavolaAttivo &&
+  pagineWorkspaceSelezionateIds.length > 0
+) {
+  event.preventDefault();
+
+  console.log(
+    "DELETE PAGINE:",
+    pagineWorkspaceSelezionateIds,
+  );
+
+  eliminaPagineWorkspaceSelezionate();
+
+  return;
+}
+
   const ciSonoEntitaSelezionate =
     cadEntitySelezionateIds.length > 0 ||
     cadEntitySelezionataId !== null ||
@@ -1154,16 +1171,6 @@ useEffect(() => {
   if (ciSonoEntitaSelezionate) {
     event.preventDefault();
     eliminaEntitaCadSelezionate();
-
-    return;
-  }
-
- if (
-  spostaTavolaAttivo &&
-  pagineWorkspaceSelezionateIds.length > 0
-) {
-    event.preventDefault();
-    eliminaPagineWorkspaceSelezionate();
 
     return;
   }
@@ -1642,10 +1649,20 @@ const iniziaTrascinamentoPagina = (
   return
 }
 
-  event.preventDefault()
-  event.stopPropagation()
+ event.preventDefault()
+event.stopPropagation()
 
-  const startWorkspaceX =
+if (
+  !pagineWorkspaceSelezionateIds.includes(
+    pagina.id,
+  )
+) {
+  setPagineWorkspaceSelezionateIds([
+    pagina.id,
+  ])
+}
+
+const startWorkspaceX =
   pagina.workspaceX ?? 0
 
 const startWorkspaceY =
@@ -1899,9 +1916,40 @@ if (stato.paginaId) {
     stato.currentWorkspaceY -
     stato.startWorkspaceY
 
+  const pagineSpostateIds =
+    stato.pagineSelezionateIniziali.length > 0
+      ? stato.pagineSelezionateIniziali.map(
+          (pagina) => pagina.id,
+        )
+      : [stato.paginaId]
+
+ setWorkspaceCadEntities(
+  (entitiesCorrenti) =>
+    moveEntities(
+      entitiesCorrenti,
+      entitiesCorrenti
+        .filter((entity) => {
+          const workspacePageId =
+            entity.metadata?.workspacePageId
+
+          return (
+            typeof workspacePageId === "string" &&
+            pagineSpostateIds.includes(
+              workspacePageId,
+            )
+          )
+        })
+        .map((entity) => entity.id),
+      deltaFinaleX,
+      deltaFinaleY,
+    ).entities,
+)
+
+
   setPagineQuaderno(
     (pagineCorrenti) =>
       pagineCorrenti.map((pagina) => {
+
         const posizioneIniziale =
           stato.pagineSelezionateIniziali.find(
             (paginaSelezionata) =>
@@ -3693,9 +3741,24 @@ for (const ripristino of areeDaRipristinare) {
   idsSelezionati,
 );
 
-  if (!risultato.changed) {
-    return;
-  }
+const risultatoWorkspace =
+  deleteEntities(
+    workspaceCadEntities,
+    idsSelezionati,
+  );
+
+if (
+  !risultato.changed &&
+  !risultatoWorkspace.changed
+) {
+  return;
+}
+
+if (risultatoWorkspace.changed) {
+  setWorkspaceCadEntities(
+    risultatoWorkspace.entities,
+  );
+}
 
   const paginaAggiornata =
     applyCadEntitiesToPage(
@@ -3929,10 +3992,24 @@ const eliminaPaginaCorrente = () => {
     return
   }
 
-  const idPaginaDaEliminare =
-    paginaAttiva.id
+ const idPaginaDaEliminare =
+  paginaAttiva.id
 
- const nuovePagine =
+setWorkspaceCadEntities(
+  (entitiesCorrenti) =>
+    entitiesCorrenti.filter((entity) => {
+      const workspacePageId =
+        entity.metadata?.workspacePageId
+
+      return (
+        typeof workspacePageId !== "string" ||
+        workspacePageId !== idPaginaDaEliminare
+      )
+    }),
+)
+
+const nuovePagine =
+
   calcolaPosizioniWorkspace(
     pagineQuaderno
       .filter(
@@ -4043,8 +4120,24 @@ const eliminaPagineWorkspaceSelezionate = () => {
     return
   }
 
-  const nuovePagine =
-    calcolaPosizioniWorkspace(
+ setWorkspaceCadEntities(
+  (entitiesCorrenti) =>
+    entitiesCorrenti.filter((entity) => {
+      const workspacePageId =
+        entity.metadata?.workspacePageId
+
+      return (
+        typeof workspacePageId !== "string" ||
+        !pagineWorkspaceSelezionateIds.includes(
+          workspacePageId,
+        )
+      )
+    }),
+)
+
+const nuovePagine =
+  calcolaPosizioniWorkspace(
+
       pagineQuaderno
         .filter(
           (pagina) =>
@@ -5897,11 +5990,20 @@ return (
 
 <button
   type="button"
-  onClick={() =>
+  onClick={() => {
+    const prossimoValore =
+      !spostaTavolaAttivo
+
     setSpostaTavolaAttivo(
-      (attivo) => !attivo,
+      prossimoValore,
     )
-  }
+
+    if (prossimoValore) {
+      setManoAttiva(false)
+      setPanInCorso(false)
+      setModalitaSelezione(true)
+    }
+  }}
   style={{
     ...buttonSecondary,
     background:
@@ -8807,16 +8909,81 @@ alignItems: "flex-start",
 }}
 >
 <div
- ref={viewportContentRef}
+  ref={viewportContentRef}
+  onPointerDown={(event) => {
+ if (
+  !spostaTavolaAttivo ||
+      !modalitaSelezione ||
+      manoAttiva ||
+      event.target !== event.currentTarget
+    ) {
+      return
+    }
+
+    const svg = workspaceSvgRef.current
+
+    if (!svg) {
+      return
+    }
+
+    const rect =
+      svg.getBoundingClientRect()
+
+    const puntoWorkspace: CadPoint = {
+      x:
+        ((event.clientX - rect.left) /
+          rect.width) *
+        dimensioniWorkspace.width,
+
+      y:
+        ((event.clientY - rect.top) /
+          rect.height) *
+        dimensioniWorkspace.height,
+    }
+
+    spostaEntitaRef.current = {
+      attivo: false,
+      start: null,
+    }
+
+    selezioneWorkspaceRef.current = {
+      attiva: true,
+      start: puntoWorkspace,
+      ctrlKey:
+        event.ctrlKey || event.metaKey,
+    }
+
+    setRettangoloSelezione({
+      startX: puntoWorkspace.x,
+      startY: puntoWorkspace.y,
+      endX: puntoWorkspace.x,
+      endY: puntoWorkspace.y,
+    })
+
+    if (
+      !event.ctrlKey &&
+      !event.metaKey
+    ) {
+      setCadEntitySelezionataId(null)
+      setCadEntitySelezionateIds([])
+    }
+
+    setOggettoGraficoSelezionatoId(null)
+    setPinSelezionatoId(null)
+    setSfondoSelezionato(false)
+
+    svg.setPointerCapture(
+      event.pointerId,
+    )
+  }}
   style={{
     display: "flex",
     flexDirection: "column",
     alignItems: "flex-start",
     flexShrink: 0,
- position: "relative",
+    position: "relative",
   }}
 >
-
  <div
   ref={viewportTransformRef}
   style={{
@@ -8844,11 +9011,10 @@ ref={workspaceSvgRef}
  ${dimensioniWorkspace.height}`}
 
 onPointerDown={(event) => {
- if (
+  if (
   modalitaSelezione &&
   event.target === event.currentTarget &&
-  !manoAttiva &&
-  !spostaTavolaAttivo
+  !manoAttiva
 ) {
   const svg = event.currentTarget
   const rect =
@@ -9061,14 +9227,24 @@ const puntoFinale =
 const nuovaLinea =
   createCadLine({
     start,
-    end: puntoFinale,      stroke: {
-        color: coloreDisegno,
-        width: spessoreDisegno,
-      },
-      layerId: layerAttivoId,
-    })
+    end: puntoFinale,
+    stroke: {
+      color: coloreDisegno,
+      width: spessoreDisegno,
+    },
+    layerId: layerAttivoId,
+  })
 
-  setWorkspaceCadEntities(
+const paginaProprietaria =
+  trovaPaginaDaPuntoWorkspace(start)
+
+nuovaLinea.metadata = {
+  ...nuovaLinea.metadata,
+  workspacePageId:
+    paginaProprietaria?.id,
+}
+
+setWorkspaceCadEntities(
     (entitiesCorrenti) => [
       ...entitiesCorrenti,
       nuovaLinea,
@@ -9602,13 +9778,75 @@ const modalitaCrossing =
   const maxX =
     Math.max(start.x, puntoFinale.x)
   const minY =
-    Math.min(start.y, puntoFinale.y)
-  const maxY =
-    Math.max(start.y, puntoFinale.y)
+  Math.min(start.y, puntoFinale.y)
+const maxY =
+  Math.max(start.y, puntoFinale.y)
 
-  const dentroRettangolo = (
-    punto: CadPoint,
-  ) =>
+if (spostaTavolaAttivo) {
+  const pagineTrovateIds =
+    pagineQuaderno
+      .filter((pagina) => {
+        const layout =
+          pagina.pageLayout ??
+          createQuadernoPageLayout()
+
+        const paginaX =
+          pagina.workspaceX ?? 0
+        const paginaY =
+          pagina.workspaceY ?? 0
+
+        const paginaDestra =
+          paginaX + layout.width
+        const paginaBasso =
+          paginaY + layout.height
+
+        if (!modalitaCrossing) {
+          return (
+            paginaX >= minX &&
+            paginaDestra <= maxX &&
+            paginaY >= minY &&
+            paginaBasso <= maxY
+          )
+        }
+
+        return (
+          paginaDestra >= minX &&
+          paginaX <= maxX &&
+          paginaBasso >= minY &&
+          paginaY <= maxY
+        )
+      })
+      .map((pagina) => pagina.id)
+  setPagineWorkspaceSelezionateIds((correnti) => {
+    return pagineTrovateIds
+  })
+
+
+selezioneWorkspaceRef.current = {
+  attiva: false,
+  start: null,
+  ctrlKey: false,
+}
+
+  setRettangoloSelezione(null)
+
+  if (
+    event.currentTarget.hasPointerCapture(
+      event.pointerId,
+    )
+  ) {
+    event.currentTarget.releasePointerCapture(
+      event.pointerId,
+    )
+  }
+
+  return
+}
+
+const dentroRettangolo = (
+  punto: CadPoint,
+) =>
+
     punto.x >= minX &&
     punto.x <= maxX &&
     punto.y >= minY &&
@@ -9880,8 +10118,7 @@ pointerEvents:
   areaAttiva ||
   selezioneWorkspaceRef.current.attiva
     ? "auto"
-    : "none",
-overflow: "visible",
+    : "none",overflow: "visible",
 zIndex: 50,  }}
 >
 
@@ -10918,6 +11155,7 @@ return null
  onClick={(event) => {
   if (
     spostaTavolaAttivo &&
+
     pagineWorkspaceSelezionateIds.includes(
       pagina.id,
     )
@@ -10931,20 +11169,24 @@ return null
   ) {
 
     setPagineWorkspaceSelezionateIds(
-      (correnti) =>
-        correnti.includes(pagina.id)
+      (correnti) => {
+        return correnti.includes(pagina.id)
           ? correnti.filter(
               (id) => id !== pagina.id,
             )
-          : [...correnti, pagina.id],
+          : [...correnti, pagina.id]
+      },
     )
 
     return
   }
 
-  setPagineWorkspaceSelezionateIds([
-    pagina.id,
-  ])
+  setPagineWorkspaceSelezionateIds((correnti) => {
+  return spostaTavolaAttivo &&
+  correnti.includes(pagina.id)
+    ? correnti
+    : [pagina.id]
+})
 
   vaiAllaPagina(index)
 }}
@@ -11128,6 +11370,8 @@ onPointerDown={(event) => {
       start: null,
     }
 
+event.preventDefault()
+
     selezioneWorkspaceRef.current = {
       attiva: true,
       start: puntoWorkspace,
@@ -11293,6 +11537,12 @@ onCreateWorkspaceLine={(
       },
       layerId,
     })
+
+nuovaLineaWorkspace.metadata = {
+  ...nuovaLineaWorkspace.metadata,
+  workspacePageId:
+    pagineQuaderno[paginaCorrenteIndex]?.id,
+}
 
   setWorkspaceCadEntities(
     (entitiesCorrenti) => [
@@ -11861,20 +12111,24 @@ onClick={(event) => {
     event.metaKey
   ) {
     setPagineWorkspaceSelezionateIds(
-      (correnti) =>
-        correnti.includes(pagina.id)
+      (correnti) => {
+        return correnti.includes(pagina.id)
           ? correnti.filter(
               (id) => id !== pagina.id,
             )
-          : [...correnti, pagina.id],
+          : [...correnti, pagina.id]
+      },
     )
 
     return
   }
 
-  setPagineWorkspaceSelezionateIds([
-    pagina.id,
-  ])
+  setPagineWorkspaceSelezionateIds((correnti) => {
+  return spostaTavolaAttivo &&
+  correnti.includes(pagina.id)
+    ? correnti
+    : [pagina.id]
+})
 
   vaiAllaPagina(index)
 }}
