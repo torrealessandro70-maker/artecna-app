@@ -1137,6 +1137,7 @@ useEffect(() => {
     const staScrivendo =
       inputDiTesto ||
       tagName === "textarea" ||
+      tagName === "select" ||
       elementoAttivo?.isContentEditable;
     if (staScrivendo) return;
 
@@ -1197,6 +1198,78 @@ setPagineWorkspaceSelezionateIds([])
 
 return
 }
+if (
+  !event.ctrlKey &&
+  !event.metaKey &&
+  !event.altKey
+) {
+  if (tasto === "v") {
+    event.preventDefault()
+
+    setManoAttiva(false)
+    setPanInCorso(false)
+    setSpostaEntitaAttivo(false)
+    setSpostaTavolaAttivo(false)
+
+    setStrumentoDisegno(null)
+    setAreaAttiva(false)
+    setMetroAttivo(false)
+    setCalibrazioneScalaAttiva(false)
+
+    setModalitaSelezione(true)
+
+    setSfondoSelezionato(false)
+    setPinSelezionatoId(null)
+    setOggettoGraficoSelezionatoId(null)
+
+    return
+  }
+
+  if (tasto === "m") {
+    event.preventDefault()
+
+    const prossimoValore =
+      !spostaTavolaAttivo
+
+    setSpostaTavolaAttivo(
+      prossimoValore,
+    )
+
+    if (prossimoValore) {
+      setManoAttiva(false)
+      setPanInCorso(false)
+      setModalitaSelezione(true)
+    }
+
+    return
+  }
+
+  if (tasto === "h") {
+    event.preventDefault()
+
+    setManoAttiva(true)
+    setPanInCorso(false)
+
+    setModalitaSelezione(false)
+    setSpostaEntitaAttivo(false)
+    setSpostaTavolaAttivo(false)
+
+    setStrumentoDisegno(null)
+    setAreaAttiva(false)
+    setMetroAttivo(false)
+    setCalibrazioneScalaAttiva(false)
+
+    setSfondoSelezionato(false)
+    setPinSelezionatoId(null)
+    setOggettoGraficoSelezionatoId(null)
+
+    setCadEntitySelezionataId(null)
+    setCadEntitySelezionateIds([])
+
+    return
+  }
+}
+
 
 const usaComando =
   event.ctrlKey || event.metaKey;
