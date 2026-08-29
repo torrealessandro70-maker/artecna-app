@@ -1297,6 +1297,54 @@ if (
 
     return
   }
+
+  if (
+    spostaTavolaAttivo &&
+    pagineWorkspaceSelezionateIds.length > 0
+  ) {
+    const delta =
+      event.shiftKey ? 10 : 1
+
+    if (tasto === "arrowleft") {
+      event.preventDefault()
+      spostaPagineWorkspaceSelezionate(
+        -delta,
+        0,
+      )
+
+      return
+    }
+
+    if (tasto === "arrowright") {
+      event.preventDefault()
+      spostaPagineWorkspaceSelezionate(
+        delta,
+        0,
+      )
+
+      return
+    }
+
+    if (tasto === "arrowup") {
+      event.preventDefault()
+      spostaPagineWorkspaceSelezionate(
+        0,
+        -delta,
+      )
+
+      return
+    }
+
+    if (tasto === "arrowdown") {
+      event.preventDefault()
+      spostaPagineWorkspaceSelezionate(
+        0,
+        delta,
+      )
+
+      return
+    }
+  }
 }
 
 
@@ -1996,6 +2044,60 @@ if (stato.elemento) {
 }
 }
 
+const spostaPagineWorkspaceSelezionate = (
+  deltaX: number,
+  deltaY: number,
+) => {
+  if (
+    !spostaTavolaAttivo ||
+    pagineWorkspaceSelezionateIds.length === 0
+  ) {
+    return
+  }
+
+  const pagineSpostateIds =
+    pagineWorkspaceSelezionateIds
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) =>
+      moveEntities(
+        entitiesCorrenti,
+        entitiesCorrenti
+          .filter((entity) => {
+            const workspacePageId =
+              entity.metadata?.workspacePageId
+
+            return (
+              typeof workspacePageId === "string" &&
+              pagineSpostateIds.includes(
+                workspacePageId,
+              )
+            )
+          })
+          .map((entity) => entity.id),
+        deltaX,
+        deltaY,
+      ).entities,
+  )
+
+  setPagineQuaderno((pagineCorrenti) =>
+    pagineCorrenti.map((pagina) =>
+      pagineSpostateIds.includes(pagina.id)
+        ? {
+            ...pagina,
+            workspaceX:
+              (pagina.workspaceX ?? 0) +
+              deltaX,
+            workspaceY:
+              (pagina.workspaceY ?? 0) +
+              deltaY,
+          }
+        : pagina,
+    ),
+  )
+
+  setQuadernoDirty(true)
+}
 const terminaTrascinamentoPagina = (
 
   event: React.PointerEvent<HTMLDivElement>,
