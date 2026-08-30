@@ -109,6 +109,7 @@ import type {
 
 import {
   createCadLine,
+  createCadRectangle,
 } from "../engines/cad/entities";
 
 import type {
@@ -9443,6 +9444,7 @@ onPointerDown={(event) => {
   if (
     (
       strumentoDisegno !== "linea" &&
+      strumentoDisegno !== "rettangolo" &&
       !areaAttiva
     ) ||
     manoAttiva ||
@@ -9562,7 +9564,8 @@ const puntoPreview =
   snapGlobale
     ? puntoConSnap
     : orthoAttivo &&
-        workspaceLineaStartRef.current
+        workspaceLineaStartRef.current &&
+        strumentoDisegno === "linea"
       ? applyOrtho(
           workspaceLineaStartRef.current,
           puntoWorkspace,
@@ -9585,7 +9588,8 @@ if (!start) {
 const puntoFinale =
   snapGlobale
     ? puntoConSnap
-    : orthoAttivo
+    : orthoAttivo &&
+        strumentoDisegno === "linea"
       ? applyOrtho(
           start,
           puntoWorkspace,
@@ -9593,6 +9597,49 @@ const puntoFinale =
       : puntoWorkspace
 
 
+
+if (strumentoDisegno === "rettangolo") {
+  const nuovoRettangolo =
+    createCadRectangle({
+      transform: {
+        x: Math.min(start.x, puntoFinale.x),
+        y: Math.min(start.y, puntoFinale.y),
+        width: Math.abs(puntoFinale.x - start.x),
+        height: Math.abs(puntoFinale.y - start.y),
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+      },
+      stroke: {
+        color: coloreDisegno,
+        width: spessoreDisegno,
+      },
+      layerId: layerAttivoId,
+    })
+
+  const paginaProprietaria =
+    trovaPaginaDaPuntoWorkspace(start)
+
+  nuovoRettangolo.metadata = {
+    ...nuovoRettangolo.metadata,
+    workspacePageId:
+      paginaProprietaria?.id,
+  }
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) => [
+      ...entitiesCorrenti,
+      nuovoRettangolo,
+    ],
+  )
+
+  workspaceLineaStartRef.current = null
+  setWorkspaceLineaPreview(null)
+
+  setQuadernoDirty(true)
+
+  return
+}
 
 const nuovaLinea =
   createCadLine({
@@ -9985,6 +10032,7 @@ if (
   if (
     (
       strumentoDisegno !== "linea" &&
+      strumentoDisegno !== "rettangolo" &&
       !areaAttiva
     ) ||
     manoAttiva ||
@@ -10053,7 +10101,8 @@ if (areaAttiva) {
 
 if (workspaceLineaStartRef.current) {
   const puntoPreview =
-    orthoAttivo
+    orthoAttivo &&
+    strumentoDisegno === "linea"
       ? applyOrtho(
           workspaceLineaStartRef.current,
           puntoConSnap,
@@ -10485,6 +10534,7 @@ style={{
 
 pointerEvents:
   strumentoDisegno === "linea" ||
+  strumentoDisegno === "rettangolo" ||
   areaAttiva ||
   selezioneWorkspaceRef.current.attiva
     ? "auto"
@@ -10809,6 +10859,7 @@ data-print-ui="true"
 )}
 {(
   strumentoDisegno === "linea" ||
+  strumentoDisegno === "rettangolo" ||
   areaAttiva
 ) &&  !manoAttiva &&
   !spostaTavolaAttivo && (
@@ -10909,7 +10960,34 @@ data-print-ui="true"
 )}
 
 {workspaceLineaStartRef.current &&
-  workspaceLineaPreview && (
+  workspaceLineaPreview &&
+  strumentoDisegno === "rettangolo" && (
+    <rect
+      x={Math.min(
+        workspaceLineaStartRef.current.x,
+        workspaceLineaPreview.x,
+      )}
+      y={Math.min(
+        workspaceLineaStartRef.current.y,
+        workspaceLineaPreview.y,
+      )}
+      width={Math.abs(
+        workspaceLineaPreview.x -
+          workspaceLineaStartRef.current.x,
+      )}
+      height={Math.abs(
+        workspaceLineaPreview.y -
+          workspaceLineaStartRef.current.y,
+      )}
+      stroke="#2563eb"
+      strokeWidth={2}
+      strokeDasharray="8 6"
+      fill="none"
+    />
+  )}
+{workspaceLineaStartRef.current &&
+  workspaceLineaPreview &&
+  strumentoDisegno !== "rettangolo" && (
     <line
       x1={
         workspaceLineaStartRef.current.x
@@ -11237,6 +11315,57 @@ onPointerCancel={(event) => {
             pointerEvents="none"
           />
         </>
+      )}
+    </g>
+  )
+}
+
+  if (entity.type === "rectangle") {
+  const rettangoloSelezionato =
+    cadEntitySelezionateIds.includes(
+      entity.id,
+    )
+
+  return (
+    <g key={entity.id}>
+      <rect
+        x={entity.transform.x}
+        y={entity.transform.y}
+        width={entity.transform.width}
+        height={entity.transform.height}
+        stroke="transparent"
+        strokeWidth={12}
+        fill="transparent"
+        pointerEvents={
+          modalitaSelezione
+            ? "all"
+            : "none"
+        }
+      />
+
+      <rect
+        x={entity.transform.x}
+        y={entity.transform.y}
+        width={entity.transform.width}
+        height={entity.transform.height}
+        stroke={entity.stroke.color}
+        strokeWidth={entity.stroke.width}
+        fill="none"
+        pointerEvents="none"
+      />
+
+      {rettangoloSelezionato && (
+        <rect
+          x={entity.transform.x}
+          y={entity.transform.y}
+          width={entity.transform.width}
+          height={entity.transform.height}
+          fill="none"
+          stroke="#2563eb"
+          strokeWidth={2}
+          strokeDasharray="6 4"
+          pointerEvents="none"
+        />
       )}
     </g>
   )
@@ -11851,6 +11980,7 @@ style={{
 
              <NotaDisegno
   svgRefEsterno={quadernoSvgRef}
+selezioneRettangolareEsterna
   solaLettura={
   spostaTavolaAttivo ||
   manoAttiva

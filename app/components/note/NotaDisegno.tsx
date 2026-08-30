@@ -207,6 +207,7 @@ orthoAttivo?: boolean
 snapAttivo?: boolean
 gridSnapAttivo?: boolean
 modalitaSelezione?: boolean
+selezioneRettangolareEsterna?: boolean
 gridSize?: number
 polarTrackingAttivo?: boolean
 polarIncrement?: number
@@ -509,6 +510,7 @@ orthoAttivo = false,
 snapAttivo = true,
 gridSnapAttivo = false,
 modalitaSelezione = true,
+selezioneRettangolareEsterna = false,
 gridSize = 24,
 polarTrackingAttivo = false,
 polarIncrement = 45,
@@ -1401,6 +1403,7 @@ if (areaAttiva || areaSplitAttivo) {
   return
 }
 if (
+  !selezioneRettangolareEsterna &&
   !strumento &&
   !trimAttivo &&
   !metroAttivo &&
@@ -5333,7 +5336,8 @@ stroke={
     </text>
   </g>
 )}
-{rettangoloSelezione && (
+{rettangoloSelezione &&
+  selezioneMultiplaAttivaRef.current && (
   <rect
     x={Math.min(
       rettangoloSelezione.startX,

@@ -6,6 +6,7 @@ import { pinBehavior } from './pin.behavior'
 import { imageBehavior } from './image.behavior'
 import { dimensionBehavior } from './dimension.behavior'
 import { areaBehavior } from './area.behavior'
+import { rectangleBehavior } from './rectangle.behavior'
 
 let initialized = false
 
@@ -20,6 +21,7 @@ registerBehavior(pinBehavior)
 registerBehavior(imageBehavior)
 registerBehavior(dimensionBehavior)
 registerBehavior(areaBehavior)
+registerBehavior(rectangleBehavior)
 
   initialized = true
 }
