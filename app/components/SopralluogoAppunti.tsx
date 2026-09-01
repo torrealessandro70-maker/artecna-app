@@ -108,6 +108,18 @@ import type {
 } from "../engines/cad/entities";
 
 import {
+  getSegmentIntersection,
+} from "../engines/cad/snap/geometry";
+
+import {
+  lineBehavior,
+} from "../engines/cad/behaviors/line.behavior";
+
+import type {
+  CadLineEntity,
+} from "../engines/cad/entities";
+
+import {
   createCadLine,
   createCadRectangle,
 } from "../engines/cad/entities";
@@ -9437,6 +9449,254 @@ onPointerDown={(event) => {
   event.currentTarget.setPointerCapture(
     event.pointerId,
   )
+  return
+}
+if (trimAttivo) {
+  const svg = event.currentTarget
+  const rect =
+    svg.getBoundingClientRect()
+
+  const puntoWorkspace: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+ y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  const tolerance =
+    getSnapTolerance(
+      dimensioniWorkspace.width,
+      rect.width,
+    )
+
+  const lineeCad =
+    workspaceCadEntities.filter(
+      (
+        entity,
+      ): entity is CadLineEntity =>
+        entity.type === "line",
+    )
+
+ const lineaTarget =
+    lineeCad.find(
+      (entity) =>
+        lineBehavior.hitTest?.(
+          entity,
+          puntoWorkspace,
+          tolerance,
+        ) === true,
+    )
+
+  if (!lineaTarget) {
+    return
+  }
+
+  const dx =
+    lineaTarget.end.x -
+    lineaTarget.start.x
+
+  const dy =
+    lineaTarget.end.y -
+    lineaTarget.start.y
+
+  const lengthSquared =
+    dx * dx + dy * dy
+
+  if (lengthSquared <= 0) {
+    return
+  }
+
+  const epsilon = 0.000001
+
+  const calcolaParametroLinea = (
+    point: CadPoint,
+  ) =>
+    (
+      (point.x - lineaTarget.start.x) *
+        dx +
+      (point.y - lineaTarget.start.y) *
+        dy
+    ) / lengthSquared
+
+  const intersectionTs =
+    lineeCad
+      .filter(
+        (entity) =>
+          entity.id !== lineaTarget.id,
+      )
+      .map((entity) =>
+        getSegmentIntersection(
+          lineaTarget.start,
+          lineaTarget.end,
+          entity.start,
+          entity.end,
+        ),
+      )
+      .filter(
+        (point): point is CadPoint =>
+          point !== null,
+      )
+      .map(calcolaParametroLinea)
+      .filter(
+        (t) =>
+          t >= -epsilon &&
+          t <= 1 + epsilon,
+      )
+      .map((t) =>
+        Math.max(
+          0,
+          Math.min(1, t),
+        ),
+      )
+      .sort((a, b) => a - b)
+
+  const uniqueIntersectionTs =
+    intersectionTs.filter(
+      (t, index, values) =>
+        index === 0 ||
+        Math.abs(
+          t - values[index - 1],
+        ) > epsilon,
+    )
+
+  if (
+    uniqueIntersectionTs.length === 0
+  ) {
+    return
+  }
+
+  const limiti = [
+    0,
+    ...uniqueIntersectionTs,
+    1,
+  ]
+
+  const clickT =
+    Math.max(
+      0,
+      Math.min(
+        1,
+        calcolaParametroLinea(
+          puntoWorkspace,
+        ),
+      ),
+    )
+
+
+  const indexTrattoDaEliminare =
+    limiti.findIndex(
+      (limite, index) =>
+        index <
+          limiti.length - 1 &&
+        clickT >=
+          limite - epsilon &&
+        clickT <=
+          limiti[index + 1] +
+            epsilon,
+    )
+
+  if (
+    indexTrattoDaEliminare < 0
+  ) {
+    return
+  }
+
+  const replacements =
+    limiti
+      .slice(0, -1)
+      .map(
+        (inizio, index) => ({
+          inizio,
+          fine:
+            limiti[index + 1],
+        }),
+      )
+      .filter(
+        (_, index) =>
+          index !==
+          indexTrattoDaEliminare,
+      )
+      .filter(
+        ({ inizio, fine }) =>
+          fine - inizio >
+          epsilon,
+      )
+      .map(
+        (
+          { inizio, fine },
+          index,
+        ) =>
+          createCadLine({
+            id:
+              index === 0
+                ? lineaTarget.id
+                : crypto.randomUUID(),
+
+            start: {
+              x:
+                lineaTarget.start.x +
+                dx * inizio,
+              y:
+                lineaTarget.start.y +
+                dy * inizio,
+            },
+
+            end: {
+              x:
+                lineaTarget.start.x +
+                dx * fine,
+              y:
+                lineaTarget.start.y +
+                dy * fine,
+            },
+
+            stroke:
+              lineaTarget.stroke,
+
+            layerId:
+              lineaTarget.layerId,
+
+            metadata:
+              lineaTarget.metadata,
+
+            visible:
+              lineaTarget.visible,
+
+            locked:
+              lineaTarget.locked,
+
+            selectable:
+              lineaTarget.selectable,
+          }),
+      )
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) => [
+      ...entitiesCorrenti.filter(
+        (entity) =>
+          entity.id !==
+          lineaTarget.id,
+      ),
+      ...replacements,
+    ],
+  )
+
+  setCadEntitySelezionataId(null)
+
+  setCadEntitySelezionateIds(
+    (idsCorrenti) =>
+      idsCorrenti.filter(
+        (id) =>
+          id !==
+          lineaTarget.id,
+      ),
+  )
+
+  setQuadernoDirty(true)
 
   return
 }
@@ -10523,27 +10783,26 @@ if (workspacePosterResizeRef.current.attivo) {
     return
   }
 }}
-
-
 style={{
-    position: "absolute",
-    left: 0,
-    top: 0,
-    width: dimensioniWorkspace.width,
-    height: dimensioniWorkspace.height,
+  position: "absolute",
+  left: 0,
+  top: 0,
+  width: dimensioniWorkspace.width,
+  height: dimensioniWorkspace.height,
 
-pointerEvents:
-  strumentoDisegno === "linea" ||
-  strumentoDisegno === "rettangolo" ||
-  areaAttiva ||
-  selezioneWorkspaceRef.current.attiva
-    ? "auto"
-    : "none",overflow: "visible",
-zIndex: 50,  }}
+  pointerEvents:
+    trimAttivo ||
+    strumentoDisegno === "linea" ||
+    strumentoDisegno === "rettangolo" ||
+    areaAttiva ||
+    selezioneWorkspaceRef.current.attiva
+      ? "auto"
+      : "none",
+
+  overflow: "visible",
+  zIndex: 50,
+}}
 >
-
-
-
 {workspacePosterImages.map(
   (oggetto) => {
     const selezionato =
@@ -10653,6 +10912,7 @@ zIndex: 50,  }}
 {/* NW */}
 <circle
 data-print-ui="true"
+
   cx={oggetto.transform.x}
   cy={oggetto.transform.y}
   r={8}
