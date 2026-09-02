@@ -35,6 +35,7 @@ import {
 import type {
   CadAreaEntity,
 } from "@/app/engines/cad/entities"
+import { createCadDimension } from "@/app/engines/cad/entities"
 
 import {
   registerDefaultBehaviors,
@@ -346,7 +347,17 @@ const [workspaceSnapPoint, setWorkspaceSnapPoint] =
     type: string
   } | null>(null)
 
+const [workspaceMetroPreview, setWorkspaceMetroPreview] =
+  useState<{
+    start: CadPoint
+    end: CadPoint
+    metri: number
+  } | null>(null)
 
+const [
+  quotaWorkspaceInPosizionamentoId,
+  setQuotaWorkspaceInPosizionamentoId,
+] = useState<string | null>(null)
 
   const [anteprimaQuaderno, setAnteprimaQuaderno] = useState<string | null>(
     null,
@@ -429,6 +440,9 @@ const selezioneWorkspaceRef = useRef<{
   start: null,
   ctrlKey: false,
 })
+
+const puntoInizioMetroWorkspaceRef =
+  useRef<CadPoint | null>(null)
 
 const lineaCadSelezionata =
   cadEntitySelezionataId == null
@@ -2554,6 +2568,16 @@ const entitaCadSelezionate =
         entity.id,
       ),
   )
+
+const quotaWorkspaceSelezionata =
+  entitaCadSelezionata?.type === "dimension" &&
+  workspaceCadEntities.some(
+    (entity) =>
+      entity.id === entitaCadSelezionata.id,
+  )
+    ? entitaCadSelezionata
+    : null
+
 const layerIdsSelezione =
   Array.from(
     new Set(
@@ -7523,18 +7547,32 @@ setPanInCorso(false);
 <button
   type="button"
 onClick={() => {
-  setMetroAttivo((v) => {
-    const prossimoValore = !v
+  setMetroAttivo((valoreCorrente) => {
+    const prossimoValore = !valoreCorrente
 
-   if (prossimoValore) {
-  setCalibrazioneScalaAttiva(false)
-  setAreaAttiva(false)
-}
+    if (prossimoValore) {
+      setStrumentoDisegno(null)
+      setModalitaSelezione(false)
+
+      setSfondoSelezionato(false)
+      setPinSelezionatoId(null)
+      setOggettoGraficoSelezionatoId(null)
+
+      setCadEntitySelezionataId(null)
+      setCadEntitySelezionateIds([])
+
+      setManoAttiva(false)
+      setPanInCorso(false)
+
+      setTrimAttivo(false)
+      setAreaAttiva(false)
+      setAreaSplitAttivo(false)
+      setCalibrazioneScalaAttiva(false)
+    }
 
     return prossimoValore
   })
 }}
-
   style={{
     ...buttonSecondary,
     background: metroAttivo
@@ -8591,6 +8629,117 @@ usaPortal
           layerSelezioneId ??
           "---"}
     </span>
+  </>
+)}
+
+{quotaWorkspaceSelezionata && (
+  <>
+    <span>|</span>
+
+    <label
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+      }}
+    >
+      Lunghezza:
+
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={
+          typeof quotaWorkspaceSelezionata.measuredValue ===
+          "number"
+            ? quotaWorkspaceSelezionata.measuredValue
+            : ""
+        }
+        onChange={(event) => {
+          const nuovaLunghezza =
+            Number(event.target.value)
+
+          if (
+            !Number.isFinite(nuovaLunghezza) ||
+            nuovaLunghezza <= 0 ||
+            !scaleCalibration
+          ) {
+            return
+          }
+
+          const dx =
+            quotaWorkspaceSelezionata.end.x -
+            quotaWorkspaceSelezionata.start.x
+
+          const dy =
+            quotaWorkspaceSelezionata.end.y -
+            quotaWorkspaceSelezionata.start.y
+
+          const lunghezzaPixelCorrente =
+            Math.hypot(dx, dy)
+
+          if (lunghezzaPixelCorrente === 0) {
+            return
+          }
+
+          const nuovaLunghezzaPixel =
+            nuovaLunghezza *
+            (scaleCalibration.pixelDistance /
+              scaleCalibration.realDistance)
+
+          const direzioneX =
+            dx / lunghezzaPixelCorrente
+
+          const direzioneY =
+            dy / lunghezzaPixelCorrente
+
+          const nuovoEnd = {
+            x:
+              quotaWorkspaceSelezionata.start.x +
+              direzioneX * nuovaLunghezzaPixel,
+
+            y:
+              quotaWorkspaceSelezionata.start.y +
+              direzioneY * nuovaLunghezzaPixel,
+          }
+
+          setWorkspaceCadEntities(
+            (entitiesCorrenti) =>
+              entitiesCorrenti.map((entity) =>
+                entity.id ===
+                quotaWorkspaceSelezionata.id
+                  ? {
+                      ...entity,
+                      end: nuovoEnd,
+                      measuredValue:
+                        nuovaLunghezza,
+                      metadata: {
+                        ...entity.metadata,
+                        title: `${nuovaLunghezza.toFixed(
+                          2,
+                        )} ${
+                          quotaWorkspaceSelezionata.unit ??
+                          "m"
+                        }`,
+                      },
+                      updatedAt:
+                        new Date().toISOString(),
+                    }
+                  : entity,
+              ),
+          )
+
+          setQuadernoDirty(true)
+        }}
+        style={{
+          width: 80,
+        }}
+      />
+
+      <span>
+        {quotaWorkspaceSelezionata.unit ?? "m"}
+      </span>
+    </label>
   </>
 )}
 
@@ -9700,18 +9849,157 @@ if (trimAttivo) {
 
   return
 }
+if (metroAttivo) {
+  if (quotaWorkspaceInPosizionamentoId) {
+    event.preventDefault()
+    event.stopPropagation()
 
-  if (
-    (
-      strumentoDisegno !== "linea" &&
-      strumentoDisegno !== "rettangolo" &&
-      !areaAttiva
-    ) ||
-    manoAttiva ||
-    spostaTavolaAttivo
-  ) {
+    setQuotaWorkspaceInPosizionamentoId(null)
+    setQuadernoDirty(true)
+
     return
   }
+
+  const svg = event.currentTarget
+
+const rect =
+  svg.getBoundingClientRect()
+
+  const puntoWorkspace: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+
+    y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  const tolerance =
+    getSnapTolerance(
+      dimensioniWorkspace.width,
+      rect.width,
+    )
+
+  const snapGlobale =
+    snapAttivo
+      ? resolveSnapPoint({
+          entities: workspaceSnapEntities,
+          cursor: puntoWorkspace,
+          tolerance,
+        })
+      : null
+
+  setWorkspaceSnapPoint(
+    snapGlobale
+      ? {
+          x: snapGlobale.x,
+          y: snapGlobale.y,
+          type: snapGlobale.type,
+        }
+      : null,
+  )
+
+  const puntoMetro =
+    snapGlobale
+      ? {
+          x: snapGlobale.x,
+          y: snapGlobale.y,
+        }
+      : puntoWorkspace
+
+if (!puntoInizioMetroWorkspaceRef.current) {
+
+  setQuotaWorkspaceInPosizionamentoId(null)
+
+  puntoInizioMetroWorkspaceRef.current =
+    puntoMetro
+
+  return
+}
+
+  if (!scaleCalibration) {
+    window.alert(
+      "Prima calibra la scala della planimetria.",
+    )
+
+    puntoInizioMetroWorkspaceRef.current = null
+
+    return
+  }
+
+  const dx =
+    puntoMetro.x -
+    puntoInizioMetroWorkspaceRef.current.x
+
+  const dy =
+    puntoMetro.y -
+    puntoInizioMetroWorkspaceRef.current.y
+
+  const distanzaPixel =
+    Math.sqrt(dx * dx + dy * dy)
+
+  const metri =
+    distanzaPixel *
+    (scaleCalibration.realDistance /
+      scaleCalibration.pixelDistance)
+
+ const nuovaQuotaWorkspace =
+  createCadDimension({
+    start:
+      puntoInizioMetroWorkspaceRef.current,
+    end: puntoMetro,
+    offset: 0,
+    layerId: layerAttivoId,
+    stroke: {
+      color: "#2563eb",
+      width: 2,
+      dashArray: [6, 4],
+    },
+    metadata: {
+      title: `${metri.toFixed(2)} ${scaleCalibration.unit}`,
+    },
+  })
+
+nuovaQuotaWorkspace.measuredValue = metri
+nuovaQuotaWorkspace.unit =
+  scaleCalibration.unit
+
+setWorkspaceCadEntities((entitaCorrenti) => [
+  ...entitaCorrenti,
+  nuovaQuotaWorkspace,
+])
+
+setCadEntitySelezionataId(
+  nuovaQuotaWorkspace.id,
+)
+
+setCadEntitySelezionateIds([
+  nuovaQuotaWorkspace.id,
+])
+
+setWorkspaceMetroPreview(null)
+
+puntoInizioMetroWorkspaceRef.current = null
+
+setQuadernoDirty(true)
+
+return
+}
+ if (
+  (
+    strumentoDisegno !== "linea" &&
+    strumentoDisegno !== "rettangolo" &&
+    !areaAttiva &&
+    !metroAttivo
+  ) ||
+  manoAttiva ||
+  spostaTavolaAttivo
+) {
+  return
+}
 
   const svg = event.currentTarget
   const rect =
@@ -9762,6 +10050,37 @@ const puntoConSnap =
         y: snapGlobale.y,
       }
     : puntoWorkspace
+
+if (
+  metroAttivo &&
+  puntoInizioMetroWorkspaceRef.current &&
+  scaleCalibration
+) {
+  const dx =
+    puntoConSnap.x -
+    puntoInizioMetroWorkspaceRef.current.x
+
+  const dy =
+    puntoConSnap.y -
+    puntoInizioMetroWorkspaceRef.current.y
+
+  const distanzaPixel =
+    Math.sqrt(dx * dx + dy * dy)
+
+  const metri =
+    distanzaPixel *
+    (scaleCalibration.realDistance /
+      scaleCalibration.pixelDistance)
+
+  setWorkspaceMetroPreview({
+    start:
+      puntoInizioMetroWorkspaceRef.current,
+    end: puntoConSnap,
+    metri,
+  })
+
+  return
+}
 
 if (areaAttiva) {
   const risultatoArea =
@@ -10254,6 +10573,89 @@ if (
 
     return
   }
+
+if (
+  metroAttivo &&
+  quotaWorkspaceInPosizionamentoId
+) {
+  const svg = event.currentTarget
+
+  const rect =
+    svg.getBoundingClientRect()
+
+  const puntoWorkspace: CadPoint = {
+    x:
+      ((event.clientX - rect.left) /
+        rect.width) *
+      dimensioniWorkspace.width,
+
+    y:
+      ((event.clientY - rect.top) /
+        rect.height) *
+      dimensioniWorkspace.height,
+  }
+
+  const quotaInPosizionamento =
+    workspaceCadEntities.find(
+      (entity) =>
+        entity.id ===
+          quotaWorkspaceInPosizionamentoId &&
+        entity.type === "dimension",
+    )
+
+  if (
+    quotaInPosizionamento &&
+    quotaInPosizionamento.type === "dimension"
+  ) {
+    const dxQuota =
+      quotaInPosizionamento.end.x -
+      quotaInPosizionamento.start.x
+
+    const dyQuota =
+      quotaInPosizionamento.end.y -
+      quotaInPosizionamento.start.y
+
+    const lunghezzaQuota =
+      Math.hypot(dxQuota, dyQuota)
+
+    if (lunghezzaQuota > 0) {
+      const normaleX =
+        -dyQuota / lunghezzaQuota
+
+      const normaleY =
+        dxQuota / lunghezzaQuota
+
+      const dxMouse =
+        puntoWorkspace.x -
+        quotaInPosizionamento.start.x
+
+      const dyMouse =
+        puntoWorkspace.y -
+        quotaInPosizionamento.start.y
+
+      const nuovoOffset =
+        dxMouse * normaleX +
+        dyMouse * normaleY
+
+      setWorkspaceCadEntities(
+        (entitiesCorrenti) =>
+          entitiesCorrenti.map((entity) =>
+            entity.id ===
+            quotaWorkspaceInPosizionamentoId
+              ? {
+                  ...entity,
+                  offset: nuovoOffset,
+                  updatedAt:
+                    new Date().toISOString(),
+                }
+              : entity,
+          ),
+      )
+
+      return
+    }
+  }
+}
 
   if (
     selezioneWorkspaceRef.current.attiva &&
@@ -10792,6 +11194,7 @@ style={{
 
   pointerEvents:
     trimAttivo ||
+    metroAttivo ||
     strumentoDisegno === "linea" ||
     strumentoDisegno === "rettangolo" ||
     areaAttiva ||
@@ -11171,6 +11574,62 @@ data-print-ui="true"
     />
 )}
 
+{workspaceMetroPreview && (
+  <g
+    data-print-ui="true"
+    pointerEvents="none"
+  >
+    <line
+      x1={workspaceMetroPreview.start.x}
+      y1={workspaceMetroPreview.start.y}
+      x2={workspaceMetroPreview.end.x}
+      y2={workspaceMetroPreview.end.y}
+      stroke="#2563eb"
+      strokeWidth={2}
+      strokeDasharray="6 4"
+    />
+
+    <circle
+      cx={workspaceMetroPreview.start.x}
+      cy={workspaceMetroPreview.start.y}
+      r={5}
+      fill="#ffffff"
+      stroke="#2563eb"
+      strokeWidth={2}
+    />
+
+    <circle
+      cx={workspaceMetroPreview.end.x}
+      cy={workspaceMetroPreview.end.y}
+      r={5}
+      fill="#ffffff"
+      stroke="#2563eb"
+      strokeWidth={2}
+    />
+
+    <text
+      x={
+        (workspaceMetroPreview.start.x +
+          workspaceMetroPreview.end.x) /
+        2
+      }
+      y={
+        (workspaceMetroPreview.start.y +
+          workspaceMetroPreview.end.y) /
+          2 -
+        10
+      }
+      textAnchor="middle"
+      fontSize={16}
+      fontWeight={700}
+      fill="#2563eb"
+    >
+      {workspaceMetroPreview.metri.toFixed(2)}{" "}
+      {scaleCalibration?.unit ?? "m"}
+    </text>
+  </g>
+)}
+
 {workspaceSnapPoint && (
   <circle
     data-print-ui="true"
@@ -11301,12 +11760,12 @@ if (
         y2={entity.end.y}
         stroke="transparent"
         strokeWidth={12}
-        pointerEvents={
-          modalitaSelezione
-            ? "stroke"
-            : "none"
-        }
-      onPointerDown={(event) => {
+       pointerEvents={
+  modalitaSelezione
+    ? "stroke"
+    : "none"
+}
+onPointerDown={(event) => {
   if (!modalitaSelezione) {
     return
   }
@@ -11580,6 +12039,239 @@ onPointerCancel={(event) => {
   )
 }
 
+if (entity.type === "dimension") {
+  const quotaSelezionata =
+    cadEntitySelezionateIds.includes(
+      entity.id,
+    )
+
+  const dxQuota =
+    entity.end.x - entity.start.x
+
+  const dyQuota =
+    entity.end.y - entity.start.y
+
+  const lunghezzaQuota =
+    Math.hypot(dxQuota, dyQuota)
+
+  const normaleX =
+    lunghezzaQuota > 0
+      ? -dyQuota / lunghezzaQuota
+      : 0
+
+  const normaleY =
+    lunghezzaQuota > 0
+      ? dxQuota / lunghezzaQuota
+      : 0
+
+  const startQuota = {
+    x:
+      entity.start.x +
+      normaleX * entity.offset,
+    y:
+      entity.start.y +
+      normaleY * entity.offset,
+  }
+
+  const endQuota = {
+    x:
+      entity.end.x +
+      normaleX * entity.offset,
+    y:
+      entity.end.y +
+      normaleY * entity.offset,
+  }
+
+  const testoQuota =
+    typeof entity.measuredValue === "number"
+      ? `${entity.measuredValue.toFixed(2)} ${
+          entity.unit ?? "m"
+        }`
+      : entity.metadata?.title ?? ""
+
+  return (
+    <g key={entity.id}>
+      <line
+        x1={startQuota.x}
+        y1={startQuota.y}
+        x2={endQuota.x}
+        y2={endQuota.y}
+        stroke="transparent"
+        strokeWidth={12}
+        pointerEvents={
+          metroAttivo || modalitaSelezione
+            ? "stroke"
+            : "none"
+        }
+   onPointerDown={(event) => {
+  if (metroAttivo) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    setCadEntitySelezionataId(
+      entity.id,
+    )
+
+    setCadEntitySelezionateIds([
+      entity.id,
+    ])
+
+    setOggettoGraficoSelezionatoId(null)
+    setSfondoSelezionato(false)
+    setPinSelezionatoId(null)
+
+    if (
+      quotaWorkspaceInPosizionamentoId ===
+      entity.id
+    ) {
+      setQuotaWorkspaceInPosizionamentoId(null)
+      setQuadernoDirty(true)
+
+      return
+    }
+
+    setQuotaWorkspaceInPosizionamentoId(
+      entity.id,
+    )
+
+    return
+  }
+          if (!modalitaSelezione) {
+            return
+          }
+
+          if (
+            layerEntity?.locked ||
+            layerEntity?.selectable === false
+          ) {
+            return
+          }
+
+          event.preventDefault()
+          event.stopPropagation()
+
+          setCadEntitySelezionataId(
+            entity.id,
+          )
+
+          setCadEntitySelezionateIds([
+            entity.id,
+          ])
+
+          setOggettoGraficoSelezionatoId(null)
+          setSfondoSelezionato(false)
+          setPinSelezionatoId(null)
+        }}
+      />
+
+      <line
+        x1={entity.start.x}
+        y1={entity.start.y}
+        x2={startQuota.x}
+        y2={startQuota.y}
+        stroke={entity.stroke.color}
+        strokeWidth={entity.stroke.width}
+        pointerEvents="none"
+      />
+
+      <line
+        x1={entity.end.x}
+        y1={entity.end.y}
+        x2={endQuota.x}
+        y2={endQuota.y}
+        stroke={entity.stroke.color}
+        strokeWidth={entity.stroke.width}
+        pointerEvents="none"
+      />
+
+      <line
+        x1={startQuota.x}
+        y1={startQuota.y}
+        x2={endQuota.x}
+        y2={endQuota.y}
+        stroke={entity.stroke.color}
+        strokeWidth={entity.stroke.width}
+        strokeDasharray={
+          entity.stroke.dashArray?.join(" ")
+        }
+        pointerEvents="none"
+      />
+
+      <circle
+        cx={entity.start.x}
+        cy={entity.start.y}
+        r={5}
+        fill="#ffffff"
+        stroke={entity.stroke.color}
+        strokeWidth={2}
+        pointerEvents="none"
+      />
+
+      <circle
+        cx={entity.end.x}
+        cy={entity.end.y}
+        r={7}
+        fill="#ffffff"
+        stroke={entity.stroke.color}
+        strokeWidth={2}
+        pointerEvents={
+          metroAttivo
+            ? "all"
+            : "none"
+        }
+        onPointerDown={(event) => {
+          if (!metroAttivo) {
+            return
+          }
+
+          event.preventDefault()
+          event.stopPropagation()
+
+          puntoInizioMetroWorkspaceRef.current = {
+            x: entity.end.x,
+            y: entity.end.y,
+          }
+
+          setWorkspaceMetroPreview(null)
+
+          setCadEntitySelezionataId(null)
+          setCadEntitySelezionateIds([])
+        }}
+      />
+
+      <text
+        x={
+          (startQuota.x + endQuota.x) / 2
+        }
+        y={
+          (startQuota.y + endQuota.y) /
+            2 -
+          10
+        }
+        textAnchor="middle"
+        fontSize={16}
+        fontWeight={700}
+        fill={entity.stroke.color}
+        pointerEvents="none"
+      >
+        {testoQuota}
+      </text>
+
+      {quotaSelezionata && (
+        <line
+          x1={startQuota.x}
+          y1={startQuota.y}
+          x2={endQuota.x}
+          y2={endQuota.y}
+          stroke="#2563eb"
+          strokeWidth={2}
+          strokeDasharray="6 4"
+          pointerEvents="none"
+        />
+      )}
+    </g>
+  )
+}
   if (entity.type === "rectangle") {
   const rettangoloSelezionato =
     cadEntitySelezionateIds.includes(

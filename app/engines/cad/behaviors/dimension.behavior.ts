@@ -6,6 +6,48 @@ import type {
   CadEntityBehavior,
 } from './types'
 
+import type { GeometryPoint } from '../geometry'
+
+const distancePointToSegment = (
+  point: GeometryPoint,
+  start: GeometryPoint,
+  end: GeometryPoint,
+): number => {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(
+      point.x - start.x,
+      point.y - start.y,
+    )
+  }
+
+  const segmentLengthSquared =
+    dx * dx + dy * dy
+
+  const projection = Math.max(
+    0,
+    Math.min(
+      1,
+      (
+        (point.x - start.x) * dx +
+        (point.y - start.y) * dy
+      ) / segmentLengthSquared,
+    ),
+  )
+
+  const closestPoint = {
+    x: start.x + projection * dx,
+    y: start.y + projection * dy,
+  }
+
+  return Math.hypot(
+    point.x - closestPoint.x,
+    point.y - closestPoint.y,
+  )
+}
+
 export const dimensionBehavior: CadEntityBehavior<CadDimensionEntity> = {
   type: 'dimension',
 
@@ -32,6 +74,17 @@ export const dimensionBehavior: CadEntityBehavior<CadDimensionEntity> = {
     entity.start,
     entity.end,
   ],
+
+hitTest: (
+  entity,
+  point,
+  tolerance,
+) =>
+  distancePointToSegment(
+    point,
+    entity.start,
+    entity.end,
+  ) <= tolerance,
 
   move: (
     entity,
