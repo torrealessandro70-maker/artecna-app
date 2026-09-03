@@ -121,6 +121,7 @@ import type {
 } from "../engines/cad/entities";
 
 import {
+  createCadFreehand,
   createCadLine,
   createCadRectangle,
 } from "../engines/cad/entities";
@@ -328,6 +329,12 @@ const workspaceLineaStartRef =
 
 const [workspaceLineaPreview, setWorkspaceLineaPreview] =
   useState<CadPoint | null>(null)
+
+const workspacePennaPointsRef =
+  useRef<CadPoint[]>([])
+
+const workspacePennaPreviewRef =
+  useRef<SVGPolylineElement | null>(null)
 
 const [workspaceAreaPoints, setWorkspaceAreaPoints] =
   useState<CadPoint[]>([])
@@ -2794,6 +2801,48 @@ const [polarIncrement] = useState(45)
 const [polarTolerance] = useState(8)
 const [scaleCalibration, setScaleCalibration] =
   useState<CadScaleCalibration | null>(null)
+
+useEffect(() => {
+  const svg = workspaceSvgRef.current
+
+  if (!svg || strumentoDisegno !== "penna") {
+    return
+  }
+
+  const handleTouchStart = (event: TouchEvent) => {
+    const touch = event.changedTouches[0]
+
+    if (!touch) {
+      return
+    }
+
+    const touchType =
+      "touchType" in touch
+        ? touch.touchType
+        : undefined
+
+    if (touchType !== "stylus") {
+      return
+    }
+
+    if (event.cancelable) {
+      event.preventDefault()
+    }
+  }
+
+  svg.addEventListener(
+    "touchstart",
+    handleTouchStart,
+    { passive: false },
+  )
+
+  return () => {
+    svg.removeEventListener(
+      "touchstart",
+      handleTouchStart,
+    )
+  }
+}, [strumentoDisegno])
 
 const lunghezzaLineaSelezionata = (() => {
   if (!lineaCadSelezionata) return null;
@@ -7330,6 +7379,13 @@ setSpessoreDisegno(profiloNuovo.spessore);
 
  setStrumentoDisegno(strumento.id);
 setModalitaSelezione(false);
+selezioneWorkspaceRef.current = {
+  attiva: false,
+  start: null,
+  ctrlKey: false,
+}
+
+setRettangoloSelezione(null)
 setTrimAttivo(false);
 
 setSfondoSelezionato(false);
@@ -9438,6 +9494,7 @@ alignItems: "flex-start",
   calibrazioneScalaAttiva
     ? "none"
     : "auto",
+
 }}
 >
 <div
@@ -9445,12 +9502,13 @@ alignItems: "flex-start",
   onPointerDown={(event) => {
  if (
   !spostaTavolaAttivo ||
-      !modalitaSelezione ||
-      manoAttiva ||
-      event.target !== event.currentTarget
-    ) {
-      return
-    }
+  !modalitaSelezione ||
+  strumentoDisegno === "penna" ||
+  manoAttiva ||
+  event.target !== event.currentTarget
+) {
+  return
+}
 
     const svg = workspaceSvgRef.current
 
@@ -9543,11 +9601,13 @@ ref={workspaceSvgRef}
  ${dimensioniWorkspace.height}`}
 
 onPointerDown={(event) => {
-  if (
+ if (
   modalitaSelezione &&
+  strumentoDisegno !== "penna" &&
   event.target === event.currentTarget &&
   !manoAttiva
 ) {
+
   const svg = event.currentTarget
   const rect =
     svg.getBoundingClientRect()
@@ -9988,10 +10048,11 @@ setQuadernoDirty(true)
 
 return
 }
- if (
+if (
   (
     strumentoDisegno !== "linea" &&
     strumentoDisegno !== "rettangolo" &&
+    strumentoDisegno !== "penna" &&
     !areaAttiva &&
     !metroAttivo
   ) ||
@@ -10051,6 +10112,20 @@ const puntoConSnap =
       }
     : puntoWorkspace
 
+if (strumentoDisegno === "penna") {
+  event.preventDefault()
+  event.stopPropagation()
+
+  event.currentTarget.setPointerCapture(
+    event.pointerId,
+  )
+
+  workspacePennaPointsRef.current = [
+    puntoConSnap,
+  ]
+
+  return
+}
 if (
   metroAttivo &&
   puntoInizioMetroWorkspaceRef.current &&
@@ -10691,12 +10766,14 @@ if (
     return
   }
 
-  if (
-    (
-      strumentoDisegno !== "linea" &&
-      strumentoDisegno !== "rettangolo" &&
-      !areaAttiva
-    ) ||
+ if (
+  (
+    strumentoDisegno !== "linea" &&
+    strumentoDisegno !== "rettangolo" &&
+    strumentoDisegno !== "penna" &&
+    !areaAttiva
+  ) ||
+
     manoAttiva ||
     spostaTavolaAttivo
   ) {
@@ -10752,6 +10829,52 @@ const puntoConSnap =
         y: snapGlobale.y,
       }
     : puntoWorkspace
+
+if (
+  strumentoDisegno === "penna" &&
+  event.buttons !== 0 &&
+  workspacePennaPointsRef.current.length > 0
+) {
+const eventiPenna =
+  event.nativeEvent.getCoalescedEvents?.() ?? []
+
+const nuoviCampioniPenna =
+  eventiPenna.length > 0
+    ? eventiPenna.map((eventoPointer) => ({
+        x:
+          ((eventoPointer.clientX - rect.left) /
+            rect.width) *
+          dimensioniWorkspace.width,
+
+        y:
+          ((eventoPointer.clientY - rect.top) /
+            rect.height) *
+          dimensioniWorkspace.height,
+      }))
+    : [puntoConSnap]
+
+const nuoviPuntiPenna = [
+  ...workspacePennaPointsRef.current,
+  ...nuoviCampioniPenna,
+]
+workspacePennaPointsRef.current =
+  nuoviPuntiPenna
+
+if (workspacePennaPreviewRef.current) {
+  workspacePennaPreviewRef.current.setAttribute(
+    "points",
+    nuoviPuntiPenna
+      .map(
+        (point) =>
+          `${point.x},${point.y}`,
+      )
+      .join(" "),
+  )
+}
+
+
+  return
+}
 
 if (areaAttiva) {
   setWorkspaceAreaPreview(
@@ -10819,6 +10942,39 @@ if (workspacePosterDragRef.current.attivo) {
       event.pointerId,
     )
   }
+
+  setQuadernoDirty(true)
+
+  return
+}
+
+if (strumentoDisegno === "penna") {
+  const puntiPenna =
+    workspacePennaPointsRef.current
+
+  workspacePennaPointsRef.current = []
+
+
+  if (puntiPenna.length < 2) {
+    return
+  }
+
+  const nuovoTratto =
+    createCadFreehand({
+      points: puntiPenna,
+      stroke: {
+        color: coloreDisegno,
+        width: spessoreDisegno,
+      },
+      layerId: layerAttivoId,
+    })
+
+  setWorkspaceCadEntities(
+    (entitiesCorrenti) => [
+      ...entitiesCorrenti,
+      nuovoTratto,
+    ],
+  )
 
   setQuadernoDirty(true)
 
@@ -11193,12 +11349,14 @@ style={{
   height: dimensioniWorkspace.height,
 
   pointerEvents:
-    trimAttivo ||
-    metroAttivo ||
-    strumentoDisegno === "linea" ||
-    strumentoDisegno === "rettangolo" ||
-    areaAttiva ||
-    selezioneWorkspaceRef.current.attiva
+   trimAttivo ||
+metroAttivo ||
+strumentoDisegno === "linea" ||
+strumentoDisegno === "rettangolo" ||
+strumentoDisegno === "penna" ||
+areaAttiva ||
+selezioneWorkspaceRef.current.attiva
+
       ? "auto"
       : "none",
 
@@ -11630,6 +11788,17 @@ data-print-ui="true"
   </g>
 )}
 
+<polyline
+  ref={workspacePennaPreviewRef}
+  points=""
+  fill="none"
+  stroke={coloreDisegno}
+  strokeWidth={spessoreDisegno}
+  strokeLinecap="round"
+  strokeLinejoin="round"
+  pointerEvents="none"
+/>
+
 {workspaceSnapPoint && (
   <circle
     data-print-ui="true"
@@ -12036,6 +12205,29 @@ onPointerCancel={(event) => {
         </>
       )}
     </g>
+  )
+}
+
+if (entity.type === "freehand") {
+  const puntiPolyline =
+    entity.points
+      .map(
+        (point) =>
+          `${point.x},${point.y}`,
+      )
+      .join(" ")
+
+  return (
+    <polyline
+      key={entity.id}
+      points={puntiPolyline}
+      fill="none"
+      stroke={entity.stroke.color}
+      strokeWidth={entity.stroke.width}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      pointerEvents="none"
+    />
   )
 }
 
@@ -12795,12 +12987,14 @@ onPointerDown={(event) => {
 
              <div
 onPointerDown={(event) => {
-  if (
-    modalitaSelezione &&
-    !manoAttiva &&
-    !spostaTavolaAttivo &&
-    paginaAttiva
-  ) {
+ if (
+  modalitaSelezione &&
+  strumentoDisegno !== "penna" &&
+  !manoAttiva &&
+  !spostaTavolaAttivo &&
+  paginaAttiva
+) {
+
     const rect =
       event.currentTarget.getBoundingClientRect()
 
@@ -12933,10 +13127,12 @@ style={{
              <NotaDisegno
   svgRefEsterno={quadernoSvgRef}
 selezioneRettangolareEsterna
-  solaLettura={
+ solaLettura={
   spostaTavolaAttivo ||
-  manoAttiva
+  manoAttiva ||
+  strumentoDisegno === "penna"
 }
+
   larghezza={pageLayout.width}
   altezza={pageLayout.height}
   orthoAttivo={orthoAttivo}
