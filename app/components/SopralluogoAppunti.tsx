@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -11,6 +12,7 @@ import {
   type DragEvent,
 } from "react";
 import { flushSync } from "react-dom";
+import { ArrowUpRight } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import NotaDisegno from "./note/NotaDisegno";
 import { STRUMENTI_DISEGNO } from "./note/drawing-tools";
@@ -81,6 +83,7 @@ import type { CadScaleCalibration } from '@/app/engines/cad/scale-manager'
 import type { CadDimensionEntity } from '@/app/engines/cad/entities'
 import { ToolButton } from "@/app/components/ui";
 import { applyOrtho } from "@/app/engines/cad/ortho"
+import { applyPolar } from "@/app/engines/cad/polar"
 import {
   segmentIntersection,
 } from "@/app/engines/cad/geometry"
@@ -323,6 +326,8 @@ const pinchRef = useRef<{
     y: 0,
   },
 });
+
+const workspaceFrecciaMarkerId = useId()
 
 const workspaceLineaStartRef =
   useRef<CadPoint | null>(null)
@@ -2801,6 +2806,30 @@ const [polarIncrement] = useState(45)
 const [polarTolerance] = useState(8)
 const [scaleCalibration, setScaleCalibration] =
   useState<CadScaleCalibration | null>(null)
+
+// Freccia usa gli stessi vincoli CAD sia in preview sia alla conferma.
+const vincolaPuntoFrecciaWorkspace = (
+  start: CadPoint,
+  point: CadPoint,
+  snapped: boolean,
+): CadPoint => {
+  if (snapped) return point
+  if (orthoAttivo) return applyOrtho(start, point)
+  return polarTrackingAttivo
+    ? applyPolar(start, point, polarIncrement, polarTolerance)
+    : point
+}
+
+useEffect(() => {
+  if (strumentoDisegno !== "freccia") return
+
+  return () => {
+    workspaceLineaStartRef.current = null
+    setWorkspaceLineaPreview(null)
+    setWorkspaceSnapPoint(null)
+  }
+}, [strumentoDisegno])
+
 
 useEffect(() => {
   const svg = workspaceSvgRef.current
@@ -7365,6 +7394,9 @@ usaPortal
                 <button
                   key={strumento.id}
                   type="button"
+                  title={strumento.id === "freccia" ? "Freccia: origine e destinazione" : undefined}
+                  aria-label={strumento.id === "freccia" ? "Freccia" : undefined}
+                  aria-pressed={strumento.id === "freccia" ? strumentoDisegno === "freccia" : undefined}
                  onClick={() => {
  if (strumentoDisegno) {
     setProfiliStrumenti((profiliCorrenti) => ({
@@ -7383,8 +7415,33 @@ usaPortal
 setColoreDisegno(profiloNuovo.colore);
 setSpessoreDisegno(profiloNuovo.spessore);
 
- setStrumentoDisegno(strumento.id);
-setModalitaSelezione(false);
+ const disattivaFreccia =
+  strumento.id === "freccia" && strumentoDisegno === "freccia"
+
+if (strumento.id === "freccia") {
+  setMetroAttivo(false)
+  setAreaAttiva(false)
+  setAreaSplitAttivo(false)
+  setCalibrazioneScalaAttiva(false)
+  setSpostaTavolaAttivo(false)
+  setTrasformazioneOggettoAttiva(false)
+  spostaEntitaRef.current = { attivo: false, start: null }
+  trascinamentoPaginaRef.current.attivo = false
+  workspaceLineaStartRef.current = null
+  setWorkspaceLineaPreview(null)
+  workspacePennaPointsRef.current = []
+  workspacePennaPreviewRef.current?.setAttribute("points", "")
+  workspaceAreaStateRef.current = createInitialAreaState()
+  setWorkspaceAreaPoints([])
+  setWorkspaceAreaPreview(null)
+  puntoInizioMetroWorkspaceRef.current = null
+  setWorkspaceMetroPreview(null)
+  setQuotaWorkspaceInPosizionamentoId(null)
+  setWorkspaceSnapPoint(null)
+}
+
+setStrumentoDisegno(disattivaFreccia ? null : strumento.id);
+setModalitaSelezione(disattivaFreccia);
 selezioneWorkspaceRef.current = {
   attiva: false,
   start: null,
@@ -7406,6 +7463,9 @@ setPanInCorso(false);
 }}
                  style={{
   ...buttonSecondary,
+  ...(strumento.id === "freccia"
+    ? { width: 32, minWidth: 32, height: 32, padding: 0, fontSize: 18 }
+    : {}),
   background:
     strumentoDisegno === strumento.id && !manoAttiva
       ? "#dbeafe"
@@ -7421,7 +7481,7 @@ setPanInCorso(false);
   transition: "all .15s ease",
 }}
                 >
-                  {strumento.label}
+                  {strumento.id === "freccia" ? <ArrowUpRight size={18} aria-hidden="true" /> : strumento.label}
                 </button>
               ))}
 
@@ -10100,6 +10160,7 @@ return
 if (
   (
     strumentoDisegno !== "linea" &&
+    strumentoDisegno !== "freccia" &&
     strumentoDisegno !== "rettangolo" &&
     strumentoDisegno !== "penna" &&
 strumentoDisegno !== "evidenziatore" &&
@@ -10292,7 +10353,9 @@ if (!start) {
   return
 }
 const puntoFinale =
-  snapGlobale
+  strumentoDisegno === "freccia"
+    ? vincolaPuntoFrecciaWorkspace(start, puntoConSnap, Boolean(snapGlobale))
+    : snapGlobale
     ? puntoConSnap
     : orthoAttivo &&
         strumentoDisegno === "linea"
@@ -10347,8 +10410,18 @@ if (strumentoDisegno === "rettangolo") {
   return
 }
 
+if (
+  strumentoDisegno === "freccia" &&
+  start.x === puntoFinale.x && start.y === puntoFinale.y
+) {
+  return
+}
+
 const nuovaLinea =
   createCadLine({
+    metadata: strumentoDisegno === "freccia"
+      ? { legacyStrumento: "freccia" }
+      : undefined,
     start,
     end: puntoFinale,
     stroke: {
@@ -10821,6 +10894,7 @@ if (
  if (
   (
     strumentoDisegno !== "linea" &&
+    strumentoDisegno !== "freccia" &&
     strumentoDisegno !== "rettangolo" &&
     strumentoDisegno !== "penna" &&
     strumentoDisegno !== "evidenziatore" &&
@@ -10942,7 +11016,13 @@ if (areaAttiva) {
 
 if (workspaceLineaStartRef.current) {
   const puntoPreview =
-    orthoAttivo &&
+    strumentoDisegno === "freccia"
+      ? vincolaPuntoFrecciaWorkspace(
+          workspaceLineaStartRef.current,
+          puntoConSnap,
+          Boolean(snapGlobale),
+        )
+      : orthoAttivo &&
     strumentoDisegno === "linea"
       ? applyOrtho(
           workspaceLineaStartRef.current,
@@ -11420,6 +11500,7 @@ pointerEvents:
   trimAttivo ||
   metroAttivo ||
   strumentoDisegno === "linea" ||
+  strumentoDisegno === "freccia" ||
   strumentoDisegno === "rettangolo" ||
   strumentoDisegno === "penna" ||
   strumentoDisegno === "evidenziatore" ||
@@ -11432,6 +11513,20 @@ pointerEvents:
   zIndex: 50,
 }}
 >
+<defs>
+  <marker
+    id={workspaceFrecciaMarkerId}
+    viewBox="0 0 10 10"
+    refX={10}
+    refY={5}
+    markerWidth={6}
+    markerHeight={6}
+    orient="auto"
+    markerUnits="strokeWidth"
+  >
+    <path d="M 0 0 L 10 5 L 0 10 Z" fill="context-stroke" />
+  </marker>
+</defs>
 {workspacePosterImages.map(
   (oggetto) => {
     const selezionato =
@@ -11748,6 +11843,7 @@ data-print-ui="true"
 )}
 {(
   strumentoDisegno === "linea" ||
+  strumentoDisegno === "freccia" ||
   strumentoDisegno === "rettangolo" ||
   areaAttiva
 ) &&  !manoAttiva &&
@@ -11954,10 +12050,12 @@ data-print-ui="true"
       }
       x2={workspaceLineaPreview.x}
       y2={workspaceLineaPreview.y}
-      stroke="#2563eb"
-      strokeWidth={2}
+      stroke={strumentoDisegno === "freccia" ? coloreDisegno : "#2563eb"}
+      strokeWidth={strumentoDisegno === "freccia" ? spessoreDisegno : 2}
+      markerEnd={strumentoDisegno === "freccia" ? `url(#${workspaceFrecciaMarkerId})` : undefined}
       strokeDasharray="8 6"
       fill="none"
+      pointerEvents="none"
     />
   )}
 
@@ -12235,6 +12333,7 @@ onPointerCancel={(event) => {
         y2={entity.end.y}
         stroke={entity.stroke.color}
         strokeWidth={entity.stroke.width}
+        markerEnd={entity.metadata?.legacyStrumento === "freccia" ? `url(#${workspaceFrecciaMarkerId})` : undefined}
         fill="none"
         pointerEvents="none"
       />
