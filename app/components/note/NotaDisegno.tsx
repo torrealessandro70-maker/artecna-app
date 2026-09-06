@@ -215,6 +215,7 @@ polarTolerance?: number
 perpTrackingAttivo?: boolean
 scaleCalibration?: CadScaleCalibration | null
 calibrazioneScalaAttiva?: boolean
+resolveSnapCalibrazione?: (punto: CadPoint) => SnapPoint | null
 onScaleCalibrationChange?: (
   calibration: CadScaleCalibration,
 ) => void
@@ -518,6 +519,7 @@ polarTolerance = 8,
 perpTrackingAttivo = true,
 scaleCalibration = null,
 calibrazioneScalaAttiva = false,
+resolveSnapCalibrazione,
 metroAttivo = false,
 areaAttiva = false,
 areaSplitAttivo = false,
@@ -2114,6 +2116,10 @@ const calcolaSnapPoint = (
 
   if (!snapAttivo) {
     return null;
+  }
+
+  if (calibrazioneScalaAttiva && resolveSnapCalibrazione) {
+    return resolveSnapCalibrazione(puntoCursore)
   }
 
  const segnoAttivoId =

@@ -7576,16 +7576,56 @@ setPanInCorso(false);
 <button
   type="button"
   onClick={() => {
-  setCalibrazioneScalaAttiva((v) => {
-    const prossimoValore = !v
+  const prossimoValore = !calibrazioneScalaAttiva
+  setCalibrazioneScalaAttiva(prossimoValore)
 
-  if (prossimoValore) {
+  if (!prossimoValore) {
+    return
+  }
+
+  setStrumentoDisegno(null)
+  setModalitaSelezione(false)
+  setManoAttiva(false)
+  setPanInCorso(false)
+  setSpostaEntitaAttivo(false)
+  setSpostaTavolaAttivo(false)
+  setTrimAttivo(false)
   setMetroAttivo(false)
   setAreaAttiva(false)
-}
+  setAreaSplitAttivo(false)
+  setTrasformazioneOggettoAttiva(false)
 
-    return prossimoValore
-  })
+  setSfondoSelezionato(false)
+  setPinSelezionatoId(null)
+  setOggettoGraficoSelezionatoId(null)
+  setCadEntitySelezionataId(null)
+  setCadEntitySelezionateIds([])
+  setPagineWorkspaceSelezionateIds([])
+
+  // Annulla le interazioni pendenti senza cambiare SNAP.
+  selezioneWorkspaceRef.current = {
+    attiva: false,
+    start: null,
+    ctrlKey: false,
+  }
+  setRettangoloSelezione(null)
+  spostaEntitaRef.current = {
+    attivo: false,
+    start: null,
+  }
+  trascinamentoPaginaRef.current.attivo = false
+
+  workspaceLineaStartRef.current = null
+  setWorkspaceLineaPreview(null)
+  workspacePennaPointsRef.current = []
+  workspacePennaPreviewRef.current?.setAttribute("points", "")
+  workspaceAreaStateRef.current = createInitialAreaState()
+  setWorkspaceAreaPoints([])
+  setWorkspaceAreaPreview(null)
+  puntoInizioMetroWorkspaceRef.current = null
+  setWorkspaceMetroPreview(null)
+  setQuotaWorkspaceInPosizionamentoId(null)
+  setWorkspaceSnapPoint(null)
 }}
   style={{
     ...buttonSecondary,
@@ -13178,6 +13218,21 @@ polarIncrement={polarIncrement}
 polarTolerance={polarTolerance}
 scaleCalibration={scaleCalibration}
 calibrazioneScalaAttiva={calibrazioneScalaAttiva}
+resolveSnapCalibrazione={(puntoPagina) => {
+  if (!snapAttivo) return null
+
+  const screenWidth =
+    workspaceSvgRef.current?.getBoundingClientRect().width ?? 0
+  const snap = resolveSnapPoint({
+    entities: workspaceSnapEntities,
+    cursor: puntoPaginaAttivaToWorkspace(puntoPagina),
+    tolerance: getSnapTolerance(dimensioniWorkspace.width, screenWidth),
+  })
+
+  return snap
+    ? { ...snap, ...puntoWorkspaceToPaginaAttiva(snap) }
+    : null
+}}
 onScaleCalibrationChange={setScaleCalibration}
 metroAttivo={metroAttivo}
 areaAttiva={areaAttiva}
