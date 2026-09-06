@@ -75,3 +75,22 @@ export const perpendicularDirection = (
     y: dx / length,
   }
 }
+// Proiezione usata dalla modalita perpendicolare, indipendente da SNAP/ORTHO.
+export const projectPointOnPerpendicular = (
+  origin: GeometryPoint,
+  point: GeometryPoint,
+  referenceStart: GeometryPoint,
+  referenceEnd: GeometryPoint,
+): GeometryPoint | null => {
+  const direction = perpendicularDirection(referenceStart, referenceEnd)
+  if (!direction) return null
+
+  const distance =
+    (point.x - origin.x) * direction.x +
+    (point.y - origin.y) * direction.y
+
+  return {
+    x: origin.x + direction.x * distance,
+    y: origin.y + direction.y * distance,
+  }
+}

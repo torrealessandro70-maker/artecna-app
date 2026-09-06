@@ -12,7 +12,7 @@ import {
   type DragEvent,
 } from "react";
 import { flushSync } from "react-dom";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, CornerDownRight } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import NotaDisegno from "./note/NotaDisegno";
 import { STRUMENTI_DISEGNO } from "./note/drawing-tools";
@@ -86,6 +86,8 @@ import { applyOrtho } from "@/app/engines/cad/ortho"
 import { applyPolar } from "@/app/engines/cad/polar"
 import {
   segmentIntersection,
+  perpendicularDirection,
+  projectPointOnPerpendicular,
 } from "@/app/engines/cad/geometry"
 
 import {
@@ -326,6 +328,9 @@ const pinchRef = useRef<{
     y: 0,
   },
 });
+
+const [workspacePerpendicolareRiferimento, setWorkspacePerpendicolareRiferimento] =
+  useState<CadLineEntity | null>(null)
 
 const workspaceFrecciaMarkerId = useId()
 
@@ -2512,6 +2517,15 @@ const workspaceSnapEntities: CadEntity[] = [
   ...workspaceCadEntities,
 ]
 
+const lineeRiferimentoPerpendicolare = workspaceSnapEntities.filter(
+  (entity): entity is CadLineEntity => {
+    if (entity.type !== "line" || !entity.visible || entity.locked || !entity.selectable) return false
+    const layer = layers.find((item) => item.id === entity.layerId)
+    return layer?.visible !== false && !layer?.locked && layer?.selectable !== false &&
+      perpendicularDirection(entity.start, entity.end) !== null
+  },
+)
+
 const workspaceRenderEntities: CadEntity[] = [
   ...workspaceSnapEntities,
 ]
@@ -2819,6 +2833,16 @@ const vincolaPuntoFrecciaWorkspace = (
     ? applyPolar(start, point, polarIncrement, polarTolerance)
     : point
 }
+
+useEffect(() => {
+  if (strumentoDisegno !== "perpendicolare") return
+  return () => {
+    setWorkspacePerpendicolareRiferimento(null)
+    workspaceLineaStartRef.current = null
+    setWorkspaceLineaPreview(null)
+    setWorkspaceSnapPoint(null)
+  }
+}, [strumentoDisegno])
 
 useEffect(() => {
   if (strumentoDisegno !== "freccia") return
@@ -7394,9 +7418,9 @@ usaPortal
                 <button
                   key={strumento.id}
                   type="button"
-                  title={strumento.id === "freccia" ? "Freccia: origine e destinazione" : undefined}
-                  aria-label={strumento.id === "freccia" ? "Freccia" : undefined}
-                  aria-pressed={strumento.id === "freccia" ? strumentoDisegno === "freccia" : undefined}
+                  title={strumento.id === "perpendicolare" ? "Perpendicolare: seleziona una linea, poi origine e destinazione" : strumento.id === "freccia" ? "Freccia: origine e destinazione" : undefined}
+                  aria-label={strumento.id === "perpendicolare" ? "Perpendicolare" : strumento.id === "freccia" ? "Freccia" : undefined}
+                  aria-pressed={strumento.id === "perpendicolare" ? strumentoDisegno === "perpendicolare" : strumento.id === "freccia" ? strumentoDisegno === "freccia" : undefined}
                  onClick={() => {
  if (strumentoDisegno) {
     setProfiliStrumenti((profiliCorrenti) => ({
@@ -7418,7 +7442,18 @@ setSpessoreDisegno(profiloNuovo.spessore);
  const disattivaFreccia =
   strumento.id === "freccia" && strumentoDisegno === "freccia"
 
-if (strumento.id === "freccia") {
+const disattivaPerpendicolare =
+  strumento.id === "perpendicolare" && strumentoDisegno === "perpendicolare"
+
+if (strumento.id === "perpendicolare") {
+  setWorkspacePerpendicolareRiferimento(
+    disattivaPerpendicolare ? null : lineeRiferimentoPerpendicolare.find(
+      (entity) => entity.id === cadEntitySelezionataId || cadEntitySelezionateIds.includes(entity.id),
+    ) ?? null,
+  )
+}
+
+if (strumento.id === "freccia" || strumento.id === "perpendicolare") {
   setMetroAttivo(false)
   setAreaAttiva(false)
   setAreaSplitAttivo(false)
@@ -7440,8 +7475,8 @@ if (strumento.id === "freccia") {
   setWorkspaceSnapPoint(null)
 }
 
-setStrumentoDisegno(disattivaFreccia ? null : strumento.id);
-setModalitaSelezione(disattivaFreccia);
+setStrumentoDisegno(disattivaFreccia || disattivaPerpendicolare ? null : strumento.id);
+setModalitaSelezione(disattivaFreccia || disattivaPerpendicolare);
 selezioneWorkspaceRef.current = {
   attiva: false,
   start: null,
@@ -7463,7 +7498,7 @@ setPanInCorso(false);
 }}
                  style={{
   ...buttonSecondary,
-  ...(strumento.id === "freccia"
+  ...(strumento.id === "freccia" || strumento.id === "perpendicolare"
     ? { width: 32, minWidth: 32, height: 32, padding: 0, fontSize: 18 }
     : {}),
   background:
@@ -7481,7 +7516,7 @@ setPanInCorso(false);
   transition: "all .15s ease",
 }}
                 >
-                  {strumento.id === "freccia" ? <ArrowUpRight size={18} aria-hidden="true" /> : strumento.label}
+                  {strumento.id === "perpendicolare" ? <CornerDownRight size={18} aria-hidden="true" /> : strumento.id === "freccia" ? <ArrowUpRight size={18} aria-hidden="true" /> : strumento.label}
                 </button>
               ))}
 
@@ -10161,6 +10196,7 @@ if (
   (
     strumentoDisegno !== "linea" &&
     strumentoDisegno !== "freccia" &&
+    strumentoDisegno !== "perpendicolare" &&
     strumentoDisegno !== "rettangolo" &&
     strumentoDisegno !== "penna" &&
 strumentoDisegno !== "evidenziatore" &&
@@ -10327,6 +10363,17 @@ if (areaAttiva) {
   return
 }
 
+if (strumentoDisegno === "perpendicolare" && !workspacePerpendicolareRiferimento) {
+  const idsRiferimento = [snapGlobale?.entityId, ...(snapGlobale?.relatedEntityIds ?? [])]
+  const riferimento = lineeRiferimentoPerpendicolare.find(
+    (entity) => idsRiferimento.includes(entity.id),
+  ) ?? [...lineeRiferimentoPerpendicolare].reverse().find(
+    (entity) => lineBehavior.hitTest?.(entity, puntoWorkspace, tolerance),
+  )
+  if (riferimento) setWorkspacePerpendicolareRiferimento(riferimento)
+  return
+}
+
 const puntoPreview =
   snapGlobale
     ? puntoConSnap
@@ -10353,7 +10400,13 @@ if (!start) {
   return
 }
 const puntoFinale =
-  strumentoDisegno === "freccia"
+  strumentoDisegno === "perpendicolare" && workspacePerpendicolareRiferimento
+    ? projectPointOnPerpendicular(
+        start, puntoConSnap,
+        workspacePerpendicolareRiferimento.start,
+        workspacePerpendicolareRiferimento.end,
+      ) ?? start
+    : strumentoDisegno === "freccia"
     ? vincolaPuntoFrecciaWorkspace(start, puntoConSnap, Boolean(snapGlobale))
     : snapGlobale
     ? puntoConSnap
@@ -10411,7 +10464,7 @@ if (strumentoDisegno === "rettangolo") {
 }
 
 if (
-  strumentoDisegno === "freccia" &&
+  (strumentoDisegno === "freccia" || strumentoDisegno === "perpendicolare") &&
   start.x === puntoFinale.x && start.y === puntoFinale.y
 ) {
   return
@@ -10449,6 +10502,10 @@ setWorkspaceCadEntities(
 
   workspaceLineaStartRef.current = null
 setWorkspaceLineaPreview(null)
+if (strumentoDisegno === "perpendicolare") {
+  setWorkspacePerpendicolareRiferimento(null)
+  setWorkspaceSnapPoint(null)
+}
 
   setQuadernoDirty(true)
 }}
@@ -10895,6 +10952,7 @@ if (
   (
     strumentoDisegno !== "linea" &&
     strumentoDisegno !== "freccia" &&
+    strumentoDisegno !== "perpendicolare" &&
     strumentoDisegno !== "rettangolo" &&
     strumentoDisegno !== "penna" &&
     strumentoDisegno !== "evidenziatore" &&
@@ -11016,7 +11074,13 @@ if (areaAttiva) {
 
 if (workspaceLineaStartRef.current) {
   const puntoPreview =
-    strumentoDisegno === "freccia"
+    strumentoDisegno === "perpendicolare" && workspacePerpendicolareRiferimento
+      ? projectPointOnPerpendicular(
+          workspaceLineaStartRef.current, puntoConSnap,
+          workspacePerpendicolareRiferimento.start,
+          workspacePerpendicolareRiferimento.end,
+        ) ?? workspaceLineaStartRef.current
+      : strumentoDisegno === "freccia"
       ? vincolaPuntoFrecciaWorkspace(
           workspaceLineaStartRef.current,
           puntoConSnap,
@@ -11446,6 +11510,13 @@ const dentroRettangolo = (
 
 onPointerCancel={(event) => {
 
+if (strumentoDisegno === "perpendicolare") {
+  workspaceLineaStartRef.current = null
+  setWorkspaceLineaPreview(null)
+  setWorkspacePerpendicolareRiferimento(null)
+  setWorkspaceSnapPoint(null)
+}
+
 if (workspacePosterResizeRef.current.attivo) {
   workspacePosterResizeRef.current = {
    attivo: false,
@@ -11501,6 +11572,7 @@ pointerEvents:
   metroAttivo ||
   strumentoDisegno === "linea" ||
   strumentoDisegno === "freccia" ||
+  strumentoDisegno === "perpendicolare" ||
   strumentoDisegno === "rettangolo" ||
   strumentoDisegno === "penna" ||
   strumentoDisegno === "evidenziatore" ||
@@ -11844,6 +11916,7 @@ data-print-ui="true"
 {(
   strumentoDisegno === "linea" ||
   strumentoDisegno === "freccia" ||
+  strumentoDisegno === "perpendicolare" ||
   strumentoDisegno === "rettangolo" ||
   areaAttiva
 ) &&  !manoAttiva &&
@@ -12012,6 +12085,18 @@ data-print-ui="true"
   </>
 )}
 
+{strumentoDisegno === "perpendicolare" && workspacePerpendicolareRiferimento && (
+  <line
+    x1={workspacePerpendicolareRiferimento.start.x}
+    y1={workspacePerpendicolareRiferimento.start.y}
+    x2={workspacePerpendicolareRiferimento.end.x}
+    y2={workspacePerpendicolareRiferimento.end.y}
+    stroke="#2563eb"
+    strokeWidth={3}
+    strokeDasharray="6 4"
+    pointerEvents="none"
+  />
+)}
 {workspaceLineaStartRef.current &&
   workspaceLineaPreview &&
   strumentoDisegno === "rettangolo" && (
@@ -12050,8 +12135,8 @@ data-print-ui="true"
       }
       x2={workspaceLineaPreview.x}
       y2={workspaceLineaPreview.y}
-      stroke={strumentoDisegno === "freccia" ? coloreDisegno : "#2563eb"}
-      strokeWidth={strumentoDisegno === "freccia" ? spessoreDisegno : 2}
+      stroke={strumentoDisegno === "freccia" || strumentoDisegno === "perpendicolare" ? coloreDisegno : "#2563eb"}
+      strokeWidth={strumentoDisegno === "freccia" || strumentoDisegno === "perpendicolare" ? spessoreDisegno : 2}
       markerEnd={strumentoDisegno === "freccia" ? `url(#${workspaceFrecciaMarkerId})` : undefined}
       strokeDasharray="8 6"
       fill="none"

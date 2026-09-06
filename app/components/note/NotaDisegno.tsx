@@ -76,6 +76,7 @@ import {
 
 import {
   perpendicularDirection,
+  projectPointOnPerpendicular,
 } from "@/app/engines/cad/geometry"
 
 import {
@@ -803,7 +804,7 @@ useEffect(() => {
     puntoFineMisuraRef.current = null
     setMisuraTemporanea(null)
   }
-}, [cadDimensions])
+}, [cadDimensions.length])
 
 const interactionMode = useRef<InteractionMode>({
   type: 'idle',
@@ -1667,39 +1668,15 @@ if (strumento === 'perpendicolare') {
       return
     }
 
-    const direzione =
-      perpendicularDirection(
-        lineaRiferimento.punti[0],
-        lineaRiferimento.punti[
-          lineaRiferimento.punti.length - 1
-        ],
-      )
+    const puntoInizio = lineaAttiva.punti[0]
+    const puntoFine = projectPointOnPerpendicular(
+      puntoInizio,
+      punto,
+      lineaRiferimento.punti[0],
+      lineaRiferimento.punti[lineaRiferimento.punti.length - 1],
+    )
 
-    if (!direzione) {
-      return
-    }
-
-    const puntoInizio =
-      lineaAttiva.punti[0]
-
-    const deltaX =
-      punto.x - puntoInizio.x
-
-    const deltaY =
-      punto.y - puntoInizio.y
-
-    const distanza =
-      deltaX * direzione.x +
-      deltaY * direzione.y
-
-    const puntoFine = {
-      x:
-        puntoInizio.x +
-        direzione.x * distanza,
-      y:
-        puntoInizio.y +
-        direzione.y * distanza,
-    }
+    if (!puntoFine) return
 
     const lineaConfermata: SegnoNota = {
       ...lineaAttiva,
@@ -3324,34 +3301,13 @@ if (
   )
 
   if (lineaRiferimento) {
-    const direzione =
-      perpendicularDirection(
-        lineaRiferimento.punti[0],
-        lineaRiferimento.punti[
-          lineaRiferimento.punti.length - 1
-        ],
-      )
-
-    if (direzione) {
-      const deltaX =
-        puntoFinale.x - puntoIniziale.x
-
-      const deltaY =
-        puntoFinale.y - puntoIniziale.y
-
-      const distanza =
-        deltaX * direzione.x +
-        deltaY * direzione.y
-
-      puntoFinale = {
-        x:
-          puntoIniziale.x +
-          direzione.x * distanza,
-        y:
-          puntoIniziale.y +
-          direzione.y * distanza,
-      }
-    }
+    const puntoPerpendicolare = projectPointOnPerpendicular(
+      puntoIniziale,
+      puntoFinale,
+      lineaRiferimento.punti[0],
+      lineaRiferimento.punti[lineaRiferimento.punti.length - 1],
+    )
+    if (puntoPerpendicolare) puntoFinale = puntoPerpendicolare
   }
 }
 
