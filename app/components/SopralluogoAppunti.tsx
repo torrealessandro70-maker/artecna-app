@@ -1,4 +1,5 @@
 "use client";
+import { eraseFreehand } from "@/app/engines/cad/operations/erase-freehand"
 
 import {
   useEffect,
@@ -12,7 +13,7 @@ import {
   type DragEvent,
 } from "react";
 import { flushSync } from "react-dom";
-import { ArrowUpRight, CornerDownRight } from "lucide-react";
+import { ArrowUpRight, CornerDownRight, Eraser } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import NotaDisegno from "./note/NotaDisegno";
 import { STRUMENTI_DISEGNO } from "./note/drawing-tools";
@@ -181,6 +182,8 @@ type FotoGalleriaNota = {
 };
 
 type QuadernoHistorySnapshot = {
+  // Only eraser entries carry this field; other history keeps its existing scope.
+  workspaceEraserEntities?: CadEntity[];
   disegni: SegnoNota[];
   cadDimensions: CadDimensionEntity[];
   cadEntities: CadEntity[];
@@ -841,8 +844,7 @@ type QuadernoUpdate = {
   sfondoY?: number;
 };
 
-const registraSnapshotQuaderno = () => {
-  const snapshot = creaSnapshotQuaderno();
+const registraSnapshotQuaderno = (snapshot = creaSnapshotQuaderno()) => {
 
   setQuadernoUndoStack((precedenti) => {
     const aggiornati = [...precedenti, snapshot];
@@ -986,6 +988,12 @@ const aggiornaQuadernoLive = (
 const applicaSnapshotQuaderno = (
   snapshot: QuadernoHistorySnapshot,
 ) => {
+  if (snapshot.workspaceEraserEntities) {
+    setWorkspaceCadEntities(structuredClone(snapshot.workspaceEraserEntities));
+    setQuadernoDirty(true);
+    return;
+  }
+
   setDisegni(
     JSON.parse(JSON.stringify(snapshot.disegni)),
   );
@@ -1041,6 +1049,7 @@ const applicaSnapshotQuaderno = (
   );
 };
 const annullaModificaQuaderno = () => {
+  if (workspaceGommaRef.current) return;
   setQuadernoUndoStack((precedenti) => {
     const snapshotPrecedente = precedenti[precedenti.length - 1];
 
@@ -1049,6 +1058,9 @@ const annullaModificaQuaderno = () => {
     }
 
     const snapshotCorrente = creaSnapshotQuaderno();
+    if (snapshotPrecedente.workspaceEraserEntities) {
+      snapshotCorrente.workspaceEraserEntities = structuredClone(workspaceCadEntities);
+    }
 
     setQuadernoRedoStack((successivi) => [
       snapshotCorrente,
@@ -1062,6 +1074,7 @@ const annullaModificaQuaderno = () => {
 };
 
 const ripristinaModificaQuaderno = () => {
+  if (workspaceGommaRef.current) return;
   setQuadernoRedoStack((successivi) => {
     const snapshotSuccessivo = successivi[0];
 
@@ -1070,6 +1083,9 @@ const ripristinaModificaQuaderno = () => {
     }
 
     const snapshotCorrente = creaSnapshotQuaderno();
+    if (snapshotSuccessivo.workspaceEraserEntities) {
+      snapshotCorrente.workspaceEraserEntities = structuredClone(workspaceCadEntities);
+    }
 
     setQuadernoUndoStack((precedenti) => {
       const aggiornati = [...precedenti, snapshotCorrente];
@@ -2382,6 +2398,66 @@ trascinamentoPaginaRef.current = {
 const [workspaceCadEntities, setWorkspaceCadEntities] =
   useState<CadEntity[]>([])
 
+const workspaceGommaRef = useRef<{
+  pointerId: number
+  previous: CadPoint
+  radius: number
+  entities: CadEntity[]
+  snapshot: QuadernoHistorySnapshot
+  changed: boolean
+} | null>(null)
+
+// Same client-to-viewBox conversion as the existing Workspace pointer handlers.
+const puntoGommaWorkspace = (
+  event: React.PointerEvent<SVGSVGElement>,
+  sample: { clientX: number; clientY: number } = event,
+): CadPoint => {
+  const rect = event.currentTarget.getBoundingClientRect()
+  return {
+    x: ((sample.clientX - rect.left) / rect.width) * dimensioniWorkspace.width,
+    y: ((sample.clientY - rect.top) / rect.height) * dimensioniWorkspace.height,
+  }
+}
+
+const applicaGommaWorkspace = (point: CadPoint) => {
+  const gesture = workspaceGommaRef.current
+  if (!gesture) return
+  let changed = false
+  const entities = gesture.entities.flatMap((entity): CadEntity[] => {
+    if (entity.type !== "freehand") return [entity]
+    const layer = layers.find((item) => item.id === entity.layerId)
+    if (
+      entity.locked === true ||
+      entity.visible === false ||
+      entity.selectable === false ||
+      !layer ||
+      layer.locked === true ||
+      layer.visible === false ||
+      layer.selectable === false
+    ) return [entity]
+    const result = eraseFreehand(entity, gesture.previous, point, gesture.radius)
+    changed ||= result.changed
+    return result.entities
+  })
+  gesture.previous = point
+  if (!changed) return
+  gesture.entities = entities
+  gesture.changed = true
+  setWorkspaceCadEntities(entities)
+  setQuadernoDirty(true)
+}
+
+const terminaGommaWorkspace = (event: React.PointerEvent<SVGSVGElement>, finalPoint = false) => {
+  const gesture = workspaceGommaRef.current
+  if (!gesture || gesture.pointerId !== event.pointerId) return
+  if (finalPoint) applicaGommaWorkspace(puntoGommaWorkspace(event))
+  workspaceGommaRef.current = null
+  if (gesture.changed) registraSnapshotQuaderno(gesture.snapshot)
+  if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+    event.currentTarget.releasePointerCapture(event.pointerId)
+  }
+}
+
 
   const [pagineQuaderno, setPagineQuaderno] = useState<PaginaQuadernoNota[]>([
     {
@@ -2794,6 +2870,13 @@ testo: {
 const [profiliStrumenti, setProfiliStrumenti] = useState<
   Partial<Record<StrumentoDisegno, ProfiloStrumento>>
 >({});
+// The existing eraser profile stores its diameter in Workspace units.
+const diametroGomma = spessoreDisegno
+const [workspaceGommaCursor, setWorkspaceGommaCursor] = useState<CadPoint | null>(null)
+useEffect(() => {
+  setWorkspaceGommaCursor(null)
+}, [strumentoDisegno])
+
 const [orthoAttivo, setOrthoAttivo] = useState(false)
 const [gridSnapAttivo, setGridSnapAttivo] = useState(false)
 const [metroAttivo, setMetroAttivo] =
@@ -2862,7 +2945,8 @@ useEffect(() => {
     !svg ||
     (
       strumentoDisegno !== "penna" &&
-      strumentoDisegno !== "evidenziatore"
+      strumentoDisegno !== "evidenziatore" &&
+      strumentoDisegno !== "gomma"
     )
   ) {
     return
@@ -7418,9 +7502,9 @@ usaPortal
                 <button
                   key={strumento.id}
                   type="button"
-                  title={strumento.id === "perpendicolare" ? "Perpendicolare: seleziona una linea, poi origine e destinazione" : strumento.id === "freccia" ? "Freccia: origine e destinazione" : undefined}
-                  aria-label={strumento.id === "perpendicolare" ? "Perpendicolare" : strumento.id === "freccia" ? "Freccia" : undefined}
-                  aria-pressed={strumento.id === "perpendicolare" ? strumentoDisegno === "perpendicolare" : strumento.id === "freccia" ? strumentoDisegno === "freccia" : undefined}
+                  title={strumento.id === "gomma" ? "Gomma" : strumento.id === "perpendicolare" ? "Perpendicolare: seleziona una linea, poi origine e destinazione" : strumento.id === "freccia" ? "Freccia: origine e destinazione" : undefined}
+                  aria-label={strumento.id === "gomma" ? "Gomma" : strumento.id === "perpendicolare" ? "Perpendicolare" : strumento.id === "freccia" ? "Freccia" : undefined}
+                  aria-pressed={strumento.id === "gomma" ? strumentoDisegno === "gomma" : strumento.id === "perpendicolare" ? strumentoDisegno === "perpendicolare" : strumento.id === "freccia" ? strumentoDisegno === "freccia" : undefined}
                  onClick={() => {
  if (strumentoDisegno) {
     setProfiliStrumenti((profiliCorrenti) => ({
@@ -7453,7 +7537,7 @@ if (strumento.id === "perpendicolare") {
   )
 }
 
-if (strumento.id === "freccia" || strumento.id === "perpendicolare") {
+if (strumento.id === "freccia" || strumento.id === "perpendicolare" || strumento.id === "gomma") {
   setMetroAttivo(false)
   setAreaAttiva(false)
   setAreaSplitAttivo(false)
@@ -7516,7 +7600,7 @@ setPanInCorso(false);
   transition: "all .15s ease",
 }}
                 >
-                  {strumento.id === "perpendicolare" ? <CornerDownRight size={18} aria-hidden="true" /> : strumento.id === "freccia" ? <ArrowUpRight size={18} aria-hidden="true" /> : strumento.label}
+                  {strumento.id === "gomma" ? <Eraser size={18} aria-hidden="true" /> : strumento.id === "perpendicolare" ? <CornerDownRight size={18} aria-hidden="true" /> : strumento.id === "freccia" ? <ArrowUpRight size={18} aria-hidden="true" /> : strumento.label}
                 </button>
               ))}
 
@@ -8042,11 +8126,13 @@ fontSize: 17,
       color: "#334155",
     }}
   >
-    Spessore
+    {strumentoDisegno === "gomma" ? "Diametro" : "Spessore"}
     <input
       type="range"
+      aria-label={strumentoDisegno === "gomma" ? "Diametro gomma" : undefined}
+      title={strumentoDisegno === "gomma" ? "Diametro gomma (unità Workspace)" : undefined}
       min={1}
-      max={24}
+      max={strumentoDisegno === "gomma" ? 120 : 24}
       value={spessoreDisegno}
       onChange={(event) =>
         setSpessoreDisegno(
@@ -8054,7 +8140,7 @@ fontSize: 17,
         )
       }
     />
-    <span>{spessoreDisegno}px</span>
+    <span>{spessoreDisegno}{strumentoDisegno === "gomma" ? " u" : "px"}</span>
   </label>
 )}
 
@@ -9739,6 +9825,33 @@ alignItems: "flex-start",
 
 <svg
 ref={workspaceSvgRef}
+onPointerEnter={(event) => {
+  if (strumentoDisegno === "gomma" && !manoAttiva && !spostaTavolaAttivo) {
+    setWorkspaceGommaCursor(puntoGommaWorkspace(event))
+  }
+}}
+onPointerLeave={() => setWorkspaceGommaCursor(null)}
+onPointerDownCapture={(event) => {
+  if (strumentoDisegno !== "gomma" || manoAttiva || spostaTavolaAttivo) return
+  if (event.button !== 0 || workspaceGommaRef.current) return
+  event.preventDefault()
+  event.stopPropagation()
+  const point = puntoGommaWorkspace(event)
+  setWorkspaceGommaCursor(point)
+  const snapshot = creaSnapshotQuaderno()
+  snapshot.workspaceEraserEntities = structuredClone(workspaceCadEntities)
+  workspaceGommaRef.current = {
+    pointerId: event.pointerId,
+    previous: point,
+    radius: diametroGomma / 2,
+    entities: workspaceCadEntities,
+    snapshot,
+    changed: false,
+  }
+  event.currentTarget.setPointerCapture(event.pointerId)
+  applicaGommaWorkspace(point)
+}}
+onLostPointerCapture={(event) => terminaGommaWorkspace(event)}
   width={dimensioniWorkspace.width}
   height={dimensioniWorkspace.height}
   viewBox={`0 0 ${dimensioniWorkspace.width}
@@ -10511,6 +10624,27 @@ if (strumentoDisegno === "perpendicolare") {
 }}
 
 onPointerMove={(event) => {
+if (strumentoDisegno === "gomma" && !manoAttiva && !spostaTavolaAttivo) {
+  const point = puntoGommaWorkspace(event)
+  setWorkspaceGommaCursor(
+    point.x >= 0 && point.y >= 0 &&
+    point.x <= dimensioniWorkspace.width && point.y <= dimensioniWorkspace.height
+      ? point : null,
+  )
+}
+if (workspaceGommaRef.current) {
+  if (workspaceGommaRef.current.pointerId === event.pointerId) {
+    event.preventDefault()
+    event.stopPropagation()
+    const eventiGomma = event.nativeEvent.getCoalescedEvents?.() ?? []
+    const campioniGomma = eventiGomma.length > 0 ? eventiGomma : [event]
+    for (const sample of campioniGomma) {
+      applicaGommaWorkspace(puntoGommaWorkspace(event, sample))
+    }
+  }
+  return
+}
+
 
 if (
   workspacePosterResizeRef.current.attivo &&
@@ -11100,6 +11234,12 @@ if (workspaceLineaStartRef.current) {
 }}}
 
 onPointerUp={(event) => {
+if (workspaceGommaRef.current) {
+  event.stopPropagation()
+  terminaGommaWorkspace(event, true)
+  return
+}
+
 
 if (workspacePosterResizeRef.current.attivo) {
   workspacePosterResizeRef.current = {
@@ -11509,6 +11649,12 @@ const dentroRettangolo = (
 }}
 
 onPointerCancel={(event) => {
+if (workspaceGommaRef.current) {
+  event.stopPropagation()
+  terminaGommaWorkspace(event)
+  return
+}
+
 
 if (strumentoDisegno === "perpendicolare") {
   workspaceLineaStartRef.current = null
@@ -11568,6 +11714,7 @@ style={{
   height: dimensioniWorkspace.height,
 
 pointerEvents:
+  (strumentoDisegno === "gomma" && !manoAttiva && !spostaTavolaAttivo) ||
   trimAttivo ||
   metroAttivo ||
   strumentoDisegno === "linea" ||
@@ -12023,6 +12170,20 @@ data-print-ui="true"
       {scaleCalibration?.unit ?? "m"}
     </text>
   </g>
+)}
+
+{strumentoDisegno === "gomma" && !manoAttiva && !spostaTavolaAttivo && workspaceGommaCursor && (
+  <circle
+    data-print-ui="true"
+    cx={workspaceGommaCursor.x}
+    cy={workspaceGommaCursor.y}
+    r={workspaceGommaRef.current?.radius ?? diametroGomma / 2}
+    fill="rgba(148, 163, 184, 0.12)"
+    stroke="#475569"
+    strokeWidth={1}
+    vectorEffect="non-scaling-stroke"
+    pointerEvents="none"
+  />
 )}
 
 <polyline
