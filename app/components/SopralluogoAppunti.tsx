@@ -16,6 +16,9 @@ import { flushSync } from "react-dom";
 import { ArrowUpRight, CornerDownRight, Eraser } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import NotaDisegno from "./note/NotaDisegno";
+import CadEntityRenderer from "../engines/cad/render/CadEntityRenderer";
+import { intersectsCadMarquee } from "../engines/cad/selection/marquee";
+import { DEFAULT_TEXT_BOX_WIDTH, getCadTextLayout } from "../engines/cad/geometry/text-layout";
 import { STRUMENTI_DISEGNO } from "./note/drawing-tools";
 import { jsPDF } from "jspdf";
 import { Canvg } from "canvg";
@@ -127,6 +130,7 @@ import type {
 } from "../engines/cad/entities";
 
 import {
+  createCadText,
   createCadFreehand,
   createCadLine,
   createCadRectangle,
@@ -182,7 +186,9 @@ type FotoGalleriaNota = {
 };
 
 type QuadernoHistorySnapshot = {
-  // Only eraser entries carry this field; other history keeps its existing scope.
+  workspaceCadEntities?: CadEntity[];
+  cadSelection?: { primaryId: string | null; ids: string[] };
+  // Preserve the existing eraser-only restore path.
   workspaceEraserEntities?: CadEntity[];
   disegni: SegnoNota[];
   cadDimensions: CadDimensionEntity[];
@@ -809,6 +815,8 @@ const [quadernoRedoStack, setQuadernoRedoStack] = useState<
 >([]);
 
 const creaSnapshotQuaderno = (): QuadernoHistorySnapshot => ({
+  workspaceCadEntities: structuredClone(workspaceCadEntities),
+  cadSelection: { primaryId: cadEntitySelezionataId, ids: [...cadEntitySelezionateIds] },
   disegni: JSON.parse(JSON.stringify(disegni)),
 
   cadDimensions: JSON.parse(
@@ -994,6 +1002,15 @@ const applicaSnapshotQuaderno = (
     return;
   }
 
+  if (snapshot.workspaceCadEntities) {
+    setWorkspaceCadEntities(structuredClone(snapshot.workspaceCadEntities));
+    setQuadernoDirty(true);
+  }
+  if (snapshot.cadSelection) {
+    setCadEntitySelezionataId(snapshot.cadSelection.primaryId);
+    setCadEntitySelezionateIds([...snapshot.cadSelection.ids]);
+  }
+
   setDisegni(
     JSON.parse(JSON.stringify(snapshot.disegni)),
   );
@@ -1049,7 +1066,7 @@ const applicaSnapshotQuaderno = (
   );
 };
 const annullaModificaQuaderno = () => {
-  if (workspaceGommaRef.current) return;
+  if (workspaceGommaRef.current || workspaceTestoMoveRef.current || workspaceTestoResizeRef.current) return;
   setQuadernoUndoStack((precedenti) => {
     const snapshotPrecedente = precedenti[precedenti.length - 1];
 
@@ -1074,7 +1091,7 @@ const annullaModificaQuaderno = () => {
 };
 
 const ripristinaModificaQuaderno = () => {
-  if (workspaceGommaRef.current) return;
+  if (workspaceGommaRef.current || workspaceTestoMoveRef.current || workspaceTestoResizeRef.current) return;
   setQuadernoRedoStack((successivi) => {
     const snapshotSuccessivo = successivi[0];
 
@@ -2398,6 +2415,61 @@ trascinamentoPaginaRef.current = {
 const [workspaceCadEntities, setWorkspaceCadEntities] =
   useState<CadEntity[]>([])
 
+const [workspaceTestoDraft, setWorkspaceTestoDraft] = useState<{
+  position: CadPoint
+  content: string
+  entityId?: string // Absent for creation; existing Workspace ID for editing.
+} | null>(null)
+const workspaceTestoMoveRef = useRef<{
+  entityId: string
+  pointerId: number
+  previous: CadPoint
+  target: SVGGElement
+  snapshot: QuadernoHistorySnapshot
+  changed: boolean
+} | null>(null)
+const terminaMoveTestoWorkspace = (event: React.PointerEvent<SVGGElement>) => {
+  const gesture = workspaceTestoMoveRef.current
+  if (!gesture || gesture.pointerId !== event.pointerId) return
+  event.stopPropagation()
+  workspaceTestoMoveRef.current = null
+  if (gesture.changed) {
+    registraSnapshotQuaderno(gesture.snapshot)
+    setQuadernoDirty(true)
+  }
+  if (gesture.target.hasPointerCapture(event.pointerId)) {
+    gesture.target.releasePointerCapture(event.pointerId)
+  }
+}
+const workspaceTestoResizeRef = useRef<{
+  entityId: string
+  pointerId: number
+  side: "left" | "right"
+  start: CadPoint
+  position: CadPoint
+  width: number
+  rotation: number
+  alignment: "left" | "center" | "right"
+  snapshot: QuadernoHistorySnapshot
+  changed: boolean
+} | null>(null)
+const terminaResizeTestoWorkspace = (event: React.PointerEvent<SVGRectElement>) => {
+  const gesture = workspaceTestoResizeRef.current
+  if (!gesture || gesture.pointerId !== event.pointerId) return
+  event.stopPropagation()
+  workspaceTestoResizeRef.current = null
+  if (gesture.changed) {
+    registraSnapshotQuaderno(gesture.snapshot)
+    setQuadernoDirty(true)
+  }
+  if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+    event.currentTarget.releasePointerCapture(event.pointerId)
+  }
+}
+const workspaceTestoInputRef = useRef<HTMLTextAreaElement>(null)
+const workspaceTestoEditorRef = useRef<SVGForeignObjectElement>(null)
+const workspaceTestoCompositionRef = useRef(false)
+
 const workspaceGommaRef = useRef<{
   pointerId: number
   previous: CadPoint
@@ -2623,6 +2695,7 @@ const [
   setPagineWorkspaceSelezionateIds,
 ] = useState<string[]>([])
 
+
 useEffect(() => {
   }, [
   paginaCorrenteIndex,
@@ -2670,6 +2743,28 @@ const entitaCadSelezionate =
         entity.id,
       ),
   )
+
+const testoWorkspaceSelezionato = workspaceCadEntities.find(
+  entity => entity.id === cadEntitySelezionataId && entity.type === "text",
+)
+const testoWorkspaceProprieta = testoWorkspaceSelezionato?.type === "text" ? testoWorkspaceSelezionato : null
+const layerTestoWorkspace = layers.find(layer => layer.id === testoWorkspaceProprieta?.layerId)
+const testoWorkspaceModificabile = !!(testoWorkspaceProprieta?.visible &&
+  testoWorkspaceProprieta.selectable && !testoWorkspaceProprieta.locked &&
+  layerTestoWorkspace?.visible && layerTestoWorkspace.selectable !== false && !layerTestoWorkspace.locked)
+const fontTestoWorkspace = ["Arial", "Helvetica", "Times New Roman", "Georgia", "Verdana", "Courier New"]
+const aggiornaProprietaTestoWorkspace = (patch: { fontFamily: string } | { fontSize: number }) => {
+  if (!testoWorkspaceProprieta || !testoWorkspaceModificabile) return
+  if ("fontSize" in patch && (!Number.isFinite(patch.fontSize) || patch.fontSize <= 0 ||
+      patch.fontSize === testoWorkspaceProprieta.fontSize)) return
+  if ("fontFamily" in patch && (!patch.fontFamily || patch.fontFamily === testoWorkspaceProprieta.fontFamily)) return
+  registraSnapshotQuaderno()
+  const id = testoWorkspaceProprieta.id
+  const updatedAt = new Date().toISOString()
+  setWorkspaceCadEntities(entities => entities.map(entity => entity.id === id && entity.type === "text"
+    ? { ...entity, ...patch, updatedAt } : entity))
+  setQuadernoDirty(true)
+}
 
 const quotaWorkspaceSelezionata =
   entitaCadSelezionata?.type === "dimension" &&
@@ -2876,6 +2971,80 @@ const [workspaceGommaCursor, setWorkspaceGommaCursor] = useState<CadPoint | null
 useEffect(() => {
   setWorkspaceGommaCursor(null)
 }, [strumentoDisegno])
+
+useEffect(() => {
+  if (strumentoDisegno !== "testo") {
+    setWorkspaceTestoDraft((draft) => draft?.entityId ? draft : null)
+    workspaceTestoCompositionRef.current = false
+  }
+}, [strumentoDisegno])
+
+const workspaceTestoOriginale = workspaceTestoDraft?.entityId
+  ? workspaceCadEntities.find((entity) => entity.id === workspaceTestoDraft.entityId && entity.type === "text")
+  : null
+const workspaceTestoStile = workspaceTestoOriginale?.type === "text" ? workspaceTestoOriginale : null
+const workspaceTestoLayout = workspaceTestoDraft ? getCadTextLayout({
+  position: workspaceTestoDraft.position,
+  content: workspaceTestoDraft.content,
+  fontSize: workspaceTestoStile?.fontSize ?? dimensioneTesto,
+  alignment: workspaceTestoStile?.alignment ?? "left",
+  metadata: workspaceTestoStile?.metadata,
+}) : null
+
+// DOM sizing is confined to the editor; CAD layout remains deterministic.
+useLayoutEffect(() => {
+  const input = workspaceTestoInputRef.current
+  const editor = workspaceTestoEditorRef.current
+  if (!input || !editor) return
+  input.style.height = "auto"
+  const height = Math.max(36, (workspaceTestoLayout?.lines.length ?? 1) *
+    (workspaceTestoLayout?.lineHeight ?? 20), input.scrollHeight)
+  input.style.height = height + "px"
+  editor.setAttribute("height", String(height))
+}, [workspaceTestoDraft, workspaceTestoStile, dimensioneTesto,
+  workspaceTestoLayout?.lineHeight, workspaceTestoLayout?.lines.length])
+
+const confermaTestoWorkspace = () => {
+  if (!workspaceTestoDraft || workspaceTestoCompositionRef.current) return
+  if (workspaceTestoDraft.entityId) {
+    const entity = workspaceCadEntities.find((item) => item.id === workspaceTestoDraft.entityId)
+    const layer = layers.find((item) => item.id === entity?.layerId)
+    if (entity?.type === "text" && entity.visible && !entity.locked && entity.selectable &&
+        layer && layer.visible && !layer.locked && layer.selectable !== false &&
+        workspaceTestoDraft.content.trim() && workspaceTestoDraft.content !== entity.content) {
+      registraSnapshotQuaderno()
+      const content = workspaceTestoDraft.content
+      const updatedAt = new Date().toISOString()
+      setWorkspaceCadEntities((entities) => entities.map((item) =>
+        item.id === entity.id && item.type === "text" ? { ...item, content, updatedAt } : item,
+      ))
+      setQuadernoDirty(true)
+    }
+    setWorkspaceTestoDraft(null)
+    return
+  }
+  const layer = layers.find((item) => item.id === layerAttivoId)
+  if (workspaceTestoDraft.content.trim() && layer &&
+      !layer.locked && layer.visible !== false && layer.selectable !== false) {
+    const entity = createCadText({
+      position: workspaceTestoDraft.position,
+      content: workspaceTestoDraft.content,
+      metadata: { textBoxWidth: DEFAULT_TEXT_BOX_WIDTH },
+      fontSize: dimensioneTesto,
+      color: coloreDisegno,
+      layerId: layer.id,
+      visible: true,
+      selectable: true,
+      locked: false,
+    })
+    registraSnapshotQuaderno()
+    setWorkspaceCadEntities((entities) => [...entities, entity])
+    setCadEntitySelezionataId(entity.id)
+    setCadEntitySelezionateIds([entity.id])
+    setQuadernoDirty(true)
+  }
+  setWorkspaceTestoDraft(null)
+}
 
 const [orthoAttivo, setOrthoAttivo] = useState(false)
 const [gridSnapAttivo, setGridSnapAttivo] = useState(false)
@@ -4113,6 +4282,11 @@ const portaSegniSelezionatiInFondo = () => {
 }
 
 
+const marqueeCadAttivo = modalitaSelezione && !spostaTavolaAttivo &&
+  !manoAttiva && strumentoDisegno === null && !trimAttivo && !metroAttivo &&
+  !calibrazioneScalaAttiva && !areaAttiva && !areaSplitAttivo &&
+  !spostaEntitaAttivo && !trasformazioneOggettoAttiva && !workspaceTestoDraft
+
 const eliminaEntitaCadSelezionate = () => {
   const idsCadSelezionati = Array.from(
   new Set([
@@ -4306,6 +4480,8 @@ if (
   return;
 }
 
+registraSnapshotQuaderno();
+
 if (risultatoWorkspace.changed) {
   setWorkspaceCadEntities(
     risultatoWorkspace.entities,
@@ -4318,7 +4494,6 @@ if (risultatoWorkspace.changed) {
       risultato.entities,
     );
 
-  registraSnapshotQuaderno();
 
   aggiornaQuaderno(
     {
@@ -7537,7 +7712,7 @@ if (strumento.id === "perpendicolare") {
   )
 }
 
-if (strumento.id === "freccia" || strumento.id === "perpendicolare" || strumento.id === "gomma") {
+if (strumento.id === "freccia" || strumento.id === "perpendicolare" || strumento.id === "gomma" || strumento.id === "testo") {
   setMetroAttivo(false)
   setAreaAttiva(false)
   setAreaSplitAttivo(false)
@@ -9306,6 +9481,38 @@ onKeyDown={(event) => {
                   </>
                 )}
 
+{testoWorkspaceProprieta && (
+  <>
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      Tipo di carattere
+      <select
+        value={testoWorkspaceProprieta.fontFamily ?? ""}
+        disabled={!testoWorkspaceModificabile}
+        onChange={event => aggiornaProprietaTestoWorkspace({ fontFamily: event.target.value })}
+        style={{ height: 26, maxWidth: 180, border: "1px solid #cbd5e1", borderRadius: 5 }}
+      >
+        <option value="" disabled>Predefinito</option>
+        {testoWorkspaceProprieta.fontFamily && !fontTestoWorkspace.includes(testoWorkspaceProprieta.fontFamily) && (
+          <option value={testoWorkspaceProprieta.fontFamily}>{testoWorkspaceProprieta.fontFamily}</option>
+        )}
+        {fontTestoWorkspace.map(font => <option key={font} value={font}>{font}</option>)}
+      </select>
+    </label>
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      Grandezza
+      <input
+        type="number"
+        min={0.1}
+        step="any"
+        value={testoWorkspaceProprieta.fontSize}
+        disabled={!testoWorkspaceModificabile}
+        onChange={event => aggiornaProprietaTestoWorkspace({ fontSize: event.target.valueAsNumber })}
+        style={{ width: 72, height: 26, border: "1px solid #cbd5e1", borderRadius: 5 }}
+      />
+    </label>
+  </>
+)}
+
 {testoCadSelezionato && (
 
 <TextPropertiesToolbar
@@ -9728,7 +9935,7 @@ alignItems: "flex-start",
   ref={viewportContentRef}
   onPointerDown={(event) => {
  if (
-  !spostaTavolaAttivo ||
+  (!spostaTavolaAttivo && !marqueeCadAttivo) ||
   !modalitaSelezione ||
   (
     strumentoDisegno === "penna" ||
@@ -9831,7 +10038,31 @@ onPointerEnter={(event) => {
   }
 }}
 onPointerLeave={() => setWorkspaceGommaCursor(null)}
+onClick={(event) => {
+  if (strumentoDisegno === "testo") event.stopPropagation()
+}}
 onPointerDownCapture={(event) => {
+  if (strumentoDisegno === "testo" && !manoAttiva && !spostaTavolaAttivo) {
+    if (workspaceTestoEditorRef.current?.contains(event.target as Node)) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.button !== 0 || !event.isPrimary) return
+    if (workspaceTestoDraft) {
+      workspaceTestoInputRef.current?.focus()
+      return
+    }
+    const layer = layers.find((item) => item.id === layerAttivoId)
+    if (!layer || layer.locked || layer.visible === false || layer.selectable === false) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    setWorkspaceTestoDraft({
+      position: {
+        x: ((event.clientX - rect.left) / rect.width) * dimensioniWorkspace.width,
+        y: ((event.clientY - rect.top) / rect.height) * dimensioniWorkspace.height,
+      },
+      content: "",
+    })
+    return
+  }
   if (strumentoDisegno !== "gomma" || manoAttiva || spostaTavolaAttivo) return
   if (event.button !== 0 || workspaceGommaRef.current) return
   event.preventDefault()
@@ -11372,6 +11603,14 @@ const maxY =
   Math.max(start.y, puntoFinale.y)
 
 if (spostaTavolaAttivo) {
+  // Convert Workspace deltas back to screen pixels using the SVG's displayed size.
+  const deltaX = (puntoFinale.x - start.x) * rect.width / dimensioniWorkspace.width
+  const deltaY = (puntoFinale.y - start.y) * rect.height / dimensioniWorkspace.height
+  const distanza = Math.hypot(deltaX, deltaY)
+  const soglia = 4
+  const isDrag = distanza > soglia
+
+  if (isDrag) {
   const pagineTrovateIds =
     pagineQuaderno
       .filter((pagina) => {
@@ -11409,6 +11648,7 @@ if (spostaTavolaAttivo) {
   setPagineWorkspaceSelezionateIds((correnti) => {
         return pagineTrovateIds
   })
+  }
 
 
 selezioneWorkspaceRef.current = {
@@ -11432,202 +11672,32 @@ selezioneWorkspaceRef.current = {
   return
 }
 
-const dentroRettangolo = (
-  punto: CadPoint,
-) =>
+const deltaX = (puntoFinale.x - start.x) * rect.width / dimensioniWorkspace.width
+const deltaY = (puntoFinale.y - start.y) * rect.height / dimensioniWorkspace.height
+const distanza = Math.hypot(deltaX, deltaY)
+const soglia = 4
+const isDrag = distanza > soglia
 
-    punto.x >= minX &&
-    punto.x <= maxX &&
-    punto.y >= minY &&
-    punto.y <= maxY
+const idsTrovati = isDrag ? workspaceCadEntities.filter(entity => {
+  if (entity.visible === false || entity.locked === true || entity.selectable === false) return false
+  const layer = layers.find(item => item.id === entity.layerId)
+  if (!layer || layer.visible !== true || layer.locked !== false || layer.selectable !== true) return false
+  return intersectsCadMarquee(entity, { minX, minY, maxX, maxY },
+    modalitaCrossing ? "crossing" : "containment")
+}).map(entity => entity.id) : []
 
-  const idsTrovati =
-    workspaceRenderEntitiesOrdinati
-      .filter((entity) => {
-        const layerEntity =
-          layers.find(
-            (layer) =>
-              layer.id === entity.layerId,
-          )
 
-        if (
-          layerEntity?.visible === false ||
-          layerEntity?.locked ||
-          layerEntity?.selectable === false
-        ) {
-          return false
-        }
-
-      if (entity.type === "line") {
-  if (!modalitaCrossing) {
-    return (
-      dentroRettangolo(entity.start) &&
-      dentroRettangolo(entity.end)
-    )
-  }
-
-  if (
-    dentroRettangolo(entity.start) ||
-    dentroRettangolo(entity.end)
-  ) {
-    return true
-  }
-
-  const altoSinistra: CadPoint = {
-    x: minX,
-    y: minY,
-  }
-
-  const altoDestra: CadPoint = {
-    x: maxX,
-    y: minY,
-  }
-
-  const bassoDestra: CadPoint = {
-    x: maxX,
-    y: maxY,
-  }
-
-  const bassoSinistra: CadPoint = {
-    x: minX,
-    y: maxY,
-  }
-
-  return Boolean(
-    segmentIntersection(
-      entity.start,
-      entity.end,
-      altoSinistra,
-      altoDestra,
-    ) ||
-      segmentIntersection(
-        entity.start,
-        entity.end,
-        altoDestra,
-        bassoDestra,
-      ) ||
-      segmentIntersection(
-        entity.start,
-        entity.end,
-        bassoDestra,
-        bassoSinistra,
-      ) ||
-      segmentIntersection(
-        entity.start,
-        entity.end,
-        bassoSinistra,
-        altoSinistra,
-      ),
-  )
+if (isDrag) {
+const selezioneFinale = selezioneWorkspaceRef.current.ctrlKey
+  ? Array.from(new Set([...cadEntitySelezionateIds, ...idsTrovati]))
+  : idsTrovati
+setCadEntitySelezionateIds(selezioneFinale)
+setCadEntitySelezionataId(
+  selezioneWorkspaceRef.current.ctrlKey && cadEntitySelezionataId && selezioneFinale.includes(cadEntitySelezionataId)
+    ? cadEntitySelezionataId
+    : selezioneFinale[0] ?? null,
+)
 }
-
-   if (entity.type === "area") {
-  if (!modalitaCrossing) {
-    return entity.points.every(
-      (point) =>
-        dentroRettangolo(point),
-    )
-  }
-
-  // Se almeno un vertice entra nel rettangolo
-  if (
-    entity.points.some(
-      (point) =>
-        dentroRettangolo(point),
-    )
-  ) {
-    return true
-  }
-
-  const altoSinistra: CadPoint = {
-    x: minX,
-    y: minY,
-  }
-
-  const altoDestra: CadPoint = {
-    x: maxX,
-    y: minY,
-  }
-
-  const bassoDestra: CadPoint = {
-    x: maxX,
-    y: maxY,
-  }
-
-  const bassoSinistra: CadPoint = {
-    x: minX,
-    y: maxY,
-  }
-
-  const latiRettangolo = [
-    [altoSinistra, altoDestra],
-    [altoDestra, bassoDestra],
-    [bassoDestra, bassoSinistra],
-    [bassoSinistra, altoSinistra],
-  ] as const
-
-  for (
-    let index = 0;
-    index < entity.points.length;
-    index++
-  ) {
-    const inizioLato =
-      entity.points[index]
-
-    const fineLato =
-      entity.points[
-        (index + 1) %
-          entity.points.length
-      ]
-
-    const attraversaRettangolo =
-      latiRettangolo.some(
-        ([inizioRect, fineRect]) =>
-          Boolean(
-            segmentIntersection(
-              inizioLato,
-              fineLato,
-              inizioRect,
-              fineRect,
-            ),
-          ),
-      )
-
-    if (attraversaRettangolo) {
-      return true
-    }
-  }
-
-  return false
-}
-
-        return false
-      })
-      .map((entity) => entity.id)
-
-  if (
-    selezioneWorkspaceRef.current.ctrlKey
-  ) {
-    setCadEntitySelezionateIds(
-      (idsCorrenti) =>
-        Array.from(
-          new Set([
-            ...idsCorrenti,
-            ...idsTrovati,
-          ]),
-        ),
-    )
-  } else {
-    setCadEntitySelezionateIds(
-      idsTrovati,
-    )
-  }
-
-  setCadEntitySelezionataId(
-    idsTrovati.length === 1
-      ? idsTrovati[0]
-      : null,
-  )
 
   selezioneWorkspaceRef.current = {
     attiva: false,
@@ -11714,6 +11784,8 @@ style={{
   height: dimensioniWorkspace.height,
 
 pointerEvents:
+  marqueeCadAttivo ||
+  (strumentoDisegno === "testo" && !manoAttiva && !spostaTavolaAttivo) ||
   (strumentoDisegno === "gomma" && !manoAttiva && !spostaTavolaAttivo) ||
   trimAttivo ||
   metroAttivo ||
@@ -12327,6 +12399,135 @@ if (
 ) {
   return null
 }
+  if (entity.type === "text") {
+    return (
+      <g
+        key={entity.id}
+        onPointerMove={(event) => {
+          const gesture = workspaceTestoMoveRef.current
+          if (!gesture || gesture.entityId !== entity.id || gesture.pointerId !== event.pointerId) return
+          event.preventDefault()
+          event.stopPropagation()
+          const layer = layers.find(item => item.id === entity.layerId)
+          if (!modalitaSelezione || workspaceTestoDraft || !entity.visible || entity.locked ||
+              !entity.selectable || !layer || !layer.visible || layer.locked || layer.selectable === false) {
+            terminaMoveTestoWorkspace(event)
+            return
+          }
+          const svg = event.currentTarget.ownerSVGElement
+          if (!svg) return
+          const rect = svg.getBoundingClientRect()
+          const point = {
+            x: (event.clientX - rect.left) / rect.width * dimensioniWorkspace.width,
+            y: (event.clientY - rect.top) / rect.height * dimensioniWorkspace.height,
+          }
+          const dx = point.x - gesture.previous.x
+          const dy = point.y - gesture.previous.y
+          if (dx === 0 && dy === 0) return
+          setWorkspaceCadEntities(entities => moveEntities(entities, [gesture.entityId], dx, dy).entities)
+          gesture.previous = point
+          gesture.changed = true
+        }}
+        onPointerUp={terminaMoveTestoWorkspace}
+        onPointerCancel={terminaMoveTestoWorkspace}
+        onLostPointerCapture={terminaMoveTestoWorkspace}
+      >
+      <CadEntityRenderer
+        entity={{
+          ...entity,
+          locked: entity.locked || !!layerEntity?.locked,
+          selectable: entity.selectable && modalitaSelezione && layerEntity?.selectable !== false,
+        }}
+        selected={cadEntitySelezionateIds.includes(entity.id)}
+        textResizeHandlers={modalitaSelezione && !workspaceTestoDraft && entity.visible &&
+          !entity.locked && entity.selectable && layers.some(layer => layer.id === entity.layerId &&
+            layer.visible && !layer.locked && layer.selectable !== false) ? {
+          onPointerDown: (event, side) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (event.button !== 0 || workspaceTestoResizeRef.current) return
+            const svg = event.currentTarget.ownerSVGElement
+            if (!svg) return
+            const rect = svg.getBoundingClientRect()
+            workspaceTestoResizeRef.current = {
+              entityId: entity.id, pointerId: event.pointerId, side,
+              start: {
+                x: (event.clientX - rect.left) / rect.width * dimensioniWorkspace.width,
+                y: (event.clientY - rect.top) / rect.height * dimensioniWorkspace.height,
+              },
+              position: { ...entity.position }, width: getCadTextLayout(entity).boxWidth,
+              rotation: entity.rotation, alignment: entity.alignment, changed: false,
+              snapshot: creaSnapshotQuaderno(),
+            }
+            event.currentTarget.setPointerCapture(event.pointerId)
+          },
+          onPointerMove: (event) => {
+            const gesture = workspaceTestoResizeRef.current
+            if (!gesture || gesture.pointerId !== event.pointerId) return
+            event.preventDefault()
+            event.stopPropagation()
+            const layer = layers.find(item => item.id === entity.layerId)
+            if (!entity.visible || entity.locked || !entity.selectable || !layer ||
+                !layer.visible || layer.locked || layer.selectable === false) return
+            const svg = event.currentTarget.ownerSVGElement
+            if (!svg) return
+            const rect = svg.getBoundingClientRect()
+            const dx = (event.clientX - rect.left) / rect.width * dimensioniWorkspace.width - gesture.start.x
+            const dy = (event.clientY - rect.top) / rect.height * dimensioniWorkspace.height - gesture.start.y
+            const angle = gesture.rotation * Math.PI / 180
+            const delta = dx * Math.cos(angle) + dy * Math.sin(angle)
+            // Fixed baseline anchor: center expands symmetrically; either side controls width.
+            const width = Math.max(24, gesture.width + delta *
+              (gesture.side === "left" ? -1 : 1) * (gesture.alignment === "center" ? 2 : 1))
+            if (width === getCadTextLayout(entity).boxWidth) return
+            setWorkspaceCadEntities(entities => entities.map(item => item.id === gesture.entityId && item.type === "text"
+              ? { ...item, metadata: { ...item.metadata, textBoxWidth: width }, updatedAt: new Date().toISOString() }
+              : item))
+            gesture.changed = true
+          },
+          onPointerUp: terminaResizeTestoWorkspace,
+          onPointerCancel: terminaResizeTestoWorkspace,
+          onLostPointerCapture: terminaResizeTestoWorkspace,
+        } : undefined}
+        onDoubleClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          const layer = layers.find((item) => item.id === entity.layerId)
+          if (!modalitaSelezione || !entity.visible || entity.locked || !entity.selectable ||
+              !layer || !layer.visible || layer.locked || layer.selectable === false) return
+          workspaceTestoCompositionRef.current = false
+          setWorkspaceTestoDraft({ entityId: entity.id, position: entity.position, content: entity.content })
+          workspaceTestoInputRef.current?.focus()
+        }}
+        onPointerDown={(event) => {
+          if (!modalitaSelezione || entity.locked || !entity.selectable ||
+              layerEntity?.locked || layerEntity?.selectable === false) return
+          event.preventDefault()
+          event.stopPropagation()
+          setCadEntitySelezionataId(entity.id)
+          setCadEntitySelezionateIds([entity.id])
+          const layer = layers.find(item => item.id === entity.layerId)
+          if (event.button !== 0 || !cadEntitySelezionateIds.includes(entity.id) ||
+              workspaceTestoDraft || workspaceTestoResizeRef.current || workspaceTestoMoveRef.current ||
+              !entity.visible || !layer || !layer.visible || layer.locked || layer.selectable === false) return
+          const svg = event.currentTarget.ownerSVGElement
+          if (!svg) return
+          const rect = svg.getBoundingClientRect()
+          workspaceTestoMoveRef.current = {
+            entityId: entity.id, pointerId: event.pointerId, target: event.currentTarget,
+            previous: {
+              x: (event.clientX - rect.left) / rect.width * dimensioniWorkspace.width,
+              y: (event.clientY - rect.top) / rect.height * dimensioniWorkspace.height,
+            },
+            snapshot: creaSnapshotQuaderno(),
+            changed: false,
+          }
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }}
+      />
+      </g>
+    )
+  }
   if (entity.type === "line") {
   const lineaSelezionata =
     cadEntitySelezionateIds.includes(
@@ -13196,6 +13397,61 @@ if (entity.type === "dimension") {
 
 return null
 })}
+{workspaceTestoDraft && workspaceTestoLayout && (workspaceTestoDraft.entityId || strumentoDisegno === "testo") && (
+  <foreignObject
+    ref={workspaceTestoEditorRef}
+    x={workspaceTestoLayout.boxX}
+    y={workspaceTestoLayout.bounds.minY}
+    width={workspaceTestoLayout.boxWidth}
+    height={Math.max(36, workspaceTestoLayout.lines.length * workspaceTestoLayout.lineHeight)}
+    transform={`rotate(${workspaceTestoStile?.rotation ?? 0} ${workspaceTestoDraft.position.x} ${workspaceTestoDraft.position.y})`}
+    style={{ overflow: "visible", pointerEvents: "auto" }}
+    onPointerDown={(event) => event.stopPropagation()}
+    onPointerMove={(event) => event.stopPropagation()}
+    onPointerUp={(event) => event.stopPropagation()}
+    onPointerCancel={(event) => event.stopPropagation()}
+    onClick={(event) => event.stopPropagation()}
+    onDoubleClick={(event) => event.stopPropagation()}
+  >
+    <textarea
+      ref={workspaceTestoInputRef}
+      autoFocus
+      rows={workspaceTestoLayout.lines.length}
+      aria-label="Testo Workspace"
+      placeholder="Ctrl+Enter conferma, Esc annulla"
+      value={workspaceTestoDraft.content}
+      onChange={(event) => {
+        const content = event.target.value
+        setWorkspaceTestoDraft((draft) => draft ? { ...draft, content } : null)
+      }}
+      onCompositionStart={() => { workspaceTestoCompositionRef.current = true }}
+      onCompositionEnd={() => { workspaceTestoCompositionRef.current = false }}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.nativeEvent.isComposing || workspaceTestoCompositionRef.current ||
+            event.nativeEvent.keyCode === 229) return
+        if (event.key === "Enter" && event.ctrlKey) {
+          event.preventDefault()
+          if (!event.repeat) confermaTestoWorkspace()
+        } else if (event.key === "Escape") {
+          event.preventDefault()
+          setWorkspaceTestoDraft(null)
+        }
+      }}
+      style={{
+        boxSizing: "border-box", width: "100%", height: "100%", padding: 0,
+        resize: "none", whiteSpace: "pre-wrap", overflowWrap: "anywhere",
+        fontSize: workspaceTestoStile?.fontSize ?? dimensioneTesto,
+        fontFamily: workspaceTestoStile?.fontFamily ?? "serif",
+        fontWeight: workspaceTestoStile?.fontWeight,
+        textAlign: workspaceTestoStile?.alignment ?? "left",
+        lineHeight: `${workspaceTestoLayout.lineHeight}px`,
+        color: workspaceTestoStile?.color ?? coloreDisegno,
+        background: "#ffffff", border: 0, outline: "1px solid #2563eb", borderRadius: 4,
+      }}
+    />
+  </foreignObject>
+)}
 </svg>
 
 {pagineQuaderno
@@ -13547,7 +13803,8 @@ solaLettura={
   spostaTavolaAttivo ||
   manoAttiva ||
   strumentoDisegno === "penna" ||
-  strumentoDisegno === "evidenziatore"
+  strumentoDisegno === "evidenziatore" ||
+  strumentoDisegno === "testo"
 }
   larghezza={pageLayout.width}
   altezza={pageLayout.height}
@@ -14094,6 +14351,7 @@ cadEntities: undefined,
                   onChange={aggiornaDisegni}
                   strumento={
   manoAttiva ||
+  strumentoDisegno === "testo" ||
   spostaTavolaAttivo
     ? false
     : strumentoDisegno

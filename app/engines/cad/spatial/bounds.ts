@@ -4,6 +4,8 @@
   CadTransform,
 } from "../entities/types"
 
+import { getCadTextLayout } from "../geometry/text-layout"
+
 export type CadBounds = {
   minX: number
   minY: number
@@ -73,24 +75,18 @@ case "area":
       }
 
     case "text":
+      return getCadTextLayout(entity).bounds
+
     case "pin":
       return {
         minX:
-          entity.type === "text"
-            ? entity.position.x
-            : entity.position.x,
+          entity.position.x,
         minY:
-          entity.type === "text"
-            ? entity.position.y
-            : entity.position.y,
+          entity.position.y,
         maxX:
-          entity.type === "text"
-            ? entity.position.x
-            : entity.position.x,
+          entity.position.x,
         maxY:
-          entity.type === "text"
-            ? entity.position.y
-            : entity.position.y,
+          entity.position.y,
       }
   }
 }

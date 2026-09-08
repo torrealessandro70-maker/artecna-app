@@ -1,5 +1,6 @@
 ﻿import { registerBehavior } from './registry'
 
+import { textBehavior } from './text.behavior'
 import { lineBehavior } from './line.behavior'
 import { freehandBehavior } from './freehand.behavior'
 import { pinBehavior } from './pin.behavior'
@@ -15,6 +16,7 @@ export const registerDefaultBehaviors = (): void => {
     return
   }
 
+  registerBehavior(textBehavior)
   registerBehavior(lineBehavior)
 registerBehavior(freehandBehavior)
 registerBehavior(pinBehavior)
