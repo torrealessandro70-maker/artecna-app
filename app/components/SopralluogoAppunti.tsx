@@ -467,6 +467,8 @@ const selezioneWorkspaceRef = useRef<{
   ctrlKey: false,
 })
 
+const pageMarqueeRectRef = useRef<SVGRectElement | null>(null)
+
 const puntoInizioMetroWorkspaceRef =
   useRef<CadPoint | null>(null)
 
@@ -7742,6 +7744,7 @@ selezioneWorkspaceRef.current = {
   ctrlKey: false,
 }
 
+pageMarqueeRectRef.current?.setAttribute("visibility", "hidden")
 setRettangoloSelezione(null)
 setTrimAttivo(false);
 
@@ -7962,6 +7965,7 @@ setPanInCorso(false);
     start: null,
     ctrlKey: false,
   }
+  pageMarqueeRectRef.current?.setAttribute("visibility", "hidden")
   setRettangoloSelezione(null)
   spostaEntitaRef.current = {
     attivo: false,
@@ -9952,6 +9956,7 @@ alignItems: "flex-start",
     if (!svg) {
       return
     }
+    if (spostaTavolaAttivo) event.preventDefault();
 
     const rect =
       svg.getBoundingClientRect()
@@ -9980,12 +9985,25 @@ alignItems: "flex-start",
         event.ctrlKey || event.metaKey,
     }
 
-    setRettangoloSelezione({
-      startX: puntoWorkspace.x,
-      startY: puntoWorkspace.y,
-      endX: puntoWorkspace.x,
-      endY: puntoWorkspace.y,
-    })
+    if (spostaTavolaAttivo) {
+      const rect = pageMarqueeRectRef.current
+      if (rect) {
+        rect.setAttribute("x", String(puntoWorkspace.x))
+        rect.setAttribute("y", String(puntoWorkspace.y))
+        rect.setAttribute("width", "0")
+        rect.setAttribute("height", "0")
+        rect.setAttribute("fill", "rgba(37, 99, 235, 0.12)")
+        rect.setAttribute("stroke", "#2563eb")
+        rect.setAttribute("visibility", "visible")
+      }
+    } else {
+      setRettangoloSelezione({
+        startX: puntoWorkspace.x,
+        startY: puntoWorkspace.y,
+        endX: puntoWorkspace.x,
+        endY: puntoWorkspace.y,
+      })
+    }
 
     if (
       !event.ctrlKey &&
@@ -10124,12 +10142,25 @@ if (
       event.ctrlKey || event.metaKey,
   }
 
-  setRettangoloSelezione({
-    startX: puntoWorkspace.x,
-    startY: puntoWorkspace.y,
-    endX: puntoWorkspace.x,
-    endY: puntoWorkspace.y,
-  })
+  if (spostaTavolaAttivo) {
+    const rect = pageMarqueeRectRef.current
+    if (rect) {
+      rect.setAttribute("x", String(puntoWorkspace.x))
+      rect.setAttribute("y", String(puntoWorkspace.y))
+      rect.setAttribute("width", "0")
+      rect.setAttribute("height", "0")
+      rect.setAttribute("fill", "rgba(37, 99, 235, 0.12)")
+      rect.setAttribute("stroke", "#2563eb")
+      rect.setAttribute("visibility", "visible")
+    }
+  } else {
+    setRettangoloSelezione({
+      startX: puntoWorkspace.x,
+      startY: puntoWorkspace.y,
+      endX: puntoWorkspace.x,
+      endY: puntoWorkspace.y,
+    })
+  }
 
   if (
     !event.ctrlKey &&
@@ -11303,12 +11334,26 @@ if (
     const start =
       selezioneWorkspaceRef.current.start
 
-    setRettangoloSelezione({
-      startX: start.x,
-      startY: start.y,
-      endX: puntoWorkspace.x,
-      endY: puntoWorkspace.y,
-    })
+    if (spostaTavolaAttivo) {
+      const rect = pageMarqueeRectRef.current
+      if (rect) {
+        const crossing = puntoWorkspace.x < start.x
+        rect.setAttribute("x", String(Math.min(start.x, puntoWorkspace.x)))
+        rect.setAttribute("y", String(Math.min(start.y, puntoWorkspace.y)))
+        rect.setAttribute("width", String(Math.abs(puntoWorkspace.x - start.x)))
+        rect.setAttribute("height", String(Math.abs(puntoWorkspace.y - start.y)))
+        rect.setAttribute("fill", crossing ? "rgba(22, 163, 74, 0.12)" : "rgba(37, 99, 235, 0.12)")
+        rect.setAttribute("stroke", crossing ? "#16a34a" : "#2563eb")
+        rect.setAttribute("visibility", "visible")
+      }
+    } else {
+      setRettangoloSelezione({
+        startX: start.x,
+        startY: start.y,
+        endX: puntoWorkspace.x,
+        endY: puntoWorkspace.y,
+      })
+    }
 
     return
   }
@@ -11657,20 +11702,23 @@ selezioneWorkspaceRef.current = {
   ctrlKey: false,
 }
 
+if (spostaTavolaAttivo) {
+  pageMarqueeRectRef.current?.setAttribute("visibility", "hidden")
+} else {
   setRettangoloSelezione(null)
-
-  if (
-    event.currentTarget.hasPointerCapture(
-      event.pointerId,
-    )
-  ) {
-    event.currentTarget.releasePointerCapture(
-      event.pointerId,
-    )
-  }
-
-  return
 }
+
+if (
+  event.currentTarget.hasPointerCapture(
+    event.pointerId,
+  )
+) {
+  event.currentTarget.releasePointerCapture(
+    event.pointerId,
+  )
+}
+
+return
 
 const deltaX = (puntoFinale.x - start.x) * rect.width / dimensioniWorkspace.width
 const deltaY = (puntoFinale.y - start.y) * rect.height / dimensioniWorkspace.height
@@ -11719,7 +11767,11 @@ setCadEntitySelezionataId(
 }}
 
 onPointerCancel={(event) => {
-if (workspaceGommaRef.current) {
+  if (spostaTavolaAttivo) {
+    pageMarqueeRectRef.current?.setAttribute("visibility", "hidden")
+  }
+
+  if (workspaceGommaRef.current) {
   event.stopPropagation()
   terminaGommaWorkspace(event)
   return
@@ -12150,7 +12202,20 @@ data-print-ui="true"
     />
 )}
 
-{rettangoloSelezione &&
+{spostaTavolaAttivo ? (
+  <rect
+    ref={pageMarqueeRectRef}
+    data-print-ui="true"
+    visibility="hidden"
+    x={0}
+    y={0}
+    width={0}
+    height={0}
+    strokeWidth={1.5}
+    strokeDasharray="8 6"
+    pointerEvents="none"
+  />
+) : rettangoloSelezione &&
   selezioneWorkspaceRef.current.attiva && (
     <rect
       data-print-ui="true"
