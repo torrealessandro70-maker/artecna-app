@@ -11719,6 +11719,7 @@ if (
 }
 
 return
+}
 
 const deltaX = (puntoFinale.x - start.x) * rect.width / dimensioniWorkspace.width
 const deltaY = (puntoFinale.y - start.y) * rect.height / dimensioniWorkspace.height
