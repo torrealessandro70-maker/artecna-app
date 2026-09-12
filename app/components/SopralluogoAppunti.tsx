@@ -168,6 +168,19 @@ import {
   workspacePointToPagePoint,
 } from "@/app/engines/cad/workspace-coordinates"
 
+function clientPointToWorkspace(
+  clientX: number,
+  clientY: number,
+  rect: Pick<DOMRectReadOnly, "left" | "top" | "width" | "height">,
+  width: number,
+  height: number,
+): CadPoint {
+  return {
+    x: ((clientX - rect.left) / rect.width) * width,
+    y: ((clientY - rect.top) / rect.height) * height,
+  }
+}
+
 type SopralluogoNota = {
   id?: string;
   cliente?: string;
@@ -2487,10 +2500,7 @@ const puntoGommaWorkspace = (
   sample: { clientX: number; clientY: number } = event,
 ): CadPoint => {
   const rect = event.currentTarget.getBoundingClientRect()
-  return {
-    x: ((sample.clientX - rect.left) / rect.width) * dimensioniWorkspace.width,
-    y: ((sample.clientY - rect.top) / rect.height) * dimensioniWorkspace.height,
-  }
+  return clientPointToWorkspace(sample.clientX, sample.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 }
 
 const applicaGommaWorkspace = (point: CadPoint) => {
@@ -6515,17 +6525,7 @@ const dimensioniWorkspace =
   const rect =
     svg.getBoundingClientRect()
 
-  const puntoWorkspace: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
-
-    y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
   workspacePosterResizeRef.current = {
     attivo: true,
@@ -9961,17 +9961,7 @@ alignItems: "flex-start",
     const rect =
       svg.getBoundingClientRect()
 
-    const puntoWorkspace: CadPoint = {
-      x:
-        ((event.clientX - rect.left) /
-          rect.width) *
-        dimensioniWorkspace.width,
-
-      y:
-        ((event.clientY - rect.top) /
-          rect.height) *
-        dimensioniWorkspace.height,
-    }
+    const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
     spostaEntitaRef.current = {
       attivo: false,
@@ -10073,10 +10063,7 @@ onPointerDownCapture={(event) => {
     if (!layer || layer.locked || layer.visible === false || layer.selectable === false) return
     const rect = event.currentTarget.getBoundingClientRect()
     setWorkspaceTestoDraft({
-      position: {
-        x: ((event.clientX - rect.left) / rect.width) * dimensioniWorkspace.width,
-        y: ((event.clientY - rect.top) / rect.height) * dimensioniWorkspace.height,
-      },
+      position: clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height),
       content: "",
     })
     return
@@ -10118,17 +10105,7 @@ if (
   const rect =
     svg.getBoundingClientRect()
 
-  const puntoWorkspace: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
-
-    y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
   spostaEntitaRef.current = {
     attivo: false,
@@ -10184,16 +10161,7 @@ if (trimAttivo) {
   const rect =
     svg.getBoundingClientRect()
 
-  const puntoWorkspace: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
- y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
   const tolerance =
     getSnapTolerance(
@@ -10444,17 +10412,7 @@ if (metroAttivo) {
 const rect =
   svg.getBoundingClientRect()
 
-  const puntoWorkspace: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
-
-    y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
   const tolerance =
     getSnapTolerance(
@@ -10588,17 +10546,7 @@ strumentoDisegno !== "evidenziatore" &&
   const rect =
     svg.getBoundingClientRect()
 
-  const puntoWorkspace: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
-
-    y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
 const tolerance =
   getSnapTolerance(
@@ -10920,17 +10868,7 @@ if (
   const rect =
     svg.getBoundingClientRect()
 
-  const puntoWorkspace: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
-
-    y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
   const start =
     workspacePosterResizeRef.current.start
@@ -11173,17 +11111,7 @@ if (
     const rect =
       svg.getBoundingClientRect()
 
-    const puntoWorkspace: CadPoint = {
-      x:
-        ((event.clientX - rect.left) /
-          rect.width) *
-        dimensioniWorkspace.width,
-
-      y:
-        ((event.clientY - rect.top) /
-          rect.height) *
-        dimensioniWorkspace.height,
-    }
+    const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
     const deltaX =
       puntoWorkspace.x -
@@ -11236,17 +11164,7 @@ if (
   const rect =
     svg.getBoundingClientRect()
 
-  const puntoWorkspace: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
-
-    y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
   const quotaInPosizionamento =
     workspaceCadEntities.find(
@@ -11319,17 +11237,7 @@ if (
     const rect =
       svg.getBoundingClientRect()
 
-    const puntoWorkspace: CadPoint = {
-      x:
-        ((event.clientX - rect.left) /
-          rect.width) *
-        dimensioniWorkspace.width,
-
-      y:
-        ((event.clientY - rect.top) /
-          rect.height) *
-        dimensioniWorkspace.height,
-    }
+    const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
     const start =
       selezioneWorkspaceRef.current.start
@@ -11380,17 +11288,7 @@ if (
   const rect =
     svg.getBoundingClientRect()
 
-  const puntoWorkspace: CadPoint = {
-  x:
-    ((event.clientX - rect.left) /
-      rect.width) *
-    dimensioniWorkspace.width,
-
-  y:
-    ((event.clientY - rect.top) /
-      rect.height) *
-    dimensioniWorkspace.height,
-}
+  const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
 const tolerance =
   getSnapTolerance(
@@ -11438,17 +11336,7 @@ const eventiPenna =
 
 const nuoviCampioniPenna =
   eventiPenna.length > 0
-    ? eventiPenna.map((eventoPointer) => ({
-        x:
-          ((eventoPointer.clientX - rect.left) /
-            rect.width) *
-          dimensioniWorkspace.width,
-
-        y:
-          ((eventoPointer.clientY - rect.top) /
-            rect.height) *
-          dimensioniWorkspace.height,
-      }))
+    ? eventiPenna.map((eventoPointer) => (clientPointToWorkspace(eventoPointer.clientX, eventoPointer.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)))
     : [puntoConSnap]
 
 const nuoviPuntiPenna = [
@@ -11620,17 +11508,7 @@ if (puntiPenna.length < 2) {
   const rect =
     svg.getBoundingClientRect()
 
-  const puntoFinale: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
-
-    y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  const puntoFinale: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
   const start =
     selezioneWorkspaceRef.current.start
@@ -11925,17 +11803,7 @@ pointerEvents:
   const rect =
     svg.getBoundingClientRect()
 
-  const puntoWorkspace: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
-
-    y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
   workspacePosterDragRef.current = {
     attivo: true,
@@ -12483,10 +12351,7 @@ if (
           const svg = event.currentTarget.ownerSVGElement
           if (!svg) return
           const rect = svg.getBoundingClientRect()
-          const point = {
-            x: (event.clientX - rect.left) / rect.width * dimensioniWorkspace.width,
-            y: (event.clientY - rect.top) / rect.height * dimensioniWorkspace.height,
-          }
+          const point = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
           const dx = point.x - gesture.previous.x
           const dy = point.y - gesture.previous.y
           if (dx === 0 && dy === 0) return
@@ -12517,10 +12382,7 @@ if (
             const rect = svg.getBoundingClientRect()
             workspaceTestoResizeRef.current = {
               entityId: entity.id, pointerId: event.pointerId, side,
-              start: {
-                x: (event.clientX - rect.left) / rect.width * dimensioniWorkspace.width,
-                y: (event.clientY - rect.top) / rect.height * dimensioniWorkspace.height,
-              },
+              start: clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height),
               position: { ...entity.position }, width: getCadTextLayout(entity).boxWidth,
               rotation: entity.rotation, alignment: entity.alignment, changed: false,
               snapshot: creaSnapshotQuaderno(),
@@ -12538,8 +12400,9 @@ if (
             const svg = event.currentTarget.ownerSVGElement
             if (!svg) return
             const rect = svg.getBoundingClientRect()
-            const dx = (event.clientX - rect.left) / rect.width * dimensioniWorkspace.width - gesture.start.x
-            const dy = (event.clientY - rect.top) / rect.height * dimensioniWorkspace.height - gesture.start.y
+            const punto = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
+            const dx = punto.x - gesture.start.x
+            const dy = punto.y - gesture.start.y
             const angle = gesture.rotation * Math.PI / 180
             const delta = dx * Math.cos(angle) + dy * Math.sin(angle)
             // Fixed baseline anchor: center expands symmetrically; either side controls width.
@@ -12581,10 +12444,7 @@ if (
           const rect = svg.getBoundingClientRect()
           workspaceTestoMoveRef.current = {
             entityId: entity.id, pointerId: event.pointerId, target: event.currentTarget,
-            previous: {
-              x: (event.clientX - rect.left) / rect.width * dimensioniWorkspace.width,
-              y: (event.clientY - rect.top) / rect.height * dimensioniWorkspace.height,
-            },
+            previous: clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height),
             snapshot: creaSnapshotQuaderno(),
             changed: false,
           }
@@ -12640,17 +12500,7 @@ onPointerDown={(event) => {
     const rect =
       svg.getBoundingClientRect()
 
-    const puntoWorkspace: CadPoint = {
-      x:
-        ((event.clientX - rect.left) /
-          rect.width) *
-        dimensioniWorkspace.width,
-
-      y:
-        ((event.clientY - rect.top) /
-          rect.height) *
-        dimensioniWorkspace.height,
-    }
+    const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
     spostaEntitaRef.current = {
       attivo: true,
@@ -12748,17 +12598,7 @@ onPointerMove={(event) => {
   const rect =
     svg.getBoundingClientRect()
 
-  const puntoWorkspace: CadPoint = {
-    x:
-      ((event.clientX - rect.left) /
-        rect.width) *
-      dimensioniWorkspace.width,
-
-    y:
-      ((event.clientY - rect.top) /
-        rect.height) *
-      dimensioniWorkspace.height,
-  }
+  const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
   const start =
     spostaEntitaRef.current.start
@@ -13243,17 +13083,7 @@ if (entity.type === "dimension") {
       const rect =
         svg.getBoundingClientRect()
 
-      const puntoWorkspace: CadPoint = {
-        x:
-          ((event.clientX - rect.left) /
-            rect.width) *
-          dimensioniWorkspace.width,
-
-        y:
-          ((event.clientY - rect.top) /
-            rect.height) *
-          dimensioniWorkspace.height,
-      }
+      const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
       spostaEntitaRef.current = {
         attivo: true,
@@ -13313,17 +13143,7 @@ if (entity.type === "dimension") {
     const rect =
       svg.getBoundingClientRect()
 
-    const puntoWorkspace: CadPoint = {
-      x:
-        ((event.clientX - rect.left) /
-          rect.width) *
-        dimensioniWorkspace.width,
-
-      y:
-        ((event.clientY - rect.top) /
-          rect.height) *
-        dimensioniWorkspace.height,
-    }
+    const puntoWorkspace: CadPoint = clientPointToWorkspace(event.clientX, event.clientY, rect, dimensioniWorkspace.width, dimensioniWorkspace.height)
 
     const start =
       spostaEntitaRef.current.start
