@@ -7736,6 +7736,10 @@ if (strumento.id === "freccia" || strumento.id === "perpendicolare" || strumento
   setWorkspaceSnapPoint(null)
 }
 
+if (strumento.id === "linea") {
+  setMetroAttivo(false)
+}
+
 setStrumentoDisegno(disattivaFreccia || disattivaPerpendicolare ? null : strumento.id);
 setModalitaSelezione(disattivaFreccia || disattivaPerpendicolare);
 selezioneWorkspaceRef.current = {
