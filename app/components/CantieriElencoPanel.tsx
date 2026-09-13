@@ -18,7 +18,7 @@ type Props = {
   setCantiereScheda: (v: string) => void
   setCantiereIdScheda: (v: string) => void
   setSottoSezioneCantieri: (v: string) => void
-  eliminaCantiere: (nome: string) => void
+  eliminaCantiere: (nome: string, idCantiereCancellato: string) => void
   formatMoney: (n: number) => string
   cardStyle: any
   excelTable: any
@@ -270,7 +270,10 @@ export default function CantieriElencoPanel({
 		       </button>
 
                         <button
-                          onClick={() => eliminaCantiere(String(c.nome || ''))}
+                          onClick={() => eliminaCantiere(
+                            String(c.nome || ''),
+                            String(c.id || '')
+                          )}
                           style={{
                             background: '#dc2626',
                             color: '#fff',

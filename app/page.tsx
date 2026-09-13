@@ -7087,7 +7087,10 @@ const eliminaPreventivoCantiere = async (id?: string) => {
 
 
 
-  const eliminaCantiere = async (nome: string) => {
+  const eliminaCantiere = async (
+    nome: string,
+    idCantiereCancellato: string
+  ) => {
   const conferma = confirm(
     `Vuoi eliminare completamente il cantiere "${nome}"?\n\nVerranno eliminati:\n- cantiere\n- rapportini\n- foto\n- timbrature\n- preventivi\n- materiali\n- attrezzi\n- file collegati nello Storage`
   )
@@ -7220,7 +7223,13 @@ const eliminaPreventivoCantiere = async (id?: string) => {
   if (cantiereFoto === nome) setCantiereFoto('')
   if (cantiereTimbratura === nome) setCantiereTimbratura('')
   if (filtroCantiere === nome) setFiltroCantiere('')
-  if (cantiereScheda === nome) setCantiereScheda('')
+  if (
+    idCantiereCancellato &&
+    String(cantiereIdScheda) === String(idCantiereCancellato)
+  ) {
+    setCantiereIdScheda('')
+    setCantiereScheda('')
+  }
   if (cantiereGrafico === nome) setCantiereGrafico('')
 
   await caricaCantieri()

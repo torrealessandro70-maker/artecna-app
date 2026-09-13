@@ -33,7 +33,7 @@ type Props = {
   salvaModificaRegistroCantiere: (id: any) => void | Promise<void>
   annullaModificaRegistroCantiere: () => void
   preparaModificaRegistroCantiere: (c: any) => void
-  eliminaCantiere: (nome: string) => void | Promise<void>
+  eliminaCantiere: (nome: string, idCantiereCancellato: string) => void | Promise<void>
 
   excelBox: CSSProperties
   excelToolbar: CSSProperties
@@ -294,7 +294,10 @@ export default function RegistroCantieriPanel({
                       </button>
 
                       <button
-                        onClick={() => eliminaCantiere(String(c.nome || ''))}
+                        onClick={() => eliminaCantiere(
+                          String(c.nome || ''),
+                          String(c.id || '')
+                        )}
                         style={{
                           ...buttonSecondary,
                           backgroundColor: '#dc2626',
