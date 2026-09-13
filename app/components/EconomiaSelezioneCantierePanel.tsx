@@ -7,6 +7,7 @@ type Props = {
   cantieri: any[]
   cantiereScheda: string | null
   setCantiereScheda: (value: string) => void
+  setCantiereIdScheda: (id: string) => void
 
   ricercaCantiereEconomia: string
   setRicercaCantiereEconomia: (value: string) => void
@@ -22,6 +23,7 @@ export default function EconomiaSelezioneCantierePanel({
   cantieri,
   cantiereScheda,
   setCantiereScheda,
+  setCantiereIdScheda,
   ricercaCantiereEconomia,
   setRicercaCantiereEconomia,
   mostraConclusiEconomia,
@@ -62,6 +64,7 @@ export default function EconomiaSelezioneCantierePanel({
         cantieri={cantieri}
         value={cantiereScheda || ''}
         onChange={setCantiereScheda}
+        onChangeId={setCantiereIdScheda}
         inputStyle={{
           padding: 8,
           width: 260,

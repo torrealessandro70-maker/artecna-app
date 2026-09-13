@@ -12059,6 +12059,7 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  materialiCantiere={materialiCantiere}
   setCantiereIdScheda={setCantiereIdScheda}
   cantiereSelezionatoUnico={cantiereSelezionatoUnico}
   pagineAperte={pagineAperte}
@@ -12161,6 +12162,7 @@ onDocumentAction={gestisciAzioneDocumento}
     sottoSezioneCantieri === 'economia')
 ) && (
 <CantieriEconomiaPanel
+  setCantiereIdScheda={setCantiereIdScheda}
   cantiereSelezionatoUnico={cantiereSelezionatoUnico}
   cardStyle={cardStyle}
   cantiereScheda={cantiereScheda}

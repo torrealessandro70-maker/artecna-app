@@ -130,6 +130,7 @@ export default function CantieriEconomiaPanel(props: Props) {
             {p.cantiereScheda || 'Seleziona un cantiere'}
           </h2>
           <EconomiaSelezioneCantierePanel
+            setCantiereIdScheda={p.setCantiereIdScheda}
             cantieri={p.cantieri}
             cantiereScheda={p.cantiereScheda}
             setCantiereScheda={p.setCantiereScheda}
