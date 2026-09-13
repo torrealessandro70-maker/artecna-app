@@ -4804,6 +4804,12 @@ const [ultimoSopralluogo, setUltimoSopralluogo] =
 
   const [filtroCantiere, setFiltroCantiere] = useState('')
   const [cantiereScheda, setCantiereScheda] = useState('')
+  const cantieriCorrispondenti = cantiereScheda
+    ? cantieri.filter((cantiere) => cantiere.nome === cantiereScheda)
+    : []
+  const cantiereSelezionatoUnico =
+    cantieriCorrispondenti.length === 1 ? cantieriCorrispondenti[0] : null
+  const cantiereIdSelezionato = cantiereSelezionatoUnico?.id ?? ''
 
   const [importoPreventivo, setImportoPreventivo] = useState('')
   const [descrizioneMateriale, setDescrizioneMateriale] = useState('')
