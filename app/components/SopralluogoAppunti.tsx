@@ -83,7 +83,8 @@ import { esportaSvgQuaderno } from "@/app/engines/quaderno-export";
 
 import { createQuadernoPageLayout } from "@/app/engines/quaderno-page";
 import { DEFAULT_QUADERNO_LAYERS } from "@/app/engines/quaderno-layers/defaults";
-import type { CadScaleCalibration } from '@/app/engines/cad/scale-manager'
+import { createScaleCalibration, type CadScaleCalibration } from '@/app/engines/cad/scale-manager'
+import { calculatePixelDistance } from '@/app/engines/cad/scale'
 import type { CadDimensionEntity } from '@/app/engines/cad/entities'
 import { ToolButton } from "@/app/components/ui";
 import { applyOrtho } from "@/app/engines/cad/ortho"
@@ -3168,7 +3169,18 @@ useEffect(() => {
   }
 }, [strumentoDisegno])
 
+const lineaWorkspaceSelezionata = workspaceCadEntities.find(
+  (entity): entity is CadLineEntity =>
+    entity.id === cadEntitySelezionataId && entity.type === "line",
+)
+
 const lunghezzaLineaSelezionata = (() => {
+  if (!lineaCadSelezionata && lineaWorkspaceSelezionata) {
+    if (!scaleCalibration) return null
+    const { start, end } = lineaWorkspaceSelezionata
+    return (Math.hypot(end.x - start.x, end.y - start.y) /
+      scaleCalibration.pixelDistance) * scaleCalibration.realDistance
+  }
   if (!lineaCadSelezionata) return null;
   if (!scaleCalibration) return null;
 
@@ -3193,6 +3205,16 @@ const lunghezzaLineaSelezionata = (() => {
 
 const [calibrazioneScalaAttiva, setCalibrazioneScalaAttiva] =
   useState(false)
+const puntoInizioCalibrazioneWorkspaceRef =
+  useRef<CadPoint | null>(null)
+const bloccaClickCalibrazioneWorkspaceRef = useRef(false)
+
+useEffect(() => {
+  if (calibrazioneScalaAttiva) return
+
+  puntoInizioCalibrazioneWorkspaceRef.current = null
+  setWorkspaceSnapPoint(null)
+}, [calibrazioneScalaAttiva])
 
   useEffect(() => {
     const preferenze = window.localStorage.getItem(
@@ -3300,6 +3322,35 @@ const applicaNuovoFontTesto = () => {
 }
 
 const applicaNuovaLunghezzaLinea = () => {
+  if (!lineaCadSelezionata && lineaWorkspaceSelezionata) {
+    if (!scaleCalibration) return
+    const nuovaLunghezzaMetri = Number(nuovaLunghezzaLinea.replace(",", "."))
+    if (!Number.isFinite(nuovaLunghezzaMetri) || nuovaLunghezzaMetri <= 0) return
+
+    const { id, start, end } = lineaWorkspaceSelezionata
+    const dx = end.x - start.x
+    const dy = end.y - start.y
+    const lunghezzaPixel = Math.hypot(dx, dy)
+    if (lunghezzaPixel <= 0) return
+
+    const nuovaLunghezzaPixel = (nuovaLunghezzaMetri /
+      scaleCalibration.realDistance) * scaleCalibration.pixelDistance
+    const nuovoEnd = {
+      x: start.x + (dx / lunghezzaPixel) * nuovaLunghezzaPixel,
+      y: start.y + (dy / lunghezzaPixel) * nuovaLunghezzaPixel,
+    }
+
+    registraSnapshotQuaderno()
+    const updatedAt = new Date().toISOString()
+    setWorkspaceCadEntities((entities) => entities.map((entity) =>
+      entity.id === id && entity.type === "line"
+        ? { ...entity, end: nuovoEnd, updatedAt }
+        : entity,
+    ))
+    setQuadernoDirty(true)
+    setNuovaLunghezzaLinea("")
+    return
+  }
   if (!lineaCadSelezionata) return;
   if (!scaleCalibration) return;
 
@@ -7738,8 +7789,8 @@ if (strumento.id === "freccia" || strumento.id === "perpendicolare" || strumento
 
 if (strumento.id === "linea") {
   setMetroAttivo(false)
+  setCalibrazioneScalaAttiva(false)
 }
-
 setStrumentoDisegno(disattivaFreccia || disattivaPerpendicolare ? null : strumento.id);
 setModalitaSelezione(disattivaFreccia || disattivaPerpendicolare);
 selezioneWorkspaceRef.current = {
@@ -9447,7 +9498,7 @@ setWorkspaceCadEntities(
 )}
 
 
-                {lineaCadSelezionata && (
+                {(lineaCadSelezionata || lineaWorkspaceSelezionata) && (
                   <>
                     <span>|</span>
                     <span>Linea</span>
@@ -10034,6 +10085,96 @@ alignItems: "flex-start",
 >
 
 <div
+  onPointerDownCapture={(event) => {
+    bloccaClickCalibrazioneWorkspaceRef.current = calibrazioneScalaAttiva
+    if (!calibrazioneScalaAttiva) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const puntoWorkspace = clientPointToWorkspace(
+      event.clientX,
+      event.clientY,
+      rect,
+      dimensioniWorkspace.width,
+      dimensioniWorkspace.height,
+    )
+    const snap = snapAttivo
+      ? resolveSnapPoint({
+          entities: workspaceSnapEntities,
+          cursor: puntoWorkspace,
+          tolerance: getSnapTolerance(dimensioniWorkspace.width, rect.width),
+        })
+      : null
+    const puntoScala: CadPoint = snap
+      ? { x: snap.x, y: snap.y }
+      : puntoWorkspace
+    const primoPunto = puntoInizioCalibrazioneWorkspaceRef.current
+
+    if (!primoPunto) {
+      puntoInizioCalibrazioneWorkspaceRef.current = puntoScala
+      return
+    }
+
+    const distanzaPixel = calculatePixelDistance(primoPunto, puntoScala)
+    const distanzaReale = window.prompt(
+      `Distanza rilevata: ${Math.round(
+        distanzaPixel,
+      )} px\n\nInserisci la distanza reale (metri):`,
+    )
+    const distanzaRealeNumero = Number(distanzaReale?.replace(',', '.'))
+
+    if (
+      distanzaReale &&
+      Number.isFinite(distanzaRealeNumero) &&
+      distanzaRealeNumero > 0
+    ) {
+      const nuovaCalibrazione = createScaleCalibration(
+        primoPunto,
+        puntoScala,
+        distanzaRealeNumero,
+        'm',
+      )
+      setScaleCalibration(nuovaCalibrazione)
+      setCalibrazioneScalaAttiva(false)
+      setWorkspaceSnapPoint(null)
+    }
+
+    puntoInizioCalibrazioneWorkspaceRef.current = null
+  }}
+  onPointerMoveCapture={(event) => {
+    if (!calibrazioneScalaAttiva) return
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const puntoWorkspace = clientPointToWorkspace(
+      event.clientX,
+      event.clientY,
+      rect,
+      dimensioniWorkspace.width,
+      dimensioniWorkspace.height,
+    )
+    const snap = snapAttivo
+      ? resolveSnapPoint({
+          entities: workspaceSnapEntities,
+          cursor: puntoWorkspace,
+          tolerance: getSnapTolerance(dimensioniWorkspace.width, rect.width),
+        })
+      : null
+
+    setWorkspaceSnapPoint(
+      snap ? { x: snap.x, y: snap.y, type: snap.type } : null,
+    )
+  }}
+  onPointerLeave={() => {
+    if (calibrazioneScalaAttiva) setWorkspaceSnapPoint(null)
+  }}
+  onClickCapture={(event) => {
+    if (!calibrazioneScalaAttiva && !bloccaClickCalibrazioneWorkspaceRef.current) return
+    event.preventDefault()
+    event.stopPropagation()
+    bloccaClickCalibrazioneWorkspaceRef.current = false
+  }}
   style={{
     position: "relative",
     width: dimensioniWorkspace.width,
@@ -10826,6 +10967,11 @@ setWorkspaceCadEntities(
       nuovaLinea,
     ],
   )
+
+  if (strumentoDisegno === "linea") {
+    setCadEntitySelezionataId(nuovaLinea.id)
+    setCadEntitySelezionateIds([nuovaLinea.id])
+  }
 
   workspaceLineaStartRef.current = null
 setWorkspaceLineaPreview(null)
@@ -13778,6 +13924,11 @@ nuovaLineaWorkspace.metadata = {
       nuovaLineaWorkspace,
     ],
   )
+
+  if (strumentoDisegno === "linea") {
+    setCadEntitySelezionataId(nuovaLineaWorkspace.id)
+    setCadEntitySelezionateIds([nuovaLineaWorkspace.id])
+  }
 
  
 }}
