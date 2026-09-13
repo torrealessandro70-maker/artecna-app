@@ -12030,6 +12030,7 @@ WebkitOverflowScrolling: 'touch',
     cambiaOrdinamentoCantieri={cambiaOrdinamentoCantieri}
     setCantiereScheda={setCantiereScheda}
     setSottoSezioneCantieri={setSottoSezioneCantieri}
+    setCantiereIdScheda={setCantiereIdScheda}
     eliminaCantiere={eliminaCantiere}
     formatMoney={formatMoney}
     cardStyle={cardStyle}

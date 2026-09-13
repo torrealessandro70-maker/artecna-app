@@ -16,6 +16,7 @@ type Props = {
   campo: 'nome' | 'preventivo' | 'inizio' | 'fine' | 'concluso'
 ) => void
   setCantiereScheda: (v: string) => void
+  setCantiereIdScheda: (v: string) => void
   setSottoSezioneCantieri: (v: string) => void
   eliminaCantiere: (nome: string) => void
   formatMoney: (n: number) => string
@@ -41,6 +42,7 @@ export default function CantieriElencoPanel({
   ordinaCantieriDirezione,
   cambiaOrdinamentoCantieri,
   setCantiereScheda,
+  setCantiereIdScheda,
   setSottoSezioneCantieri,
   eliminaCantiere,
   formatMoney,
@@ -256,15 +258,16 @@ export default function CantieriElencoPanel({
 
                     <td style={excelTd}>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={() => {
-                            setCantiereScheda(String(c.nome || ''))
-                            setSottoSezioneCantieri('scheda')
-                          }}
-                          style={buttonSecondary}
-                        >
-                          ✔️
-                        </button>
+                       <button
+         onClick={() => {
+             setCantiereIdScheda(String(c.id || ''))
+             setCantiereScheda(String(c.nome || ''))
+             setSottoSezioneCantieri('scheda')
+        }}
+         style={buttonSecondary}
+          >
+        ✔
+		       </button>
 
                         <button
                           onClick={() => eliminaCantiere(String(c.nome || ''))}
