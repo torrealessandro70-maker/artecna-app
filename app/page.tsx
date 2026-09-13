@@ -4804,6 +4804,10 @@ const [ultimoSopralluogo, setUltimoSopralluogo] =
 
   const [filtroCantiere, setFiltroCantiere] = useState('')
   const [cantiereScheda, setCantiereScheda] = useState('')
+  const [cantiereIdScheda, setCantiereIdScheda] = useState('')
+  const cantiereSelezionatoDaId = cantiereIdScheda
+    ? cantieri.find((cantiere) => String(cantiere.id) === String(cantiereIdScheda)) ?? null
+    : null
   const cantieriCorrispondenti = cantiereScheda
     ? cantieri.filter((cantiere) => cantiere.nome === cantiereScheda)
     : []
