@@ -12050,6 +12050,7 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  setCantiereIdScheda={setCantiereIdScheda}
   cantiereSelezionatoUnico={cantiereSelezionatoUnico}
   pagineAperte={pagineAperte}
   modalitaMulti={modalitaMulti}

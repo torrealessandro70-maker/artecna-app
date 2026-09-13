@@ -7,6 +7,7 @@ type Props = {
   cantieri: Cantiere[]
   value: string
   onChange: (nome: string) => void
+  onChangeId?: (id: string) => void
   inputStyle: React.CSSProperties
   buttonSecondary: React.CSSProperties
 }
@@ -15,6 +16,7 @@ export default function SelectCantiere({
   cantieri,
   value,
   onChange,
+  onChangeId,
   inputStyle,
   buttonSecondary,
 }: Props) {
@@ -61,13 +63,17 @@ export default function SelectCantiere({
 
       <select
         value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          const id = e.currentTarget.selectedOptions[0]?.dataset.cantiereId ?? ''
+          onChange(e.target.value)
+          onChangeId?.(id)
+        }}
         style={inputStyle}
       >
         <option value="">Seleziona cantiere...</option>
 
         {cantieriFiltrati.map((c) => (
-          <option key={c.id || c.nome} value={c.nome}>
+          <option key={c.id || c.nome} value={c.nome} data-cantiere-id={String(c.id ?? '')}>
             {c.lavori_conclusi ? '✅ ' : '🏗️ '}
             {c.nome}
           </option>

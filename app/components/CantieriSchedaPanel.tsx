@@ -45,6 +45,7 @@ export default function CantieriSchedaPanel(props: any) {
         cantieri={p.cantieri}
         value={p.cantiereScheda || ''}
         onChange={p.setCantiereScheda}
+        onChangeId={p.setCantiereIdScheda}
         inputStyle={{
           padding: 8,
           width: 260,

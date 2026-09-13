@@ -14,6 +14,7 @@ const {
   cantieri,
   cantiereScheda,
   setCantiereScheda,
+  setCantiereIdScheda,
   ricercaCantiereEconomia,
   setRicercaCantiereEconomia,
   mostraConclusiEconomia,
@@ -38,6 +39,7 @@ const {
   cantieri={cantieri}
   cantiereScheda={cantiereScheda}
   setCantiereScheda={setCantiereScheda}
+  setCantiereIdScheda={setCantiereIdScheda}
   ricercaCantiereEconomia={ricercaCantiereEconomia}
   setRicercaCantiereEconomia={setRicercaCantiereEconomia}
   mostraConclusiEconomia={mostraConclusiEconomia}
