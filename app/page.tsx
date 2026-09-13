@@ -4808,6 +4808,7 @@ const [ultimoSopralluogo, setUltimoSopralluogo] =
   const cantiereSelezionatoDaId = cantiereIdScheda
     ? cantieri.find((cantiere) => String(cantiere.id) === String(cantiereIdScheda)) ?? null
     : null
+  const cantiereSchedaDerivato = cantiereSelezionatoDaId?.nome ?? ''
   const cantieriCorrispondenti = cantiereScheda
     ? cantieri.filter((cantiere) => cantiere.nome === cantiereScheda)
     : []
