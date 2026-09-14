@@ -41,6 +41,7 @@ type FascicoloCantiereContainerProps = {
     nome?: string | null
   }
   nomeCantiere: string
+  nomeCantiereVisualizzato: string
   cliente?: string
   statoLavori?: string
   ultimoAggiornamento?: string
@@ -107,6 +108,7 @@ const tabs: Array<{ id: FascicoloCantiereTab; label: string }> = [
 export default function FascicoloCantiereContainer({
   cantiere,
   nomeCantiere,
+  nomeCantiereVisualizzato,
   cliente,
   statoLavori,
   ultimoAggiornamento,
@@ -257,7 +259,7 @@ const assistantObservations = buildAssistantObservations(context)
 
   return (
     <section
-      aria-label={`Fascicolo cantiere ${nomeCantiere || ''}`}
+      aria-label={`Fascicolo cantiere ${nomeCantiereVisualizzato || ''}`}
       style={{
         display: 'grid',
         gap: 16,
@@ -292,7 +294,7 @@ const assistantObservations = buildAssistantObservations(context)
               Fascicolo Cantiere
             </div>
 
-            <h2 style={{ margin: 0 }}>{nomeCantiere || 'Cantiere'}</h2>
+            <h2 style={{ margin: 0 }}>{nomeCantiereVisualizzato || 'Cantiere'}</h2>
 
             <div
               style={{

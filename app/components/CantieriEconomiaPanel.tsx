@@ -163,6 +163,7 @@ export default function CantieriEconomiaPanel(props: Props) {
           <FascicoloCantiereContainer
             cantiere={p.cantiereSelezionatoUnico ?? undefined}
             nomeCantiere={p.cantiereScheda}
+            nomeCantiereVisualizzato={p.cantiereNomeVisualizzato}
             cliente={clienteCantiere}
             statoLavori={statoLavori}
             ultimoAggiornamento={ultimoAggiornamento}
