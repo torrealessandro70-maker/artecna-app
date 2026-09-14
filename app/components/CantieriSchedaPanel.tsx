@@ -68,6 +68,13 @@ export default function CantieriSchedaPanel(props: any) {
           return (
             <div>
               <h3>{p.cantiereNomeVisualizzato}</h3>
+              <button
+                type="button"
+                onClick={p.modificaNomeCantiereScheda}
+                style={p.buttonSecondary}
+              >
+                Modifica nome
+              </button>
 
               <div
                 style={{

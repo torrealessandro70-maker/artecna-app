@@ -6974,6 +6974,29 @@ const coloreStatoSopralluogo = (
   }
 
 
+const modificaNomeCantiereScheda = async () => {
+  if (!cantiereSelezionatoDaId?.id) return
+
+  const { id, nome } = cantiereSelezionatoDaId
+  const nuovoNome = prompt('Modifica nome cantiere', nome || '')?.trim()
+  if (!nuovoNome || nuovoNome === nome) return
+
+  const { error } = await supabase
+    .from('cantieri')
+    .update({ nome: nuovoNome })
+    .eq('id', id)
+
+  if (error) {
+    alert('Errore modifica cantiere: ' + error.message)
+    return
+  }
+
+  if (String(cantiereIdScheda) === String(id)) {
+    setCantiereScheda(nuovoNome)
+  }
+  await caricaCantieri()
+}
+
 const preparaModificaRegistroCantiere = (c: Cantiere) => {
   setCantiereRegistroEdit(c.id || null)
   setCantiereRegistroNome(c.nome || '')
@@ -12065,6 +12088,7 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  modificaNomeCantiereScheda={modificaNomeCantiereScheda}
   cantiereSelezionatoDaId={cantiereSelezionatoDaId}
   cantiereNomeVisualizzato={cantiereSchedaDerivato}
   materialiCantiere={materialiCantiere}
