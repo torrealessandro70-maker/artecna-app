@@ -151,7 +151,15 @@ export default function FotoCantiereGallery({
 
           return categoriaSalvata === filtroAttivo
         })
-        .map((foto, i) => (
+        .map((foto, i) => {
+          const srcFoto =
+            (foto as any).file_url ||
+            (foto as any).url ||
+            (foto as any).thumbnail_url ||
+            (foto as any).immagine_base64 ||
+            null
+
+          return (
           <div
             key={foto.id || i}
             style={{
@@ -194,12 +202,9 @@ export default function FotoCantiereGallery({
               Seleziona
             </label>
 
+            {srcFoto ? (
             <img
-            src={
-  (foto as any).file_url ||
-  (foto as any).url ||
-  foto.immagine_base64
-}
+              src={srcFoto}
               alt="Foto cantiere"
               onClick={() => setFotoFullscreen(foto)}
               style={{
@@ -210,6 +215,7 @@ export default function FotoCantiereGallery({
                 cursor: 'pointer',
               }}
             />
+            ) : null}
 
             <div style={{ padding: 10 }}>
               <div style={{ fontSize: 12, color: '#64748b' }}>
@@ -301,7 +307,8 @@ export default function FotoCantiereGallery({
               </button>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
     </>
   )
