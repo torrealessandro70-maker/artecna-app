@@ -2,6 +2,7 @@
 
 type Props = {
   cantiereScheda: string
+  cantiereNomeVisualizzato: string
   cantieri: any[]
   supabase: any
   caricaCantieri: () => Promise<void>
@@ -9,6 +10,7 @@ type Props = {
 
 export default function DashboardEconomiaPanel({
   cantiereScheda,
+  cantiereNomeVisualizzato,
   cantieri,
   supabase,
   caricaCantieri,
@@ -17,7 +19,7 @@ export default function DashboardEconomiaPanel({
 
   return (
     <>
-      <h3>{cantiereScheda}</h3>
+      <h3>{cantiereNomeVisualizzato}</h3>
 
       <div
         style={{
