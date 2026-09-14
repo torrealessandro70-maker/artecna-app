@@ -1,5 +1,8 @@
 'use client'
 
+import { useRef } from 'react'
+
+import TornaAllaPanoramica from './TornaAllaPanoramica'
 import SelectCantiere from './SelectCantiere'
 import FotoCantiereToolbar from './FotoCantiereToolbar'
 import FotoCantiereCamera from './FotoCantiereCamera'
@@ -11,10 +14,63 @@ import FotoCantiereCategoriaModal from './FotoCantiereCategoriaModal'
 
 export default function CantieriSchedaPanel(props: any) {
   const p = props
+  const fotoPanelRef = useRef<HTMLDivElement>(null)
+
+  const apriArea = (pagina: string, sezione: string) => {
+    p.setRitornoPanoramicaAttivo(true)
+    p.setSezioneAttiva(sezione)
+    if (sezione === 'cantieri') p.setSottoSezioneCantieri('economia')
+    if (p.modalitaMulti && !p.pagineAperte.includes(pagina)) {
+      p.togglePaginaAperta(pagina)
+    }
+  }
+
+  const azioniRapide = [
+    {
+      titolo: 'Rapportino', descrizione: 'Apri area rapportini',
+      onClick: () => {
+        apriArea('rapportini', 'rapportini')
+        p.richiediScrollRapportini()
+      },
+    },
+    {
+      titolo: 'Foto', descrizione: 'Galleria e caricamento',
+      onClick: () => {
+        fotoPanelRef.current?.scrollIntoView({ block: 'start' })
+        fotoPanelRef.current?.focus({ preventScroll: true })
+      },
+    },
+    {
+      titolo: 'Presenza', descrizione: 'Dettaglio manodopera',
+      onClick: () => {
+        p.setMostraDettaglioManodopera(true)
+        apriArea('cantieri-economia', 'cantieri')
+        p.richiediScrollCosto('manodopera')
+      },
+    },
+    {
+      titolo: 'Materiale', descrizione: 'Materiali del cantiere',
+      onClick: () => {
+        p.setMostraDettaglioMateriali(true)
+        apriArea('cantieri-economia', 'cantieri')
+        p.richiediScrollCosto('materiali')
+      },
+    },
+    {
+      titolo: 'Attrezzature', descrizione: 'Attrezzature del cantiere',
+      onClick: () => {
+        p.setMostraAttrezziCantiere(true)
+        apriArea('cantieri-economia', 'cantieri')
+        p.richiediScrollCosto('attrezzature')
+      },
+    },
+  ]
 
   return (
     <div style={{ ...p.cardStyle, minWidth: 0, background: '#f8fafc' }}>
       <header
+        ref={p.panoramicaRef}
+        tabIndex={-1}
         style={{
           display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start',
           gap: 24, padding: 24, background: '#fff',
@@ -109,6 +165,64 @@ export default function CantieriSchedaPanel(props: any) {
           </span>
         ))}
       </nav>
+      {p.cantiereSelezionatoDaId && (
+        <section aria-label="Azioni rapide" style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 14px', fontSize: 18, color: '#0f172a' }}>
+            Azioni rapide
+          </h3>
+          <div className="scheda-cantiere-azioni-rapide">
+            {azioniRapide.map((azione) => (
+              <button
+                key={azione.titolo}
+                type="button"
+                onClick={azione.onClick}
+                className="scheda-cantiere-azione-rapida"
+              >
+                <span style={{ display: 'block', fontSize: 16, fontWeight: 600 }}>
+                  {azione.titolo}
+                </span>
+                <span style={{ display: 'block', marginTop: 8, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                  {azione.descrizione}
+                </span>
+              </button>
+            ))}
+          </div>
+          <style>{`
+            .scheda-cantiere-azioni-rapide {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 12px;
+            }
+            .scheda-cantiere-azione-rapida {
+              min-width: 0;
+              min-height: 112px;
+              padding: 18px 14px;
+              border: 1px solid #e2e8f0;
+              border-radius: 12px;
+              background: #fff;
+              color: #0f172a;
+              text-align: left;
+              font-family: inherit;
+              overflow-wrap: anywhere;
+              cursor: pointer;
+              box-shadow: 0 2px 6px rgb(15 23 42 / 3%);
+            }
+            .scheda-cantiere-azione-rapida:hover {
+              background: #eff6ff;
+              border-color: #93c5fd;
+            }
+            .scheda-cantiere-azione-rapida:focus-visible {
+              outline: 2px solid #2563eb;
+              outline-offset: 3px;
+            }
+            @media (min-width: 900px) {
+              .scheda-cantiere-azioni-rapide {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+              }
+            }
+          `}</style>
+        </section>
+      )}
       {!p.cantiereSelezionatoDaId ? (
         <p>Seleziona un cantiere per vedere i dettagli.</p>
       ) : (
@@ -174,6 +288,10 @@ export default function CantieriSchedaPanel(props: any) {
               </div>
 
               <div
+                ref={fotoPanelRef}
+                tabIndex={-1}
+                role="region"
+                aria-label="Foto cantiere"
                 style={{
                   marginTop: 20,
                   padding: 15,
@@ -182,6 +300,7 @@ export default function CantieriSchedaPanel(props: any) {
                   background: '#fff',
                 }}
               >
+                <TornaAllaPanoramica onClick={p.tornaAllaPanoramica} />
                 <FotoCantiereToolbar
                   caricaFotoDaInput={p.caricaFotoDaInput}
                   cameraFotoCantiereAttiva={p.cameraFotoCantiereAttiva}

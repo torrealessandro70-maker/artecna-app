@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
+import TornaAllaPanoramica from './components/TornaAllaPanoramica'
 import Webcam from 'react-webcam'
 import SignatureCanvas from 'react-signature-canvas'
 import ExcelJS from 'exceljs'
@@ -511,6 +512,26 @@ const dettaMateriali = () => {
   avviaDettatura((testo) => {
     setMateriali((prev) => prev ? prev + ' ' + testo : testo)
   })
+}
+
+const navigazioneCostiRef = useRef<((target: 'manodopera' | 'materiali' | 'attrezzature') => void) | null>(null)
+const richiediScrollCosto = (target: 'manodopera' | 'materiali' | 'attrezzature') => {
+  requestAnimationFrame(() => navigazioneCostiRef.current?.(target))
+}
+
+const rapportiniAreaRef = useRef<HTMLDivElement>(null)
+const [richiestaScrollRapportini, setRichiestaScrollRapportini] = useState(0)
+useEffect(() => {
+  if (!richiestaScrollRapportini) return
+  rapportiniAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  rapportiniAreaRef.current?.focus({ preventScroll: true })
+}, [richiestaScrollRapportini])
+
+const panoramicaRef = useRef<HTMLElement>(null)
+const [ritornoPanoramicaAttivo, setRitornoPanoramicaAttivo] = useState(false)
+const tornaAllaPanoramica = () => {
+  panoramicaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  panoramicaRef.current?.focus({ preventScroll: true })
 }
 
 const firmaRef = useRef<any>(null)
@@ -12083,11 +12104,24 @@ WebkitOverflowScrolling: 'touch',
 
 {(
   pagineAperte.includes('cantieri-scheda') ||
+  (ritornoPanoramicaAttivo && !modalitaMulti && (
+    sezioneAttiva === 'rapportini' ||
+    (sezioneAttiva === 'cantieri' && sottoSezioneCantieri === 'economia')
+  )) ||
   (!modalitaMulti &&
     sezioneAttiva === 'cantieri' &&
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  richiediScrollCosto={richiediScrollCosto}
+  richiediScrollRapportini={() => setRichiestaScrollRapportini((richiesta) => richiesta + 1)}
+  panoramicaRef={panoramicaRef}
+  tornaAllaPanoramica={tornaAllaPanoramica}
+  setRitornoPanoramicaAttivo={setRitornoPanoramicaAttivo}
+  setSezioneAttiva={setSezioneAttiva}
+  setSottoSezioneCantieri={setSottoSezioneCantieri}
+  togglePaginaAperta={togglePaginaAperta}
+  setMostraAttrezziCantiere={setMostraAttrezziCantiere}
   modificaNomeCantiereScheda={modificaNomeCantiereScheda}
   cantiereSelezionatoDaId={cantiereSelezionatoDaId}
   cantiereNomeVisualizzato={cantiereSchedaDerivato}
@@ -12201,7 +12235,12 @@ onDocumentAction={gestisciAzioneDocumento}
     sezioneAttiva === 'cantieri' &&
     sottoSezioneCantieri === 'economia')
 ) && (
+<>
+  {ritornoPanoramicaAttivo && (
+    <TornaAllaPanoramica onClick={tornaAllaPanoramica} />
+  )}
 <CantieriEconomiaPanel
+  navigazioneCostiRef={navigazioneCostiRef}
   cantiereNomeVisualizzato={cantiereSchedaDerivato}
   setCantiereIdScheda={setCantiereIdScheda}
   cantiereSelezionatoUnico={cantiereSelezionatoUnico}
@@ -12381,6 +12420,7 @@ onDocumentAction={gestisciAzioneDocumento}
   setRegistroTab={setRegistroTab}
   setSezioneAttiva={setSezioneAttiva}
 />
+</>
 )}
 
 <FotoFullscreenModal
@@ -12494,7 +12534,11 @@ onDocumentAction={gestisciAzioneDocumento}
   pagineAperte.includes('rapportini') ||
   (!modalitaMulti && sezioneAttiva === 'rapportini')
 ) && (
-  <RapportiniPanel
+  <div ref={rapportiniAreaRef} tabIndex={-1}>
+  {ritornoPanoramicaAttivo && (
+    <TornaAllaPanoramica onClick={tornaAllaPanoramica} />
+  )}
+<RapportiniPanel
     cardStyle={cardStyle}
     rapportiniFiltrati={rapportiniFiltrati}
     fotoCantiere={fotoCantiere}
@@ -12529,6 +12573,7 @@ onDocumentAction={gestisciAzioneDocumento}
     setOperaiRapportinoTemp={setOperaiRapportinoTemp}
     setPopupFotoRapportino={setPopupFotoRapportino}
   />
+</div>
 )}
 
 {/* ================= SOPRALLUOGHI ================= */}
