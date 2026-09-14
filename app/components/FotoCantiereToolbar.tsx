@@ -3,6 +3,7 @@
 import { useRef, type CSSProperties, type ChangeEvent } from 'react'
 
 type Props = {
+  contestuale?: boolean
   caricaFotoDaInput: (e: ChangeEvent<HTMLInputElement>) => void
   cameraFotoCantiereAttiva: boolean
   setCameraFotoCantiereAttiva: (v: boolean) => void
@@ -17,6 +18,7 @@ type Props = {
 }
 
 export default function FotoCantiereToolbar({
+  contestuale = false,
   caricaFotoDaInput,
   cameraFotoCantiereAttiva,
   setCameraFotoCantiereAttiva,
@@ -29,11 +31,12 @@ export default function FotoCantiereToolbar({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+  const selezioneFileRef = useRef<HTMLInputElement>(null)
   const fotocameraNativaRef = useRef<HTMLInputElement>(null)
 
   return (
     <>
-      <h3 style={{ marginTop: 0 }}>📸 Foto cantiere</h3>
+      <h3 style={{ marginTop: 0 }}>{contestuale ? 'Foto del cantiere' : '📸 Foto cantiere'}</h3>
 
       <div
         style={{
@@ -61,6 +64,16 @@ export default function FotoCantiereToolbar({
           📷 Scatta con fotocamera
         </button>
 
+        {contestuale ? (
+          <>
+            <input ref={selezioneFileRef} type="file" accept="image/*" multiple
+              onChange={caricaFotoDaInput} style={{ display: 'none' }} />
+            <button type="button" onClick={() => selezioneFileRef.current?.click()}
+              style={{ ...buttonPrimary, minHeight: 44 }}>
+              + Aggiungi foto
+            </button>
+          </>
+        ) : (
         <label style={{ ...buttonSecondary, cursor: 'pointer' }}>
           🖼️ Scegli dalla galleria
           <input
@@ -71,6 +84,7 @@ export default function FotoCantiereToolbar({
             style={{ display: 'none' }}
           />
         </label>
+        )}
 
         <button
           type="button"

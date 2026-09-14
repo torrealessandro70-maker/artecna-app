@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 
 type SchedaCantierePagina = 'panoramica' | 'lavori'
@@ -17,6 +17,17 @@ import FotoCantiereCategoriaModal from './FotoCantiereCategoriaModal'
 
 export default function CantieriSchedaPanel(props: any) {
   const p = props
+  const nomeCantiereFoto = p.cantiereSelezionatoDaId?.nome ?? ''
+  const fotoDelCantiere = p.cantiereSelezionatoDaId?.id && nomeCantiereFoto
+    ? p.fotoCantiere.filter((foto: any) => foto.cantiere === nomeCantiereFoto)
+    : []
+  const fotoSelezionateDelCantiere = p.fotoCantiereSelezionate.filter((id: string) =>
+    fotoDelCantiere.some((foto: any) => foto.id === id)
+  )
+
+  useEffect(() => {
+    p.setFotoCantiereSelezionate([])
+  }, [p.cantiereSelezionatoDaId?.id, p.setFotoCantiereSelezionate])
   const [paginaAttiva, setPaginaAttiva] = useState<SchedaCantierePagina>('panoramica')
   const [lavoriSezione, setLavoriSezione] = useState<LavoriSezione>('rapportini')
   const apriLavori = (sezione: LavoriSezione) => {
@@ -385,6 +396,7 @@ export default function CantieriSchedaPanel(props: any) {
               >
 
                 <FotoCantiereToolbar
+                  contestuale
                   caricaFotoDaInput={p.caricaFotoDaInput}
                   cameraFotoCantiereAttiva={p.cameraFotoCantiereAttiva}
                   setCameraFotoCantiereAttiva={
@@ -429,9 +441,7 @@ export default function CantieriSchedaPanel(props: any) {
                   <strong>
                     Foto salvate per questo cantiere:{' '}
                     {
-                      p.fotoCantiere.filter(
-                        (f: any) => f.cantiere === p.cantiereScheda
-                      ).length
+                      fotoDelCantiere.length
                     }
                   </strong>
                 </div>
@@ -439,7 +449,7 @@ export default function CantieriSchedaPanel(props: any) {
                 <FotoCantiereFiltri
                   filtroFotoCantiere={p.filtroFotoCantiere}
                   setFiltroFotoCantiere={p.setFiltroFotoCantiere}
-                  fotoCantiereSelezionate={p.fotoCantiereSelezionate}
+                  fotoCantiereSelezionate={fotoSelezionateDelCantiere}
                   setFotoCantiereSelezionate={
                     p.setFotoCantiereSelezionate
                   }
@@ -452,12 +462,18 @@ export default function CantieriSchedaPanel(props: any) {
                   buttonSecondary={p.buttonSecondary}
                 />
 
+                {fotoDelCantiere.length === 0 && (
+                  <p style={{ margin: '18px 0', color: '#64748b' }}>
+                    Nessuna foto registrata per questo cantiere.
+                  </p>
+                )}
                 <FotoCantiereGallery
-                  fotoCantiere={p.fotoCantiere}
+                  contestuale
+                  fotoCantiere={fotoDelCantiere}
                   setFotoCantiere={p.setFotoCantiere}
-                  cantiereScheda={p.cantiereScheda}
+                  cantiereScheda={nomeCantiereFoto}
                   filtroFotoCantiere={p.filtroFotoCantiere}
-                  fotoCantiereSelezionate={p.fotoCantiereSelezionate}
+                  fotoCantiereSelezionate={fotoSelezionateDelCantiere}
                   setFotoCantiereSelezionate={
                     p.setFotoCantiereSelezionate
                   }

@@ -4,6 +4,7 @@ import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 import type { FotoCantiere } from '../types'
 
 type Props = {
+  contestuale?: boolean
   fotoCantiere: FotoCantiere[]
   setFotoCantiere: Dispatch<SetStateAction<FotoCantiere[]>>
 
@@ -24,6 +25,7 @@ type Props = {
 }
 
 export default function FotoCantiereGallery({
+  contestuale = false,
   fotoCantiere,
   setFotoCantiere,
   cantiereScheda,
@@ -130,7 +132,9 @@ export default function FotoCantiereGallery({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+          gridTemplateColumns: contestuale
+            ? 'repeat(auto-fill, minmax(min(100%, 200px), 1fr))'
+            : 'repeat(auto-fill, minmax(180px, 1fr))',
           gap: 12,
           marginTop: 15,
         }}
@@ -167,6 +171,7 @@ export default function FotoCantiereGallery({
               borderRadius: 10,
               overflow: 'hidden',
               background: '#fff',
+              ...(contestuale ? { minWidth: 0 } : {}),
             }}
           >
             <label
@@ -217,7 +222,7 @@ export default function FotoCantiereGallery({
             />
             ) : null}
 
-            <div style={{ padding: 10 }}>
+            <div style={{ padding: 10, ...(contestuale ? { overflowWrap: 'anywhere' as const } : {}) }}>
               <div style={{ fontSize: 12, color: '#64748b' }}>
                 {foto.data_foto || '-'}
               </div>
@@ -278,6 +283,7 @@ export default function FotoCantiereGallery({
                   style={{
                     width: '100%',
                     padding: 8,
+                    ...(contestuale ? { minHeight: 44, boxSizing: 'border-box' as const } : {}),
                     borderRadius: 8,
                     border: '1px solid #cbd5e1',
                     marginTop: 4,
@@ -301,6 +307,7 @@ export default function FotoCantiereGallery({
                   color: '#fff',
                   marginTop: 10,
                   width: '100%',
+                  ...(contestuale ? { minHeight: 44 } : {}),
                 }}
               >
                 🗑 Elimina
