@@ -519,14 +519,6 @@ const richiediScrollCosto = (target: 'manodopera' | 'materiali' | 'attrezzature'
   requestAnimationFrame(() => navigazioneCostiRef.current?.(target))
 }
 
-const rapportiniAreaRef = useRef<HTMLDivElement>(null)
-const [richiestaScrollRapportini, setRichiestaScrollRapportini] = useState(0)
-useEffect(() => {
-  if (!richiestaScrollRapportini) return
-  rapportiniAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  rapportiniAreaRef.current?.focus({ preventScroll: true })
-}, [richiestaScrollRapportini])
-
 const panoramicaRef = useRef<HTMLElement>(null)
 const [ritornoPanoramicaAttivo, setRitornoPanoramicaAttivo] = useState(false)
 const tornaAllaPanoramica = () => {
@@ -11609,7 +11601,6 @@ textarea:not(.impostazioni-input) {
       ['operai-anagrafica', '👷 Anagrafica operai'],
       ['operai-timbrature', '🕒 Timbrature'],
       ['operai-presenze', '📋 Presenze / costi'],
-      ['rapportini', '📄 Rapportini'],
       ['pagamenti-operai', '👷 Pagamenti operai'],
       ['pagamenti-fornitori', '🧾 Pagamenti fornitori'],
       ['economia', '💶 Economia generale'],
@@ -12105,7 +12096,6 @@ WebkitOverflowScrolling: 'touch',
 {(
   pagineAperte.includes('cantieri-scheda') ||
   (ritornoPanoramicaAttivo && !modalitaMulti && (
-    sezioneAttiva === 'rapportini' ||
     (sezioneAttiva === 'cantieri' && sottoSezioneCantieri === 'economia')
   )) ||
   (!modalitaMulti &&
@@ -12127,7 +12117,6 @@ WebkitOverflowScrolling: 'touch',
     setPopupFotoRapportino, fotoCantiere, setFotoRapportinoAperte,
   }}
   richiediScrollCosto={richiediScrollCosto}
-  richiediScrollRapportini={() => setRichiestaScrollRapportini((richiesta) => richiesta + 1)}
   panoramicaRef={panoramicaRef}
   tornaAllaPanoramica={tornaAllaPanoramica}
   setRitornoPanoramicaAttivo={setRitornoPanoramicaAttivo}
@@ -12543,14 +12532,7 @@ onDocumentAction={gestisciAzioneDocumento}
 />
 
 {/* ================= RAPPORTINI ================= */}
-{(
-  pagineAperte.includes('rapportini') ||
-  (!modalitaMulti && sezioneAttiva === 'rapportini')
-) && (
-  <div ref={rapportiniAreaRef} tabIndex={-1}>
-  {ritornoPanoramicaAttivo && (
-    <TornaAllaPanoramica onClick={tornaAllaPanoramica} />
-  )}
+{sezioneAttiva === 'rapportini' && (
 <RapportiniPanel
     cardStyle={cardStyle}
     rapportiniFiltrati={rapportiniFiltrati}
@@ -12586,7 +12568,6 @@ onDocumentAction={gestisciAzioneDocumento}
     setOperaiRapportinoTemp={setOperaiRapportinoTemp}
     setPopupFotoRapportino={setPopupFotoRapportino}
   />
-</div>
 )}
 
 {/* ================= SOPRALLUOGHI ================= */}
