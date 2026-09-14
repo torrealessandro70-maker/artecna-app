@@ -67,7 +67,7 @@ export default function CantieriSchedaPanel(props: any) {
 
           return (
             <div>
-              <h3>{p.cantiereScheda}</h3>
+              <h3>{p.cantiereNomeVisualizzato}</h3>
 
               <div
                 style={{

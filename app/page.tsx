@@ -12065,7 +12065,9 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  cantiereNomeVisualizzato={cantiereSchedaDerivato}
   materialiCantiere={materialiCantiere}
+  attrezziCantiere={attrezziCantiere}
   setCantiereIdScheda={setCantiereIdScheda}
   cantiereSelezionatoUnico={cantiereSelezionatoUnico}
   pagineAperte={pagineAperte}
