@@ -18,6 +18,7 @@ type PreventivoQualityVoice = {
 }
 type FascicoloCockpitProps = {
   cantiereName?: string
+  nomeCantiereVisualizzato?: string
   subtitle?: string
   focus?: string
   feed?: RuntimeFeedItem[]
@@ -26,6 +27,7 @@ type FascicoloCockpitProps = {
 
 export default function FascicoloCockpit({
   cantiereName,
+  nomeCantiereVisualizzato,
   subtitle,
   focus,
   feed,
@@ -78,7 +80,7 @@ const preventivoQualityAccent =
       >
         <div>
           <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: -0.5 }}>
-            {cockpitSnapshot.cantiereName}
+            {nomeCantiereVisualizzato ?? cockpitSnapshot.cantiereName}
           </div>
           <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
             {cockpitSnapshot.subtitle}

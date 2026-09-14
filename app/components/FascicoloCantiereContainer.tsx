@@ -346,6 +346,7 @@ const assistantObservations = buildAssistantObservations(context)
 
 <FascicoloCockpit
   cantiereName={cantiere?.nome || nomeCantiere}
+  nomeCantiereVisualizzato={nomeCantiereVisualizzato}
   subtitle={cliente ? `Cliente: ${cliente}` : 'Fascicolo di Cantiere · ARTECNA OS'}
   focus={statoLavori || 'Stato lavori da aggiornare'}
   vociPreventivoQualita={vociPreventivoQualita}
