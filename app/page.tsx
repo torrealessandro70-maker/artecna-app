@@ -6995,12 +6995,14 @@ const annullaModificaRegistroCantiere = () => {
 const salvaModificaRegistroCantiere = async (id?: string) => {
   if (!id) return
 
+  const nuovoNome = cantiereRegistroNome.trim()
+
   const preventivo = parseImporto(cantiereRegistroPreventivo)
 
   const { error } = await supabase
     .from('cantieri')
     .update({
-      nome: cantiereRegistroNome.trim(),
+      nome: nuovoNome,
       preventivo,
       data_inizio_lavori: cantiereRegistroInizio || null,
       data_fine_lavori: cantiereRegistroFine || null,
@@ -7011,6 +7013,10 @@ const salvaModificaRegistroCantiere = async (id?: string) => {
   if (error) {
     alert('Errore modifica cantiere: ' + error.message)
     return
+  }
+
+  if (String(cantiereIdScheda) === String(id)) {
+    setCantiereScheda(nuovoNome)
   }
 
   annullaModificaRegistroCantiere()
