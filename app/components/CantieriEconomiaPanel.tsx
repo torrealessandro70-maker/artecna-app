@@ -127,7 +127,7 @@ export default function CantieriEconomiaPanel(props: Props) {
             FASCICOLO CANTIERE
           </div>
           <h2 style={{ margin: '3px 0 14px' }}>
-            {p.cantiereScheda || 'Seleziona un cantiere'}
+            {p.cantiereNomeVisualizzato || 'Seleziona un cantiere'}
           </h2>
           <EconomiaSelezioneCantierePanel
             setCantiereIdScheda={p.setCantiereIdScheda}

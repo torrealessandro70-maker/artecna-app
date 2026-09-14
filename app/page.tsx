@@ -12067,7 +12067,12 @@ WebkitOverflowScrolling: 'touch',
 <CantieriContainer
   cantiereNomeVisualizzato={cantiereSchedaDerivato}
   materialiCantiere={materialiCantiere}
+  mostraDettaglioMateriali={mostraDettaglioMateriali}
+  setMostraDettaglioMateriali={setMostraDettaglioMateriali}
+  mostraDettaglioManodopera={mostraDettaglioManodopera}
+  setMostraDettaglioManodopera={setMostraDettaglioManodopera}
   attrezziCantiere={attrezziCantiere}
+  preventivi={preventivi}
   setCantiereIdScheda={setCantiereIdScheda}
   cantiereSelezionatoUnico={cantiereSelezionatoUnico}
   pagineAperte={pagineAperte}
@@ -12084,6 +12089,7 @@ WebkitOverflowScrolling: 'touch',
   setMostraConclusiEconomia={setMostraConclusiEconomia}
   calcoloEconomiaCantiere={calcoloEconomiaCantiere}
   formatMoney={formatMoney}
+  parseImporto={parseImporto}
   inputStyle={inputStyle}
   buttonPrimary={buttonPrimary}
   buttonSecondary={buttonSecondary}
@@ -12171,6 +12177,7 @@ onDocumentAction={gestisciAzioneDocumento}
     sottoSezioneCantieri === 'economia')
 ) && (
 <CantieriEconomiaPanel
+  cantiereNomeVisualizzato={cantiereSchedaDerivato}
   setCantiereIdScheda={setCantiereIdScheda}
   cantiereSelezionatoUnico={cantiereSelezionatoUnico}
   cardStyle={cardStyle}
