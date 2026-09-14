@@ -52,6 +52,10 @@ const {
 
   {...rest}
 />
+      <details style={{ marginTop: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', padding: 16 }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#475569', minHeight: 44 }}>
+          Altri strumenti del cantiere
+        </summary>
       <CantieriAnalisiDocumentoPanel
   cardStyle={cardStyle}
   cantieri={cantieri}
@@ -71,6 +75,7 @@ const {
   {...rest}
 />
       <CantieriEconomiaPanel {...props} />
+      </details>
     </>
   )
 }

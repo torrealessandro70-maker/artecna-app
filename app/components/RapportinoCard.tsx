@@ -17,7 +17,7 @@ type Props = {
 const normalizzaDataFotoRapportino = (valore?: string | null) =>
   String(valore || '').slice(0, 10)
 
-const fotoCollegataAlRapportino = (
+export const fotoCollegataAlRapportino = (
   foto: FotoCantiere,
   rapportino: Rapportino
 ) => {
@@ -40,6 +40,16 @@ const fotoCollegataAlRapportino = (
   return stessoCantiere && stessaData && categoriaCompatibile
 }
 
+export const apriFotoRapportino = (
+  fotoCollegate: FotoCantiere[],
+  setFotoRapportinoAperte: (foto: FotoCantiere[]) => void
+) => {
+  if (fotoCollegate.length === 0) {
+    alert('Nessuna foto collegata a questo rapportino')
+    return
+  }
+  setFotoRapportinoAperte(fotoCollegate)
+}
 export default function RapportinoCard({
   rapportino: r,
   index,
@@ -80,14 +90,7 @@ export default function RapportinoCard({
         </button>
 
         <button
-          onClick={() => {
-            if (fotoCollegate.length === 0) {
-              alert('Nessuna foto collegata a questo rapportino')
-              return
-            }
-
-            setFotoRapportinoAperte(fotoCollegate)
-          }}
+          onClick={() => apriFotoRapportino(fotoCollegate, setFotoRapportinoAperte)}
           style={{
             ...buttonSecondary,
             marginLeft: 6,

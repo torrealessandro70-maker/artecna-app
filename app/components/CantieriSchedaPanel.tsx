@@ -1,8 +1,11 @@
 'use client'
 
-import { useRef } from 'react'
+import { useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
 
-import TornaAllaPanoramica from './TornaAllaPanoramica'
+type SchedaCantierePagina = 'panoramica' | 'lavori'
+type LavoriSezione = 'rapportini' | 'foto' | 'presenze' | 'materiali' | 'attrezzature'
+import RapportiniCantierePanel from './RapportiniCantierePanel'
 import SelectCantiere from './SelectCantiere'
 import FotoCantiereToolbar from './FotoCantiereToolbar'
 import FotoCantiereCamera from './FotoCantiereCamera'
@@ -14,7 +17,12 @@ import FotoCantiereCategoriaModal from './FotoCantiereCategoriaModal'
 
 export default function CantieriSchedaPanel(props: any) {
   const p = props
-  const fotoPanelRef = useRef<HTMLDivElement>(null)
+  const [paginaAttiva, setPaginaAttiva] = useState<SchedaCantierePagina>('panoramica')
+  const [lavoriSezione, setLavoriSezione] = useState<LavoriSezione>('rapportini')
+  const apriLavori = (sezione: LavoriSezione) => {
+    setLavoriSezione(sezione)
+    setPaginaAttiva('lavori')
+  }
 
   const apriArea = (pagina: string, sezione: string) => {
     p.setRitornoPanoramicaAttivo(true)
@@ -25,22 +33,25 @@ export default function CantieriSchedaPanel(props: any) {
     }
   }
 
-  const azioniRapide = [
+  const azioniRapide: Array<{
+    id: LavoriSezione
+    titolo: string
+    sezione: string
+    descrizione: string
+    onClick?: () => void
+  }> = [
     {
+      id: 'rapportini', sezione: 'Rapportini',
       titolo: 'Rapportino', descrizione: 'Apri area rapportini',
-      onClick: () => {
-        apriArea('rapportini', 'rapportini')
-        p.richiediScrollRapportini()
-      },
+
     },
     {
+      id: 'foto', sezione: 'Foto',
       titolo: 'Foto', descrizione: 'Galleria e caricamento',
-      onClick: () => {
-        fotoPanelRef.current?.scrollIntoView({ block: 'start' })
-        fotoPanelRef.current?.focus({ preventScroll: true })
-      },
+
     },
     {
+      id: 'presenze', sezione: 'Presenze',
       titolo: 'Presenza', descrizione: 'Dettaglio manodopera',
       onClick: () => {
         p.setMostraDettaglioManodopera(true)
@@ -49,6 +60,7 @@ export default function CantieriSchedaPanel(props: any) {
       },
     },
     {
+      id: 'materiali', sezione: 'Materiali',
       titolo: 'Materiale', descrizione: 'Materiali del cantiere',
       onClick: () => {
         p.setMostraDettaglioMateriali(true)
@@ -57,6 +69,7 @@ export default function CantieriSchedaPanel(props: any) {
       },
     },
     {
+      id: 'attrezzature', sezione: 'Attrezzature',
       titolo: 'Attrezzature', descrizione: 'Attrezzature del cantiere',
       onClick: () => {
         p.setMostraAttrezziCantiere(true)
@@ -150,23 +163,34 @@ export default function CantieriSchedaPanel(props: any) {
         display: 'flex', gap: 4, overflowX: 'auto', maxWidth: '100%',
         marginTop: 20, marginBottom: 24, borderBottom: '1px solid #e2e8f0',
       }}>
-        {['Panoramica', 'Lavori', 'Documenti', 'Economia', 'Fascicolo', 'Timeline', 'Analisi AI'].map((sezione) => (
-          <span
-            key={sezione}
-            aria-current={sezione === 'Panoramica' ? 'page' : undefined}
+        {(['panoramica', 'lavori'] as const).map((pagina) => (
+          <button
+            key={pagina}
+            type="button"
+            aria-current={paginaAttiva === pagina ? 'page' : undefined}
+            onClick={() => setPaginaAttiva(pagina)}
             style={{
-              flexShrink: 0, padding: '12px 16px', fontSize: 14,
-              fontWeight: sezione === 'Panoramica' ? 600 : 400,
-              color: sezione === 'Panoramica' ? '#1d4ed8' : '#64748b',
-              borderBottom: sezione === 'Panoramica' ? '2px solid #1d4ed8' : '2px solid transparent',
+              flexShrink: 0, minHeight: 44, padding: '12px 16px', fontSize: 14,
+              fontWeight: paginaAttiva === pagina ? 600 : 400,
+              color: paginaAttiva === pagina ? '#1d4ed8' : '#475569',
+              border: 0, background: 'transparent', cursor: 'pointer',
+              borderBottom: paginaAttiva === pagina ? '2px solid #1d4ed8' : '2px solid transparent',
             }}
           >
+            {pagina === 'panoramica' ? 'Panoramica' : 'Lavori'}
+          </button>
+        ))}
+        {['Documenti', 'Economia', 'Fascicolo', 'Timeline', 'Analisi AI'].map((sezione) => (
+          <button key={sezione} type="button" disabled style={{
+            flexShrink: 0, minHeight: 44, padding: '12px 16px', fontSize: 14,
+            color: '#94a3b8', border: 0, background: 'transparent', cursor: 'not-allowed',
+          }}>
             {sezione}
-          </span>
+          </button>
         ))}
       </nav>
       {p.cantiereSelezionatoDaId && (
-        <section aria-label="Azioni rapide" style={{ marginBottom: 24 }}>
+        <section hidden={paginaAttiva !== 'panoramica'} aria-label="Azioni rapide" style={{ marginBottom: 24 }}>
           <h3 style={{ margin: '0 0 14px', fontSize: 18, color: '#0f172a' }}>
             Azioni rapide
           </h3>
@@ -175,7 +199,7 @@ export default function CantieriSchedaPanel(props: any) {
               <button
                 key={azione.titolo}
                 type="button"
-                onClick={azione.onClick}
+                onClick={() => apriLavori(azione.id)}
                 className="scheda-cantiere-azione-rapida"
               >
                 <span style={{ display: 'block', fontSize: 16, fontWeight: 600 }}>
@@ -223,6 +247,63 @@ export default function CantieriSchedaPanel(props: any) {
           `}</style>
         </section>
       )}
+      {p.cantiereSelezionatoDaId && paginaAttiva === 'lavori' && (
+        <section aria-label="Lavori">
+          <button type="button" onClick={() => setPaginaAttiva('panoramica')} style={{
+            ...p.buttonSecondary, display: 'inline-flex', alignItems: 'center',
+            gap: 8, minHeight: 44, marginBottom: 16,
+          }}>
+            <ArrowLeft size={18} aria-hidden="true" /> Panoramica
+          </button>
+          <h3 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: 22 }}>Lavori</h3>
+          <nav aria-label="Sezioni lavori" style={{
+            display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12,
+            borderBottom: '1px solid #e2e8f0', marginBottom: 20,
+          }}>
+            {azioniRapide.map((azione) => (
+              <button key={azione.id} type="button"
+                aria-pressed={lavoriSezione === azione.id}
+                onClick={() => setLavoriSezione(azione.id)}
+                style={{
+                  minHeight: 44, flexShrink: 0, padding: '10px 16px', borderRadius: 8,
+                  border: lavoriSezione === azione.id ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                  background: lavoriSezione === azione.id ? '#eff6ff' : '#fff',
+                  color: lavoriSezione === azione.id ? '#1d4ed8' : '#475569',
+                  fontWeight: 600, cursor: 'pointer',
+                }}>
+                {azione.sezione}
+              </button>
+            ))}
+          </nav>
+          {azioniRapide.filter((azione) => azione.id === lavoriSezione && azione.onClick).map((azione) => (
+            <div key={azione.id} style={{ padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
+              <h4 style={{ margin: '0 0 10px', fontSize: 18 }}>{azione.sezione}</h4>
+              <p style={{ color: '#64748b', margin: '0 0 16px' }}>
+                {azione.id === 'rapportini'
+                  ? 'Consulta e gestisci i rapportini nell’area Rapportini.'
+                  : 'Consulta e gestisci questo dettaglio nell’area Economia cantiere.'}
+              </p>
+              <button type="button" onClick={azione.onClick} style={{ ...p.buttonPrimary, minHeight: 44 }}>
+                Apri {azione.sezione}
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
+      {p.cantiereSelezionatoDaId && (
+        <div hidden={paginaAttiva !== 'lavori' || lavoriSezione !== 'rapportini'}>
+          <RapportiniCantierePanel
+            key={p.cantiereSelezionatoDaId.id}
+            cantiere={p.cantiereSelezionatoDaId}
+            rapportini={p.rapportini}
+            formProps={p.rapportinoFormProps}
+            resetFormRapportino={p.resetFormRapportino}
+            preparaModificaRapportino={p.preparaModificaRapportinoLocale}
+            eliminaRapportino={p.eliminaRapportino}
+            generaPdfRapportinoFotografico={p.generaPdfRapportinoFotografico}
+          />
+        </div>
+      )}
       {!p.cantiereSelezionatoDaId ? (
         <p>Seleziona un cantiere per vedere i dettagli.</p>
       ) : (
@@ -236,6 +317,7 @@ export default function CantieriSchedaPanel(props: any) {
 
           return (
             <div>
+              <div hidden={paginaAttiva !== 'panoramica'}>
               <div
                 style={{
                   marginTop: 15,
@@ -287,8 +369,9 @@ export default function CantieriSchedaPanel(props: any) {
                 )}
               </div>
 
+              </div>
               <div
-                ref={fotoPanelRef}
+                hidden={paginaAttiva !== 'lavori' || lavoriSezione !== 'foto'}
                 tabIndex={-1}
                 role="region"
                 aria-label="Foto cantiere"
@@ -300,7 +383,7 @@ export default function CantieriSchedaPanel(props: any) {
                   background: '#fff',
                 }}
               >
-                <TornaAllaPanoramica onClick={p.tornaAllaPanoramica} />
+
                 <FotoCantiereToolbar
                   caricaFotoDaInput={p.caricaFotoDaInput}
                   cameraFotoCantiereAttiva={p.cameraFotoCantiereAttiva}

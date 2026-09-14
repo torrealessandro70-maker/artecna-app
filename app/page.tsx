@@ -7951,7 +7951,7 @@ fotoGiaInserite.add(chiaveFoto)
 
 
 
-  const preparaModificaRapportino = (r: Rapportino) => {
+  const preparaModificaRapportino = (r: Rapportino, scorriInAlto = true) => {
     setRapportinoInModifica(r.id || null)
     setCantiereRapporto(r.cantiere ?? '')
     setData(r.data ?? '')
@@ -7963,7 +7963,7 @@ fotoGiaInserite.add(chiaveFoto)
     setMateriali(r.materiali ?? '')
     setQuantitaMateriali(r.quantita_materiali ?? '')
     setCostoMateriali(r.costo_materiali ?? '')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (scorriInAlto) window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const aggiornaRapportino = async () => {
@@ -12113,6 +12113,19 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  resetFormRapportino={resetFormRapportino}
+  preparaModificaRapportinoLocale={(r: Rapportino) => preparaModificaRapportino(r, false)}
+  eliminaRapportino={eliminaRapportino}
+  generaPdfRapportinoFotografico={generaPdfRapportinoFotografico}
+  rapportinoFormProps={{
+    cantiereRapporto, setCantiereRapporto, data, setData, note, setNote,
+    materiali, setMateriali, quantitaMateriali, setQuantitaMateriali,
+    costoMateriali, setCostoMateriali, salvaRapportino, aggiornaRapportino,
+    rapportinoInModifica, cantieri, inputStyle, buttonPrimary, buttonSecondary,
+    ascoltoRapportino, avviaDettaturaRapportino, fermaDettaturaRapportino,
+    operaiAnagrafica, operaiRapportinoTemp, setOperaiRapportinoTemp,
+    setPopupFotoRapportino, fotoCantiere, setFotoRapportinoAperte,
+  }}
   richiediScrollCosto={richiediScrollCosto}
   richiediScrollRapportini={() => setRichiestaScrollRapportini((richiesta) => richiesta + 1)}
   panoramicaRef={panoramicaRef}
