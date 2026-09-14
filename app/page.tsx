@@ -11951,7 +11951,7 @@ WebkitOverflowScrolling: 'touch',
     {pagineAperte.includes('cantieri-economia') && (
       <div style={cardStyle}>
         <h3>📁 Fascicolo cantiere</h3>
-        <p>Cantiere: {cantiereScheda || 'nessuno'}</p>
+        <p>Cantiere: {cantiereSchedaDerivato || 'nessuno'}</p>
         <p>Preventivo: {formatMoney(preventivoCantiere)}</p>
         <p>Manodopera: {formatMoney(totaleManodoperaCantiere)}</p>
         <p>Materiali: {formatMoney(totaleMaterialiEconomia)}</p>
