@@ -20,6 +20,7 @@ export default function CantieriAnalisiDocumentoPanel(props: any) {
               cantieri={p.cantieri}
               value={p.cantiereAnalisiDocumento || ''}
               onChange={p.setCantiereAnalisiDocumento}
+              onChangeId={p.setCantiereIdScheda}
               inputStyle={{
                 padding: 8,
                 width: 260,

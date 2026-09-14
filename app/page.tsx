@@ -12141,6 +12141,7 @@ WebkitOverflowScrolling: 'touch',
   cantieri={cantieri}
   cantiereAnalisiDocumento={cantiereScheda || ''}
   setCantiereAnalisiDocumento={setCantiereScheda}
+  setCantiereIdScheda={setCantiereIdScheda}
   inputStyle={inputStyle}
   buttonSecondary={buttonSecondary}
   buttonPrimary={buttonPrimary}
