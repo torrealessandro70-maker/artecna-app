@@ -54,7 +54,7 @@ export default function CantieriSchedaPanel(props: any) {
         buttonSecondary={p.buttonSecondary}
       />
 
-      {!p.cantiereScheda ? (
+      {!p.cantiereSelezionatoDaId ? (
         <p>Seleziona un cantiere per vedere i dettagli.</p>
       ) : (
         (() => {
