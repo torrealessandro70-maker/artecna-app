@@ -41,21 +41,11 @@ export default function CantieriSchedaPanel(props: any) {
     setPaginaAttiva('lavori')
   }
 
-  const apriArea = (pagina: string, sezione: string) => {
-    p.setRitornoPanoramicaAttivo(true)
-    p.setSezioneAttiva(sezione)
-    if (sezione === 'cantieri') p.setSottoSezioneCantieri('economia')
-    if (p.modalitaMulti && !p.pagineAperte.includes(pagina)) {
-      p.togglePaginaAperta(pagina)
-    }
-  }
-
   const azioniRapide: Array<{
     id: LavoriSezione
     titolo: string
     sezione: string
     descrizione: string
-    onClick?: () => void
   }> = [
     {
       id: 'rapportini', sezione: 'Rapportini',
@@ -84,8 +74,6 @@ export default function CantieriSchedaPanel(props: any) {
   return (
     <div style={{ ...p.cardStyle, minWidth: 0, background: '#f8fafc' }}>
       <header
-        ref={p.panoramicaRef}
-        tabIndex={-1}
         style={{
           display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start',
           gap: 24, padding: 24, background: '#fff',
@@ -341,19 +329,6 @@ export default function CantieriSchedaPanel(props: any) {
               </p>
             </section>
           )}
-          {azioniRapide.filter((azione) => azione.id === lavoriSezione && azione.onClick).map((azione) => (
-            <div key={azione.id} style={{ padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
-              <h4 style={{ margin: '0 0 10px', fontSize: 18 }}>{azione.sezione}</h4>
-              <p style={{ color: '#64748b', margin: '0 0 16px' }}>
-                {azione.id === 'rapportini'
-                  ? 'Consulta e gestisci i rapportini nell’area Rapportini.'
-                  : 'Consulta e gestisci questo dettaglio nell’area Economia cantiere.'}
-              </p>
-              <button type="button" onClick={azione.onClick} style={{ ...p.buttonPrimary, minHeight: 44 }}>
-                Apri {azione.sezione}
-              </button>
-            </div>
-          ))}
         </section>
       )}
       {p.cantiereSelezionatoDaId && (

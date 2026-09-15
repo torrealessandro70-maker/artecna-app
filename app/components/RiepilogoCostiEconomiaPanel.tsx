@@ -1,4 +1,4 @@
-import type { CSSProperties, RefObject } from 'react'
+import type { CSSProperties } from 'react'
 
 import DettaglioManodoperaPanel from './DettaglioManodoperaPanel'
 import MaterialiEconomiaPanel from './MaterialiEconomiaPanel'
@@ -7,7 +7,6 @@ import MaterialiCaricatiPanel from './MaterialiCaricatiPanel'
 import AttrezzatureCaricatePanel from './AttrezzatureCaricatePanel'
 
 type Props = {
-  targetCostiRef?: RefObject<Partial<Record<'manodopera' | 'materiali' | 'attrezzature', HTMLDivElement | null>>>
   mostraDettaglioManodopera: boolean
   setMostraDettaglioManodopera: (v: boolean) => void
   timbrature: any[]
@@ -69,7 +68,6 @@ excelTd: CSSProperties
 }
 
 export default function RiepilogoCostiEconomiaPanel({
-  targetCostiRef,
   mostraDettaglioManodopera,
   setMostraDettaglioManodopera,
   timbrature,
@@ -131,10 +129,6 @@ export default function RiepilogoCostiEconomiaPanel({
 }: Props) {
   return (
     <>
-      <div
-        ref={(elemento) => { if (targetCostiRef) targetCostiRef.current.manodopera = elemento }}
-        tabIndex={-1}
-      >
       <DettaglioManodoperaPanel
         mostraDettaglioManodopera={mostraDettaglioManodopera}
         setMostraDettaglioManodopera={setMostraDettaglioManodopera}
@@ -156,12 +150,7 @@ export default function RiepilogoCostiEconomiaPanel({
         calcolaOreNumero={calcolaOreNumero}
         calcolaCostoTimbratura={calcolaCostoTimbratura}
       />
-      </div>
 
-      <div
-        ref={(elemento) => { if (targetCostiRef) targetCostiRef.current.materiali = elemento }}
-        tabIndex={-1}
-      >
       <MaterialiEconomiaPanel
         mostraDettaglioMateriali={mostraDettaglioMateriali}
         setMostraDettaglioMateriali={setMostraDettaglioMateriali}
@@ -195,7 +184,6 @@ export default function RiepilogoCostiEconomiaPanel({
         buttonSecondary={buttonSecondary}
         formatMoney={formatMoney}
       />
-      </div>
 
       <RiepilogoUtilePanel
         totaleCostiCantiere={totaleCostiCantiere}
@@ -218,10 +206,6 @@ export default function RiepilogoCostiEconomiaPanel({
         supabase={supabase}
       />
 
-      <div
-        ref={(elemento) => { if (targetCostiRef) targetCostiRef.current.attrezzature = elemento }}
-        tabIndex={-1}
-      >
       <AttrezzatureCaricatePanel
         mostraAttrezziCantiere={mostraAttrezziCantiere}
         setMostraAttrezziCantiere={setMostraAttrezziCantiere}
@@ -231,7 +215,6 @@ export default function RiepilogoCostiEconomiaPanel({
         formatMoney={formatMoney}
         onElimina={eliminaAttrezzatura}
       />
-      </div>
     </>
   )
 }

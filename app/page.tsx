@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } fro
 import type { RigaMaterialeFatturaStorico } from './utils/suggerimentiMateriali'
 import { calcolaAttrezzoManuale } from './utils/attrezzoManuale'
 import type { RigaAttrezzaturaFatturaStorico } from './utils/suggerimentiAttrezzature'
-import TornaAllaPanoramica from './components/TornaAllaPanoramica'
 import Webcam from 'react-webcam'
 import SignatureCanvas from 'react-signature-canvas'
 import ExcelJS from 'exceljs'
@@ -515,18 +514,6 @@ const dettaMateriali = () => {
   avviaDettatura((testo) => {
     setMateriali((prev) => prev ? prev + ' ' + testo : testo)
   })
-}
-
-const navigazioneCostiRef = useRef<((target: 'manodopera' | 'materiali' | 'attrezzature') => void) | null>(null)
-const richiediScrollCosto = (target: 'manodopera' | 'materiali' | 'attrezzature') => {
-  requestAnimationFrame(() => navigazioneCostiRef.current?.(target))
-}
-
-const panoramicaRef = useRef<HTMLElement>(null)
-const [ritornoPanoramicaAttivo, setRitornoPanoramicaAttivo] = useState(false)
-const tornaAllaPanoramica = () => {
-  panoramicaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  panoramicaRef.current?.focus({ preventScroll: true })
 }
 
 const firmaRef = useRef<any>(null)
@@ -12154,9 +12141,6 @@ WebkitOverflowScrolling: 'touch',
 
 {(
   pagineAperte.includes('cantieri-scheda') ||
-  (ritornoPanoramicaAttivo && !modalitaMulti && (
-    (sezioneAttiva === 'cantieri' && sottoSezioneCantieri === 'economia')
-  )) ||
   (!modalitaMulti &&
     sezioneAttiva === 'cantieri' &&
     sottoSezioneCantieri === 'scheda')
@@ -12223,10 +12207,6 @@ WebkitOverflowScrolling: 'touch',
     operaiAnagrafica, operaiRapportinoTemp, setOperaiRapportinoTemp,
     setPopupFotoRapportino, fotoCantiere, setFotoRapportinoAperte,
   }}
-  richiediScrollCosto={richiediScrollCosto}
-  panoramicaRef={panoramicaRef}
-  tornaAllaPanoramica={tornaAllaPanoramica}
-  setRitornoPanoramicaAttivo={setRitornoPanoramicaAttivo}
   setSezioneAttiva={setSezioneAttiva}
   setSottoSezioneCantieri={setSottoSezioneCantieri}
   togglePaginaAperta={togglePaginaAperta}
@@ -12344,12 +12324,7 @@ onDocumentAction={gestisciAzioneDocumento}
     sezioneAttiva === 'cantieri' &&
     sottoSezioneCantieri === 'economia')
 ) && (
-<>
-  {ritornoPanoramicaAttivo && (
-    <TornaAllaPanoramica onClick={tornaAllaPanoramica} />
-  )}
 <CantieriEconomiaPanel
-  navigazioneCostiRef={navigazioneCostiRef}
   cantiereNomeVisualizzato={cantiereSchedaDerivato}
   setCantiereIdScheda={setCantiereIdScheda}
   cantiereSelezionatoUnico={cantiereSelezionatoUnico}
@@ -12529,7 +12504,6 @@ onDocumentAction={gestisciAzioneDocumento}
   setRegistroTab={setRegistroTab}
   setSezioneAttiva={setSezioneAttiva}
 />
-</>
 )}
 
 <FotoFullscreenModal

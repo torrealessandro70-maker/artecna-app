@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useImperativeHandle, useLayoutEffect, type CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import EconomiaGraficiPanel from './EconomiaGraficiPanel'
 import EconomiaSelezioneCantierePanel from './EconomiaSelezioneCantierePanel'
 import DashboardEconomiaPanel from './DashboardEconomiaPanel'
@@ -15,8 +15,6 @@ import FotoCantiereFascicoloPanel from './FotoCantiereFascicoloPanel'
 import FascicoloCantiereContainer, {
   type FascicoloCantiereTab,
 } from './FascicoloCantiereContainer'
-
-type TargetCosto = 'manodopera' | 'materiali' | 'attrezzature'
 
 type Props = any
 
@@ -43,31 +41,6 @@ export default function CantieriEconomiaPanel(props: Props) {
   const p = props
   const [schedaAttiva, setSchedaAttiva] =
     useState<FascicoloCantiereTab>('panoramica')
-  const targetCostiRef = useRef<Partial<Record<TargetCosto, HTMLDivElement | null>>>({})
-  const targetCostoInAttesaRef = useRef<TargetCosto | null>(null)
-
-  const scorriAlCosto = () => {
-    const target = targetCostoInAttesaRef.current
-    const elemento = target ? targetCostiRef.current[target] : null
-    if (!elemento) return
-    targetCostoInAttesaRef.current = null
-    elemento.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    elemento.focus({ preventScroll: true })
-  }
-
-  useImperativeHandle(p.navigazioneCostiRef, () => (target: TargetCosto) => {
-    targetCostoInAttesaRef.current = target
-    if (schedaAttiva === 'economia') {
-      scorriAlCosto()
-    } else {
-      setSchedaAttiva('economia')
-    }
-  }, [schedaAttiva])
-
-  useLayoutEffect(() => {
-    if (schedaAttiva === 'economia') scorriAlCosto()
-  }, [schedaAttiva])
-
   const margine = Number(p.margineCantiere || 0)
   const stato =
     p.utileCantiere < 0
@@ -294,7 +267,7 @@ export default function CantieriEconomiaPanel(props: Props) {
             {schedaAttiva === 'economia' && (
               <section aria-label="Costi del cantiere">
                 <FiltroPeriodoEconomia {...p} />
-                <RiepilogoCostiEconomiaPanel {...p} targetCostiRef={targetCostiRef} />
+                <RiepilogoCostiEconomiaPanel {...p} />
               </section>
             )}
 
