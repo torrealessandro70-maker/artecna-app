@@ -7,6 +7,7 @@ type SchedaCantierePagina = 'panoramica' | 'lavori'
 type LavoriSezione = 'rapportini' | 'foto' | 'presenze' | 'materiali' | 'attrezzature'
 import RapportiniCantierePanel from './RapportiniCantierePanel'
 import SelectCantiere from './SelectCantiere'
+import MaterialiCantierePanel from './MaterialiCantierePanel'
 import DettaglioManodoperaPanel from './DettaglioManodoperaPanel'
 import FotoCantiereToolbar from './FotoCantiereToolbar'
 import FotoCantiereCamera from './FotoCantiereCamera'
@@ -72,11 +73,6 @@ export default function CantieriSchedaPanel(props: any) {
     {
       id: 'materiali', sezione: 'Materiali',
       titolo: 'Materiale', descrizione: 'Materiali del cantiere',
-      onClick: () => {
-        p.setMostraDettaglioMateriali(true)
-        apriArea('cantieri-economia', 'cantieri')
-        p.richiediScrollCosto('materiali')
-      },
     },
     {
       id: 'attrezzature', sezione: 'Attrezzature',
@@ -285,6 +281,14 @@ export default function CantieriSchedaPanel(props: any) {
               </button>
             ))}
           </nav>
+          {lavoriSezione === 'materiali' && (
+            <MaterialiCantierePanel key={p.cantiereSelezionatoDaId.id}
+              cantiere={p.cantiereSelezionatoDaId}
+              panelProps={p.materialiPanelProps}
+              fattureFornitori={p.fattureFornitori}
+              righeMaterialiFatture={p.righeMaterialiFatture}
+            />
+          )}
           {lavoriSezione === 'presenze' && (
             <section aria-label="Presenze del cantiere" style={{ padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', minWidth: 0 }}>
               <h4 style={{ margin: '0 0 16px', fontSize: 18 }}>Presenze del cantiere</h4>

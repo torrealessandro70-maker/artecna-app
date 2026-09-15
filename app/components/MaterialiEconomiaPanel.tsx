@@ -1,8 +1,11 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useId, type CSSProperties } from 'react'
+import PrezzoMaterialeInput from './PrezzoMaterialeInput'
 
 type Props = {
+  contestuale?: boolean
+  suggerimentiDescrizione?: string[]
   mostraDettaglioMateriali: boolean
   setMostraDettaglioMateriali: (v: boolean) => void
   totaleMaterialiEconomia: number
@@ -37,6 +40,8 @@ type Props = {
 }
 
 export default function MaterialiEconomiaPanel({
+  contestuale = false,
+  suggerimentiDescrizione,
   mostraDettaglioMateriali,
   setMostraDettaglioMateriali,
   totaleMaterialiEconomia,
@@ -69,6 +74,7 @@ export default function MaterialiEconomiaPanel({
   buttonSecondary,
   formatMoney,
 }: Props) {
+  const descrizioniId = useId()
   const materialiVisibili = materialiCantiere
     .filter((m) => {
       if (m.cantiere !== cantiereScheda) return false
@@ -123,14 +129,14 @@ export default function MaterialiEconomiaPanel({
     <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
       <strong>Materiali:</strong> {formatMoney(totaleMaterialiEconomia)}
 
-      <button
+      {!contestuale && <button
         onClick={() => setMostraDettaglioMateriali(!mostraDettaglioMateriali)}
         style={{ ...buttonSecondary, marginLeft: 10 }}
       >
         {mostraDettaglioMateriali ? 'Nascondi materiali' : 'Vedi materiali'}
-      </button>
+      </button>}
 
-      {mostraDettaglioMateriali && (
+      {(contestuale || mostraDettaglioMateriali) && (
         <div
           style={{
             marginTop: 12,
@@ -139,7 +145,7 @@ export default function MaterialiEconomiaPanel({
             borderRadius: 10,
             background: '#fff',
             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-            maxHeight: '65vh',
+            maxHeight: contestuale ? undefined : '65vh',
           }}
         >
           <div
@@ -162,7 +168,7 @@ export default function MaterialiEconomiaPanel({
             >
               <h3>➕ Inserimento materiale manuale</h3>
 
-              <input
+              {!contestuale && <input
                 placeholder="Cerca materiale..."
                 value={cercaMaterialeManuale}
                 onChange={(e) => setCercaMaterialeManuale(e.target.value)}
@@ -170,11 +176,12 @@ export default function MaterialiEconomiaPanel({
                   ...inputStyle,
                   maxWidth: 280,
                 }}
-              />
+              />}
             </div>
 
             <input
               placeholder="Descrizione materiale"
+              list={contestuale && suggerimentiDescrizione ? descrizioniId : undefined}
               value={materialeManualeDescrizione}
               onChange={(e) =>
                 setMaterialeManualeDescrizione(e.target.value)
@@ -185,6 +192,13 @@ export default function MaterialiEconomiaPanel({
                 marginBottom: 8,
               }}
             />
+
+            {contestuale && suggerimentiDescrizione && (
+              <datalist id={descrizioniId}>
+                {suggerimentiDescrizione.filter((nome) => nome.toLocaleLowerCase('it-IT').includes(materialeManualeDescrizione.toLocaleLowerCase('it-IT')))
+                  .map((nome) => <option key={nome} value={nome} />)}
+              </datalist>
+            )}
 
             <div
               style={{
@@ -202,6 +216,10 @@ export default function MaterialiEconomiaPanel({
                 style={inputStyle}
               />
 
+              {contestuale ? (
+                <PrezzoMaterialeInput value={materialeManualePrezzo} onChange={setMaterialeManualePrezzo}
+                  inputStyle={inputStyle} buttonStyle={buttonSecondary} />
+              ) : (
               <input
                 placeholder="Prezzo unitario €"
                 value={materialeManualePrezzo}
@@ -210,6 +228,7 @@ export default function MaterialiEconomiaPanel({
                 }
                 style={inputStyle}
               />
+              )}
 
               <input
                 placeholder="Fornitore / provenienza"
@@ -254,6 +273,7 @@ export default function MaterialiEconomiaPanel({
               style={{
                 ...excelTable,
                 tableLayout: 'auto',
+                minWidth: contestuale ? 800 : undefined,
                 width: '100%',
                 borderCollapse: 'collapse',
               }}

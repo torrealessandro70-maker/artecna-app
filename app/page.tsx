@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
+import type { RigaMaterialeFatturaStorico } from './utils/suggerimentiMateriali'
 import TornaAllaPanoramica from './components/TornaAllaPanoramica'
 import Webcam from 'react-webcam'
 import SignatureCanvas from 'react-signature-canvas'
@@ -845,6 +846,7 @@ const [filtroFattureFornitore, setFiltroFattureFornitore] = useState('')
 const [filtroFattureStato, setFiltroFattureStato] = useState('')
 const [fatturaApertaId, setFatturaApertaId] = useState<string | null>(null)
 const [righeFatturaAperta, setRigheFatturaAperta] = useState<RigaFatturaFornitore[]>([])
+const [righeMaterialiFatture, setRigheMaterialiFatture] = useState<RigaMaterialeFatturaStorico[]>([])
 const [filtroFattureCantiere, setFiltroFattureCantiere] = useState('')
 const [filtroSpeseImpresa, setFiltroSpeseImpresa] = useState('')
 
@@ -3010,6 +3012,28 @@ const caricaSpeseImpresa = async () => {
 
 
 
+const caricaRigheMaterialiFatture = async () => {
+  const dimensionePagina = 500
+  const righe: RigaMaterialeFatturaStorico[] = []
+  for (let da = 0; ; da += dimensionePagina) {
+    const { data, error } = await supabase
+      .from('fatture_fornitori_righe')
+      .select('id, fattura_id, descrizione, categoria_economica, prezzo_unitario')
+      .eq('categoria_economica', 'materiale_cantiere')
+      .order('id', { ascending: true })
+      .range(da, da + dimensionePagina - 1)
+
+    if (error) {
+      console.error('Errore caricamento storico materiali fatture:', error)
+      return
+    }
+    const pagina = (data || []) as RigaMaterialeFatturaStorico[]
+    righe.push(...pagina)
+    if (pagina.length < dimensionePagina) break
+  }
+  setRigheMaterialiFatture(righe)
+}
+
 const caricaFattureFornitori = async () => {
   const { data, error } = await supabase
     .from('fatture_fornitori')
@@ -3022,6 +3046,7 @@ const caricaFattureFornitori = async () => {
   }
 
   setFattureFornitori(data || [])
+  await caricaRigheMaterialiFatture()
 }
 
 const caricaFattureEmesse = async () => {
@@ -12107,6 +12132,21 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  fattureFornitori={fattureFornitori}
+  righeMaterialiFatture={righeMaterialiFatture}
+  materialiPanelProps={{
+    mostraDettaglioMateriali, setMostraDettaglioMateriali, totaleMaterialiEconomia,
+    materialiCantiere, cantiereScheda, economiaDataDa, economiaDataA,
+    cercaMaterialeManuale, setCercaMaterialeManuale,
+    materialeManualeDescrizione, setMaterialeManualeDescrizione,
+    materialeManualeQuantita, setMaterialeManualeQuantita,
+    materialeManualePrezzo, setMaterialeManualePrezzo,
+    materialeManualeFornitore, setMaterialeManualeFornitore,
+    materialeManualeNota, setMaterialeManualeNota,
+    salvaMaterialeManuale, eliminaMaterialeCantiere, ordinaMateriali,
+    ordineMaterialiCampo, ordineMaterialiDirezione,
+    excelTable, excelTh, excelTd, inputStyle, buttonPrimary, buttonSecondary, formatMoney,
+  }}
   operaiAnagrafica={operaiAnagrafica}
   timbrature={timbrature}
   calcolaOre={calcolaOre}
