@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 
 type SchedaCantierePagina = 'panoramica' | 'lavori'
 type LavoriSezione = 'rapportini' | 'foto' | 'presenze' | 'materiali' | 'attrezzature'
 import RapportiniCantierePanel from './RapportiniCantierePanel'
 import SelectCantiere from './SelectCantiere'
+import DettaglioManodoperaPanel from './DettaglioManodoperaPanel'
 import FotoCantiereToolbar from './FotoCantiereToolbar'
 import FotoCantiereCamera from './FotoCantiereCamera'
 import FotoCantiereForm from './FotoCantiereForm'
@@ -17,6 +18,9 @@ import FotoCantiereCategoriaModal from './FotoCantiereCategoriaModal'
 
 export default function CantieriSchedaPanel(props: any) {
   const p = props
+  const [filtroOperaio, setFiltroOperaio] = useState('')
+  const elencoOperaiId = useId()
+  const ricercaOperaio = filtroOperaio.toLocaleLowerCase('it-IT')
   const nomeCantiereFoto = p.cantiereSelezionatoDaId?.nome ?? ''
   const fotoDelCantiere = p.cantiereSelezionatoDaId?.id && nomeCantiereFoto
     ? p.fotoCantiere.filter((foto: any) => foto.cantiere === nomeCantiereFoto)
@@ -64,11 +68,6 @@ export default function CantieriSchedaPanel(props: any) {
     {
       id: 'presenze', sezione: 'Presenze',
       titolo: 'Presenza', descrizione: 'Dettaglio manodopera',
-      onClick: () => {
-        p.setMostraDettaglioManodopera(true)
-        apriArea('cantieri-economia', 'cantieri')
-        p.richiediScrollCosto('manodopera')
-      },
     },
     {
       id: 'materiali', sezione: 'Materiali',
@@ -286,6 +285,57 @@ export default function CantieriSchedaPanel(props: any) {
               </button>
             ))}
           </nav>
+          {lavoriSezione === 'presenze' && (
+            <section aria-label="Presenze del cantiere" style={{ padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', minWidth: 0 }}>
+              <h4 style={{ margin: '0 0 16px', fontSize: 18 }}>Presenze del cantiere</h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', marginBottom: 16 }}>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  Dal
+                  <input type="date" value={p.economiaDataDa} onChange={(e) => p.setEconomiaDataDa(e.target.value)} />
+                </label>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  Al
+                  <input type="date" value={p.economiaDataA} onChange={(e) => p.setEconomiaDataA(e.target.value)} />
+                </label>
+                <label style={{ display: 'grid', gap: 6, flex: '1 1 220px', minWidth: 0 }}>
+                  Operaio
+                  <input
+                    type="text"
+                    list={elencoOperaiId}
+                    value={filtroOperaio}
+                    onChange={(e) => setFiltroOperaio(e.target.value)}
+                    placeholder="Digita o seleziona..."
+                    autoComplete="off"
+                    style={{ minWidth: 0, width: '100%', boxSizing: 'border-box' }}
+                  />
+                </label>
+                <datalist id={elencoOperaiId}>
+                  {Array.from(new Set<string>(p.operaiAnagrafica.map((operaio: { nome: string }) => operaio.nome)))
+                    .filter((nome) => nome.toLocaleLowerCase('it-IT').includes(ricercaOperaio))
+                    .map((nome) => <option key={nome} value={nome} />)}
+                </datalist>
+                <button type="button" onClick={() => {
+                  p.setEconomiaDataDa('')
+                  p.setEconomiaDataA('')
+                  setFiltroOperaio('')
+                }} style={p.buttonSecondary}>
+                  Reset
+                </button>
+              </div>
+              <DettaglioManodoperaPanel
+                {...p}
+                contestuale
+                timbrature={p.timbrature
+                  .filter((t: any) => t.cantiere === p.cantiereSelezionatoDaId.nome)
+                  .filter((t: { operaio_nome: string }) => t.operaio_nome.toLocaleLowerCase('it-IT').includes(ricercaOperaio))}
+                cantiereScheda={p.cantiereSelezionatoDaId.nome}
+                totaleManodoperaCantiere={p.calcolaTotaleManodoperaCantiere(p.cantiereSelezionatoDaId.nome)}
+              />
+              <p style={{ margin: '12px 0 0', fontSize: 13, color: '#64748b' }}>
+                La tabella mostra le timbrature filtrate. Il totale manodopera riguarda tutti gli operai del cantiere nel periodo selezionato e comprende anche i costi dei rapportini; non cambia con il filtro Operaio.
+              </p>
+            </section>
+          )}
           {azioniRapide.filter((azione) => azione.id === lavoriSezione && azione.onClick).map((azione) => (
             <div key={azione.id} style={{ padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
               <h4 style={{ margin: '0 0 10px', fontSize: 18 }}>{azione.sezione}</h4>

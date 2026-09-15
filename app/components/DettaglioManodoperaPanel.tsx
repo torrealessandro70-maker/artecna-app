@@ -3,6 +3,7 @@
 import type { CSSProperties } from 'react'
 
 type Props = {
+  contestuale?: boolean
   mostraDettaglioManodopera: boolean
   setMostraDettaglioManodopera: (v: boolean) => void
   timbrature: any[]
@@ -25,6 +26,7 @@ type Props = {
 }
 
 export default function DettaglioManodoperaPanel({
+  contestuale = false,
   mostraDettaglioManodopera,
   setMostraDettaglioManodopera,
   timbrature,
@@ -45,23 +47,35 @@ export default function DettaglioManodoperaPanel({
   calcolaOreNumero,
   calcolaCostoTimbratura,
 }: Props) {
+  const righeFiltrate = (contestuale || mostraDettaglioManodopera)
+    ? timbrature.filter((t) => {
+        if (t.cantiere !== cantiereScheda) return false
+        if (economiaDataDa && String(t.data || '') < economiaDataDa) return false
+        if (economiaDataA && String(t.data || '') > economiaDataA) return false
+        return true
+      })
+    : []
+  const subtotaleCosti = contestuale
+    ? righeFiltrate.reduce((totale, timbratura) => totale + calcolaCostoTimbratura(timbratura), 0)
+    : 0
+
   return (
     <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
       <strong>Manodopera:</strong> {formatMoney(totaleManodoperaCantiere)}
 
-      <button
+      {!contestuale && <button
         onClick={() => setMostraDettaglioManodopera(!mostraDettaglioManodopera)}
         style={{ ...buttonSecondary, marginLeft: 10 }}
       >
         {mostraDettaglioManodopera ? 'Nascondi operai' : 'Vedi operai'}
-      </button>
+      </button>}
 
-      {mostraDettaglioManodopera && (
+      {(contestuale || mostraDettaglioManodopera) && (
         <div style={{ marginTop: 12, overflowX: 'auto' }}>
-          {timbrature.filter((t) => t.cantiere === cantiereScheda).length === 0 ? (
+          {!contestuale && timbrature.filter((t) => t.cantiere === cantiereScheda).length === 0 ? (
             <p>Nessuna presenza registrata per questo cantiere.</p>
           ) : (
-            <table style={excelTable}>
+            <table style={contestuale ? { ...excelTable, minWidth: 680, fontVariantNumeric: 'tabular-nums' } : excelTable}>
               <thead>
                 <tr>
                   <th
@@ -151,13 +165,10 @@ export default function DettaglioManodoperaPanel({
               </thead>
 
               <tbody>
-                {timbrature
-                  .filter((t) => {
-                    if (t.cantiere !== cantiereScheda) return false
-                    if (economiaDataDa && String(t.data || '') < economiaDataDa) return false
-                    if (economiaDataA && String(t.data || '') > economiaDataA) return false
-                    return true
-                  })
+                {contestuale && righeFiltrate.length === 0 && (
+                  <tr><td colSpan={6} style={excelTd}>Nessuna presenza registrata per questo cantiere.</td></tr>
+                )}
+                {righeFiltrate.slice()
                   .sort((a, b) => {
                     let valoreA: any
                     let valoreB: any
@@ -209,6 +220,14 @@ export default function DettaglioManodoperaPanel({
                     </tr>
                   ))}
               </tbody>
+              {contestuale && (
+                <tfoot>
+                  <tr>
+                    <th scope="row" colSpan={5} style={{ ...excelTd, textAlign: 'right', fontWeight: 700 }}>Subtotale costi</th>
+                    <td style={excelTd}><strong>{formatMoney(subtotaleCosti)}</strong></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           )}
         </div>

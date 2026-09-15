@@ -9894,9 +9894,10 @@ const totaleVociAnalizzate = vociAnalizzate.reduce((tot, voce) => {
   return tot
 }, 0)
 
+const calcolaTotaleManodoperaCantiere = (nomeCantiere: string) => {
  const totaleManodoperaTimbrature = timbrature
   .filter((t) => {
-    if (t.cantiere !== cantiereScheda) return false
+    if (t.cantiere !== nomeCantiere) return false
 
     if (economiaDataDa && String(t.data || '') < economiaDataDa) {
       return false
@@ -9912,7 +9913,7 @@ const totaleVociAnalizzate = vociAnalizzate.reduce((tot, voce) => {
 
 const totaleManodoperaRapportini = rapportini
   .filter((r) => {
-    if (r.cantiere !== cantiereScheda) return false
+    if (r.cantiere !== nomeCantiere) return false
 
     if (economiaDataDa && String(r.data || '') < economiaDataDa) {
       return false
@@ -9929,8 +9930,11 @@ const totaleManodoperaRapportini = rapportini
     0
   )
 
-const totaleManodoperaCantiere =
-  totaleManodoperaTimbrature + totaleManodoperaRapportini
+return totaleManodoperaTimbrature + totaleManodoperaRapportini
+
+}
+
+const totaleManodoperaCantiere = calcolaTotaleManodoperaCantiere(cantiereScheda)
 
 const totaleCostiCantiere =
   totaleManodoperaCantiere +
@@ -12103,6 +12107,23 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  operaiAnagrafica={operaiAnagrafica}
+  timbrature={timbrature}
+  calcolaOre={calcolaOre}
+  calcolaOreNumero={calcolaOreNumero}
+  calcolaCostoTimbratura={calcolaCostoTimbratura}
+  ordineOperai={ordineOperai}
+  setOrdineOperai={setOrdineOperai}
+  direzioneOperai={direzioneOperai}
+  setDirezioneOperai={setDirezioneOperai}
+  excelTable={excelTable}
+  excelTh={excelTh}
+  excelTd={excelTd}
+  economiaDataDa={economiaDataDa}
+  setEconomiaDataDa={setEconomiaDataDa}
+  economiaDataA={economiaDataA}
+  setEconomiaDataA={setEconomiaDataA}
+  calcolaTotaleManodoperaCantiere={calcolaTotaleManodoperaCantiere}
   resetFormRapportino={resetFormRapportino}
   preparaModificaRapportinoLocale={(r: Rapportino) => preparaModificaRapportino(r, false)}
   eliminaRapportino={eliminaRapportino}
