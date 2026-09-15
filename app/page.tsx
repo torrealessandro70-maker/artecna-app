@@ -2544,8 +2544,9 @@ const caricaPreventivoLavorazioni = async () => {
   setPreventivoLavorazioni(data || [])
 }
 
-const salvaSalLavorazione = async () => {
-  if (!salCantiere) {
+const salvaSalLavorazione = async (cantiereOverride?: string) => {
+  const cantiereSal = cantiereOverride ?? salCantiere
+  if (!cantiereSal) {
     alert('Seleziona un cantiere')
     return
   }
@@ -2560,7 +2561,7 @@ const salvaSalLavorazione = async () => {
   const importoMaturato = (importoPrevisto * percentuale) / 100
 
   const { error } = await supabase.from('sal_lavorazioni').insert({
-    cantiere: salCantiere,
+    cantiere: cantiereSal,
     descrizione: salDescrizione.trim(),
     importo_previsto: importoPrevisto,
     percentuale,
@@ -2605,15 +2606,18 @@ const eliminaMaterialeCantiere = async (id?: string) => {
   alert('Riga materiale eliminata')
 }
 
-const eliminaSalLavorazione = async (id: number) => {
+const eliminaSalLavorazione = async (id: number, cantiereOverride?: string) => {
   const conferma = confirm('Eliminare questa lavorazione SAL?')
 
   if (!conferma) return
 
-  const { error } = await supabase
+  let query = supabase
     .from('sal_lavorazioni')
     .delete()
     .eq('id', id)
+
+  if (cantiereOverride !== undefined) query = query.eq('cantiere', cantiereOverride)
+  const { error } = await query
 
   if (error) {
     alert('Errore eliminazione SAL: ' + error.message)
@@ -2623,8 +2627,9 @@ const eliminaSalLavorazione = async (id: number) => {
   await caricaSalLavorazioni()
 }
 
-const salvaLavorazionePreventivo = async () => {
-  if (!salCantiere) {
+const salvaLavorazionePreventivo = async (cantiereOverride?: string) => {
+  const cantiereSal = cantiereOverride ?? salCantiere
+  if (!cantiereSal) {
     alert('Seleziona un cantiere')
     return
   }
@@ -2639,7 +2644,7 @@ const salvaLavorazionePreventivo = async () => {
     parseImporto(prevQuantita) * parseImporto(prevPrezzoUnitario)
 
   const { error } = await supabase.from('preventivo_lavorazioni').insert({
-    cantiere: salCantiere,
+    cantiere: cantiereSal,
     descrizione: prevDescrizione,
     importo_previsto: importo,
     quantita: parseImporto(prevQuantita),
@@ -12146,6 +12151,161 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  economiaPanelProps={{
+    riepilogo: {
+      preventivoCantiere,
+      totaleManodoperaCantiere,
+      totaleMaterialiEconomia,
+      totaleAttrezziEconomia,
+      totaleCostiCantiere,
+      totaleAccontiCantiere,
+      residuoDaIncassare,
+      utileCantiere,
+      margineCantiere,
+      formatMoney,
+    },
+    periodo: {
+      economiaDataDa,
+      setEconomiaDataDa,
+      economiaDataA,
+      setEconomiaDataA,
+      buttonSecondary,
+    },
+    costi: {
+      mostraDettaglioManodopera,
+      setMostraDettaglioManodopera,
+      timbrature,
+      totaleManodoperaCantiere,
+      economiaDataDa,
+      economiaDataA,
+      ordineOperai,
+      setOrdineOperai,
+      direzioneOperai,
+      setDirezioneOperai,
+      excelTable,
+      excelTh,
+      excelTd,
+      buttonSecondary,
+      formatMoney,
+      calcolaOre,
+      calcolaOreNumero,
+      calcolaCostoTimbratura,
+      mostraDettaglioMateriali,
+      setMostraDettaglioMateriali,
+      totaleMaterialiEconomia,
+      materialiCantiere,
+      cercaMaterialeManuale,
+      setCercaMaterialeManuale,
+      materialeManualeDescrizione,
+      setMaterialeManualeDescrizione,
+      materialeManualeQuantita,
+      setMaterialeManualeQuantita,
+      materialeManualePrezzo,
+      setMaterialeManualePrezzo,
+      materialeManualeFornitore,
+      setMaterialeManualeFornitore,
+      materialeManualeNota,
+      setMaterialeManualeNota,
+      salvaMaterialeManuale,
+      eliminaMaterialeCantiere,
+      ordinaMateriali,
+      ordineMaterialiCampo,
+      ordineMaterialiDirezione,
+      inputStyle,
+      buttonPrimary,
+      totaleCostiCantiere,
+      utileCantiere,
+      margineCantiere,
+      mostraMaterialiCantiere,
+      setMostraMaterialiCantiere,
+      eliminaFileDaStorage,
+      caricaEconomia,
+      supabase,
+      mostraAttrezziCantiere,
+      setMostraAttrezziCantiere,
+      attrezziCantiere,
+      eliminaAttrezzatura,
+    },
+    sal: {
+      cardStyle,
+      cantieri,
+      salCantiere,
+      setSalCantiere,
+      salDescrizione,
+      setSalDescrizione,
+      salImportoPrevisto,
+      setSalImportoPrevisto,
+      salPercentuale,
+      setSalPercentuale,
+      salNote,
+      setSalNote,
+      salvaSalLavorazione,
+      buttonPrimary,
+      buttonSecondary,
+      supabase,
+      caricaSalLavorazioni,
+      caricaPreventivoLavorazioni,
+      caricaEconomia,
+      caricaCantieri,
+      prevDescrizione,
+      setPrevDescrizione,
+      prevQuantita,
+      setPrevQuantita,
+      prevPrezzoUnitario,
+      setPrevPrezzoUnitario,
+      prevUnita,
+      setPrevUnita,
+      prevImporto,
+      setPrevImporto,
+      salvaLavorazionePreventivo,
+      preventivi,
+      preventivoLavorazioni,
+      formatMoney,
+      parseImporto,
+      analizzaRigheDocumento,
+      mostraConfrontoPdfSal,
+      setMostraConfrontoPdfSal,
+      lavorazioneEditId,
+      setLavorazioneEditId,
+      lavorazioneEditDescrizione,
+      setLavorazioneEditDescrizione,
+      lavorazioneEditImporto,
+      setLavorazioneEditImporto,
+      salLavorazioni,
+      accontiCantiere,
+      excelTable,
+      excelTh,
+      excelTd,
+      eliminaSalLavorazione,
+    },
+    acconti: {
+      totaleAccontiCantiere,
+      residuoDaIncassare,
+      mostraAcconti,
+      setMostraAcconti,
+      descrizioneAcconto,
+      setDescrizioneAcconto,
+      importoAcconto,
+      setImportoAcconto,
+      dataAcconto,
+      setDataAcconto,
+      metodoAcconto,
+      setMetodoAcconto,
+      notaAcconto,
+      setNotaAcconto,
+      salvaAcconto,
+      accontiCantiere,
+      economiaDataDa,
+      economiaDataA,
+      excelTable,
+      excelTh,
+      excelTd,
+      buttonSecondary,
+      formatMoney,
+      modificaAcconto,
+      eliminaAcconto,
+    },
+  }}
   documentiPanelProps={{
     upload: { handleUploadPreventivo },
     caricaFilePreventivo,

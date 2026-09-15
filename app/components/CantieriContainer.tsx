@@ -2,15 +2,18 @@
 
 import CantieriSchedaPanel from './CantieriSchedaPanel'
 import type { DocumentiPanelProps } from './DocumentiCantierePanel'
+import type { EconomiaPanelProps } from './EconomiaCantierePanel'
 import CantieriEconomiaPanel from './CantieriEconomiaPanel'
 
 interface CantieriContainerProps {
+  economiaPanelProps: EconomiaPanelProps
   documentiPanelProps: DocumentiPanelProps
   [key: string]: any
 }
 
 export default function CantieriContainer(props: CantieriContainerProps) {
 const {
+  economiaPanelProps,
   documentiPanelProps,
   cardStyle,
   cantieri,
@@ -37,6 +40,7 @@ const {
   return (
     <>
       <CantieriSchedaPanel
+  economiaPanelProps={economiaPanelProps}
   documentiPanelProps={documentiPanelProps}
   cardStyle={cardStyle}
   cantieri={cantieri}

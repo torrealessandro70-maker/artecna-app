@@ -9,7 +9,11 @@ import PulisciPreventivoSalButton from './PulisciPreventivoSalButton'
 import SalSummaryCards from './SalSummaryCards'
 import SalTable from './SalTable'
 
-type Props = {
+type ContestoSal =
+  | { contestuale?: false; cantiereContestuale?: never }
+  | { contestuale: true; cantiereContestuale: { id: string; nome: string } }
+
+type Props = ContestoSal & {
   cardStyle: CSSProperties
   cantieri: any[]
   salCantiere: string
@@ -24,7 +28,7 @@ type Props = {
   salNote: string
   setSalNote: (v: string) => void
 
-  salvaSalLavorazione: () => void | Promise<void>
+  salvaSalLavorazione: (cantiereOverride?: string) => void | Promise<void>
 
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
@@ -47,7 +51,7 @@ type Props = {
   prevImporto: string
   setPrevImporto: (v: string) => void
 
-  salvaLavorazionePreventivo: () => void | Promise<void>
+  salvaLavorazionePreventivo: (cantiereOverride?: string) => void | Promise<void>
 
   preventivi: any[]
   preventivoLavorazioni: any[]
@@ -77,13 +81,13 @@ setLavorazioneEditId: (v: number | null) => void
   excelTh: CSSProperties
   excelTd: CSSProperties
 
-  eliminaSalLavorazione: (s: any) => void | Promise<void>
+  eliminaSalLavorazione: (s: any, cantiereOverride?: string) => void | Promise<void>
 }
 
 export default function SalDettagliatoPanel({
   cardStyle,
   cantieri,
-  salCantiere,
+  salCantiere: salCantiereLegacy,
   setSalCantiere,
 
   salDescrizione,
@@ -149,7 +153,20 @@ export default function SalDettagliatoPanel({
   excelTd,
 
   eliminaSalLavorazione,
+  ...contesto
 }: Props) {
+  // Il record contestuale arriva dalla selezione UUID della Scheda.
+  const salCantiere = contesto.contestuale
+    ? contesto.cantiereContestuale.nome
+    : salCantiereLegacy
+  const cantiereOverride = contesto.contestuale ? salCantiere : undefined
+  if (contesto.contestuale && (!contesto.cantiereContestuale.id || !salCantiere.trim())) {
+    throw new Error('Il SAL contestuale richiede un cantiere con UUID e nome')
+  }
+  const vincolaAlCantiere = (query: any) => contesto.contestuale
+    ? query.eq('cantiere', salCantiere)
+    : query
+
   return (
 
 
@@ -171,7 +188,7 @@ export default function SalDettagliatoPanel({
       marginBottom: 18,
     }}
   >
-    <select
+    {!contesto.contestuale && <select
       value={salCantiere}
       onChange={(e) => setSalCantiere(e.target.value)}
       style={{ padding: 8, width: 220 }}
@@ -182,7 +199,7 @@ export default function SalDettagliatoPanel({
           {c.nome}
         </option>
       ))}
-    </select>
+    </select>}
 
   <SalForm
   salDescrizione={salDescrizione}
@@ -193,7 +210,7 @@ export default function SalDettagliatoPanel({
   setSalPercentuale={setSalPercentuale}
   salNote={salNote}
   setSalNote={setSalNote}
-  onSalva={salvaSalLavorazione}
+  onSalva={() => salvaSalLavorazione(cantiereOverride)}
   buttonPrimary={buttonPrimary}
 />
 
@@ -283,7 +300,7 @@ export default function SalDettagliatoPanel({
   setPrevUnita={setPrevUnita}
   prevImporto={prevImporto}
   setPrevImporto={setPrevImporto}
-  onSalva={salvaLavorazionePreventivo}
+  onSalva={() => salvaLavorazionePreventivo(cantiereOverride)}
   buttonPrimary={buttonPrimary}
 />
 
@@ -291,7 +308,7 @@ export default function SalDettagliatoPanel({
   </div>
 {salCantiere && (() => {
   const totalePreventiviPdf = preventivi
-   .filter((p) => p.cantiere === cantiereScheda)
+   .filter((p) => p.cantiere === (contesto.contestuale ? salCantiere : cantiereScheda))
     .reduce((tot, p) => tot + Number(p.importo_totale || 0), 0)
 
   const totaleLavorazioniPreventivo = preventivoLavorazioni
@@ -394,10 +411,10 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
                   if (!conferma) return
 
-                  const { error } = await supabase
+                  const { error } = await vincolaAlCantiere(supabase
                     .from('preventivo_lavorazioni')
                     .delete()
-                    .eq('id', p.id)
+                    .eq('id', p.id))
 
                   if (error) {
                     alert(
@@ -515,6 +532,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
         </div>
       )}
 
+{!contesto.contestuale && <>
 <PreventiviCaricatiList
   preventivi={preventivi}
   salCantiere={salCantiere}
@@ -574,6 +592,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   caricaPreventivoLavorazioni={caricaPreventivoLavorazioni}
   caricaSalLavorazioni={caricaSalLavorazioni}
 />
+</>}
 
 
     </div>
@@ -647,7 +666,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
       ? (Number(s.importo_previsto || 0) * nuovaPercentuale) / 100
       : 0
 
-    const { error } = await supabase
+    const { error } = await vincolaAlCantiere(supabase
       .from('sal_lavorazioni')
       .update({
         completata,
@@ -657,7 +676,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
           .toISOString()
           .slice(0, 10),
       })
-      .eq('id', s.id)
+      .eq('id', s.id))
 
     if (error) {
       alert('Errore aggiornamento SAL: ' + error.message)
@@ -667,12 +686,12 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     await caricaSalLavorazioni()
   }}
   onUpdateDescrizione={async (s, descrizione) => {
-    const { error } = await supabase
+    const { error } = await vincolaAlCantiere(supabase
       .from('sal_lavorazioni')
       .update({
         descrizione,
       })
-      .eq('id', s.id)
+      .eq('id', s.id))
 
     if (!error) {
       await caricaSalLavorazioni()
@@ -681,12 +700,12 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   onUpdateImporto={async (s, valore) => {
     const importo = parseImporto(valore)
 
-    const { error } = await supabase
+    const { error } = await vincolaAlCantiere(supabase
       .from('sal_lavorazioni')
       .update({
         importo_previsto: importo,
       })
-      .eq('id', s.id)
+      .eq('id', s.id))
 
     if (!error) {
       await caricaSalLavorazioni()
@@ -698,19 +717,19 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     const maturato =
       (Number(s.importo_previsto || 0) * percentuale) / 100
 
-    const { error } = await supabase
+    const { error } = await vincolaAlCantiere(supabase
       .from('sal_lavorazioni')
       .update({
         percentuale,
         importo_maturato: maturato,
       })
-      .eq('id', s.id)
+      .eq('id', s.id))
 
     if (!error) {
       await caricaSalLavorazioni()
     }
   }}
-  onElimina={eliminaSalLavorazione}
+  onElimina={(id) => eliminaSalLavorazione(id, cantiereOverride)}
 />
           </>
         )
