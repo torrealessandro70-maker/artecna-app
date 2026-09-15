@@ -8,6 +8,7 @@ type LavoriSezione = 'rapportini' | 'foto' | 'presenze' | 'materiali' | 'attrezz
 import RapportiniCantierePanel from './RapportiniCantierePanel'
 import SelectCantiere from './SelectCantiere'
 import MaterialiCantierePanel from './MaterialiCantierePanel'
+import AttrezzatureCantierePanel from './AttrezzatureCantierePanel'
 import DettaglioManodoperaPanel from './DettaglioManodoperaPanel'
 import FotoCantiereToolbar from './FotoCantiereToolbar'
 import FotoCantiereCamera from './FotoCantiereCamera'
@@ -77,11 +78,6 @@ export default function CantieriSchedaPanel(props: any) {
     {
       id: 'attrezzature', sezione: 'Attrezzature',
       titolo: 'Attrezzature', descrizione: 'Attrezzature del cantiere',
-      onClick: () => {
-        p.setMostraAttrezziCantiere(true)
-        apriArea('cantieri-economia', 'cantieri')
-        p.richiediScrollCosto('attrezzature')
-      },
     },
   ]
 
@@ -281,6 +277,11 @@ export default function CantieriSchedaPanel(props: any) {
               </button>
             ))}
           </nav>
+          {lavoriSezione === 'attrezzature' && (
+            <AttrezzatureCantierePanel key={p.cantiereSelezionatoDaId.id}
+              cantiere={p.cantiereSelezionatoDaId} panelProps={p.attrezzaturePanelProps}
+              fattureFornitori={p.fattureFornitori} righeAttrezzatureFatture={p.righeAttrezzatureFatture} />
+          )}
           {lavoriSezione === 'materiali' && (
             <MaterialiCantierePanel key={p.cantiereSelezionatoDaId.id}
               cantiere={p.cantiereSelezionatoDaId}

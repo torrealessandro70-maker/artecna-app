@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
 import type { RigaMaterialeFatturaStorico } from './utils/suggerimentiMateriali'
+import { calcolaAttrezzoManuale } from './utils/attrezzoManuale'
+import type { RigaAttrezzaturaFatturaStorico } from './utils/suggerimentiAttrezzature'
 import TornaAllaPanoramica from './components/TornaAllaPanoramica'
 import Webcam from 'react-webcam'
 import SignatureCanvas from 'react-signature-canvas'
@@ -847,6 +849,7 @@ const [filtroFattureStato, setFiltroFattureStato] = useState('')
 const [fatturaApertaId, setFatturaApertaId] = useState<string | null>(null)
 const [righeFatturaAperta, setRigheFatturaAperta] = useState<RigaFatturaFornitore[]>([])
 const [righeMaterialiFatture, setRigheMaterialiFatture] = useState<RigaMaterialeFatturaStorico[]>([])
+const [righeAttrezzatureFatture, setRigheAttrezzatureFatture] = useState<RigaAttrezzaturaFatturaStorico[]>([])
 const [filtroFattureCantiere, setFiltroFattureCantiere] = useState('')
 const [filtroSpeseImpresa, setFiltroSpeseImpresa] = useState('')
 
@@ -3034,6 +3037,28 @@ const caricaRigheMaterialiFatture = async () => {
   setRigheMaterialiFatture(righe)
 }
 
+const caricaRigheAttrezzatureFatture = async () => {
+  const dimensionePagina = 500
+  const righe: RigaAttrezzaturaFatturaStorico[] = []
+  for (let da = 0; ; da += dimensionePagina) {
+    const { data, error } = await supabase
+      .from('fatture_fornitori_righe')
+      .select('id, fattura_id, descrizione, categoria_economica, prezzo_unitario')
+      .eq('categoria_economica', 'attrezzo_ditta')
+      .order('id', { ascending: true })
+      .range(da, da + dimensionePagina - 1)
+
+    if (error) {
+      console.error('Errore caricamento storico attrezzature fatture:', error)
+      return
+    }
+    const pagina = (data || []) as RigaAttrezzaturaFatturaStorico[]
+    righe.push(...pagina)
+    if (pagina.length < dimensionePagina) break
+  }
+  setRigheAttrezzatureFatture(righe)
+}
+
 const caricaFattureFornitori = async () => {
   const { data, error } = await supabase
     .from('fatture_fornitori')
@@ -3046,7 +3071,7 @@ const caricaFattureFornitori = async () => {
   }
 
   setFattureFornitori(data || [])
-  await caricaRigheMaterialiFatture()
+  await Promise.all([caricaRigheMaterialiFatture(), caricaRigheAttrezzatureFatture()])
 }
 
 const caricaFattureEmesse = async () => {
@@ -9392,28 +9417,33 @@ setNomeFileMateriale('')
     alert('Materiale aggiunto')
   }
 
-  const aggiungiAttrezzo = async () => {
-    if (!cantiereScheda || !descrizioneAttrezzo.trim()) {
+  const aggiungiAttrezzo = async (modalita: 'documento' | 'manuale' = 'documento') => {
+    const nomeCantiere = modalita === 'manuale' ? cantiereSelezionatoDaId?.nome : cantiereScheda
+    if (!nomeCantiere || !descrizioneAttrezzo.trim()) {
       alert('Seleziona il cantiere nella scheda e inserisci la descrizione dell’attrezzo')
       return
     }
-const totale = estraiTotaleScontrino(testoEstrattoDocumento)
+const manuale = modalita === 'manuale' ? calcolaAttrezzoManuale(quantitaAttrezzo, prezzoAttrezzo) : null
+if (modalita === 'manuale' && !manuale) {
+  alert('Inserisci una quantità numerica maggiore di zero e un prezzo numerico maggiore o uguale a zero. Il totale deve essere finito.')
+  return
+}
+const totale = modalita === 'manuale' ? manuale!.totale : estraiTotaleScontrino(testoEstrattoDocumento)
 
-if (!totale) {
+if (modalita === 'documento' && !totale) {
   alert('Totale non trovato')
   return
 }
     const qta = parseFloat((quantitaAttrezzo || '0').replace(',', '.'))
     const prezzo = parseFloat((prezzoAttrezzo || '0').replace(',', '.'))
 
-    const quantitaPulita = isNaN(qta) ? 0 : qta
-    const prezzoPulito = isNaN(prezzo) ? 0 : prezzo
-    const totaleCalcolato = quantitaPulita * prezzoPulito
+    const quantitaPulita = manuale ? manuale.quantita : isNaN(qta) ? 0 : qta
+    const prezzoPulito = manuale ? manuale.prezzo : isNaN(prezzo) ? 0 : prezzo
 
 
     const { error } = await supabase.from('attrezzi_cantiere').insert([
       {
-        cantiere: cantiereScheda,
+        cantiere: nomeCantiere,
         descrizione: descrizioneAttrezzo.trim(),
         quantita: quantitaPulita,
         prezzo_unitario: prezzoPulito,
@@ -12134,6 +12164,22 @@ WebkitOverflowScrolling: 'touch',
 <CantieriContainer
   fattureFornitori={fattureFornitori}
   righeMaterialiFatture={righeMaterialiFatture}
+  righeAttrezzatureFatture={righeAttrezzatureFatture}
+  attrezzaturePanelProps={{
+    mostraAttrezziCantiere, setMostraAttrezziCantiere, attrezziCantiere, cantiereScheda,
+    onElimina: eliminaAttrezzatura,
+    inputStyle, buttonPrimary, buttonSecondary, excelTable, excelTh, excelTd, formatMoney,
+    form: {
+      descrizione: descrizioneAttrezzo, setDescrizione: setDescrizioneAttrezzo,
+      quantita: quantitaAttrezzo, setQuantita: setQuantitaAttrezzo,
+      prezzo: prezzoAttrezzo, setPrezzo: setPrezzoAttrezzo,
+      fornitore: fornitoreAttrezzo, setFornitore: setFornitoreAttrezzo,
+      data: dataDocumentoAttrezzo, setData: setDataDocumentoAttrezzo,
+      nomeFile: nomeFileAttrezzo, setNomeFile: setNomeFileAttrezzo,
+      nota: notaAttrezzo, setNota: setNotaAttrezzo,
+      salva: () => aggiungiAttrezzo('manuale'),
+    },
+  }}
   materialiPanelProps={{
     mostraDettaglioMateriali, setMostraDettaglioMateriali, totaleMaterialiEconomia,
     materialiCantiere, cantiereScheda, economiaDataDa, economiaDataA,
