@@ -1,5 +1,7 @@
 'use client'
 
+import { eliminaPreventivoConFile, eliminaFilePreventivi, messaggioEliminazione } from './utils/eliminazionePreventivo'
+
 import { parsePreventivoItems, type VoceAnalizzata } from './engines/document-intelligence/preventivo-items'
 
 import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
@@ -7101,36 +7103,14 @@ const eliminaPreventivoCantiere = async (id?: string) => {
 
   if (!confirm('Vuoi eliminare questo preventivo?')) return
 
-  const { data: doc, error: errFetch } = await supabase
-    .from('preventivi_cantiere')
-    .select('file_path')
-    .eq('id', id)
-    .single()
-
-  if (errFetch) {
-    alert('Errore recupero file: ' + errFetch.message)
-    return
-  }
-
   try {
-    await eliminaFileDaStorage(doc?.file_path)
-  } catch {
-    alert('Errore cancellazione file da Storage')
-    return
+    const avviso = await eliminaPreventivoConFile(supabase, id)
+    if (avviso) alert(avviso)
+    await caricaEconomia()
+    if (!avviso) alert('Preventivo eliminato completamente')
+  } catch (error: any) {
+    alert(error.message || 'Errore eliminazione preventivo')
   }
-
-  const { error } = await supabase
-    .from('preventivi_cantiere')
-    .delete()
-    .eq('id', id)
-
-  if (error) {
-    alert('Errore eliminazione preventivo: ' + error.message)
-    return
-  }
-
-  await caricaEconomia()
-  alert('Preventivo eliminato completamente')
 }
 
 
@@ -7144,55 +7124,6 @@ const eliminaPreventivoCantiere = async (id?: string) => {
   )
 
   if (!conferma) return
-
-  // 1. Recupera tutti i file collegati al cantiere
-  const { data: preventiviDaEliminare, error: errPrevFetch } = await supabase
-    .from('preventivi_cantiere')
-    .select('file_path')
-    .eq('cantiere', nome)
-
-  if (errPrevFetch) {
-    alert('Errore recupero file preventivi: ' + errPrevFetch.message)
-    return
-  }
-
-  const { data: materialiDaEliminare, error: errMatFetch } = await supabase
-    .from('materiali_cantiere')
-    .select('file_path')
-    .eq('cantiere', nome)
-
-  if (errMatFetch) {
-    alert('Errore recupero file materiali: ' + errMatFetch.message)
-    return
-  }
-
-  const { data: attrezziDaEliminare, error: errAttFetch } = await supabase
-    .from('attrezzi_cantiere')
-    .select('file_path')
-    .eq('cantiere', nome)
-
-  if (errAttFetch) {
-    alert('Errore recupero file attrezzi: ' + errAttFetch.message)
-    return
-  }
-
-  const filePaths = [
-    ...(preventiviDaEliminare || []).map((x: any) => x.file_path),
-    ...(materialiDaEliminare || []).map((x: any) => x.file_path),
-    ...(attrezziDaEliminare || []).map((x: any) => x.file_path),
-  ].filter(Boolean)
-
-  // 2. Cancella i file dallo Storage
-  if (filePaths.length > 0) {
-    const { error: storageError } = await supabase.storage
-      .from('preventivi')
-      .remove(filePaths)
-
-    if (storageError) {
-      alert('Errore cancellazione file Storage: ' + storageError.message)
-      return
-    }
-  }
 
   // 3. Cancella dati collegati dal database
   const { error: errorRapportini } = await supabase
@@ -7225,30 +7156,33 @@ const eliminaPreventivoCantiere = async (id?: string) => {
     return
   }
 
-  const { error: errorPreventivi } = await supabase
+  const { data: eliminati_errorPreventivi, error: errorPreventivi } = await supabase
     .from('preventivi_cantiere')
     .delete()
     .eq('cantiere', nome)
+    .select('file_path')
 
   if (errorPreventivi) {
-    alert('Errore eliminazione preventivi: ' + errorPreventivi.message)
+    alert(messaggioEliminazione(errorPreventivi, 'Preventivi'))
     return
   }
 
-  const { error: errorMateriali } = await supabase
+  const { data: eliminati_errorMateriali, error: errorMateriali } = await supabase
     .from('materiali_cantiere')
     .delete()
     .eq('cantiere', nome)
+    .select('file_path')
 
   if (errorMateriali) {
     alert('Errore eliminazione materiali: ' + errorMateriali.message)
     return
   }
 
-  const { error: errorAttrezzi } = await supabase
+  const { data: eliminati_errorAttrezzi, error: errorAttrezzi } = await supabase
     .from('attrezzi_cantiere')
     .delete()
     .eq('cantiere', nome)
+    .select('file_path')
 
   if (errorAttrezzi) {
     alert('Errore eliminazione attrezzi: ' + errorAttrezzi.message)
@@ -7265,6 +7199,13 @@ const eliminaPreventivoCantiere = async (id?: string) => {
     alert('Errore eliminazione cantiere: ' + errorCantiere.message)
     return
   }
+
+  const avvisoStorage = await eliminaFilePreventivi(supabase, [
+    ...(eliminati_errorPreventivi || []),
+    ...(eliminati_errorMateriali || []),
+    ...(eliminati_errorAttrezzi || []),
+  ].map((row: any) => row.file_path))
+  if (avvisoStorage) alert(avvisoStorage)
 
   // 5. Pulisce stati locali
   if (cantiereRapporto === nome) setCantiereRapporto('')
@@ -7286,7 +7227,7 @@ const eliminaPreventivoCantiere = async (id?: string) => {
   await caricaTimbrature()
   await caricaEconomia()
 
-  alert('Cantiere eliminato completamente, compresi i file nello Storage')
+  if (!avvisoStorage) alert('Cantiere eliminato completamente, compresi i file nello Storage')
 }
 
 const salvaRapportino = async () => {

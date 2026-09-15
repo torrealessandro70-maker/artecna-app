@@ -1,5 +1,7 @@
 'use client'
 
+import { eliminaPreventivoConFile } from '../utils/eliminazionePreventivo'
+
 import { useState } from 'react'
 
 type Props = {
@@ -320,32 +322,14 @@ export default function PreventiviEconomiaPanel({
 
                         if (!confirm('Vuoi eliminare questo preventivo?')) return
 
-                        if (p.file_path) {
-                          const { error: storageError } = await supabase.storage
-                            .from('preventivi')
-                            .remove([p.file_path])
-
-                          if (storageError) {
-                            alert(
-                              'Errore cancellazione file da Storage: ' +
-                                storageError.message
-                            )
-                            return
-                          }
-                        }
-
-                        const { error } = await supabase
-                          .from('preventivi_cantiere')
-                          .delete()
-                          .eq('id', p.id)
-
-                        if (error) {
-                          alert('Errore eliminazione preventivo: ' + error.message)
-                          return
-                        }
-
-                        await caricaEconomia()
-                        alert('Preventivo eliminato completamente')
+    try {
+      const avviso = await eliminaPreventivoConFile(supabase, p.id)
+      if (avviso) alert(avviso)
+      await caricaEconomia()
+      if (!avviso) alert('Preventivo eliminato completamente')
+    } catch (error: any) {
+      alert(error.message || 'Errore eliminazione preventivo')
+    }
                       }}
                       style={{
                         ...buttonSecondary,

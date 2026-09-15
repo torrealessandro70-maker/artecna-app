@@ -1,4 +1,6 @@
 
+import { eliminaPreventivoConFile, messaggioEliminazione } from '../utils/eliminazionePreventivo'
+
 import type { CSSProperties } from 'react'
 
 import SalForm from './SalForm'
@@ -418,7 +420,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
 
                   if (error) {
                     alert(
-                      'Errore eliminazione: ' + error.message
+                      messaggioEliminazione(error, 'Lavorazione preventivo')
                     )
                     return
                   }
@@ -541,24 +543,14 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     const conferma = confirm('Eliminare questo preventivo caricato?')
     if (!conferma) return
 
-    if (p.file_path) {
-      await supabase.storage
-        .from('preventivi')
-        .remove([p.file_path])
+    try {
+      const avviso = await eliminaPreventivoConFile(supabase, p.id)
+      if (avviso) alert(avviso)
+      await caricaEconomia()
+      if (!avviso) alert('Preventivo eliminato completamente')
+    } catch (error: any) {
+      alert(error.message || 'Errore eliminazione preventivo')
     }
-
-    const { error } = await supabase
-      .from('preventivi_cantiere')
-      .delete()
-      .eq('id', p.id)
-
-    if (error) {
-      alert('Errore eliminazione preventivo: ' + error.message)
-      return
-    }
-
-    await caricaEconomia()
-    alert('Preventivo eliminato')
   }}
 />
 

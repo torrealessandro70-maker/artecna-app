@@ -1,5 +1,7 @@
 'use client'
 
+import { messaggioEliminazione } from '../utils/eliminazionePreventivo'
+
 import type { CSSProperties } from 'react'
 
 type Props = {
@@ -412,7 +414,7 @@ export default function ConfrontoPdfSalPanel({
                                 .eq('id', s.id)
 
                               if (error) {
-                                alert('Errore eliminazione: ' + error.message)
+                                alert(messaggioEliminazione(error, 'Lavorazione preventivo'))
                                 return
                               }
 

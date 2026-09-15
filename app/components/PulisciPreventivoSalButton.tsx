@@ -1,5 +1,7 @@
 'use client'
 
+import { eliminaFilePreventivi, messaggioEliminazione } from '../utils/eliminazionePreventivo'
+
 type Props = {
   salCantiere: string
 
@@ -33,59 +35,28 @@ export default function PulisciPreventivoSalButton({
 
         if (!conferma) return
 
-        const preventiviDaEliminare = preventivi.filter(
-          (p) => p.cantiere === salCantiere
-        )
-
-        const fileDaEliminare = preventiviDaEliminare
-          .map((p) => p.file_path)
-          .filter((path): path is string => Boolean(path))
-
-        if (fileDaEliminare.length > 0) {
-          await supabase.storage
-            .from('preventivi')
-            .remove(fileDaEliminare)
+        // Explicit total cleanup: delete children before parents. These requests
+        // are not a transaction; stop on the first failure and keep Storage intact.
+        for (const tabella of ['sal_lavorazioni', 'preventivo_lavorazioni']) {
+          const { error } = await supabase.from(tabella).delete().eq('cantiere', salCantiere)
+          if (error) {
+            alert(messaggioEliminazione(error, tabella) + ' Pulizia interrotta: eventuali cancellazioni DB precedenti restano applicate.')
+            await caricaPreventivoLavorazioni()
+            await caricaSalLavorazioni()
+            return
+          }
         }
-
-        const { error: errorePreventivi } = await supabase
-          .from('preventivi_cantiere')
-          .delete()
-          .eq('cantiere', salCantiere)
-
+        const { data: preventiviEliminati, error: errorePreventivi } = await supabase
+          .from('preventivi_cantiere').delete().eq('cantiere', salCantiere).select('id, file_path')
         if (errorePreventivi) {
-          alert(
-            'Errore eliminazione preventivi: ' +
-              errorePreventivi.message
-          )
+          alert(messaggioEliminazione(errorePreventivi, 'Preventivi') + ' Pulizia interrotta dopo la cancellazione delle lavorazioni.')
+          await caricaPreventivoLavorazioni()
+          await caricaSalLavorazioni()
           return
         }
-
-        const { error: erroreLavorazioniPreventivo } =
-          await supabase
-            .from('preventivo_lavorazioni')
-            .delete()
-            .eq('cantiere', salCantiere)
-
-        if (erroreLavorazioniPreventivo) {
-          alert(
-            'Errore eliminazione lavorazioni preventivo: ' +
-              erroreLavorazioniPreventivo.message
-          )
-          return
-        }
-
-        const { error: erroreSal } = await supabase
-          .from('sal_lavorazioni')
-          .delete()
-          .eq('cantiere', salCantiere)
-
-        if (erroreSal) {
-          alert(
-            'Errore eliminazione SAL: ' +
-              erroreSal.message
-          )
-          return
-        }
+        const avvisoStorage = await eliminaFilePreventivi(supabase,
+          (preventiviEliminati || []).map((row: any) => row.file_path))
+        if (avvisoStorage) alert(avvisoStorage)
 
         const { error: erroreCantiere } = await supabase
           .from('cantieri')
@@ -105,7 +76,7 @@ export default function PulisciPreventivoSalButton({
         await caricaPreventivoLavorazioni()
         await caricaSalLavorazioni()
 
-        alert('Preventivi e SAL del cantiere puliti')
+        if (!avvisoStorage) alert('Preventivi e SAL del cantiere puliti')
       }}
       style={{
         marginTop: 12,
