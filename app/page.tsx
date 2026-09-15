@@ -145,7 +145,7 @@ PieChart,
 Pie,
  Legend,
 } from 'recharts'
-let pdfjsLib: any = null
+let pdfjsLib: typeof import('pdfjs-dist') | null = null
 
 
 
@@ -8432,7 +8432,7 @@ const leggiExcelMateriale = async (file: File) => {
 
 const leggiPdfTesto = async (file: File) => {
   if (!pdfjsLib) {
-    pdfjsLib = await import('pdfjs-dist')
+    pdfjsLib = await import('pdfjs-dist/build/pdf.min.mjs')
     pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
   }
 
