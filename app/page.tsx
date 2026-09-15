@@ -1,5 +1,7 @@
 'use client'
 
+import type { EsitoArchiviazionePreventivo } from './components/DocumentiCantierePanel'
+
 import { eliminaPreventivoConFile, eliminaFilePreventivi, messaggioEliminazione } from './utils/eliminazionePreventivo'
 
 import { parsePreventivoItems, type VoceAnalizzata } from './engines/document-intelligence/preventivo-items'
@@ -8368,7 +8370,7 @@ const leggiTestoDaImmagine = async (file: File) => {
   return result.data.text || ''
 }
 
-const analisiPreventivoRef = useRef<{ file: File; cantiereId: string; pronta: boolean; salvato?: { id: string; importo: number; voci: number } } | null>(null)
+const analisiPreventivoRef = useRef<{ file: File; cantiereId: string; pronta: boolean; salvato?: EsitoArchiviazionePreventivo } | null>(null)
 const archiviazioneAnalisiRef = useRef(false)
 const archiviaPreventivoAnalizzato = async (file: File, cantiereId: string) => {
   const analisi = analisiPreventivoRef.current
@@ -8378,29 +8380,62 @@ const archiviaPreventivoAnalizzato = async (file: File, cantiereId: string) => {
       !fileUrlAnalisi || !filePathAnalisi || !fileTipoAnalisi) {
     throw new Error('Analisi non disponibile per questo file e cantiere.')
   }
-  if (analisi.salvato) return analisi.salvato
   if (archiviazioneAnalisiRef.current) throw new Error('Archiviazione già in corso.')
+  if (analisi.salvato) return analisi.salvato
   const importo = parseImporto(importoRilevatoDocumento)
   if (!Number.isFinite(importo) || importo <= 0) throw new Error('Inserisci un totale valido maggiore di zero.')
+  // Capture the analyzed rows before the first await; no parsing or recalculation.
+  const righe = vociAnalizzate.map((voce) => ({
+    descrizione: voce.descrizione,
+    unita_misura: voce.unita || null,
+    quantita: voce.quantita,
+    prezzo_unitario: voce.prezzo,
+    importo_previsto: voce.totale,
+    cantiere_id: cantiere.id,
+    cantiere: cantiere.nome,
+    fonte: 'documento',
+  }))
   archiviazioneAnalisiRef.current = true
   try {
     const { data, error } = await supabase.from('preventivi_cantiere').insert([{
       cantiere: cantiere.nome,
+      cantiere_id: cantiere.id,
       nome_file: file.name,
       file_url: fileUrlAnalisi,
       file_path: filePathAnalisi,
       file_tipo: fileTipoAnalisi,
       anteprima_testo: testoEstrattoDocumento || null,
       importo_totale: importo,
-      note: 'Archiviato da analisi documento. Lavorazioni non collegate al preventivo.',
+      note: 'Archiviato da analisi documento.',
     }]).select('id').single()
     if (error) throw new Error(error.message)
     if (!data?.id) throw new Error('ID del preventivo non restituito: verifica il registro prima di riprovare.')
-    // Le righe restano in memoria finché la relazione al preventivo non è confermata.
-    const risultato = { id: String(data.id), importo, voci: vociAnalizzate.length }
+    const risultato: EsitoArchiviazionePreventivo = { id: String(data.id), importo, voci: 0 }
+    // Cache the actual parent ID even if the separate batch request fails.
     analisi.salvato = risultato
+    if (righe.length > 0) {
+      try {
+        if (righe.some((riga) => !riga.descrizione?.trim() ||
+          !Number.isFinite(riga.quantita) || !Number.isFinite(riga.prezzo_unitario) ||
+          !Number.isFinite(riga.importo_previsto))) {
+          throw new Error('Dati delle lavorazioni incompleti: quantità, prezzo e importo letto sono obbligatori.')
+        }
+        const { error: erroreRighe } = await supabase.from('preventivo_lavorazioni')
+          .insert(righe.map((riga) => ({ ...riga, preventivo_id: risultato.id })))
+        if (erroreRighe) {
+          risultato.erroreLavorazioni = `Lavorazioni non salvate: ${erroreRighe.message}. Il preventivo è stato archiviato; nessun reinvio automatico.`
+        } else {
+          risultato.voci = righe.length
+        }
+      } catch (error) {
+        risultato.erroreLavorazioni = `Salvataggio lavorazioni non confermato: ${error instanceof Error ? error.message : 'errore di comunicazione'}. Verifica il preventivo prima di riprovare; nessun reinvio automatico.`
+      }
+    }
     setMostraPreventiviCantiere(true)
     try { await caricaEconomia() } catch (error) { console.error('Aggiornamento registro preventivi:', error) }
+    if (risultato.voci > 0) {
+      try { await caricaPreventivoLavorazioni() } catch (error) { console.error('Aggiornamento lavorazioni preventivo:', error) }
+    }
     return risultato
   } finally {
     archiviazioneAnalisiRef.current = false

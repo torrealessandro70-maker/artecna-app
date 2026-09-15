@@ -4,10 +4,17 @@ import { useId, useRef, useState, type ComponentProps } from 'react'
 import PreventiviEconomiaPanel from './PreventiviEconomiaPanel'
 import DocumentIntelligencePanel from './DocumentIntelligencePanel'
 
+export type EsitoArchiviazionePreventivo = {
+  id: string
+  importo: number
+  voci: number
+  erroreLavorazioni?: string
+}
+
 export type DocumentiPanelProps = {
   preventivi: Omit<ComponentProps<typeof PreventiviEconomiaPanel>, 'cantiereScheda'>
   analisi: ComponentProps<typeof DocumentIntelligencePanel>
-  archiviaPreventivoAnalizzato: (file: File, cantiereId: string) => Promise<{ id: string; importo: number; voci: number }>
+  archiviaPreventivoAnalizzato: (file: File, cantiereId: string) => Promise<EsitoArchiviazionePreventivo>
   correggiTotaleAnalisi: (valore: string) => void
   caricaFilePreventivo: (file: File) => Promise<void>
 }
@@ -22,7 +29,7 @@ export default function DocumentiCantierePanel({ cantiere, panelProps: p }: Prop
   const [fileSelezionato, setFileSelezionato] = useState<File | null>(null)
   const [azioneInCorso, setAzioneInCorso] = useState<'preventivo' | 'analisi' | null>(null)
   const [analisiAvviata, setAnalisiAvviata] = useState(false)
-  const [archiviato, setArchiviato] = useState<{ id: string; importo: number; voci: number } | null>(null)
+  const [archiviato, setArchiviato] = useState<EsitoArchiviazionePreventivo | null>(null)
   const [errore, setErrore] = useState('')
   const occupato = useRef(false)
   const inputId = useId()
@@ -109,14 +116,15 @@ export default function DocumentiCantierePanel({ cantiere, panelProps: p }: Prop
             {archiviato ? <div role="status">
               <strong>Preventivo archiviato</strong>
               <p>{p.preventivi.formatMoney(archiviato.importo)} — ID: {archiviato.id}</p>
-              <p>{archiviato.voci > 0 ? `${archiviato.voci} lavorazioni riconosciute, non salvate: collegamento al preventivo da verificare.` : 'Nessuna lavorazione strutturata disponibile.'}</p>
+              {archiviato.erroreLavorazioni ? <p role="alert">{archiviato.erroreLavorazioni}</p>
+                : <p>{archiviato.voci > 0 ? `${archiviato.voci} lavorazioni salvate` : 'Nessuna lavorazione strutturata disponibile.'}</p>}
             </div> : <div>
               <label>Totale da archiviare (modificabile)
                 <input type="text" inputMode="decimal" value={p.analisi.importoRilevatoDocumento}
                   disabled={azioneInCorso !== null} onChange={(e) => p.correggiTotaleAnalisi(e.target.value)}
                   style={p.analisi.inputStyle} />
               </label>
-              <p>{p.analisi.vociAnalizzate.length > 0 ? `${p.analisi.vociAnalizzate.length} lavorazioni riconosciute. In questo passaggio viene archiviato il documento; il salvataggio delle lavorazioni richiede la verifica del collegamento al preventivo.` : 'Nessuna lavorazione strutturata disponibile.'}</p>
+              <p>{p.analisi.vociAnalizzate.length > 0 ? `${p.analisi.vociAnalizzate.length} lavorazioni riconosciute. Saranno salvate insieme al collegamento a questo preventivo.` : 'Nessuna lavorazione strutturata disponibile.'}</p>
               <button type="button" disabled={azioneInCorso !== null} onClick={() => esegui('preventivo')}
                 style={{ minHeight: 44, padding: '10px 16px' }}>Archivia come preventivo</button>
             </div>}
