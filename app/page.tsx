@@ -1,5 +1,7 @@
 'use client'
 
+import { parsePreventivoItems, type VoceAnalizzata } from './engines/document-intelligence/preventivo-items'
+
 import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
 import type { RigaMaterialeFatturaStorico } from './utils/suggerimentiMateriali'
 import { calcolaAttrezzoManuale } from './utils/attrezzoManuale'
@@ -181,13 +183,7 @@ type FotoSopralluogo = {
   created_at?: string
 }
 
-type VoceAnalizzata = {
-  codice?: string
-  descrizione: string
-  quantita?: number
-  unita?: string
-  prezzo?: number
-}
+
 
 
 
@@ -5123,40 +5119,7 @@ const [menuAttivitaAperto, setMenuAttivitaAperto] = useState(false)
 const oggi = new Date().toISOString().slice(0, 10)
 
 function analizzaTestoInVoci(testo: string) {
-  const righe = testo.split('\n')
-  const voci: VoceAnalizzata[] = []
-
-  righe.forEach((riga) => {
-    const pulita = riga
-      .replace(/\|+/g, ' | ')
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    if (pulita.length < 5) return
-
-    const parti = pulita.split('|').map((p) => p.trim()).filter(Boolean)
-
-    if (parti.length >= 4) {
-      const descrizione = parti[0] || ''
-      const unita = parti[1] || ''
-      const quantita = parseFloat((parti[2] || '').replace(',', '.'))
-      const prezzo = parseFloat((parti[3] || '').replace(',', '.'))
-
-      if (
-        descrizione &&
-        !isNaN(quantita) &&
-        !isNaN(prezzo) &&
-        descrizione.length > 2
-      ) {
-        voci.push({
-          descrizione,
-          unita,
-          quantita: Math.round(quantita * 100) / 100,
-          prezzo: Math.round(prezzo * 100) / 100,
-        })
-      }
-    }
-  })
+  const voci = parsePreventivoItems(testo, parseImporto)
 
   setVociAnalizzate(voci)
 
@@ -5166,7 +5129,8 @@ function analizzaTestoInVoci(testo: string) {
     return tot + quantita * prezzo
   }, 0)
 
-  if (totale > 0) {
+  // Numbered table rows must not replace the document's economic total.
+  if (totale > 0 && !voci.some((voce) => voce.totale !== undefined)) {
     setImportoRilevatoDocumento(
       totale.toLocaleString('it-IT', {
         minimumFractionDigits: 2,
@@ -8463,6 +8427,44 @@ const leggiTestoDaImmagine = async (file: File) => {
   return result.data.text || ''
 }
 
+const analisiPreventivoRef = useRef<{ file: File; cantiereId: string; pronta: boolean; salvato?: { id: string; importo: number; voci: number } } | null>(null)
+const archiviazioneAnalisiRef = useRef(false)
+const archiviaPreventivoAnalizzato = async (file: File, cantiereId: string) => {
+  const analisi = analisiPreventivoRef.current
+  const cantiere = cantiereSelezionatoDaId
+  if (!analisi?.pronta || analisi.file !== file || fileAnalisiDocumento !== file ||
+      analisi.cantiereId !== cantiereId || cantiere?.id !== cantiereId ||
+      !fileUrlAnalisi || !filePathAnalisi || !fileTipoAnalisi) {
+    throw new Error('Analisi non disponibile per questo file e cantiere.')
+  }
+  if (analisi.salvato) return analisi.salvato
+  if (archiviazioneAnalisiRef.current) throw new Error('Archiviazione già in corso.')
+  const importo = parseImporto(importoRilevatoDocumento)
+  if (!Number.isFinite(importo) || importo <= 0) throw new Error('Inserisci un totale valido maggiore di zero.')
+  archiviazioneAnalisiRef.current = true
+  try {
+    const { data, error } = await supabase.from('preventivi_cantiere').insert([{
+      cantiere: cantiere.nome,
+      nome_file: file.name,
+      file_url: fileUrlAnalisi,
+      file_path: filePathAnalisi,
+      file_tipo: fileTipoAnalisi,
+      anteprima_testo: testoEstrattoDocumento || null,
+      importo_totale: importo,
+      note: 'Archiviato da analisi documento. Lavorazioni non collegate al preventivo.',
+    }]).select('id').single()
+    if (error) throw new Error(error.message)
+    if (!data?.id) throw new Error('ID del preventivo non restituito: verifica il registro prima di riprovare.')
+    // Le righe restano in memoria finché la relazione al preventivo non è confermata.
+    const risultato = { id: String(data.id), importo, voci: vociAnalizzate.length }
+    analisi.salvato = risultato
+    setMostraPreventiviCantiere(true)
+    try { await caricaEconomia() } catch (error) { console.error('Aggiornamento registro preventivi:', error) }
+    return risultato
+  } finally {
+    archiviazioneAnalisiRef.current = false
+  }
+}
 const caricaFileAnalisiDocumento = async (file: File) => {
   if (!file) return
 
@@ -8490,6 +8492,13 @@ const gestisciAzioneDocumento = (actionId: string) => {
 const analizzaDocumentoCantiere = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
   const file = e.target.files?.[0] || null
+  const sessioneAnalisi = file ? { file, cantiereId: cantiereSelezionatoDaId?.id || '', pronta: false } : null
+  analisiPreventivoRef.current = sessioneAnalisi
+  setFileUrlAnalisi(null)
+  setFilePathAnalisi(null)
+  setFileTipoAnalisi(null)
+  setVociAnalizzate([])
+  setImportoRilevatoDocumento('')
   setFileAnalisiDocumento(file)
   setNomeFileAnalisiDocumento(file ? file.name : '')
   setTestoEstrattoDocumento('')
@@ -8664,12 +8673,14 @@ else {
 let testoPulito = testo
   .replace(/\|+/g, '|')
   .replace(/\n\s*\n/g, '\n')
-  .replace(/€/g, '')
     setTestoEstrattoDocumento(testoPulito || 'Nessun testo estratto')
 
 
+const vociDocumento = vociExcelStrutturate ?? parsePreventivoItems(testoPulito, parseImporto)
+const sommaVociDocumento = vociDocumento.length ? vociDocumento.reduce((sum, voce) =>
+  sum + (voce.totale ?? Number(voce.quantita || 0) * Number(voce.prezzo || 0)), 0) : undefined
+const documentProfile = buildDocumentProfileFromText(testoPulito, sommaVociDocumento)
 if (testoPulito.trim()) {
-  const documentProfile = buildDocumentProfileFromText(testoPulito)
   const documentInsights = buildDocumentInsights(documentProfile)
 
   setDocumentInsightsDocumento(documentInsights)
@@ -8694,25 +8705,14 @@ if (testoPulito.trim()) {
     )
   }
 } else {
-  analizzaTestoInVoci(testoPulito)
+  setVociAnalizzate(vociDocumento)
+  // Both panels use the same extracted total; subsequent manual correction is unchanged.
+  setImportoRilevatoDocumento(documentProfile.total?.value.toLocaleString('it-IT', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }) || '')
 }
 
-    setTimeout(() => {
-      const totale = vociAnalizzate.reduce((tot, voce) => {
-        const quantita = Number(voce.quantita || 0)
-        const prezzo = Number(voce.prezzo || 0)
-        return tot + quantita * prezzo
-      }, 0)
-
-      if (totale > 0) {
-        setImportoRilevatoDocumento(
-          totale.toLocaleString('it-IT', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })
-        )
-      }
-    }, 100)
+    if (sessioneAnalisi && analisiPreventivoRef.current === sessioneAnalisi) sessioneAnalisi.pronta = true
 
   } catch (error) {
     console.error('ERRORE ANALISI DOCUMENTO:', error)
@@ -12310,8 +12310,9 @@ WebkitOverflowScrolling: 'touch',
     },
   }}
   documentiPanelProps={{
-    upload: { handleUploadPreventivo },
     caricaFilePreventivo,
+    archiviaPreventivoAnalizzato,
+    correggiTotaleAnalisi: setImportoRilevatoDocumento,
     preventivi: {
       preventivoCantiere, mostraPreventiviCantiere, setMostraPreventiviCantiere,
       preventivi, setPreventivi, formatMoney, parseImporto, supabase, caricaEconomia, buttonSecondary,

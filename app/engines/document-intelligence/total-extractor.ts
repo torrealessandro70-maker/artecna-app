@@ -1,3 +1,5 @@
+import { classifyDocument } from './document-classifier'
+import { extractOfferAmounts, type OfferAmounts } from './offer-amounts'
 import type { DocumentKind } from './document-classifier'
 type TotalCandidate = {
   label: string
@@ -62,6 +64,8 @@ const scoreLine = (line: string): number => {
 }
 
 export const extractDocumentTotal = (text: string): number => {
+  const kind = classifyDocument(text)
+  if (kind === 'offerta' || kind === 'preventivo') return extractDocumentTotalDetailed(text, kind).value
   const lines = text
     .split('\n')
     .map((line) => line.trim())
@@ -109,6 +113,7 @@ export const extractDocumentTotal = (text: string): number => {
   return Number(fallback.toFixed(2))
 }
 export type ExtractDocumentTotalResult = {
+  amounts?: OfferAmounts
   value: number
   confidence: 'high' | 'medium' | 'low' | 'none'
   sourceLine?: string
@@ -118,7 +123,21 @@ export type ExtractDocumentTotalResult = {
 export const extractDocumentTotalDetailed = (
   text: string,
   documentKind: DocumentKind = 'sconosciuto',
+  itemsTotal?: number,
 ): ExtractDocumentTotalResult => {
+  const kind = documentKind === 'sconosciuto' ? classifyDocument(text) : documentKind
+  if (kind === 'offerta' || kind === 'preventivo') {
+    const amounts = extractOfferAmounts(text, itemsTotal)
+    // Retain the existing label ranking. Payments and VAT are never candidates.
+    const candidates = [amounts.imponibile, amounts.totaleDocumento].filter((entry) => entry !== undefined)
+      .map((entry) => ({ ...entry, score: scoreLine(entry.label) + (kind === 'offerta'
+        ? (entry.label.toLowerCase().includes('totale offerta') ? 40 : 0) + (entry.label.toLowerCase().includes('totale iva esclusa') ? 35 : 0) : 0) }))
+      .sort((a, b) => b.score - a.score || b.value - a.value)
+    const best = candidates[0]
+    return best ? { value: best.value, confidence: best.score >= 90 ? 'high' : best.score >= 65 ? 'medium' : 'low',
+      sourceLine: `${best.label}: ${best.value.toFixed(2)}${best.evidence ? ` (${best.evidence})` : ''}`, method: 'keyword', amounts }
+      : { value: 0, confidence: 'none', method: 'none', amounts }
+  }
   const lines = text
     .split('\n')
     .map((line) => line.trim())

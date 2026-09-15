@@ -6,6 +6,7 @@ import type { DocumentInsights } from '@/app/engines/document-intelligence'
 import { DocumentUnderstandingCard } from './ui/DocumentUnderstandingCard'
 
 type Props = {
+  mostraUpload?: boolean
   titolo?: string
   fileAnalisiDocumento: any
   nomeFileAnalisiDocumento: string
@@ -20,6 +21,7 @@ type Props = {
 
 export default function DocumentIntelligencePanel({
   titolo = 'Document Intelligence',
+  mostraUpload = true,
   fileAnalisiDocumento,
   nomeFileAnalisiDocumento,
   testoEstrattoDocumento,
@@ -37,12 +39,12 @@ onDocumentAction,
 
   return (
     <>
-      <DocumentUploadBox
+      {mostraUpload && <DocumentUploadBox
         titolo={titolo}
         nomeFileAnalisiDocumento={nomeFileAnalisiDocumento}
         caricaFileAnalisiDocumento={caricaFileAnalisiDocumento}
         inputStyle={inputStyle}
-      />
+      />}
 
       {fileAnalisiDocumento && (
         <div

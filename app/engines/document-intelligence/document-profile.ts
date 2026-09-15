@@ -30,9 +30,10 @@ const mapTotalConfidence = (
 
 export const buildDocumentProfileFromText = (
   text: string,
+  itemsTotal?: number,
 ): DocumentProfile => {
   const kind = classifyDocument(text)
-  const total = extractDocumentTotalDetailed(text, kind)
+  const total = extractDocumentTotalDetailed(text, kind, itemsTotal)
 
   return {
     kind: mapDocumentKindToDocumentType(kind),

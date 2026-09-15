@@ -17,7 +17,9 @@ const normalizzaDocumento = (text: string) =>
   text
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, ' ')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[-–—]/g, ' ')
+    .replace(/\s+/g, ' ')
 
 const addScore = (
   scores: Record<DocumentKind, number>,
@@ -49,8 +51,16 @@ export const classifyDocument = (text: string): DocumentKind => {
   if (normalized.includes('quadro economico')) addScore(scores, 'computo', 35)
   if (normalized.includes('importo lavori')) addScore(scores, 'computo', 30)
 
+  const offertaEsplicita = /\bofferta (?:tecnico economica|economica)\b/.test(normalized)
+  const tabellaOfferta = ['voce di capitolato', 'quantita', 'prezzo unitario', 'importo'].every((label) => normalized.includes(label))
+  const schemaPagamenti = normalized.includes('acconto iniziale') && normalized.includes('saldo finale')
+  const salNeiPagamenti = offertaEsplicita && schemaPagamenti &&
+    /stato avanzamento lavori\s+\d+(?:[.,]\d+)?\s*%/.test(normalized)
+  if (offertaEsplicita) addScore(scores, 'offerta', 130)
+  if (offertaEsplicita && tabellaOfferta) addScore(scores, 'offerta', 40)
+  if (offertaEsplicita && schemaPagamenti) addScore(scores, 'offerta', 20)
+
   if (normalized.includes('preventivo')) addScore(scores, 'preventivo', 90)
-  if (normalized.includes('offerta economica')) addScore(scores, 'offerta', 100)
   if (normalized.includes('totale offerta')) addScore(scores, 'offerta', 80)
 
   if (normalized.includes('fattura')) addScore(scores, 'fattura', 100)
@@ -58,7 +68,7 @@ export const classifyDocument = (text: string): DocumentKind => {
   if (normalized.includes('totale documento')) addScore(scores, 'fattura', 50)
   if (normalized.includes('partita iva')) addScore(scores, 'fattura', 35)
 
-  if (normalized.includes('stato avanzamento lavori')) addScore(scores, 'sal', 120)
+  if (normalized.includes('stato avanzamento lavori')) addScore(scores, 'sal', salNeiPagamenti ? 10 : 120)
   if (normalized.includes('s.a.l.')) addScore(scores, 'sal', 120)
   if (normalized.includes('sal n')) addScore(scores, 'sal', 80)
   if (normalized.includes('percentuale avanzamento')) addScore(scores, 'sal', 50)
