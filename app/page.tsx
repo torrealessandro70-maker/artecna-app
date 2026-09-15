@@ -96,6 +96,7 @@ import SopralluoghiPanel from './components/SopralluoghiPanel'
 import FattureEmessePopupLayer from './components/FattureEmessePopupLayer'
 import RegistroPanel from './components/RegistroPanel'
 import CantieriElencoPanel from './components/CantieriElencoPanel'
+import { eliminaCantiereVuoto } from './utils/eliminazioneCantiere'
 import CantieriSchedaPanel from './components/CantieriSchedaPanel'
 import CantieriAnalisiDocumentoPanel from './components/CantieriAnalisiDocumentoPanel'
 
@@ -7121,93 +7122,15 @@ const eliminaPreventivoCantiere = async (id?: string) => {
     nome: string,
     idCantiereCancellato: string
   ) => {
-  const conferma = confirm(
-    `Vuoi eliminare completamente il cantiere "${nome}"?\n\nVerranno eliminati:\n- cantiere\n- rapportini\n- foto\n- timbrature\n- preventivi\n- materiali\n- attrezzi\n- file collegati nello Storage`
-  )
-
-  if (!conferma) return
-
-  // 3. Cancella dati collegati dal database
-  const { error: errorRapportini } = await supabase
-    .from('rapportini')
-    .delete()
-    .eq('cantiere', nome)
-
-  if (errorRapportini) {
-    alert('Errore eliminazione rapportini: ' + errorRapportini.message)
+  try {
+    const eliminato = await eliminaCantiereVuoto(supabase, idCantiereCancellato, nome, () =>
+      confirm(`Eliminare il cantiere vuoto "${nome}"?`)
+    )
+    if (!eliminato) return
+  } catch (error: any) {
+    alert(error.message || 'Verifica del cantiere non riuscita. Eliminazione interrotta.')
     return
   }
-
-  const { error: errorFoto } = await supabase
-    .from('foto_cantiere')
-    .delete()
-    .eq('cantiere', nome)
-
-  if (errorFoto) {
-    alert('Errore eliminazione foto: ' + errorFoto.message)
-    return
-  }
-
-  const { error: errorTimbrature } = await supabase
-    .from('timbrature')
-    .delete()
-    .eq('cantiere', nome)
-
-  if (errorTimbrature) {
-    alert('Errore eliminazione timbrature: ' + errorTimbrature.message)
-    return
-  }
-
-  const { data: eliminati_errorPreventivi, error: errorPreventivi } = await supabase
-    .from('preventivi_cantiere')
-    .delete()
-    .eq('cantiere', nome)
-    .select('file_path')
-
-  if (errorPreventivi) {
-    alert(messaggioEliminazione(errorPreventivi, 'Preventivi'))
-    return
-  }
-
-  const { data: eliminati_errorMateriali, error: errorMateriali } = await supabase
-    .from('materiali_cantiere')
-    .delete()
-    .eq('cantiere', nome)
-    .select('file_path')
-
-  if (errorMateriali) {
-    alert('Errore eliminazione materiali: ' + errorMateriali.message)
-    return
-  }
-
-  const { data: eliminati_errorAttrezzi, error: errorAttrezzi } = await supabase
-    .from('attrezzi_cantiere')
-    .delete()
-    .eq('cantiere', nome)
-    .select('file_path')
-
-  if (errorAttrezzi) {
-    alert('Errore eliminazione attrezzi: ' + errorAttrezzi.message)
-    return
-  }
-
-  // 4. Cancella il cantiere
-  const { error: errorCantiere } = await supabase
-    .from('cantieri')
-    .delete()
-    .eq('nome', nome)
-
-  if (errorCantiere) {
-    alert('Errore eliminazione cantiere: ' + errorCantiere.message)
-    return
-  }
-
-  const avvisoStorage = await eliminaFilePreventivi(supabase, [
-    ...(eliminati_errorPreventivi || []),
-    ...(eliminati_errorMateriali || []),
-    ...(eliminati_errorAttrezzi || []),
-  ].map((row: any) => row.file_path))
-  if (avvisoStorage) alert(avvisoStorage)
 
   // 5. Pulisce stati locali
   if (cantiereRapporto === nome) setCantiereRapporto('')
@@ -7224,12 +7147,7 @@ const eliminaPreventivoCantiere = async (id?: string) => {
   if (cantiereGrafico === nome) setCantiereGrafico('')
 
   await caricaCantieri()
-  await caricaRapportini()
-  await caricaFotoCantiere()
-  await caricaTimbrature()
-  await caricaEconomia()
-
-  if (!avvisoStorage) alert('Cantiere eliminato completamente, compresi i file nello Storage')
+  alert('Cantiere vuoto eliminato')
 }
 
 const salvaRapportino = async () => {
@@ -12095,6 +12013,7 @@ WebkitOverflowScrolling: 'touch',
 ) && (
   <CantieriElencoPanel
     cantieri={cantieri}
+    preventivi={preventivi}
     ricercaCantiere={ricercaCantiere}
     setRicercaCantiere={setRicercaCantiere}
     setNomeCantiere={setNomeCantiere}

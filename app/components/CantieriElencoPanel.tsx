@@ -1,7 +1,11 @@
 'use client'
 
+import { useMemo } from 'react'
+import { mappaPreventiviElenco, totalePreventivoElenco, confrontaPreventiviElenco } from '../utils/cantiereElenco'
+
 type Props = {
   cantieri: any[]
+  preventivi: any[]
   ricercaCantiere: string
   setRicercaCantiere: (v: string) => void
   setNomeCantiere: (v: string) => void
@@ -30,6 +34,7 @@ type Props = {
 
 export default function CantieriElencoPanel({
   cantieri,
+  preventivi,
   ricercaCantiere,
   setRicercaCantiere,
   setNomeCantiere,
@@ -53,6 +58,7 @@ export default function CantieriElencoPanel({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+  const preventiviPerCantiere = useMemo(() => mappaPreventiviElenco(preventivi), [preventivi])
   return (
     <div style={cardStyle}>
       <h2>Elenco cantieri</h2>
@@ -182,8 +188,7 @@ export default function CantieriElencoPanel({
                   }
 
                   if (ordinaCantieriCampo === 'preventivo') {
-                    valoreA = Number(a.preventivo || 0)
-                    valoreB = Number(b.preventivo || 0)
+                    return confrontaPreventiviElenco(a, b, preventiviPerCantiere, ordinaCantieriDirezione)
                   }
 
                   if (ordinaCantieriCampo === 'inizio') {
@@ -245,7 +250,9 @@ export default function CantieriElencoPanel({
                     </td>
 
                     <td style={excelTd}>
-                      {formatMoney(Number(c.preventivo || 0))}
+                      {totalePreventivoElenco(c, preventiviPerCantiere) === null
+                        ? 'Da selezionare'
+                        : formatMoney(totalePreventivoElenco(c, preventiviPerCantiere)!)}
                     </td>
 
                     <td style={excelTd}>{c.data_inizio_lavori || '-'}</td>
