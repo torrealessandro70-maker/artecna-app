@@ -1,6 +1,10 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+
 type SalTableProps = {
+  cantiereId: string
+  nomeCantiere: string
   lavorazioni: any[]
   excelTable: any
   excelTh: any
@@ -14,6 +18,8 @@ type SalTableProps = {
 }
 
 export default function SalTable({
+  cantiereId,
+  nomeCantiere,
   lavorazioni,
   excelTable,
   excelTh,
@@ -25,11 +31,63 @@ export default function SalTable({
   onUpdatePercentuale,
   onElimina,
 }: SalTableProps) {
+  const [espansa, setEspansa] = useState(false)
+
+  useEffect(() => {
+    setEspansa(false)
+  }, [cantiereId])
+
+  useEffect(() => {
+    if (lavorazioni.length === 0) setEspansa(false)
+  }, [lavorazioni.length])
+
+  useEffect(() => {
+    if (!espansa) return
+    const overflowPrecedente = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        setEspansa(false)
+      }
+    }
+    document.addEventListener('keydown', onEscape, true)
+    return () => {
+      document.body.style.overflow = overflowPrecedente
+      document.removeEventListener('keydown', onEscape, true)
+    }
+  }, [espansa])
+
   if (lavorazioni.length === 0) {
     return <p>Nessuna lavorazione SAL inserita per questo cantiere.</p>
   }
 
   return (
+    <section
+      aria-label="SAL dettagliato"
+      style={espansa ? {
+        position: 'fixed', inset: 8, zIndex: 10000,
+        background: '#fff', borderRadius: 10, padding: 12,
+        display: 'flex', flexDirection: 'column', minWidth: 0,
+        boxShadow: '0 0 0 100vmax rgba(15,23,42,0.35)',
+        boxSizing: 'border-box',
+      } : { minWidth: 0 }}
+    >
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+          <strong>SAL dettagliato</strong>
+          {espansa && <div>{nomeCantiere}</div>}
+        </div>
+        <button
+          type="button"
+          aria-expanded={espansa}
+          onClick={() => setEspansa((value) => !value)}
+          style={{ minHeight: 44, padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#f8fafc', color: '#0f172a', cursor: 'pointer' }}
+        >
+          {espansa ? 'Riduci' : 'Espandi'}
+        </button>
+      </header>
     <div
       style={{
         marginTop: 12,
@@ -46,9 +104,14 @@ export default function SalTable({
         maxHeight: '80vh',
         overflow: 'auto',
         resize: 'both',
+        ...(espansa ? {
+          flex: 1, minHeight: 0, height: 'auto', maxHeight: 'none',
+          minWidth: 0, boxSizing: 'border-box' as const, resize: 'none' as const,
+          overscrollBehavior: 'contain' as const,
+        } : {}),
       }}
     >
-      <table style={excelTable}>
+      <table style={espansa ? { ...excelTable, width: '100%', minWidth: 1100 } : excelTable}>
         <thead>
           <tr>
             <th style={excelTh}>Completata</th>
@@ -94,7 +157,7 @@ export default function SalTable({
                     }
                     style={{
                       width: '100%',
-                      minWidth: 260,
+                      minWidth: espansa ? 360 : 260,
                       minHeight: 80,
                       border: '1px solid #ccc',
                       borderRadius: 6,
@@ -150,7 +213,7 @@ export default function SalTable({
                   {s.data_aggiornamento || '-'}
                 </td>
 
-                <td style={excelTd}>
+                <td style={espansa ? { ...excelTd, minWidth: 220, whiteSpace: 'normal', overflowWrap: 'anywhere' } : excelTd}>
                   {rigaSospetta
                     ? '⚠️ Probabile errore OCR/importazione'
                     : s.note || '-'}
@@ -177,5 +240,6 @@ export default function SalTable({
         </tbody>
       </table>
     </div>
+    </section>
   )
 }

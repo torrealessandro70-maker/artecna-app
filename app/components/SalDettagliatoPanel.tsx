@@ -1,3 +1,4 @@
+import ImportaPreventivoSalPanel from './ImportaPreventivoSalPanel'
 
 import { eliminaPreventivoConFile, messaggioEliminazione } from '../utils/eliminazionePreventivo'
 
@@ -216,6 +217,14 @@ export default function SalDettagliatoPanel({
   buttonPrimary={buttonPrimary}
 />
 
+    {contesto.contestuale ? <ImportaPreventivoSalPanel
+      key={contesto.cantiereContestuale.id}
+      cantiere={contesto.cantiereContestuale}
+      supabase={supabase}
+      caricaSalLavorazioni={caricaSalLavorazioni}
+      formatMoney={formatMoney}
+      buttonStyle={buttonSecondary}
+    /> : (
     <button
       onClick={async () => {
         if (!salCantiere) {
@@ -270,8 +279,10 @@ export default function SalDettagliatoPanel({
     >
       Importa lavorazioni preventivo nel SAL
     </button>
+    )}
   </div>
 
+  {!contesto.contestuale && <>
   <div
     style={{
       marginTop: 20,
@@ -590,6 +601,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     </div>
   )
 })()}
+  </>}
 
   {salCantiere && (
     <>
@@ -644,6 +656,8 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   formatMoney={formatMoney}
 />
 <SalTable
+  cantiereId={contesto.contestuale ? contesto.cantiereContestuale.id : salCantiere}
+  nomeCantiere={salCantiere}
   lavorazioni={lavorazioniCantiere}
   excelTable={excelTable}
   excelTh={excelTh}
