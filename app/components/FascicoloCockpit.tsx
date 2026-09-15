@@ -17,6 +17,7 @@ type PreventivoQualityVoice = {
   }
 }
 type FascicoloCockpitProps = {
+  sintetico?: boolean
   cantiereName?: string
   nomeCantiereVisualizzato?: string
   subtitle?: string
@@ -26,6 +27,7 @@ type FascicoloCockpitProps = {
 }
 
 export default function FascicoloCockpit({
+  sintetico = false,
   cantiereName,
   nomeCantiereVisualizzato,
   subtitle,
@@ -54,6 +56,23 @@ const preventivoQualityAccent =
         : preventivoQuality.level === 'weak'
           ? '#f97316'
           : '#dc2626'
+  if (sintetico) {
+    return (
+      <section aria-label="Quadro gestionale del fascicolo" style={{ padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', minWidth: 0 }}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 22, overflowWrap: 'anywhere' }}>{nomeCantiereVisualizzato ?? cantiereName}</h3>
+        <p style={{ margin: '0 0 16px', color: '#475569' }}>{subtitle}</p>
+        <div style={{ padding: 14, borderRadius: 8, background: '#f8fafc' }}>
+          <strong>{focus}</strong>
+          <p>{cockpitSnapshot.cockpitSummary.situation}</p>
+        </div>
+        <h4>Indicatori del fascicolo</h4>
+        <ul style={{ paddingLeft: 20, color: '#475569' }}>
+          {cockpitSnapshot.cockpitSummary.attention.map((avviso) => <li key={avviso}>{avviso}</li>)}
+        </ul>
+        <p style={{ color: '#475569', marginBottom: 0 }}>{cockpitSnapshot.cockpitSummary.nextAction}</p>
+      </section>
+    )
+  }
   return (
     <section
       aria-label="ARTECNA Cockpit"

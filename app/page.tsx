@@ -12151,6 +12151,7 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  fascicoloPanelProps={{ foto: fotoCantiere, rapportini, preventivi, sal: salLavorazioni }}
   economiaPanelProps={{
     riepilogo: {
       preventivoCantiere,

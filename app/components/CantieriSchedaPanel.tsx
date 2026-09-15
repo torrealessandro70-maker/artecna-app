@@ -3,12 +3,13 @@
 import { useEffect, useId, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 
-type SchedaCantierePagina = 'panoramica' | 'lavori' | 'documenti' | 'economia'
+type SchedaCantierePagina = 'panoramica' | 'lavori' | 'documenti' | 'economia' | 'fascicolo'
 type LavoriSezione = 'rapportini' | 'foto' | 'presenze' | 'materiali' | 'attrezzature'
 import RapportiniCantierePanel from './RapportiniCantierePanel'
 import SelectCantiere from './SelectCantiere'
 import MaterialiCantierePanel from './MaterialiCantierePanel'
 import AttrezzatureCantierePanel from './AttrezzatureCantierePanel'
+import FascicoloCantierePanel from './FascicoloCantierePanel'
 import EconomiaCantierePanel from './EconomiaCantierePanel'
 import DocumentiCantierePanel from './DocumentiCantierePanel'
 import DettaglioManodoperaPanel from './DettaglioManodoperaPanel'
@@ -155,7 +156,7 @@ export default function CantieriSchedaPanel(props: any) {
         display: 'flex', gap: 4, overflowX: 'auto', maxWidth: '100%',
         marginTop: 20, marginBottom: 24, borderBottom: '1px solid #e2e8f0',
       }}>
-        {(['panoramica', 'lavori', 'documenti', 'economia'] as const).map((pagina) => (
+        {(['panoramica', 'lavori', 'documenti', 'economia', 'fascicolo'] as const).map((pagina) => (
           <button
             key={pagina}
             type="button"
@@ -169,10 +170,10 @@ export default function CantieriSchedaPanel(props: any) {
               borderBottom: paginaAttiva === pagina ? '2px solid #1d4ed8' : '2px solid transparent',
             }}
           >
-            {pagina === 'panoramica' ? 'Panoramica' : pagina === 'lavori' ? 'Lavori' : pagina === 'documenti' ? 'Documenti' : 'Economia'}
+            {pagina === 'panoramica' ? 'Panoramica' : pagina === 'lavori' ? 'Lavori' : pagina === 'documenti' ? 'Documenti' : pagina === 'economia' ? 'Economia' : 'Fascicolo'}
           </button>
         ))}
-        {['Fascicolo', 'Timeline', 'Analisi AI'].map((sezione) => (
+        {['Timeline', 'Analisi AI'].map((sezione) => (
           <button key={sezione} type="button" disabled style={{
             flexShrink: 0, minHeight: 44, padding: '12px 16px', fontSize: 14,
             color: '#94a3b8', border: 0, background: 'transparent', cursor: 'not-allowed',
@@ -238,6 +239,10 @@ export default function CantieriSchedaPanel(props: any) {
             }
           `}</style>
         </section>
+      )}
+      {p.cantiereSelezionatoDaId && paginaAttiva === 'fascicolo' && (
+        <FascicoloCantierePanel key={p.cantiereSelezionatoDaId.id} cantiere={p.cantiereSelezionatoDaId}
+          panelProps={p.fascicoloPanelProps} onApriArea={setPaginaAttiva} />
       )}
       {p.cantiereSelezionatoDaId && paginaAttiva === 'economia' && (
         <EconomiaCantierePanel key={p.cantiereSelezionatoDaId.id}
