@@ -12146,6 +12146,20 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  documentiPanelProps={{
+    upload: { handleUploadPreventivo },
+    caricaFilePreventivo,
+    preventivi: {
+      preventivoCantiere, mostraPreventiviCantiere, setMostraPreventiviCantiere,
+      preventivi, setPreventivi, formatMoney, parseImporto, supabase, caricaEconomia, buttonSecondary,
+    },
+    analisi: {
+      titolo: 'Carica / Analizza documento',
+      fileAnalisiDocumento, nomeFileAnalisiDocumento, testoEstrattoDocumento,
+      importoRilevatoDocumento, vociAnalizzate, caricaFileAnalisiDocumento, inputStyle,
+      documentInsights: documentInsightsDocumento, onDocumentAction: gestisciAzioneDocumento,
+    },
+  }}
   fattureFornitori={fattureFornitori}
   righeMaterialiFatture={righeMaterialiFatture}
   righeAttrezzatureFatture={righeAttrezzatureFatture}

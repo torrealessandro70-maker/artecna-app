@@ -1,15 +1,17 @@
 'use client'
 
 import CantieriSchedaPanel from './CantieriSchedaPanel'
-import CantieriAnalisiDocumentoPanel from './CantieriAnalisiDocumentoPanel'
+import type { DocumentiPanelProps } from './DocumentiCantierePanel'
 import CantieriEconomiaPanel from './CantieriEconomiaPanel'
 
 interface CantieriContainerProps {
+  documentiPanelProps: DocumentiPanelProps
   [key: string]: any
 }
 
 export default function CantieriContainer(props: CantieriContainerProps) {
 const {
+  documentiPanelProps,
   cardStyle,
   cantieri,
   cantiereScheda,
@@ -35,6 +37,7 @@ const {
   return (
     <>
       <CantieriSchedaPanel
+  documentiPanelProps={documentiPanelProps}
   cardStyle={cardStyle}
   cantieri={cantieri}
   cantiereScheda={cantiereScheda}
@@ -56,24 +59,6 @@ const {
         <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#475569', minHeight: 44 }}>
           Altri strumenti del cantiere
         </summary>
-      <CantieriAnalisiDocumentoPanel
-  cardStyle={cardStyle}
-  cantieri={cantieri}
-  cantiereAnalisiDocumento={cantiereScheda || ''}
-  setCantiereAnalisiDocumento={setCantiereScheda}
-  setCantiereIdScheda={setCantiereIdScheda}
-  inputStyle={inputStyle}
-  buttonSecondary={buttonSecondary}
-  buttonPrimary={buttonPrimary}
-  caricaFileAnalisiDocumento={caricaFileAnalisiDocumento}
-  fileAnalisiDocumento={fileAnalisiDocumento}
-  nomeFileAnalisiDocumento={nomeFileAnalisiDocumento}
-  testoEstrattoDocumento={testoEstrattoDocumento}
-  importoRilevatoDocumento={importoRilevatoDocumento}
-  vociAnalizzate={vociAnalizzate}
-
-  {...rest}
-/>
       <CantieriEconomiaPanel {...props} />
       </details>
     </>
