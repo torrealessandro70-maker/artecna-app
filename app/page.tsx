@@ -12151,6 +12151,8 @@ WebkitOverflowScrolling: 'touch',
     sottoSezioneCantieri === 'scheda')
 ) && (
 <CantieriContainer
+  timelinePanelProps={{ foto: fotoCantiere, rapportini, preventivi, acconti: accontiCantiere,
+    presenze: timbrature, materiali: materialiCantiere, attrezzature: attrezziCantiere, formatMoney }}
   fascicoloPanelProps={{ foto: fotoCantiere, rapportini, preventivi, sal: salLavorazioni }}
   economiaPanelProps={{
     riepilogo: {

@@ -1,5 +1,6 @@
 'use client'
 
+import type { TimelinePanelProps } from './TimelineCantierePanel'
 import type { FascicoloPanelProps } from './FascicoloCantierePanel'
 import CantieriSchedaPanel from './CantieriSchedaPanel'
 import type { DocumentiPanelProps } from './DocumentiCantierePanel'
@@ -7,6 +8,7 @@ import type { EconomiaPanelProps } from './EconomiaCantierePanel'
 import CantieriEconomiaPanel from './CantieriEconomiaPanel'
 
 interface CantieriContainerProps {
+  timelinePanelProps: TimelinePanelProps
   fascicoloPanelProps: FascicoloPanelProps
   economiaPanelProps: EconomiaPanelProps
   documentiPanelProps: DocumentiPanelProps
@@ -15,6 +17,7 @@ interface CantieriContainerProps {
 
 export default function CantieriContainer(props: CantieriContainerProps) {
 const {
+  timelinePanelProps,
   fascicoloPanelProps,
   economiaPanelProps,
   documentiPanelProps,
@@ -43,6 +46,7 @@ const {
   return (
     <>
       <CantieriSchedaPanel
+  timelinePanelProps={timelinePanelProps}
   fascicoloPanelProps={fascicoloPanelProps}
   economiaPanelProps={economiaPanelProps}
   documentiPanelProps={documentiPanelProps}
