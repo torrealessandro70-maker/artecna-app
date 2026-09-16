@@ -2,9 +2,10 @@
 
 import { eliminaPreventivoConFile } from '../utils/eliminazionePreventivo'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 type Props = {
+  contratto?: { cantiereId: string; preventivoId?: string | null; seleziona: (cantiereId: string, preventivoId: string) => Promise<void> }
   preventivoCantiere: number
   mostraPreventiviCantiere: boolean
   setMostraPreventiviCantiere: (v: boolean) => void
@@ -19,6 +20,7 @@ type Props = {
 }
 
 export default function PreventiviEconomiaPanel({
+  contratto,
   mostraPreventiviCantiere,
   setMostraPreventiviCantiere,
   preventivi,
@@ -30,9 +32,27 @@ export default function PreventiviEconomiaPanel({
   caricaEconomia,
   buttonSecondary,
 }: Props) {
+  const [contrattoOccupato, setContrattoOccupato] = useState(false)
+  const contrattoInCorso = useRef(false)
+  const scegliContratto = async (p: any) => {
+    if (!contratto || !p.id || p.cantiere_id !== contratto.cantiereId || contrattoInCorso.current) return
+    const vecchio = preventivi.find(v => v.id === contratto.preventivoId)
+    const descrivi = (v: any) => `${v.nome_file || 'Preventivo'} — ${formatMoney(Number(v.importo_totale || 0))}`
+    const testo = contratto.preventivoId
+      ? `Questo cantiere ha già un preventivo contrattuale. Vuoi sostituirlo con questo preventivo?${vecchio ? `\nAttuale: ${descrivi(vecchio)}` : ''}`
+      : 'Impostare questo preventivo come preventivo contrattuale del cantiere?'
+    if (!confirm(`${testo}\nNuovo: ${descrivi(p)}`)) return
+    contrattoInCorso.current = true
+    setContrattoOccupato(true)
+    try { await contratto.seleziona(contratto.cantiereId, p.id) }
+    catch (error) { alert(error instanceof Error ? error.message : 'Salvataggio non riuscito.') }
+    finally { contrattoInCorso.current = false; setContrattoOccupato(false) }
+  }
   const [anteprimeAperte, setAnteprimeAperte] = useState<Record<string, boolean>>({})
   const preventiviCantiere = preventivi.filter(
-    (preventivo) => preventivo.cantiere === cantiereScheda
+    (preventivo) => contratto
+      ? preventivo.cantiere_id === contratto.cantiereId || (!preventivo.cantiere_id && preventivo.cantiere === cantiereScheda)
+      : preventivo.cantiere === cantiereScheda
   )
   const importoUsato = (preventivo: any) =>
     parseImporto(
@@ -88,6 +108,14 @@ export default function PreventiviEconomiaPanel({
                   }}
                 >
                   <strong>{p.nome_file || `Preventivo ${i + 1}`}</strong>
+                  {contratto && p.cantiere_id === contratto.cantiereId && p.id && (
+                    <div style={{ marginTop: 8 }}>
+                      {contratto.preventivoId === p.id
+                        ? <strong role="status" style={{ display: 'inline-block', padding: '6px 10px', background: '#e0f2fe', color: '#075985', borderRadius: 6 }}>Preventivo contrattuale</strong>
+                        : <button type="button" disabled={contrattoOccupato} onClick={() => scegliContratto(p)}
+                            style={{ ...buttonSecondary, minHeight: 44 }}>Imposta come contrattuale</button>}
+                    </div>
+                  )}
                   <br />
 
                   <div style={{ marginTop: 8 }}>

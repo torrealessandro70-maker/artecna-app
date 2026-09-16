@@ -250,7 +250,9 @@ export default function CantieriElencoPanel({
                     </td>
 
                     <td style={excelTd}>
-                      {totalePreventivoElenco(c, preventiviPerCantiere) === null
+                      {totalePreventivoElenco(c, preventiviPerCantiere) === undefined
+                        ? 'Contrattuale da verificare'
+                        : totalePreventivoElenco(c, preventiviPerCantiere) === null
                         ? 'Da selezionare'
                         : formatMoney(totalePreventivoElenco(c, preventiviPerCantiere)!)}
                     </td>

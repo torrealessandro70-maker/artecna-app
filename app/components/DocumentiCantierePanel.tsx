@@ -12,6 +12,7 @@ export type EsitoArchiviazionePreventivo = {
 }
 
 export type DocumentiPanelProps = {
+  selezionaPreventivoContrattuale: (cantiereId: string, preventivoId: string) => Promise<void>
   preventivi: Omit<ComponentProps<typeof PreventiviEconomiaPanel>, 'cantiereScheda'>
   analisi: ComponentProps<typeof DocumentIntelligencePanel>
   archiviaPreventivoAnalizzato: (file: File, cantiereId: string) => Promise<EsitoArchiviazionePreventivo>
@@ -20,7 +21,7 @@ export type DocumentiPanelProps = {
 }
 
 type Props = {
-  cantiere: { id: string; nome: string }
+  cantiere: { id: string; nome: string; preventivo_contrattuale_id?: string | null }
   panelProps: DocumentiPanelProps
 }
 
@@ -102,7 +103,9 @@ export default function DocumentiCantierePanel({ cantiere, panelProps: p }: Prop
         <section aria-label="Preventivi del cantiere" style={{ minWidth: 0, overflowX: 'auto' }}>
           <h4 style={{ margin: '0 0 12px', fontSize: 18 }}>Documenti / Preventivi del cantiere</h4>
           <PreventiviEconomiaPanel {...p.preventivi} cantiereScheda={cantiere.nome}
-            preventivi={p.preventivi.preventivi.filter((preventivo) => preventivo.cantiere === cantiere.nome)} />
+            contratto={{ cantiereId: cantiere.id, preventivoId: cantiere.preventivo_contrattuale_id,
+              seleziona: p.selezionaPreventivoContrattuale }}
+            preventivi={p.preventivi.preventivi.filter((preventivo) => preventivo.cantiere_id === cantiere.id || (!preventivo.cantiere_id && preventivo.cantiere === cantiere.nome))} />
         </section>
         <section aria-label="Analisi documento" style={{ minWidth: 0, overflowX: 'auto' }}>
           <h4 style={{ margin: '0 0 12px', fontSize: 18 }}>Analisi documento</h4>

@@ -1,4 +1,7 @@
 export function messaggioEliminazione(error: { code?: string; message?: string }, entita: string) {
+  if (error.code === '23503' && error.message?.includes('cantieri_preventivo_contrattuale_id_fkey')) {
+    return 'Questo preventivo è impostato come contrattuale del cantiere. Se vuoi eliminarlo, scegli prima un altro preventivo contrattuale. Nessun file è stato eliminato.'
+  }
   return error.code === '23503'
     ? `${entita}: eliminazione bloccata perché il record è utilizzato da lavorazioni o dallo stato SAL. Nessun file è stato eliminato.`
     : `Errore eliminazione ${entita}: ${error.message || 'operazione non riuscita'}`

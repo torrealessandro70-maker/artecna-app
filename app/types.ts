@@ -1,6 +1,7 @@
 // app/types.ts
 
 export type Cantiere = {
+  preventivo_contrattuale_id?: string | null
   id?: string
   nome: string
   preventivo?: number

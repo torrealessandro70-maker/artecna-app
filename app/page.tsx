@@ -95,6 +95,7 @@ import AgendaContainer from './components/agenda/AgendaContainer'
 import SopralluoghiPanel from './components/SopralluoghiPanel'
 import FattureEmessePopupLayer from './components/FattureEmessePopupLayer'
 import RegistroPanel from './components/RegistroPanel'
+import { impostaPreventivoContrattuale } from './utils/preventivoContrattuale'
 import CantieriElencoPanel from './components/CantieriElencoPanel'
 import { eliminaCantiereVuoto } from './utils/eliminazioneCantiere'
 import CantieriSchedaPanel from './components/CantieriSchedaPanel'
@@ -8290,6 +8291,16 @@ const leggiTestoDaImmagine = async (file: File) => {
 
 const analisiPreventivoRef = useRef<{ file: File; cantiereId: string; pronta: boolean; salvato?: EsitoArchiviazionePreventivo } | null>(null)
 const archiviazioneAnalisiRef = useRef(false)
+const selezionaPreventivoContrattuale = async (cantiereId: string, preventivoId: string) => {
+  if (!cantiereSelezionatoDaId?.id || cantiereSelezionatoDaId.id !== cantiereId) {
+    throw new Error('Il cantiere della Scheda non coincide. Riapri Documenti.')
+  }
+  const salvato = await impostaPreventivoContrattuale(supabase, cantiereId, preventivoId)
+  setCantieri(correnti => correnti.map(c => c.id === salvato.id
+    ? { ...c, preventivo_contrattuale_id: salvato.preventivo_contrattuale_id } : c))
+  await caricaCantieri()
+}
+
 const archiviaPreventivoAnalizzato = async (file: File, cantiereId: string) => {
   const analisi = analisiPreventivoRef.current
   const cantiere = cantiereSelezionatoDaId
@@ -12205,6 +12216,7 @@ WebkitOverflowScrolling: 'touch',
     },
   }}
   documentiPanelProps={{
+    selezionaPreventivoContrattuale,
     caricaFilePreventivo,
     archiviaPreventivoAnalizzato,
     correggiTotaleAnalisi: setImportoRilevatoDocumento,
