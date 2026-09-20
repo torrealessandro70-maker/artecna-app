@@ -23,6 +23,7 @@ type Operaio = {
 type Timbratura = {
   id?: string
   operaio_nome: string
+  cantiere_id?: string
   cantiere: string
   data: string
   ora_entrata?: string
@@ -89,6 +90,15 @@ useEffect(() => {
       return
     }
 
+const cantiereSelezionato = cantieri.find(
+  (item) => item.nome === cantiere
+)
+
+if (!cantiereSelezionato?.id) {
+  alert('Impossibile identificare il cantiere selezionato')
+  return
+}
+
     const { data: operai, error: erroreOperai } = await supabase
       .from('operai')
       .select('*')
@@ -111,7 +121,7 @@ useEffect(() => {
         .from('timbrature')
         .select('*')
         .eq('operaio_nome', operaio.nome)
-        .eq('cantiere', cantiere)
+        .eq('cantiere_id', cantiereSelezionato.id)
         .eq('data', oggi)
         .eq('stato', 'aperto')
 
@@ -126,13 +136,14 @@ useEffect(() => {
       }
 
       const { error } = await supabase.from('timbrature').insert([
-        {
-          operaio_nome: operaio.nome,
-          cantiere,
-          data: oggi,
-          ora_entrata: ora(),
-          stato: 'aperto',
-        },
+       {
+  operaio_nome: operaio.nome,
+  cantiere_id: cantiereSelezionato.id,
+  cantiere: cantiereSelezionato.nome,
+  data: oggi,
+  ora_entrata: ora(),
+  stato: 'aperto',
+},
       ])
 
       if (error) {
@@ -144,7 +155,7 @@ useEffect(() => {
         .from('timbrature')
         .select('*')
         .eq('operaio_nome', operaio.nome)
-        .eq('cantiere', cantiere)
+        .eq('cantiere_id', cantiereSelezionato.id)
         .eq('data', oggi)
         .eq('stato', 'aperto')
         .order('created_at', { ascending: false })

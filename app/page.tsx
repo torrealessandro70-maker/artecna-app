@@ -982,9 +982,22 @@ const salvaAcconto = async () => {
     return alert('Importo non valido')
   }
 
+  const contestoScheda = modalitaMulti
+    ? pagineAperte.includes('cantieri-scheda') && !pagineAperte.includes('cantieri-economia')
+    : sezioneAttiva === 'cantieri' && sottoSezioneCantieri === 'scheda'
+  const corrispondenze = cantieri.filter((cantiere) => cantiere.nome === cantiereScheda)
+  const cantiereAcconto = contestoScheda && cantiereSelezionatoDaId?.nome === cantiereScheda
+    ? cantiereSelezionatoDaId
+    : corrispondenze.length === 1 ? corrispondenze[0] : null
+
+  if (!cantiereAcconto?.id) {
+    return alert('Impossibile identificare un cantiere univoco per questo acconto. Seleziona nuovamente il cantiere.')
+  }
+
   const { error } = await supabase.from('acconti_cantiere').insert([
     {
-      cantiere: cantiereScheda,
+      cantiere_id: cantiereAcconto.id,
+      cantiere: cantiereAcconto.nome,
       descrizione: descrizioneAcconto || 'Acconto',
       importo,
       data_incasso: dataAcconto || null,
@@ -1005,7 +1018,7 @@ const salvaAcconto = async () => {
   setMetodoAcconto('')
   setNotaAcconto('')
 
-  await caricaEconomia()
+  await caricaAcconti()
 
   alert('Acconto salvato')
 }
@@ -6064,24 +6077,46 @@ if (dati.cantiere) setCantiereRapporto(dati.cantiere)
 }
 
   const aggiungiCantiere = async () => {
-    if (!nomeCantiere.trim()) return
+    const nomeInviato = nomeCantiere.trim()
+    if (!nomeInviato) return
 
-    const { error } = await supabase
-      .from('cantieri')
-     .insert([{
-  nome: nomeCantiere.trim(),
-  preventivo: parseFloat(preventivoCantiereInput) || 0,
-}])
-
-    if (error) {
-      alert('Errore salvataggio cantiere: ' + error.message)
+    let risposta
+    try {
+      risposta = await supabase.rpc('crea_cantiere_con_owner', {
+        p_nome: nomeInviato,
+        p_preventivo: parseFloat(preventivoCantiereInput) || 0,
+      })
+    } catch {
+      alert('Esito della creazione non verificabile. Controlla l’elenco cantieri prima di riprovare.')
       return
     }
-setPreventivoCantiereInput('')
+
+    const { data, error } = risposta
+    if (error) {
+      const messaggi: Record<string, string> = {
+        P2061: 'Sessione utente non valida.',
+        P2062: 'Nome o importo del cantiere non validi.',
+        P2063: 'Impossibile creare correttamente il cantiere.',
+        P2064: 'Impossibile creare correttamente il cantiere.',
+        P2065: 'Impossibile creare correttamente il cantiere.',
+      }
+      alert(messaggi[error.code] || 'Esito della creazione non verificabile. Controlla l’elenco cantieri prima di riprovare.')
+      return
+    }
+
+    const cantiere = Array.isArray(data) && data.length === 1 ? data[0] : null
+    if (!cantiere || typeof cantiere.id !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cantiere.id) ||
+        cantiere.nome !== nomeInviato) {
+      alert('Risposta di creazione non valida. Controlla l’elenco cantieri prima di riprovare.')
+      return
+    }
+
     setNomeCantiere('')
+    setPreventivoCantiereInput('')
     await caricaCantieri()
-await caricaEconomia()
-setCantiereScheda((prev) => prev)
+    await caricaEconomia()
+    setCantiereScheda((prev) => prev)
   }
 
 
@@ -6606,11 +6641,20 @@ const coloreStatoSopralluogo = (
       return
     }
 
+const cantiereSelezionato = cantieri.find(
+  (item) => item.nome === cantiereTimbratura
+)
+
+if (!cantiereSelezionato?.id) {
+  alert('Impossibile identificare il cantiere selezionato')
+  return
+}
+
     const { data: aperte, error: errCheck } = await supabase
       .from('timbrature')
       .select('*')
       .eq('operaio_nome', operaioTimbratura)
-      .eq('cantiere', cantiereTimbratura)
+      .eq('cantiere_id', cantiereSelezionato.id)
       .eq('data', oggi)
       .eq('stato', 'aperto')
 
@@ -6626,11 +6670,12 @@ const coloreStatoSopralluogo = (
 
     const { error } = await supabase.from('timbrature').insert([
       {
-        operaio_nome: operaioTimbratura,
-        cantiere: cantiereTimbratura,
-        data: oggi,
-        ora_entrata: oraAttuale(),
-        stato: 'aperto',
+       operaio_nome: operaioTimbratura,
+  cantiere_id: cantiereSelezionato.id,
+  cantiere: cantiereSelezionato.nome,
+  data: oggi,
+  ora_entrata: oraAttuale(),
+  stato: 'aperto',
       },
     ])
 
@@ -6648,12 +6693,20 @@ const coloreStatoSopralluogo = (
       alert('Seleziona operaio e cantiere')
       return
     }
+const cantiereSelezionato = cantieri.find(
+  (item) => item.nome === cantiereTimbratura
+)
+
+if (!cantiereSelezionato?.id) {
+  alert('Impossibile identificare il cantiere selezionato')
+  return
+}
 
     const { data: aperte, error: errFind } = await supabase
       .from('timbrature')
       .select('*')
       .eq('operaio_nome', operaioTimbratura)
-      .eq('cantiere', cantiereTimbratura)
+      .eq('cantiere_id', cantiereSelezionato.id)
       .eq('data', oggi)
       .eq('stato', 'aperto')
       .order('created_at', { ascending: false })
@@ -6693,6 +6746,15 @@ const coloreStatoSopralluogo = (
       return
     }
 
+const cantiereSelezionato = cantieri.find(
+  (item) => item.nome === cantiereTimbratura
+)
+
+if (!cantiereSelezionato?.id) {
+  alert('Impossibile identificare il cantiere selezionato')
+  return
+}
+
     const { data: operaiTrovati, error: erroreOperaio } = await supabase
       .from('operai')
       .select('*')
@@ -6719,7 +6781,7 @@ const coloreStatoSopralluogo = (
       .from('timbrature')
       .select('*')
       .eq('operaio_nome', operaio.nome)
-      .eq('cantiere', cantiereTimbratura)
+      .eq('cantiere_id', cantiereSelezionato.id)
       .eq('data', oggi)
       .eq('stato', 'aperto')
 
@@ -6734,14 +6796,15 @@ const coloreStatoSopralluogo = (
     }
 
     const { error } = await supabase.from('timbrature').insert([
-      {
-        operaio_nome: operaio.nome,
-        cantiere: cantiereTimbratura,
-        data: oggi,
-        ora_entrata: oraAttuale(),
-        stato: 'aperto',
-      },
-    ])
+  {
+    operaio_nome: operaio.nome,
+    cantiere_id: cantiereSelezionato.id,
+    cantiere: cantiereSelezionato.nome,
+    data: oggi,
+    ora_entrata: oraAttuale(),
+    stato: 'aperto',
+  },
+])
 
     if (error) {
       alert('Errore timbratura entrata: ' + error.message)
@@ -6758,6 +6821,14 @@ const coloreStatoSopralluogo = (
       alert('Inserisci PIN e seleziona il cantiere')
       return
     }
+const cantiereSelezionato = cantieri.find(
+  (item) => item.nome === cantiereTimbratura
+)
+
+if (!cantiereSelezionato?.id) {
+  alert('Impossibile identificare il cantiere selezionato')
+  return
+}
 
     const { data: operaiTrovati, error: erroreOperaio } = await supabase
       .from('operai')
@@ -6780,7 +6851,7 @@ const coloreStatoSopralluogo = (
       .from('timbrature')
       .select('*')
       .eq('operaio_nome', operaio.nome)
-      .eq('cantiere', cantiereTimbratura)
+      .eq('cantiere_id', cantiereSelezionato.id)
       .eq('data', oggi)
       .eq('stato', 'aperto')
       .order('created_at', { ascending: false })
@@ -7157,6 +7228,22 @@ const salvaRapportino = async () => {
     return
   }
 
+  const corrispondenzeCantiere = cantieri.filter(
+    (item) => item.nome === cantiereRapporto
+  )
+
+  if (
+    corrispondenzeCantiere.length !== 1 ||
+    !corrispondenzeCantiere[0]?.id
+  ) {
+    alert(
+      'Impossibile identificare un cantiere univoco per il rapportino. Seleziona nuovamente il cantiere.'
+    )
+    return
+  }
+
+  const cantiereSelezionato = corrispondenzeCantiere[0]
+
   const operaiValidi = operaiRapportinoTemp.filter(
     (o) => o.nome && o.ore > 0
   )
@@ -7183,8 +7270,9 @@ const salvaRapportino = async () => {
       .join(', ')
 
   const nuovoRapportino = {
-    cantiere: cantiereRapporto,
-    data,
+  cantiere_id: cantiereSelezionato.id,
+  cantiere: cantiereSelezionato.nome,
+  data,
     ore: String(oreTotali || ore || ''),
     note,
     operai: riepilogoOperai,
@@ -7207,13 +7295,14 @@ const salvaRapportino = async () => {
 
   if (operaiValidi.length > 0) {
     const timbratureDaSalvare = operaiValidi.map((o) => ({
-      operaio_nome: o.nome,
-      cantiere: cantiereRapporto,
-      data,
-      ora_entrata: o.ora_inizio || null,
-      ora_uscita: o.ora_fine || null,
-      stato: 'da rapportino',
-    }))
+  operaio_nome: o.nome,
+  cantiere_id: cantiereSelezionato.id,
+  cantiere: cantiereSelezionato.nome,
+  data,
+  ora_entrata: o.ora_inizio || null,
+  ora_uscita: o.ora_fine || null,
+  stato: 'da rapportino',
+}))
 
     const { error: erroreTimbrature } = await supabase
       .from('timbrature')
@@ -8289,7 +8378,7 @@ const leggiTestoDaImmagine = async (file: File) => {
   return result.data.text || ''
 }
 
-const analisiPreventivoRef = useRef<{ file: File; cantiereId: string; pronta: boolean; salvato?: EsitoArchiviazionePreventivo } | null>(null)
+const analisiPreventivoRef = useRef<{ file: File; cantiereId: string; pronta: boolean; archiviazioneKey?: string; salvato?: EsitoArchiviazionePreventivo } | null>(null)
 const archiviazioneAnalisiRef = useRef(false)
 const selezionaPreventivoContrattuale = async (cantiereId: string, preventivoId: string) => {
   if (!cantiereSelezionatoDaId?.id || cantiereSelezionatoDaId.id !== cantiereId) {
@@ -8301,75 +8390,245 @@ const selezionaPreventivoContrattuale = async (cantiereId: string, preventivoId:
   await caricaCantieri()
 }
 
+// Decimal multiplication and half-up rounding: avoids binary ties such as 1.005.
+const calcolaImportoRigaPreventivo = (quantita: number, prezzo: number): number => {
+  if (!Number.isFinite(quantita) || quantita <= 0 || !Number.isFinite(prezzo) || prezzo < 0) {
+    throw new Error('Impossibile calcolare il totale: quantità o prezzo non validi.')
+  }
+  const decimale = (valore: number) => {
+    const [mantissa, esponente = '0'] = valore.toString().toLowerCase().split('e')
+    const [intero, frazione = ''] = mantissa.split('.')
+    return { coefficiente: BigInt(intero + frazione), scala: frazione.length - Number(esponente) }
+  }
+  const q = decimale(quantita)
+  const p = decimale(prezzo)
+  const prodotto = q.coefficiente * p.coefficiente
+  const scalaCentesimi = q.scala + p.scala - 2
+  const dieci = BigInt(10)
+  const divisore = scalaCentesimi > 0 ? dieci ** BigInt(scalaCentesimi) : BigInt(1)
+  const centesimi = scalaCentesimi > 0
+    ? (prodotto + divisore / BigInt(2)) / divisore
+    : prodotto * dieci ** BigInt(-scalaCentesimi)
+  const importo = Number(`${centesimi / BigInt(100)}.${(centesimi % BigInt(100)).toString().padStart(2, '0')}`)
+  if (!Number.isFinite(importo)) throw new Error('Impossibile calcolare un totale finito per la lavorazione.')
+  return importo
+}
+
 const archiviaPreventivoAnalizzato = async (file: File, cantiereId: string) => {
   const analisi = analisiPreventivoRef.current
   const cantiere = cantiereSelezionatoDaId
+  const uuidValido = (valore: unknown): valore is string => typeof valore === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(valore)
   if (!analisi?.pronta || analisi.file !== file || fileAnalisiDocumento !== file ||
-      analisi.cantiereId !== cantiereId || cantiere?.id !== cantiereId ||
+      !uuidValido(cantiereId) || analisi.cantiereId !== cantiereId || cantiere?.id !== cantiereId ||
       !fileUrlAnalisi || !filePathAnalisi || !fileTipoAnalisi) {
     throw new Error('Analisi non disponibile per questo file e cantiere.')
   }
   if (archiviazioneAnalisiRef.current) throw new Error('Archiviazione già in corso.')
   if (analisi.salvato) return analisi.salvato
+  const tipoDocumento = fileTipoAnalisi
+  if (tipoDocumento !== 'pdf' && tipoDocumento !== 'excel' && tipoDocumento !== 'img') {
+    throw new Error('Tipo documento non valido. Analizza un PDF, un Excel o un’immagine.')
+  }
   const importo = parseImporto(importoRilevatoDocumento)
   if (!Number.isFinite(importo) || importo <= 0) throw new Error('Inserisci un totale valido maggiore di zero.')
-  // Capture the analyzed rows before the first await; no parsing or recalculation.
-  const righe = vociAnalizzate.map((voce) => ({
-    descrizione: voce.descrizione,
-    unita_misura: voce.unita || null,
-    quantita: voce.quantita,
-    prezzo_unitario: voce.prezzo,
-    importo_previsto: voce.totale,
-    cantiere_id: cantiere.id,
-    cantiere: cantiere.nome,
-    fonte: 'documento',
-  }))
+  if (!vociAnalizzate.length) throw new Error('Nessuna lavorazione importabile. Analizza un documento con lavorazioni valide.')
+  const righe = vociAnalizzate.map((voce, indice) => {
+    const descrizione = voce.descrizione?.trim()
+    const unita = voce.unita?.trim()
+    const quantita = voce.quantita
+    const prezzo = voce.prezzo
+    if (!descrizione || !unita || typeof quantita !== 'number' || !Number.isFinite(quantita) || quantita <= 0 ||
+        typeof prezzo !== 'number' || !Number.isFinite(prezzo) || prezzo < 0) {
+      throw new Error(`Lavorazione ${indice + 1}: descrizione, UM, quantità o prezzo non validi.`)
+    }
+    const totale = voce.totale == null ? calcolaImportoRigaPreventivo(quantita, prezzo) : voce.totale
+    if (typeof totale !== 'number' || !Number.isFinite(totale) || totale < 0) {
+      throw new Error(`Lavorazione ${indice + 1}: importo non valido.`)
+    }
+    return { descrizione, unita_misura: unita, quantita, prezzo_unitario: prezzo, importo_previsto: totale }
+  })
+
+  // One key per analyzed session, retained after every failed/uncertain request.
+  if (!analisi.archiviazioneKey) analisi.archiviazioneKey = crypto.randomUUID()
+  const key = analisi.archiviazioneKey
+  const messaggiRpc: Record<string, string> = {
+    P2041: 'Sessione non valida. Verifica di essere autenticato.',
+    P2042: 'Cantiere non disponibile o non autorizzato.',
+    P2043: 'Dati del documento non validi.',
+    P2044: 'Lavorazioni non valide. Verifica i dati analizzati.',
+    P2045: 'Importo di una lavorazione incoerente con quantità e prezzo.',
+    P2046: 'Chiave già associata a un payload differente. Verifica il precedente tentativo prima di avviare una nuova analisi.',
+    P2047: 'Il risultato precedentemente archiviato è alterato o incompleto. Verifica il preventivo senza reinviarlo.',
+    P2048: 'Conflitto durante l’archiviazione. Riprova.',
+    P2049: 'Archiviazione bloccata dalla protezione dei metadati di idempotenza.',
+  }
   archiviazioneAnalisiRef.current = true
   try {
-    const { data, error } = await supabase.from('preventivi_cantiere').insert([{
-      cantiere: cantiere.nome,
-      cantiere_id: cantiere.id,
-      nome_file: file.name,
-      file_url: fileUrlAnalisi,
-      file_path: filePathAnalisi,
-      file_tipo: fileTipoAnalisi,
-      anteprima_testo: testoEstrattoDocumento || null,
-      importo_totale: importo,
-      note: 'Archiviato da analisi documento.',
-    }]).select('id').single()
-    if (error) throw new Error(error.message)
-    if (!data?.id) throw new Error('ID del preventivo non restituito: verifica il registro prima di riprovare.')
-    const risultato: EsitoArchiviazionePreventivo = { id: String(data.id), importo, voci: 0 }
-    // Cache the actual parent ID even if the separate batch request fails.
+    let risposta
+    try {
+      risposta = await supabase.rpc('archivia_preventivo_strutturato', {
+        p_cantiere_id: cantiereId,
+        p_archiviazione_key: key,
+        p_nome_file: file.name,
+        p_file_path: filePathAnalisi,
+        p_file_url: fileUrlAnalisi,
+        p_file_tipo: tipoDocumento,
+        p_anteprima_testo: testoEstrattoDocumento || null,
+        p_importo_totale: importo,
+        p_lavorazioni: righe,
+      })
+    } catch {
+      throw new Error('Risposta di archiviazione non confermata. Riprova sullo stesso tentativo senza cambiare file o dati.')
+    }
+    const { data, error } = risposta
+    if (error) {
+      throw new Error(messaggiRpc[error.code] || 'Archiviazione non confermata. Riprova sullo stesso tentativo senza cambiare file o dati.')
+    }
+    const esito = Array.isArray(data) && data.length === 1 ? data[0] : null
+    if (!esito || !uuidValido(esito.preventivo_id) || esito.cantiere_id !== cantiereId ||
+        esito.archiviazione_key !== key || esito.numero_lavorazioni !== righe.length ||
+        typeof esito.importo_totale !== 'number' || !Number.isFinite(esito.importo_totale) || esito.importo_totale <= 0 ||
+        typeof esito.riutilizzato !== 'boolean') {
+      throw new Error('Risposta di archiviazione non valida o incompleta. Verifica il preventivo; un nuovo tentativo manterrà la stessa chiave.')
+    }
+    const risultato: EsitoArchiviazionePreventivo = {
+      id: esito.preventivo_id, importo: esito.importo_totale, voci: esito.numero_lavorazioni,
+    }
     analisi.salvato = risultato
-    if (righe.length > 0) {
-      try {
-        if (righe.some((riga) => !riga.descrizione?.trim() ||
-          !Number.isFinite(riga.quantita) || !Number.isFinite(riga.prezzo_unitario) ||
-          !Number.isFinite(riga.importo_previsto))) {
-          throw new Error('Dati delle lavorazioni incompleti: quantità, prezzo e importo letto sono obbligatori.')
-        }
-        const { error: erroreRighe } = await supabase.from('preventivo_lavorazioni')
-          .insert(righe.map((riga) => ({ ...riga, preventivo_id: risultato.id })))
-        if (erroreRighe) {
-          risultato.erroreLavorazioni = `Lavorazioni non salvate: ${erroreRighe.message}. Il preventivo è stato archiviato; nessun reinvio automatico.`
-        } else {
-          risultato.voci = righe.length
-        }
-      } catch (error) {
-        risultato.erroreLavorazioni = `Salvataggio lavorazioni non confermato: ${error instanceof Error ? error.message : 'errore di comunicazione'}. Verifica il preventivo prima di riprovare; nessun reinvio automatico.`
-      }
-    }
     setMostraPreventiviCantiere(true)
-    try { await caricaEconomia() } catch (error) { console.error('Aggiornamento registro preventivi:', error) }
-    if (risultato.voci > 0) {
-      try { await caricaPreventivoLavorazioni() } catch (error) { console.error('Aggiornamento lavorazioni preventivo:', error) }
-    }
+    try { await caricaEconomia() } catch { console.error('Aggiornamento elenco preventivi non riuscito.') }
+    try { await caricaPreventivoLavorazioni() } catch { console.error('Aggiornamento elenco lavorazioni non riuscito.') }
     return risultato
   } finally {
     archiviazioneAnalisiRef.current = false
   }
 }
+
+const strutturaPreventivoEsistente = async (
+  preventivoId: string,
+  cantiereId: string,
+) => {
+  const analisi = analisiPreventivoRef.current
+  const cantiere = cantiereSelezionatoDaId
+
+  const uuidValido = (valore: unknown): valore is string =>
+    typeof valore === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(valore)
+
+  if (
+    !analisi?.pronta ||
+    !uuidValido(preventivoId) ||
+    !uuidValido(cantiereId) ||
+    analisi.cantiereId !== cantiereId ||
+    cantiere?.id !== cantiereId
+  ) {
+    throw new Error('Analisi non disponibile per questo preventivo e cantiere.')
+  }
+
+  if (!vociAnalizzate.length) {
+    throw new Error('Nessuna lavorazione importabile.')
+  }
+
+  const righe = vociAnalizzate.map((voce, indice) => {
+    const descrizione = voce.descrizione?.trim()
+    const unita = voce.unita?.trim()
+    const quantita = voce.quantita
+    const prezzo = voce.prezzo
+
+    if (
+      !descrizione ||
+      !unita ||
+      typeof quantita !== 'number' ||
+      !Number.isFinite(quantita) ||
+      quantita <= 0 ||
+      typeof prezzo !== 'number' ||
+      !Number.isFinite(prezzo) ||
+      prezzo < 0
+    ) {
+      throw new Error(
+        `Lavorazione ${indice + 1}: descrizione, UM, quantità o prezzo non validi.`,
+      )
+    }
+
+    const totale =
+      voce.totale == null
+        ? calcolaImportoRigaPreventivo(quantita, prezzo)
+        : voce.totale
+
+    if (
+      typeof totale !== 'number' ||
+      !Number.isFinite(totale) ||
+      totale < 0
+    ) {
+      throw new Error(`Lavorazione ${indice + 1}: importo non valido.`)
+    }
+
+    return {
+      descrizione,
+      unita_misura: unita,
+      quantita,
+      prezzo_unitario: prezzo,
+      importo_previsto: totale,
+    }
+  })
+
+  const messaggiRpc: Record<string, string> = {
+    P2050: 'Sessione utente non valida.',
+    P2051: 'Preventivo o cantiere non disponibili.',
+    P2052: 'Non sei autorizzato a modificare questo cantiere.',
+    P2053: 'Le lavorazioni analizzate non sono valide.',
+    P2054: 'Il preventivo è congelato da una variante approvata.',
+    P2055: 'Il preventivo contiene già lavorazioni strutturate incoerenti.',
+    P2056: 'Il totale delle lavorazioni non coincide con il totale del preventivo.',
+    P2057: 'La strutturazione del preventivo non è stata completata.',
+  }
+
+  const { data, error } = await supabase.rpc(
+    'struttura_preventivo_esistente',
+    {
+      p_preventivo_id: preventivoId,
+      p_lavorazioni: righe,
+    },
+  )
+
+  if (error) {
+    throw new Error(
+      messaggiRpc[error.code] ||
+        'Impossibile strutturare il preventivo esistente.',
+    )
+  }
+
+  const esito =
+    Array.isArray(data) && data.length === 1
+      ? data[0]
+      : null
+
+  if (
+    !esito ||
+    esito.preventivo_id !== preventivoId ||
+    esito.cantiere_id !== cantiereId ||
+    typeof esito.numero_lavorazioni !== 'number' ||
+    esito.numero_lavorazioni < 1 ||
+    typeof esito.importo_preventivo !== 'number' ||
+    !Number.isFinite(esito.importo_preventivo) ||
+    typeof esito.totale_lavorazioni !== 'number' ||
+    !Number.isFinite(esito.totale_lavorazioni) ||
+    typeof esito.riutilizzato !== 'boolean'
+  ) {
+    throw new Error('Risposta di strutturazione non valida.')
+  }
+
+  await caricaPreventivoLavorazioni()
+
+  return {
+    id: esito.preventivo_id as string,
+    importo: esito.importo_preventivo as number,
+    voci: esito.numero_lavorazioni as number,
+    riutilizzato: esito.riutilizzato as boolean,
+  }
+}
+
 const caricaFileAnalisiDocumento = async (file: File) => {
   if (!file) return
 
@@ -8611,12 +8870,24 @@ if (testoPulito.trim()) {
   }
 } else {
   setVociAnalizzate(vociDocumento)
-  // Both panels use the same extracted total; subsequent manual correction is unchanged.
-  setImportoRilevatoDocumento(documentProfile.total?.value.toLocaleString('it-IT', {
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  }) || '')
-}
 
+  const totaleDocumento =
+    documentProfile.total?.value ??
+    (
+      typeof sommaVociDocumento === 'number' &&
+      Number.isFinite(sommaVociDocumento) &&
+      sommaVociDocumento > 0
+        ? sommaVociDocumento
+        : undefined
+    )
+
+  setImportoRilevatoDocumento(
+    totaleDocumento?.toLocaleString('it-IT', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }) || '',
+  )
+}
     if (sessioneAnalisi && analisiPreventivoRef.current === sessioneAnalisi) sessioneAnalisi.pronta = true
 
   } catch (error) {
@@ -9811,6 +10082,18 @@ const preventivoCantiere =
     ? totalePreventiviCaricati
     : Number(cantiereSelezionato?.preventivo || 0)
 
+const preventivoContrattualeIdEconomia = cantiereSelezionatoDaId?.preventivo_contrattuale_id
+const preventivoContrattualeEconomia = preventivoContrattualeIdEconomia
+  ? preventivi.find(p => p.id === preventivoContrattualeIdEconomia)
+  : undefined
+const importoContrattualeEconomia: unknown = preventivoContrattualeEconomia?.importo_totale
+const contrattoBaseEconomia = preventivoContrattualeIdEconomia &&
+  (typeof importoContrattualeEconomia === 'number' ||
+    (typeof importoContrattualeEconomia === 'string' && importoContrattualeEconomia.trim() !== '')) &&
+  Number.isFinite(Number(importoContrattualeEconomia))
+  ? { preventivoId: preventivoContrattualeIdEconomia, importo: Number(importoContrattualeEconomia) }
+  : null
+
 const residuoDaIncassare =
   Number(preventivoCantiere || 0) - totaleAccontiCantiere
   const totaleMaterialiEconomia = materialiCantiere
@@ -10237,14 +10520,31 @@ const aggiungiPresenzaManuale = async () => {
     return
   }
 
+const corrispondenzeCantiere = cantieri.filter(
+  (item) => item.nome === cantierePresenzaManuale
+)
+
+if (
+  corrispondenzeCantiere.length !== 1 ||
+  !corrispondenzeCantiere[0]?.id
+) {
+  alert(
+    'Impossibile identificare un cantiere univoco per la presenza. Seleziona nuovamente il cantiere.'
+  )
+  return
+}
+
+const cantiereSelezionato = corrispondenzeCantiere[0]
+
   const { error } = await supabase.from('timbrature').insert([
     {
       operaio_nome: operaioPresenzaManuale,
-      cantiere: cantierePresenzaManuale,
-      data: dataPresenzaManuale,
-      ora_entrata: oraEntrataManuale,
-      ora_uscita: oraUscitaManuale || null,
-      stato: oraUscitaManuale ? 'chiuso' : 'aperto',
+  cantiere_id: cantiereSelezionato.id,
+  cantiere: cantiereSelezionato.nome,
+  data: dataPresenzaManuale,
+  ora_entrata: oraEntrataManuale,
+  ora_uscita: oraUscitaManuale || null,
+  stato: oraUscitaManuale ? 'chiuso' : 'aperto',
     },
   ])
 
@@ -12061,6 +12361,7 @@ WebkitOverflowScrolling: 'touch',
     presenze: timbrature, materiali: materialiCantiere, attrezzature: attrezziCantiere, formatMoney }}
   fascicoloPanelProps={{ foto: fotoCantiere, rapportini, preventivi, sal: salLavorazioni }}
   economiaPanelProps={{
+    contrattoBase: contrattoBaseEconomia,
     riepilogo: {
       preventivoCantiere,
       totaleManodoperaCantiere,
@@ -12219,6 +12520,7 @@ WebkitOverflowScrolling: 'touch',
     selezionaPreventivoContrattuale,
     caricaFilePreventivo,
     archiviaPreventivoAnalizzato,
+strutturaPreventivoEsistente,
     correggiTotaleAnalisi: setImportoRilevatoDocumento,
     preventivi: {
       preventivoCantiere, mostraPreventiviCantiere, setMostraPreventiviCantiere,

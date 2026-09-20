@@ -27,10 +27,24 @@ export async function importaLavorazioniSelezionateNelSal(
   db: any, preventivoId: string, cantiere: { id: string; nome: string }, selezione: string[],
 ): Promise<number> {
   if (!preventivoId || !cantiere.id || !selezione.length) return 0
+  const { data: cantiereAttuale, error: erroreCantiere } = await db.from('cantieri')
+    .select('id, preventivo_contrattuale_id').eq('id', cantiere.id).maybeSingle()
+  if (erroreCantiere) throw new Error('Impossibile verificare il preventivo contrattuale del cantiere: ' + erroreCantiere.message)
+  if (!cantiereAttuale || cantiereAttuale.id !== cantiere.id) {
+    throw new Error('Cantiere non disponibile. Importazione SAL interrotta.')
+  }
+  if (!cantiereAttuale.preventivo_contrattuale_id) {
+    throw new Error('Prima di importare nel SAL occorre impostare un preventivo contrattuale per il cantiere.')
+  }
+  if (preventivoId !== cantiereAttuale.preventivo_contrattuale_id) {
+    throw new Error('Puoi importare nel SAL solo il preventivo contrattuale del cantiere.')
+  }
   const { data: preventivo, error: errorePreventivo } = await db.from('preventivi_cantiere')
-    .select('id').eq('id', preventivoId).eq('cantiere_id', cantiere.id).single()
-  if (errorePreventivo) throw errorePreventivo
-  if (!preventivo) throw new Error('Preventivo non disponibile per questo cantiere.')
+    .select('id, cantiere_id').eq('id', preventivoId).eq('cantiere_id', cantiere.id).maybeSingle()
+  if (errorePreventivo) throw new Error('Impossibile verificare il preventivo per questo cantiere: ' + errorePreventivo.message)
+  if (!preventivo || preventivo.id !== cantiereAttuale.preventivo_contrattuale_id || preventivo.cantiere_id !== cantiere.id) {
+    throw new Error('Preventivo non disponibile per questo cantiere.')
+  }
   const righe = await caricaLavorazioniPreventivo(db, preventivoId, cantiere.id)
   const giaPresenti = await caricaSorgentiGiaNelSal(db, righe)
   const ids = new Set(selezione)

@@ -106,21 +106,18 @@ export default function FotoCantiereToolbar({
           📍 Geolocalizza
         </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            if (fotoDaCaricare.length === 0) {
-              alert('Carica o scatta almeno una foto')
-              return
-            }
-
-            setCategoriaFotoDaSalvare(categoriaFoto || 'durante')
-            setPopupCategoriaFotoCantiere(true)
-          }}
-          style={buttonPrimary}
-        >
-          💾 Salva foto
-        </button>
+       {fotoDaCaricare.length > 0 && (
+  <button
+    type="button"
+    onClick={() => {
+      setCategoriaFotoDaSalvare(categoriaFoto || 'durante')
+      setPopupCategoriaFotoCantiere(true)
+    }}
+    style={buttonPrimary}
+  >
+    Classifica e salva {fotoDaCaricare.length} foto
+  </button>
+)}
 
         <button
           type="button"

@@ -276,12 +276,21 @@ const datiVoce = estraiCodiceEDescrizioneVoce(
         columns.totale !== undefined
           ? convertiNumeroExcel(row[columns.totale])
           : undefined
+const rowType: DocumentRowType =
+  datiVoce.descrizione &&
+  (
+    quantita !== undefined ||
+    prezzoUnitario !== undefined ||
+    totale !== undefined
+  )
+    ? 'voce'
+    : rilevaTipoRiga(row)
 
      return {
   id: `excel-row-${rowIndex + 1}`,
   source: 'excel',
   rowIndex,
-  rowType: rilevaTipoRiga(row),
+  rowType,
   descrizione: datiVoce.descrizione || rawText,
 codice: datiVoce.codice,
   unitaMisura: unitaMisura || undefined,

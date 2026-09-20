@@ -25,12 +25,13 @@ const HEADER_ALIASES: Record<DocumentColumnKey, string[]> = {
     'id',
   ],
 
-  descrizione: [
-    'descrizione',
-    'lavorazione',
-    'opera',
-    'prestazione',
-  ],
+ descrizione: [
+  'descrizione',
+  'voce di capitolato',
+  'lavorazione',
+  'opera',
+  'prestazione',
+],
 
   unitaMisura: [
     'um',
@@ -104,7 +105,7 @@ const riconosciColonna = (
 
 export const detectDocumentHeader = (
   rows: unknown[][],
-  maxRowsToScan = 15,
+  maxRowsToScan = 40,
 ): DocumentHeaderDetection | null => {
   const rowsToScan = rows.slice(0, maxRowsToScan)
 

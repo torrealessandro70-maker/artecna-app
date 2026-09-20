@@ -3,7 +3,7 @@
 import { useEffect, useId, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 
-type SchedaCantierePagina = 'panoramica' | 'lavori' | 'documenti' | 'economia' | 'fascicolo' | 'timeline'
+type SchedaCantierePagina = 'panoramica' | 'lavori' | 'documenti' | 'economia' | 'varianti' | 'fascicolo' | 'timeline'
 type LavoriSezione = 'rapportini' | 'foto' | 'presenze' | 'materiali' | 'attrezzature'
 import RapportiniCantierePanel from './RapportiniCantierePanel'
 import SelectCantiere from './SelectCantiere'
@@ -12,6 +12,7 @@ import AttrezzatureCantierePanel from './AttrezzatureCantierePanel'
 import TimelineCantierePanel from './TimelineCantierePanel'
 import FascicoloCantierePanel from './FascicoloCantierePanel'
 import EconomiaCantierePanel from './EconomiaCantierePanel'
+import VariantiCantierePanel from './VariantiCantierePanel'
 import DocumentiCantierePanel from './DocumentiCantierePanel'
 import DettaglioManodoperaPanel from './DettaglioManodoperaPanel'
 import FotoCantiereToolbar from './FotoCantiereToolbar'
@@ -157,7 +158,7 @@ export default function CantieriSchedaPanel(props: any) {
         display: 'flex', gap: 4, overflowX: 'auto', maxWidth: '100%',
         marginTop: 20, marginBottom: 24, borderBottom: '1px solid #e2e8f0',
       }}>
-        {(['panoramica', 'lavori', 'documenti', 'economia', 'fascicolo', 'timeline'] as const).map((pagina) => (
+        {(['panoramica', 'lavori', 'documenti', 'economia', 'varianti', 'fascicolo', 'timeline'] as const).map((pagina) => (
           <button
             key={pagina}
             type="button"
@@ -171,7 +172,7 @@ export default function CantieriSchedaPanel(props: any) {
               borderBottom: paginaAttiva === pagina ? '2px solid #1d4ed8' : '2px solid transparent',
             }}
           >
-            {pagina === 'panoramica' ? 'Panoramica' : pagina === 'lavori' ? 'Lavori' : pagina === 'documenti' ? 'Documenti' : pagina === 'economia' ? 'Economia' : pagina === 'fascicolo' ? 'Fascicolo' : 'Timeline'}
+            {pagina === 'panoramica' ? 'Panoramica' : pagina === 'lavori' ? 'Lavori' : pagina === 'documenti' ? 'Documenti' : pagina === 'economia' ? 'Economia' : pagina === 'varianti' ? 'Varianti' : pagina === 'fascicolo' ? 'Fascicolo' : 'Timeline'}
           </button>
         ))}
         {['Analisi AI'].map((sezione) => (
@@ -244,6 +245,10 @@ export default function CantieriSchedaPanel(props: any) {
       {p.cantiereSelezionatoDaId && paginaAttiva === 'timeline' && (
         <TimelineCantierePanel key={p.cantiereSelezionatoDaId.id} cantiere={p.cantiereSelezionatoDaId}
           panelProps={p.timelinePanelProps} />
+      )}
+      {p.cantiereSelezionatoDaId && paginaAttiva === 'varianti' && (
+        <VariantiCantierePanel key={p.cantiereSelezionatoDaId.id}
+          cantiereId={p.cantiereSelezionatoDaId.id} />
       )}
       {p.cantiereSelezionatoDaId && paginaAttiva === 'fascicolo' && (
         <FascicoloCantierePanel key={p.cantiereSelezionatoDaId.id} cantiere={p.cantiereSelezionatoDaId}
@@ -548,9 +553,10 @@ export default function CantieriSchedaPanel(props: any) {
                 )}
 
                 <FotoCantiereAnteprime
-                  fotoDaCaricare={p.fotoDaCaricare}
-                  setFotoDaCaricare={p.setFotoDaCaricare}
-                />
+  fotoDaCaricare={p.fotoDaCaricare}
+  setFotoDaCaricare={p.setFotoDaCaricare}
+  setFotoFullscreen={p.setFotoFullscreen}
+/>
 
                 <FotoCantiereCategoriaModal
                   popupCategoriaFotoCantiere={p.popupCategoriaFotoCantiere}

@@ -16,6 +16,15 @@ export type DocumentiPanelProps = {
   preventivi: Omit<ComponentProps<typeof PreventiviEconomiaPanel>, 'cantiereScheda'>
   analisi: ComponentProps<typeof DocumentIntelligencePanel>
   archiviaPreventivoAnalizzato: (file: File, cantiereId: string) => Promise<EsitoArchiviazionePreventivo>
+strutturaPreventivoEsistente: (
+  preventivoId: string,
+  cantiereId: string,
+) => Promise<{
+  id: string
+  importo: number
+  voci: number
+  riutilizzato: boolean
+}>
   correggiTotaleAnalisi: (valore: string) => void
   caricaFilePreventivo: (file: File) => Promise<void>
 }
@@ -28,12 +37,52 @@ type Props = {
 export default function DocumentiCantierePanel({ cantiere, panelProps: p }: Props) {
   const [dragAttivo, setDragAttivo] = useState(false)
   const [fileSelezionato, setFileSelezionato] = useState<File | null>(null)
-  const [azioneInCorso, setAzioneInCorso] = useState<'preventivo' | 'analisi' | null>(null)
+  const [azioneInCorso, setAzioneInCorso] =
+  useState<'preventivo' | 'analisi' | 'struttura' | null>(null)
   const [analisiAvviata, setAnalisiAvviata] = useState(false)
   const [archiviato, setArchiviato] = useState<EsitoArchiviazionePreventivo | null>(null)
   const [errore, setErrore] = useState('')
   const occupato = useRef(false)
   const inputId = useId()
+const normalizzaNomeFile = (valore: unknown) =>
+  String(valore || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+
+const importoAnalizzato = Number(
+  String(p.analisi.importoRilevatoDocumento || '')
+    .replace(/\./g, '')
+    .replace(',', '.')
+)
+
+const preventiviCompatibili = analisiAvviata && fileSelezionato
+  ? p.preventivi.preventivi.filter((preventivo: any) => {
+      const stessoCantiere =
+        preventivo.cantiere_id === cantiere.id ||
+        (!preventivo.cantiere_id && preventivo.cantiere === cantiere.nome)
+
+      const stessoFile =
+        normalizzaNomeFile(preventivo.nome_file) ===
+        normalizzaNomeFile(fileSelezionato.name)
+
+      const importoPreventivo = Number(preventivo.importo_totale)
+
+      const stessoImporto =
+        Number.isFinite(importoAnalizzato) &&
+        Number.isFinite(importoPreventivo) &&
+        Math.round(importoAnalizzato * 100) ===
+          Math.round(importoPreventivo * 100)
+
+      return stessoCantiere && stessoFile && stessoImporto
+    })
+  : []
+
+const preventivoEsistente =
+  preventiviCompatibili.length === 1 &&
+  typeof preventiviCompatibili[0]?.id === 'string'
+    ? preventiviCompatibili[0]
+    : null
   const selezionaFile = (file: File | undefined) => {
     if (!file || occupato.current) return
     setFileSelezionato(file)
@@ -41,12 +90,33 @@ export default function DocumentiCantierePanel({ cantiere, panelProps: p }: Prop
     setArchiviato(null)
     setErrore('')
   }
-  const esegui = async (azione: 'preventivo' | 'analisi') => {
+  const esegui = async (
+  azione: 'preventivo' | 'analisi' | 'struttura',
+) => {
     if (!fileSelezionato || occupato.current) return
     occupato.current = true
     setAzioneInCorso(azione)
     setErrore('')
     try {
+if (azione === 'struttura') {
+  if (!preventivoEsistente?.id) {
+    throw new Error(
+      'Preventivo esistente non identificato in modo univoco.',
+    )
+  }
+
+  const esito = await p.strutturaPreventivoEsistente(
+    preventivoEsistente.id,
+    cantiere.id,
+  )
+
+  setArchiviato({
+    id: esito.id,
+    importo: esito.importo,
+    voci: esito.voci,
+  })
+}
+else
       if (azione === 'preventivo') {
         if (analisiAvviata) setArchiviato(await p.archiviaPreventivoAnalizzato(fileSelezionato, cantiere.id))
         else await p.caricaFilePreventivo(fileSelezionato)
@@ -97,8 +167,15 @@ export default function DocumentiCantierePanel({ cantiere, panelProps: p }: Prop
               </div>
             </div>
           </>}
-          {azioneInCorso && <p role="status">{azioneInCorso === 'preventivo' ? 'Archiviazione in corso…' : 'Analisi in corso…'}</p>}
-          {errore && <p role="alert">{errore}</p>}
+         {azioneInCorso && (
+  <p role="status">
+    {azioneInCorso === 'preventivo'
+      ? 'Archiviazione in corso…'
+      : azioneInCorso === 'struttura'
+        ? 'Collegamento lavorazioni in corso…'
+        : 'Analisi in corso…'}
+  </p>
+)}
         </div>
         <section aria-label="Preventivi del cantiere" style={{ minWidth: 0, overflowX: 'auto' }}>
           <h4 style={{ margin: '0 0 12px', fontSize: 18 }}>Documenti / Preventivi del cantiere</h4>
@@ -122,15 +199,72 @@ export default function DocumentiCantierePanel({ cantiere, panelProps: p }: Prop
               {archiviato.erroreLavorazioni ? <p role="alert">{archiviato.erroreLavorazioni}</p>
                 : <p>{archiviato.voci > 0 ? `${archiviato.voci} lavorazioni salvate` : 'Nessuna lavorazione strutturata disponibile.'}</p>}
             </div> : <div>
-              <label>Totale da archiviare (modificabile)
-                <input type="text" inputMode="decimal" value={p.analisi.importoRilevatoDocumento}
-                  disabled={azioneInCorso !== null} onChange={(e) => p.correggiTotaleAnalisi(e.target.value)}
-                  style={p.analisi.inputStyle} />
-              </label>
-              <p>{p.analisi.vociAnalizzate.length > 0 ? `${p.analisi.vociAnalizzate.length} lavorazioni riconosciute. Saranno salvate insieme al collegamento a questo preventivo.` : 'Nessuna lavorazione strutturata disponibile.'}</p>
-              <button type="button" disabled={azioneInCorso !== null} onClick={() => esegui('preventivo')}
-                style={{ minHeight: 44, padding: '10px 16px' }}>Archivia come preventivo</button>
-            </div>}
+  <label>
+    Totale da archiviare (modificabile)
+    <input
+      type="text"
+      inputMode="decimal"
+      value={p.analisi.importoRilevatoDocumento}
+      disabled={azioneInCorso !== null}
+      onChange={(e) => p.correggiTotaleAnalisi(e.target.value)}
+      style={p.analisi.inputStyle}
+    />
+  </label>
+
+  <p>
+    {p.analisi.vociAnalizzate.length > 0
+      ? `${p.analisi.vociAnalizzate.length} lavorazioni riconosciute.`
+      : 'Nessuna lavorazione strutturata disponibile.'}
+  </p>
+
+  {preventivoEsistente ? (
+    <div
+      style={{
+        marginTop: 12,
+        padding: 14,
+        border: '1px solid #cbd5e1',
+        borderRadius: 10,
+        background: '#f8fafc',
+      }}
+    >
+      <strong>Preventivo esistente rilevato</strong>
+
+      <p style={{ margin: '8px 0' }}>
+        {preventivoEsistente.nome_file || fileSelezionato?.name}
+        {' — '}
+        {p.preventivi.formatMoney(
+          Number(preventivoEsistente.importo_totale || 0),
+        )}
+      </p>
+
+      <p style={{ margin: '8px 0' }}>
+        {p.analisi.vociAnalizzate.length} lavorazioni riconosciute.
+        Saranno collegate al preventivo esistente senza crearne uno nuovo.
+      </p>
+
+      <button
+        type="button"
+        disabled={
+          azioneInCorso !== null ||
+          p.analisi.vociAnalizzate.length === 0
+        }
+        onClick={() => esegui('struttura')}
+        style={{ minHeight: 44, padding: '10px 16px' }}
+      >
+        Collega lavorazioni al preventivo esistente
+      </button>
+    </div>
+  ) : (
+    <button
+      type="button"
+      disabled={azioneInCorso !== null}
+      onClick={() => esegui('preventivo')}
+      style={{ minHeight: 44, padding: '10px 16px' }}
+    >
+      Archivia come preventivo
+    </button>
+  )}
+</div>}
           </> : <p style={{ color: '#64748b' }}>Seleziona un file e scegli Analizza documento per visualizzare il risultato.</p>}
         </section>
       </div>

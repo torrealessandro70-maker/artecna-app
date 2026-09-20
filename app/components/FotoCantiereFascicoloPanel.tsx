@@ -100,9 +100,10 @@ export default function FotoCantiereFascicoloPanel(props: Props) {
       )}
 
       <FotoCantiereAnteprime
-        fotoDaCaricare={p.fotoDaCaricare}
-        setFotoDaCaricare={p.setFotoDaCaricare}
-      />
+  fotoDaCaricare={p.fotoDaCaricare}
+  setFotoDaCaricare={p.setFotoDaCaricare}
+  setFotoFullscreen={p.setFotoFullscreen}
+/>
 
       <FotoCantiereCategoriaModal
         popupCategoriaFotoCantiere={p.popupCategoriaFotoCantiere}

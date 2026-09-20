@@ -42,7 +42,7 @@ export function parsePreventivoItems(text: string, parseNumero: (value: string) 
   const flat = text.replace(/\s+/g, ' ').trim()
   const number = String.raw`-?\d+(?:[.,]\d+)*`
   const units = unitaPattern.source.slice(1, -1)
-  const tail = new RegExp(String.raw`(?:^|\s)(${units})\s*(${number})\s+(${number})\s*€?\s+(${number})\s*€?(?=\s|$)`, 'gi')
+  const tail = new RegExp(String.raw`(?:^|\s)(${units})\s*(${number})\s*€?\s+(${number})\s*€?\s+(${number})\s*€?(?=\s|$)`, 'gi')
   let end = 0
   let expected: number | undefined
   for (const match of flat.matchAll(tail)) {

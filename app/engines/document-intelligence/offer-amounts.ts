@@ -13,11 +13,12 @@ export type OfferAmounts = {
 const moneyPattern = /(?<![\d.,])(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}(?!\d|\s*%)/g
 const parseMoney = (value: string) => Number(value.replace(/\./g, '').replace(',', '.'))
 const close = (a: number, b: number) => Math.abs(a - b) <= 0.05
+const isStrongNetLabel = (label: string) => /^totale (?:offerta|lavori) \(?iva esclusa\)?$/i.test(label)
 
 // Labels delimit semantic spans even when PDF text is one continuous line.
 export function extractOfferAmounts(text: string, itemsTotal?: number): OfferAmounts {
   const flat = text.replace(/\s+/g, ' ').trim()
-  const labels = [...flat.matchAll(/\b(?:totale(?:\s+(?:offerta|lavorazioni|lavori|opere|imponibile|documento|generale|complessivo|preventivo|da pagare))?(?:\s+iva\s+(?:esclusa|inclusa|compresa))?|importo\s+(?:complessivo|netto|lavori)(?:\s+iva\s+esclusa)?|imponibile|iva(?:\s+al)?(?:\s+\d+(?:[.,]\d+)?\s*%)?|acconto(?:\s+iniziale)?|stato\s+avanzamento\s+lavori|s\.?a\.?l\.?|saldo(?:\s+finale)?)(?=[\s:€]|$)/gi)]
+  const labels = [...flat.matchAll(/\b(?:totale(?:\s+(?:offerta|lavorazioni|lavori|opere|imponibile|documento|generale|complessivo|preventivo|da pagare))?(?:\s+\(?iva\s+(?:esclusa|inclusa|compresa)\)?)?|importo\s+(?:complessivo|netto|lavori)(?:\s+iva\s+esclusa)?|imponibile|iva(?:\s+al)?(?:\s+\d+(?:[.,]\d+)?\s*%)?|acconto(?:\s+iniziale)?|stato\s+avanzamento\s+lavori|s\.?a\.?l\.?|saldo(?:\s+finale)?)(?=[\s:€]|$)/gi)]
   const result: OfferAmounts = { pagamenti: { acconto: [], avanzamento: [], saldo: [] } }
   const detachedNetLabels: string[] = []
   let beforeVat: OfferAmount | undefined
@@ -25,6 +26,16 @@ export function extractOfferAmounts(text: string, itemsTotal?: number): OfferAmo
   labels.forEach((match, index) => {
     const label = match[0]
     const lower = label.toLowerCase()
+    // Bind preceding amounts only to explicit net-total labels, never to item tails.
+    const strongNetLabel = isStrongNetLabel(label)
+    const before = flat.slice(0, match.index).trimEnd()
+    const preceding = before.match(/€\s*((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2})\s*$/)
+    const itemTail = /(?:^|\s)(?:mq\/cm|mq|mc|m|m2|m3|m²|m³|ml|cm|mm|kg|g|t|lt|l|cad\.?|pz|nr|n\.|h|ora|ore|a corpo|corpo)\s*-?\d+(?:[.,]\d+)*\s*€?\s+-?\d+(?:[.,]\d+)*\s*€?\s+-?\d+(?:[.,]\d+)*\s*€?$/i
+    if (strongNetLabel && preceding && !itemTail.test(before) &&
+        !paymentPositions.has(preceding.index! + preceding[0].indexOf(preceding[1]))) {
+      result.imponibile = { value: parseMoney(preceding[1]), label, source: preceding[0] + ' ' + label }
+      return
+    }
     const after = flat.slice(match.index! + label.length, labels[index + 1]?.index ?? flat.length)
     const amount = [...after.matchAll(moneyPattern)][0]
     // Do not cross prose sections to attach unrelated later prices to a label.
@@ -48,7 +59,9 @@ export function extractOfferAmounts(text: string, itemsTotal?: number): OfferAmo
       if (prior && !paymentPositions.has(prior.index!) && /^[\s€]*$/.test(before.slice(prior.index! + prior[0].length))) {
         beforeVat = { value: parseMoney(prior[0]), label: '', source: prior[0] }
       }
-    } else if (isNet) result.imponibile = entry
+    } else if (isNet) {
+      if (!result.imponibile || !isStrongNetLabel(result.imponibile.label) || strongNetLabel) result.imponibile = entry
+    }
     else result.totaleDocumento = entry
   })
   // A detached net label needs numeric corroboration, never proximity alone.
