@@ -15,6 +15,7 @@ export async function POST(req: Request) {
     const body = await req.json()
 
     const cantiereId = String(body?.cantiereId || '').trim()
+const rapportinoId = String(body?.rapportinoId || '').trim()
     const data = String(body?.data || '').trim()
     const note = String(body?.note || '').trim()
     const materiali = String(body?.materiali || '').trim()
@@ -78,32 +79,61 @@ const foto = Array.isArray(body?.foto)
 
     const cantiere = cantieri[0]
 
-    const { data: rapportiniEsistenti, error: erroreControllo } =
-      await supabase
-        .from('rapportini')
-        .select('id')
-        .eq('cantiere_id', cantiere.id)
-        .eq('data', data)
-        .limit(1)
+    if (rapportinoId) {
+  const { data: rapportinoDaModificare, error: erroreVerifica } =
+    await supabase
+      .from('rapportini')
+      .select('id,cantiere_id')
+      .eq('id', rapportinoId)
+      .eq('cantiere_id', cantiere.id)
+      .maybeSingle()
 
-    if (erroreControllo) {
-      console.error(
-        'Errore controllo duplicato rapportino:',
-        erroreControllo.message
-      )
+  if (erroreVerifica) {
+    console.error(
+      'Errore verifica rapportino da modificare:',
+      erroreVerifica.message
+    )
 
-      return NextResponse.json(
-        { error: 'Impossibile verificare il rapportino' },
-        { status: 500 }
-      )
-    }
+    return NextResponse.json(
+      { error: 'Impossibile verificare il rapportino da modificare' },
+      { status: 500 }
+    )
+  }
 
-    if (rapportiniEsistenti && rapportiniEsistenti.length > 0) {
-      return NextResponse.json(
-        { error: 'Rapportino già presente per questa data' },
-        { status: 409 }
-      )
-    }
+  if (!rapportinoDaModificare) {
+    return NextResponse.json(
+      { error: 'Rapportino da modificare non valido' },
+      { status: 404 }
+    )
+  }
+} else {
+  const { data: rapportiniEsistenti, error: erroreControllo } =
+    await supabase
+      .from('rapportini')
+      .select('id')
+      .eq('cantiere_id', cantiere.id)
+      .eq('data', data)
+      .limit(1)
+
+  if (erroreControllo) {
+    console.error(
+      'Errore controllo duplicato rapportino:',
+      erroreControllo.message
+    )
+
+    return NextResponse.json(
+      { error: 'Impossibile verificare il rapportino' },
+      { status: 500 }
+    )
+  }
+
+  if (rapportiniEsistenti && rapportiniEsistenti.length > 0) {
+    return NextResponse.json(
+      { error: 'Rapportino già presente per questa data' },
+      { status: 409 }
+    )
+  }
+}
 const idsOperai = operai
   .map((operaio) => String(operaio.id || '').trim())
   .filter(Boolean)
@@ -176,12 +206,20 @@ const costoManodopera = operaiValidi.reduce(
       costo_manodopera: costoManodopera,
     }
 
-    const { data: rapportinoCreato, error: erroreSalvataggio } =
-      await supabase
-        .from('rapportini')
-        .insert([nuovoRapportino])
-        .select('id')
-        .single()
+   const queryRapportino = rapportinoId
+  ? supabase
+      .from('rapportini')
+      .update(nuovoRapportino)
+      .eq('id', rapportinoId)
+      .eq('cantiere_id', cantiere.id)
+  : supabase
+      .from('rapportini')
+      .insert([nuovoRapportino])
+
+const { data: rapportinoCreato, error: erroreSalvataggio } =
+  await queryRapportino
+    .select('id')
+    .single()
 
     if (erroreSalvataggio) {
       console.error(
@@ -194,6 +232,31 @@ const costoManodopera = operaiValidi.reduce(
         { status: 500 }
       )
     }
+if (rapportinoId) {
+  const { error: erroreRimozioneTimbrature } = await supabase
+    .from('timbrature')
+    .delete()
+    .eq('cantiere_id', cantiere.id)
+    .eq('data', data)
+    .eq('stato', 'da rapportino')
+
+  if (erroreRimozioneTimbrature) {
+    console.error(
+      'Errore rimozione timbrature rapportino:',
+      erroreRimozioneTimbrature.message
+    )
+
+    return NextResponse.json(
+      {
+        error:
+          'Rapportino aggiornato, ma aggiornamento timbrature non riuscito',
+        rapportinoId: rapportinoCreato.id,
+      },
+      { status: 500 }
+    )
+  }
+}
+
 if (operaiValidi.length > 0) {
   const timbratureDaSalvare = operaiValidi.map((operaio) => ({
     operaio_nome: operaio.nome,

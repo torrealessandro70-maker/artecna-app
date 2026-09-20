@@ -55,15 +55,18 @@ const [fotoRapportino, setFotoRapportino] = useState<string[]>([])
     useState<string[]>([])
 const [orariOperai, setOrariOperai] =
   useState<Record<string, OrariOperaio>>({})
+const [rapportinoEsistente, setRapportinoEsistente] = useState<any>(null)
+const [timbratureRapportino, setTimbratureRapportino] = useState<any[]>([])
 
   const [cantiereId, setCantiereId] = useState('')
   const [cantiereSelezionato, setCantiereSelezionato] =
     useState<CantiereAccesso | null>(null)
 
   const [statoRapportino, setStatoRapportino] = useState<{
-    data: string
-    presente: boolean
-  } | null>(null)
+  data: string
+  presente: boolean
+  rapportinoId?: string
+} | null>(null)
 const [dataRapportino, setDataRapportino] = useState('')
   const [errore, setErrore] = useState('')
   const [accessoInCorso, setAccessoInCorso] = useState(false)
@@ -149,6 +152,8 @@ const operaiRapportinoPreparati = operaiDisponibili
     setStatoRapportino(null)
     setOperaiPresentiIds([])
     setOrariOperai({})
+setRapportinoEsistente(null)
+setTimbratureRapportino([])
 setNote('')
 setMateriali('')
 setQuantitaMateriali('')
@@ -232,9 +237,21 @@ const controllaDataRapportino = async (nuovaData: string) => {
     setDataRapportino(risultato.data)
 
     setStatoRapportino({
-      data: risultato.data,
-      presente: Boolean(risultato.presente),
-    })
+  data: risultato.data,
+  presente: Boolean(risultato.presente),
+  rapportinoId: risultato.rapportino?.id
+    ? String(risultato.rapportino.id)
+    : undefined,
+})
+
+setRapportinoEsistente(risultato.rapportino || null)
+
+setTimbratureRapportino(
+  Array.isArray(risultato.timbrature)
+    ? risultato.timbrature
+    : []
+)
+
 if (risultato.presente) {
   setMostraForm(false)
 }
@@ -246,24 +263,27 @@ if (risultato.presente) {
 }
 
 const salvaRapportinoPortale = async () => {
+
   if (!cantiereSelezionato || !dataRapportino) {
-    setErrore('Cantiere e data sono obbligatori')
-    return
-  }
+
+  setErrore('Cantiere e data sono obbligatori')
+  return
+}
 
   const operaiValidi = operaiRapportinoPreparati.filter(
     (operaio) => operaio.nome && operaio.ore > 0
   )
 
-  if (operaiValidi.length === 0) {
-    setErrore('Inserisci gli orari di almeno un operaio')
-    return
-  }
+ if (operaiValidi.length === 0) {
 
-  setErrore('')
-  setStatoInCorso(true)
+  setErrore('Inserisci gli orari di almeno un operaio')
+  return
+}
 
-  try {
+ setErrore('')
+setStatoInCorso(true)
+
+try {
     const risposta = await fetch('/api/rapportino/salva', {
       method: 'POST',
       headers: {
@@ -271,6 +291,7 @@ const salvaRapportinoPortale = async () => {
       },
       body: JSON.stringify({
         cantiereId: cantiereSelezionato.id,
+rapportinoId: statoRapportino?.rapportinoId || undefined,
         data: dataRapportino,
         note,
         materiali,
@@ -441,6 +462,21 @@ setCostoMateriali('')
                 borderRadius: 10,
               }}
             >
+{errore && (
+  <div
+    role="alert"
+    style={{
+      padding: 12,
+      borderRadius: 8,
+      background: '#fef2f2',
+      border: '1px solid #fecaca',
+      color: '#991b1b',
+      fontWeight: 600,
+    }}
+  >
+    {errore}
+  </div>
+)}
               <strong>{operaio.nome}</strong>
               <div style={{ color: '#166534', marginTop: 4 }}>
                 Accesso effettuato
@@ -548,10 +584,63 @@ setMostraForm(true)
   </div>
 )}
 
+{statoRapportino &&
+  statoRapportino.presente &&
+  statoRapportino.rapportinoId &&
+  !mostraForm && (
+    <button
+      type="button"
+     onClick={() => {
+  if (!rapportinoEsistente) return
+
+  setNote(String(rapportinoEsistente.note || ''))
+  setMateriali(String(rapportinoEsistente.materiali || ''))
+  setQuantitaMateriali(
+    String(rapportinoEsistente.quantita_materiali || '')
+  )
+const idsOperai: string[] = []
+const nuoviOrari: Record<string, OrariOperaio> = {}
+
+timbratureRapportino.forEach((timbratura) => {
+  const operaioTrovato = operaiDisponibili.find(
+    (item) => item.nome === timbratura.operaio_nome
+  )
+
+  if (!operaioTrovato) return
+
+  idsOperai.push(operaioTrovato.id)
+
+  nuoviOrari[operaioTrovato.id] = {
+    oraInizio: timbratura.ora_entrata || '',
+    oraFine: timbratura.ora_uscita || '',
+    pausaMinuti: 0,
+  }
+})
+
+setOperaiPresentiIds(idsOperai)
+setOrariOperai(nuoviOrari)
+  setMostraForm(true)
+}}
+      style={{
+        width: '100%',
+        minHeight: 48,
+        marginTop: 14,
+        border: 0,
+        borderRadius: 10,
+        background: '#2563eb',
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 700,
+        cursor: 'pointer',
+      }}
+    >
+      Apri / Modifica rapportino
+    </button>
+  )}
+
 {mostraForm &&
   cantiereSelezionato &&
-  statoRapportino &&
-  !statoRapportino.presente && (
+  statoRapportino && (
     <section
       style={{
         display: 'grid',
@@ -922,7 +1011,11 @@ setData={(nuovaData) => {
   setCostoMateriali={setCostoMateriali}
   salvaRapportino={() => {}}
   aggiornaRapportino={() => {}}
-  rapportinoInModifica={null}
+  rapportinoInModifica={
+  statoRapportino?.presente && statoRapportino.rapportinoId
+    ? statoRapportino.rapportinoId
+    : null
+}
   cantieri={cantieri}
   inputStyle={{}}
   buttonPrimary={{}}
