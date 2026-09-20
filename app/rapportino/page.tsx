@@ -280,14 +280,29 @@ const salvaRapportinoPortale = async () => {
       }),
     })
 
-    const risultato = await risposta.json()
+const testoRisposta = await risposta.text()
 
-    if (!risposta.ok) {
-      setErrore(
-        risultato?.error || 'Salvataggio rapportino non riuscito'
-      )
-      return
-    }
+let risultato: any = {}
+
+try {
+  risultato = testoRisposta
+    ? JSON.parse(testoRisposta)
+    : {}
+} catch {
+  risultato = {
+    error: testoRisposta || `Errore HTTP ${risposta.status}`,
+  }
+}
+
+    
+
+  if (!risposta.ok) {
+  setErrore(
+    `Errore ${risposta.status}: ` +
+      (risultato?.error || 'Salvataggio rapportino non riuscito')
+  )
+  return
+}
 
     setStatoRapportino({
       data: dataRapportino,
