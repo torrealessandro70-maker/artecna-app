@@ -5,6 +5,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const cantiereId = String(body?.cantiereId || '').trim()
+const dataRichiesta = String(body?.data || '').trim()
 
     if (!cantiereId) {
       return NextResponse.json(
@@ -26,12 +27,13 @@ export async function POST(req: Request) {
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     const oggi = new Date().toISOString().slice(0, 10)
+const dataRapportino = dataRichiesta || oggi
 
     const { data, error } = await supabase
       .from('rapportini')
       .select('id,data,created_at')
       .eq('cantiere_id', cantiereId)
-      .eq('data', oggi)
+      .eq('data', dataRapportino)
       .order('created_at', { ascending: false })
       .limit(1)
 
@@ -50,7 +52,7 @@ export async function POST(req: Request) {
     const rapportino = data?.[0] || null
 
     return NextResponse.json({
-      data: oggi,
+      data: dataRapportino,
       presente: Boolean(rapportino),
       rapportino: rapportino
         ? {

@@ -1,24 +1,102 @@
 'use client'
 
 import { useState } from 'react'
+import RapportinoForm from '../components/RapportinoForm'
 
 type OperaioAccesso = {
   id: string
   nome: string
 }
 
+type OperaioDisponibile = {
+  id: string
+  nome: string
+}
+
+type OrariOperaio = {
+  oraInizio: string
+  oraFine: string
+  pausaMinuti: number
+}
 type CantiereAccesso = {
   id: string
   nome: string
 }
 
+const calcolaOre = (
+  oraInizio: string,
+  oraFine: string,
+  pausaMinuti: number
+) => {
+  if (!oraInizio || !oraFine) return 0
+
+  const [inizioOre, inizioMinuti] = oraInizio.split(':').map(Number)
+  const [fineOre, fineMinuti] = oraFine.split(':').map(Number)
+
+  const minutiInizio = inizioOre * 60 + inizioMinuti
+  const minutiFine = fineOre * 60 + fineMinuti
+
+  const minutiLavorati =
+    minutiFine - minutiInizio - Math.max(0, pausaMinuti)
+
+  if (minutiLavorati <= 0) return 0
+
+  return minutiLavorati / 60
+}
+
 export default function RapportinoOperaiPage() {
   const [pin, setPin] = useState('')
   const [operaio, setOperaio] = useState<OperaioAccesso | null>(null)
+
   const [cantieri, setCantieri] = useState<CantiereAccesso[]>([])
+  const [operaiDisponibili, setOperaiDisponibili] =
+    useState<OperaioDisponibile[]>([])
+  const [operaiPresentiIds, setOperaiPresentiIds] =
+    useState<string[]>([])
+const [orariOperai, setOrariOperai] =
+  useState<Record<string, OrariOperaio>>({})
+
   const [cantiereId, setCantiereId] = useState('')
+  const [cantiereSelezionato, setCantiereSelezionato] =
+    useState<CantiereAccesso | null>(null)
+
+  const [statoRapportino, setStatoRapportino] = useState<{
+    data: string
+    presente: boolean
+  } | null>(null)
+const [dataRapportino, setDataRapportino] = useState('')
   const [errore, setErrore] = useState('')
   const [accessoInCorso, setAccessoInCorso] = useState(false)
+  const [statoInCorso, setStatoInCorso] = useState(false)
+  const [mostraForm, setMostraForm] = useState(false)
+const [note, setNote] = useState('')
+const [materiali, setMateriali] = useState('')
+const [quantitaMateriali, setQuantitaMateriali] = useState('')
+const [costoMateriali, setCostoMateriali] = useState('')
+const [fotoRapportinoAperte, setFotoRapportinoAperte] = useState<any[]>([])
+const operaiRapportinoPreparati = operaiDisponibili
+  .filter((item) => operaiPresentiIds.includes(item.id))
+  .map((item) => {
+    const orari = orariOperai[item.id] || {
+      oraInizio: '',
+      oraFine: '',
+      pausaMinuti: 0,
+    }
+
+    return {
+      id: item.id,
+      nome: item.nome,
+      ora_inizio: orari.oraInizio,
+      ora_fine: orari.oraFine,
+      pausa_minuti: orari.pausaMinuti,
+      ore: calcolaOre(
+        orari.oraInizio,
+        orari.oraFine,
+        orari.pausaMinuti
+      ),
+    }
+  })
+
 
   const accedi = async () => {
     const pinPulito = pin.trim()
@@ -35,8 +113,8 @@ export default function RapportinoOperaiPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          pin: pinPulito,
-        }),
+  pin: pinPulito,
+}),
       })
 
       const risultato = await risposta.json()
@@ -47,8 +125,14 @@ export default function RapportinoOperaiPage() {
       }
 
       setOperaio(risultato.operaio)
+      setOperaiDisponibili(risultato.operai || [])
       setCantieri(risultato.cantieri || [])
+
       setCantiereId('')
+      setCantiereSelezionato(null)
+      setStatoRapportino(null)
+      setOperaiPresentiIds([])
+      setMostraForm(false)
       setPin('')
     } catch {
       setErrore('Connessione non disponibile')
@@ -57,31 +141,68 @@ export default function RapportinoOperaiPage() {
     }
   }
 
-const [cantiereSelezionato, setCantiereSelezionato] =
-  useState<CantiereAccesso | null>(null)
+  const continua = async () => {
+    if (!cantiereId || statoInCorso) return
 
-const [statoRapportino, setStatoRapportino] = useState<{
-  data: string
-  presente: boolean
-} | null>(null)
+    setMostraForm(false)
+    setCantiereSelezionato(null)
+    setStatoRapportino(null)
+    setOperaiPresentiIds([])
+    setOrariOperai({})
+setNote('')
+setMateriali('')
+setQuantitaMateriali('')
+setCostoMateriali('')
 
-const [statoInCorso, setStatoInCorso] = useState(false)
-const [mostraForm, setMostraForm] = useState(false)
+    const cantiere = cantieri.find(
+      (item) => item.id === cantiereId
+    )
 
-const continua = async () => {
-  if (!cantiereId || statoInCorso) return
-setMostraForm(false)
-setCantiereSelezionato(null)
-setStatoRapportino(null)
+    if (!cantiere) {
+      setErrore('Cantiere non valido')
+      return
+    }
 
-  const cantiere = cantieri.find(
-    (item) => item.id === cantiereId
-  )
+    setErrore('')
+    setStatoInCorso(true)
 
-  if (!cantiere) {
-    setErrore('Cantiere non valido')
-    return
+    try {
+      const risposta = await fetch('/api/rapportino/stato', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+       body: JSON.stringify({
+  cantiereId: cantiere.id,
+  data: dataRapportino || undefined,
+}),
+      })
+
+      const risultato = await risposta.json()
+
+      if (!risposta.ok) {
+        setErrore(
+          risultato?.error ||
+            'Impossibile controllare il rapportino'
+        )
+        return
+      }
+
+      setCantiereSelezionato(cantiere)
+     setStatoRapportino({
+  data: risultato.data,
+  presente: Boolean(risultato.presente),
+})
+
+setDataRapportino(risultato.data)
+    } catch {
+      setErrore('Connessione non disponibile')
+    } finally {
+      setStatoInCorso(false)
+    }
   }
+const controllaDataRapportino = async (nuovaData: string) => {
+  if (!cantiereSelezionato || !nuovaData) return
 
   setErrore('')
   setStatoInCorso(true)
@@ -93,7 +214,8 @@ setStatoRapportino(null)
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        cantiereId: cantiere.id,
+        cantiereId: cantiereSelezionato.id,
+        data: nuovaData,
       }),
     })
 
@@ -107,11 +229,15 @@ setStatoRapportino(null)
       return
     }
 
-    setCantiereSelezionato(cantiere)
+    setDataRapportino(risultato.data)
+
     setStatoRapportino({
       data: risultato.data,
       presente: Boolean(risultato.presente),
     })
+if (risultato.presente) {
+  setMostraForm(false)
+}
   } catch {
     setErrore('Connessione non disponibile')
   } finally {
@@ -122,12 +248,19 @@ setStatoRapportino(null)
   const esci = () => {
     setOperaio(null)
     setCantieri([])
+    setOperaiDisponibili([])
+    setOperaiPresentiIds([])
     setCantiereId('')
+    setCantiereSelezionato(null)
+    setStatoRapportino(null)
+    setMostraForm(false)
     setPin('')
     setErrore('')
-setCantiereSelezionato(null)
-setStatoRapportino(null)
-setMostraForm(false)
+setOrariOperai({})
+setNote('')
+setMateriali('')
+setQuantitaMateriali('')
+setCostoMateriali('')
   }
 
   return (
@@ -312,7 +445,11 @@ setMostraForm(false)
     {!statoRapportino.presente && !mostraForm && (
       <button
         type="button"
-        onClick={() => setMostraForm(true)}
+        onClick={() => {
+  setOperaiPresentiIds([operaio.id])
+setOrariOperai({})
+setMostraForm(true)
+}}
         style={{
           width: '100%',
           minHeight: 48,
@@ -381,6 +518,268 @@ setMostraForm(false)
         </div>
         <strong>{operaio.nome}</strong>
       </div>
+<section
+  style={{
+    display: 'grid',
+    gap: 10,
+    padding: 14,
+    border: '1px solid #e2e8f0',
+    borderRadius: 10,
+    background: '#f8fafc',
+  }}
+>
+  <div>
+    <strong>Operai presenti</strong>
+
+    <div
+      style={{
+        marginTop: 4,
+        fontSize: 13,
+        color: '#64748b',
+      }}
+    >
+      Seleziona gli operai che hanno lavorato oggi in questo cantiere.
+    </div>
+  </div>
+
+  {operaiDisponibili.map((item) => {
+    const selezionato = operaiPresentiIds.includes(item.id)
+
+    const orari = orariOperai[item.id] || {
+  oraInizio: '',
+  oraFine: '',
+  pausaMinuti: 0,
+}
+
+    const ore = calcolaOre(
+  orari.oraInizio,
+  orari.oraFine,
+  orari.pausaMinuti
+)
+
+    return (
+      <div
+        key={item.id}
+        style={{
+          display: 'grid',
+          gap: 10,
+          padding: 10,
+          border: '1px solid #e2e8f0',
+          borderRadius: 8,
+          background: '#fff',
+        }}
+      >
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            minHeight: 36,
+            cursor: 'pointer',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={selezionato}
+            onChange={() => {
+              setOperaiPresentiIds((correnti) =>
+                selezionato
+                  ? correnti.filter((id) => id !== item.id)
+                  : [...correnti, item.id]
+              )
+
+              if (selezionato) {
+                setOrariOperai((correnti) => {
+                  const aggiornati = { ...correnti }
+                  delete aggiornati[item.id]
+                  return aggiornati
+                })
+              }
+            }}
+            style={{
+              width: 20,
+              height: 20,
+            }}
+          />
+
+          <span style={{ fontWeight: 600 }}>
+            {item.nome}
+          </span>
+        </label>
+
+        {selezionato && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+gap: 10,
+}}
+>
+  <label style={{ fontSize: 13 }}>
+    Ora inizio
+    <input
+      type="time"
+      value={orari.oraInizio}
+      onChange={(event) => {
+        const valore = event.target.value
+
+        setOrariOperai((correnti) => ({
+          ...correnti,
+          [item.id]: {
+            ...orari,
+            oraInizio: valore,
+          },
+        }))
+      }}
+      style={{
+        display: 'block',
+        width: '100%',
+        boxSizing: 'border-box',
+        marginTop: 5,
+        padding: 10,
+        border: '1px solid #cbd5e1',
+        borderRadius: 8,
+        fontSize: 16,
+      }}
+    />
+  </label>
+
+  <label style={{ fontSize: 13 }}>
+    Ora fine
+    <input
+      type="time"
+      value={orari.oraFine}
+      onChange={(event) => {
+        const valore = event.target.value
+
+        setOrariOperai((correnti) => ({
+          ...correnti,
+          [item.id]: {
+            ...orari,
+            oraFine: valore,
+          },
+        }))
+      }}
+      style={{
+        display: 'block',
+        width: '100%',
+        boxSizing: 'border-box',
+        marginTop: 5,
+        padding: 10,
+        border: '1px solid #cbd5e1',
+        borderRadius: 8,
+        fontSize: 16,
+      }}
+    />
+  </label>
+
+  <label
+    style={{
+      gridColumn: '1 / -1',
+      fontSize: 13,
+    }}
+  >
+    Pausa
+    <select
+      value={orari.pausaMinuti}
+      onChange={(event) => {
+        const pausaMinuti = Number(event.target.value)
+
+        setOrariOperai((correnti) => ({
+          ...correnti,
+          [item.id]: {
+            ...orari,
+            pausaMinuti,
+          },
+        }))
+      }}
+      style={{
+        display: 'block',
+        width: '100%',
+        boxSizing: 'border-box',
+        marginTop: 5,
+        padding: 10,
+        border: '1px solid #cbd5e1',
+        borderRadius: 8,
+        background: '#fff',
+        fontSize: 16,
+      }}
+    >
+      <option value={0}>Nessuna</option>
+      <option value={15}>15 minuti</option>
+      <option value={30}>30 minuti</option>
+      <option value={45}>45 minuti</option>
+      <option value={60}>60 minuti</option>
+      <option value={90}>90 minuti</option>
+    </select>
+  </label>
+
+  {orari.oraInizio && orari.oraFine && (
+    <div
+      style={{
+        gridColumn: '1 / -1',
+        fontSize: 14,
+        fontWeight: 700,
+        color: ore > 0 ? '#166534' : '#991b1b',
+      }}
+    >
+      {ore > 0
+        ? `Ore lavorate: ${ore.toLocaleString('it-IT', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`
+        : 'Controlla gli orari inseriti'}
+    </div>
+  )}
+</div>
+)}
+
+
+      </div>
+    )
+  })}
+</section>
+<RapportinoForm
+  cantiereRapporto={cantiereSelezionato.nome}
+  setCantiereRapporto={() => {}}
+data={dataRapportino}
+setData={(nuovaData) => {
+  setDataRapportino(nuovaData)
+  void controllaDataRapportino(nuovaData)
+}}
+
+  note={note}
+  setNote={setNote}
+  materiali={materiali}
+  setMateriali={setMateriali}
+  quantitaMateriali={quantitaMateriali}
+  setQuantitaMateriali={setQuantitaMateriali}
+  costoMateriali={costoMateriali}
+  setCostoMateriali={setCostoMateriali}
+  salvaRapportino={() => {}}
+  aggiornaRapportino={() => {}}
+  rapportinoInModifica={null}
+  cantieri={cantieri}
+  inputStyle={{}}
+  buttonPrimary={{}}
+  buttonSecondary={{}}
+  ascoltoRapportino={false}
+  operaiAnagrafica={operaiDisponibili}
+  operaiRapportinoTemp={operaiRapportinoPreparati.map((item) => ({
+    nome: item.nome,
+    ora_inizio: item.ora_inizio,
+    ora_fine: item.ora_fine,
+    ore: item.ore,
+    costo_orario: 0,
+  }))}
+  setOperaiRapportinoTemp={() => {}}
+  setPopupFotoRapportino={() => {}}
+  fotoCantiere={[]}
+  setFotoRapportinoAperte={setFotoRapportinoAperte}
+  onClose={() => setMostraForm(false)}
+  modalitaPortaleOperai
+  onSalvaPortale={() => {}}
+/>
 
       <div
         style={{

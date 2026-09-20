@@ -45,17 +45,19 @@ type Props = {
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
   ascoltoRapportino: boolean
-  avviaDettaturaRapportino: () => void
-  fermaDettaturaRapportino: () => void
+  avviaDettaturaRapportino?: () => void
+  fermaDettaturaRapportino?: () => void
   operaiAnagrafica: Operaio[]
   operaiRapportinoTemp: OperaioRapportinoTemp[]
-  setOperaiRapportinoTemp: Dispatch<
-    SetStateAction<OperaioRapportinoTemp[]>
-  >
+ setOperaiRapportinoTemp: Dispatch<
+  SetStateAction<OperaioRapportinoTemp[]>
+>
+onSalvaPortale?: () => void | Promise<void>
   setPopupFotoRapportino: (aperto: boolean) => void
   fotoCantiere: FotoCantiere[]
   setFotoRapportinoAperte: (foto: FotoCantiere[]) => void
   onClose: () => void
+  modalitaPortaleOperai?: boolean
 }
 
 export default function RapportinoForm({
@@ -88,6 +90,8 @@ export default function RapportinoForm({
   fotoCantiere,
   setFotoRapportinoAperte,
   onClose,
+  modalitaPortaleOperai = false,
+  onSalvaPortale,
 }: Props) {
   const [testoRacconto, setTestoRacconto] = useState('')
   const [attivita, setAttivita] = useState<RapportinoActivity[]>([])
@@ -235,6 +239,7 @@ export default function RapportinoForm({
           : '➕ Nuovo rapportino'}
       </h3>
 
+{!modalitaPortaleOperai && (
       <label>
         Cantiere
         <select
@@ -250,7 +255,7 @@ export default function RapportinoForm({
           ))}
         </select>
       </label>
-
+)}
       <label>
         Data
         <input
@@ -324,7 +329,7 @@ export default function RapportinoForm({
           style={{ ...inputStyle, display: 'block', width: '100%' }}
           rows={4}
         />
-
+{!modalitaPortaleOperai && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             type="button"
@@ -347,6 +352,7 @@ export default function RapportinoForm({
             ⏹ Stop
           </button>
         </div>
+)}
       </section>
 
       <RapportinoActivities
@@ -354,7 +360,8 @@ export default function RapportinoForm({
         onChangeAttivita={setAttivita}
         buttonSecondary={buttonSecondary}
       />
-
+{!modalitaPortaleOperai && (
+  <>
       <button
         type="button"
         onClick={() => setPopupFotoRapportino(true)}
@@ -424,7 +431,8 @@ export default function RapportinoForm({
           </div>
         )}
       </section>
-
+ </>
+)}
       <label>
         Materiali
         <input
@@ -461,11 +469,16 @@ export default function RapportinoForm({
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
           type="button"
-          onClick={() =>
-            void (rapportinoInModifica !== null
-              ? aggiornaRapportino()
-              : salvaRapportino())
-          }
+         onClick={() => {
+  if (modalitaPortaleOperai && onSalvaPortale) {
+    void onSalvaPortale()
+    return
+  }
+
+  void (rapportinoInModifica !== null
+    ? aggiornaRapportino()
+    : salvaRapportino())
+}}
           style={buttonPrimary}
         >
           {rapportinoInModifica !== null

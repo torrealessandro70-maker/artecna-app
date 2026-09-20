@@ -59,6 +59,24 @@ export async function POST(req: Request) {
       )
     }
 
+const { data: operaiAttivi, error: erroreOperaiAttivi } = await supabase
+  .from('operai')
+  .select('id,nome,stato')
+  .neq('stato', 'sospeso')
+  .order('nome')
+
+if (erroreOperaiAttivi) {
+  console.error(
+    'Errore accesso rapportino - elenco operai:',
+    erroreOperaiAttivi.message
+  )
+
+  return NextResponse.json(
+    { error: 'Elenco operai non disponibile' },
+    { status: 500 }
+  )
+}
+
     const { data: cantieri, error: erroreCantieri } = await supabase
       .from('cantieri')
       .select('id,nome,lavori_conclusi')
@@ -77,16 +95,23 @@ export async function POST(req: Request) {
       )
     }
 
-    return NextResponse.json({
-      operaio: {
-        id: operaio.id,
-        nome: operaio.nome,
-      },
-      cantieri: (cantieri || []).map((cantiere) => ({
-        id: cantiere.id,
-        nome: cantiere.nome,
-      })),
-    })
+   return NextResponse.json({
+  operaio: {
+    id: operaio.id,
+    nome: operaio.nome,
+  },
+
+  operai: (operaiAttivi || []).map((item) => ({
+    id: item.id,
+    nome: item.nome,
+  })),
+
+  cantieri: (cantieri || []).map((cantiere) => ({
+    id: cantiere.id,
+    nome: cantiere.nome,
+  })),
+})
+
   } catch (error) {
     console.error('Errore accesso portale rapportini:', error)
 
