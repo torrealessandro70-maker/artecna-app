@@ -47,7 +47,7 @@ const calcolaOre = (
 export default function RapportinoOperaiPage() {
   const [pin, setPin] = useState('')
   const [operaio, setOperaio] = useState<OperaioAccesso | null>(null)
-
+const [fotoRapportino, setFotoRapportino] = useState<string[]>([])
   const [cantieri, setCantieri] = useState<CantiereAccesso[]>([])
   const [operaiDisponibili, setOperaiDisponibili] =
     useState<OperaioDisponibile[]>([])
@@ -238,6 +238,70 @@ const controllaDataRapportino = async (nuovaData: string) => {
 if (risultato.presente) {
   setMostraForm(false)
 }
+  } catch {
+    setErrore('Connessione non disponibile')
+  } finally {
+    setStatoInCorso(false)
+  }
+}
+
+const salvaRapportinoPortale = async () => {
+  if (!cantiereSelezionato || !dataRapportino) {
+    setErrore('Cantiere e data sono obbligatori')
+    return
+  }
+
+  const operaiValidi = operaiRapportinoPreparati.filter(
+    (operaio) => operaio.nome && operaio.ore > 0
+  )
+
+  if (operaiValidi.length === 0) {
+    setErrore('Inserisci gli orari di almeno un operaio')
+    return
+  }
+
+  setErrore('')
+  setStatoInCorso(true)
+
+  try {
+    const risposta = await fetch('/api/rapportino/salva', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cantiereId: cantiereSelezionato.id,
+        data: dataRapportino,
+        note,
+        materiali,
+        quantitaMateriali,
+        operai: operaiValidi,
+        foto: fotoRapportino,
+      }),
+    })
+
+    const risultato = await risposta.json()
+
+    if (!risposta.ok) {
+      setErrore(
+        risultato?.error || 'Salvataggio rapportino non riuscito'
+      )
+      return
+    }
+
+    setStatoRapportino({
+      data: dataRapportino,
+      presente: true,
+    })
+setFotoRapportino([])
+setNote('')
+setMateriali('')
+setQuantitaMateriali('')
+setCostoMateriali('')
+setOperaiPresentiIds([])
+setOrariOperai({})
+
+    setMostraForm(false)
   } catch {
     setErrore('Connessione non disponibile')
   } finally {
@@ -739,6 +803,91 @@ gap: 10,
     )
   })}
 </section>
+<section
+  style={{
+    display: 'grid',
+    gap: 10,
+    padding: 14,
+    border: '1px solid #e2e8f0',
+    borderRadius: 10,
+    background: '#fff',
+  }}
+>
+  <strong>Foto del lavoro</strong>
+
+  <input
+    type="file"
+    accept="image/*"
+    capture="environment"
+    multiple
+    onChange={(event) => {
+      const files = Array.from(event.target.files || [])
+
+      files.forEach((file) => {
+        const reader = new FileReader()
+
+        reader.onload = () => {
+          if (typeof reader.result !== 'string') return
+
+          setFotoRapportino((correnti) => [
+            ...correnti,
+            reader.result as string,
+          ])
+        }
+
+        reader.readAsDataURL(file)
+      })
+
+      event.target.value = ''
+    }}
+  />
+
+  {fotoRapportino.length > 0 && (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 8,
+      }}
+    >
+      {fotoRapportino.map((foto, indice) => (
+        <div key={indice} style={{ position: 'relative' }}>
+          <img
+            src={foto}
+            alt={`Foto ${indice + 1}`}
+            style={{
+              width: '100%',
+              aspectRatio: '1',
+              objectFit: 'cover',
+              borderRadius: 8,
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={() =>
+              setFotoRapportino((correnti) =>
+                correnti.filter((_, i) => i !== indice)
+              )
+            }
+            style={{
+              position: 'absolute',
+              top: 4,
+              right: 4,
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              border: 0,
+              cursor: 'pointer',
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+</section>
 <RapportinoForm
   cantiereRapporto={cantiereSelezionato.nome}
   setCantiereRapporto={() => {}}
@@ -778,7 +927,7 @@ setData={(nuovaData) => {
   setFotoRapportinoAperte={setFotoRapportinoAperte}
   onClose={() => setMostraForm(false)}
   modalitaPortaleOperai
-  onSalvaPortale={() => {}}
+  onSalvaPortale={salvaRapportinoPortale}
 />
 
       <div
