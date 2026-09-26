@@ -3,7 +3,12 @@
 import FascicoloCockpit from './FascicoloCockpit'
 import { createPhotoRuntimeFeed, createReportRuntimeFeed, createDocumentRuntimeFeed, createSalRuntimeFeed, createRuntimeFeedSnapshot } from '../runtime/feed'
 
-type RigaCantiere = { id?: string; cantiere?: string; created_at?: string }
+type RigaCantiere = {
+  id?: string
+  cantiere_id?: string
+  cantiere?: string
+  created_at?: string
+}
 export type FascicoloPanelProps = {
   foto: (RigaCantiere & { nota?: string; data_foto?: string })[]
   rapportini: (RigaCantiere & { note?: string; data?: string })[]
@@ -18,7 +23,11 @@ type Props = {
 
 export default function FascicoloCantierePanel({ cantiere, panelProps: p, onApriArea }: Props) {
   const foto = p.foto.filter((riga) => riga.cantiere === cantiere.nome)
-  const rapportini = p.rapportini.filter((riga) => riga.cantiere === cantiere.nome)
+  const rapportini = p.rapportini.filter((riga) =>
+  riga.cantiere_id
+    ? riga.cantiere_id === cantiere.id
+    : riga.cantiere === cantiere.nome
+)
   const preventivi = p.preventivi.filter((riga) => riga.cantiere === cantiere.nome)
   const sal = p.sal.filter((riga) => riga.cantiere === cantiere.nome)
   const feed = createRuntimeFeedSnapshot([
