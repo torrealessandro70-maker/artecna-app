@@ -12,6 +12,7 @@ export type Cantiere = {
 
 export type Rapportino = {
   id?: string
+  cantiere_id?: string
   cantiere: string
   data: string
   ore: string

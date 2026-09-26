@@ -21,10 +21,17 @@ export default function RapportiniCantierePanel({
 }: Props) {
   const [mostraForm, setMostraForm] = useState(false)
   const formRef = useRef<HTMLDivElement>(null)
-  const rapportiniCantiere = cantiere.id && cantiere.nome
-    ? rapportini.filter((r) => r.cantiere === cantiere.nome)
-        .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')))
-    : []
+ const rapportiniCantiere = cantiere.id && cantiere.nome
+  ? rapportini
+      .filter((r) =>
+        r.cantiere_id
+          ? r.cantiere_id === cantiere.id
+          : r.cantiere === cantiere.nome
+      )
+      .sort((a, b) =>
+        String(b.data || '').localeCompare(String(a.data || ''))
+      )
+  : []
 
   useEffect(() => {
     if (mostraForm) formRef.current?.focus()
