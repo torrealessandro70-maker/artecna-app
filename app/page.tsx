@@ -5286,6 +5286,18 @@ caricaUtilizzoAi()
 }, [])
 
 useEffect(() => {
+  const aggiornaRapportiniAlFocus = () => {
+    void caricaRapportini()
+  }
+
+  window.addEventListener('focus', aggiornaRapportiniAlFocus)
+
+  return () => {
+    window.removeEventListener('focus', aggiornaRapportiniAlFocus)
+  }
+}, [])
+
+useEffect(() => {
   caricaImpostazioniSupabase()
 }, [])
 
