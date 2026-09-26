@@ -194,12 +194,25 @@ setCostoMateriali('')
       }
 
       setCantiereSelezionato(cantiere)
-     setStatoRapportino({
+
+setStatoRapportino({
   data: risultato.data,
   presente: Boolean(risultato.presente),
+  rapportinoId: risultato.rapportino?.id
+    ? String(risultato.rapportino.id)
+    : undefined,
 })
 
+setRapportinoEsistente(risultato.rapportino || null)
+
+setTimbratureRapportino(
+  Array.isArray(risultato.timbrature)
+    ? risultato.timbrature
+    : []
+)
+
 setDataRapportino(risultato.data)
+
     } catch {
       setErrore('Connessione non disponibile')
     } finally {
