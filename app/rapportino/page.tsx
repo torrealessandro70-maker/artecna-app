@@ -5,6 +5,10 @@ import RapportinoForm from '../components/RapportinoForm'
 import RapportinoOperaiEditor from '../components/RapportinoOperaiEditor'
 import type { OperaioRapportinoInput } from '../types'
 import { preparaOperaiRapportino } from '../utils/rapportinoOperai'
+import {
+  applicaOperaiRiconosciuti,
+  type PropostaOperaioRiconosciuto,
+} from '../utils/applicaOperaiRiconosciuti'
 
 type OperaioAccesso = {
   id: string
@@ -48,6 +52,7 @@ const [dataRapportino, setDataRapportino] = useState('')
   const [accessoInCorso, setAccessoInCorso] = useState(false)
   const [statoInCorso, setStatoInCorso] = useState(false)
   const [mostraForm, setMostraForm] = useState(false)
+  const [messaggioApplicazioneOperai, setMessaggioApplicazioneOperai] = useState('')
 const [note, setNote] = useState('')
 const [materiali, setMateriali] = useState('')
 const [quantitaMateriali, setQuantitaMateriali] = useState('')
@@ -59,6 +64,23 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
     operaiDisponibili.findIndex((item) => item.id === b.id)
   )
 
+
+  const applicaProposteOperaiRiconosciuti = (
+    proposte: readonly PropostaOperaioRiconosciuto[]
+  ) => {
+    if (statoInCorso) return
+    const anagrafica = operaiDisponibili.map(({ id, nome, costo_orario }) => ({
+      id, nome, costo_orario,
+    }))
+    const risultato = applicaOperaiRiconosciuti(operaiRapportino, proposte, anagrafica)
+    setOperaiRapportino(risultato.operai)
+    const daVerificare = risultato.esiti.some((esito) =>
+      esito.stato === 'conflitto' || esito.stato === 'escluso' || esito.orariDaCompletare
+    )
+    setMessaggioApplicazioneOperai(daVerificare
+      ? 'Applicazione completata con elementi da verificare: controlla gli operai e gli orari. I conflitti non sono stati applicati.'
+      : 'Operai riconosciuti applicati.')
+  }
 
   const accedi = async () => {
     const pinPulito = pin.trim()
@@ -537,6 +559,7 @@ setCostoMateriali('')
         type="button"
         onClick={() => {
   setOperaiRapportino([])
+  setMessaggioApplicazioneOperai('')
   setMostraForm(true)
 }}
         style={{
@@ -594,6 +617,7 @@ operaiDisponibili.forEach((item) => {
 })
 
 setOperaiRapportino(operaiRicostruiti)
+  setMessaggioApplicazioneOperai('')
   setMostraForm(true)
 }}
       style={{
@@ -757,6 +781,7 @@ setOperaiRapportino(operaiRicostruiti)
   setCantiereRapporto={() => {}}
 data={dataRapportino}
 setData={(nuovaData) => {
+  setMessaggioApplicazioneOperai('')
   setDataRapportino(nuovaData)
   void controllaDataRapportino(nuovaData)
 }}
@@ -796,7 +821,14 @@ setData={(nuovaData) => {
   onClose={() => setMostraForm(false)}
   modalitaPortaleOperai
   onSalvaPortale={salvaRapportinoPortale}
+  onApplicaOperaiRiconosciuti={applicaProposteOperaiRiconosciuti}
+  applicazioneOperaiDisabilitata={statoInCorso}
 />
+{messaggioApplicazioneOperai && (
+  <p role="status" style={{ margin: '12px 0', color: '#475569' }}>
+    {messaggioApplicazioneOperai}
+  </p>
+)}
 
       <div
         style={{
