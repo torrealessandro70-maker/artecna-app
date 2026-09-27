@@ -536,16 +536,8 @@ setCostoMateriali('')
       <button
         type="button"
         onClick={() => {
-  const operaioDisponibile = operaiDisponibili.find((item) => item.id === operaio.id)
-  setOperaiRapportino(operaioDisponibile ? [{
-    id: operaioDisponibile.id,
-    nome: operaioDisponibile.nome,
-    ora_inizio: '',
-    ora_fine: '',
-    pausa_minuti: 0,
-    costo_orario: operaioDisponibile.costo_orario,
-  }] : [])
-setMostraForm(true)
+  setOperaiRapportino([])
+  setMostraForm(true)
 }}
         style={{
           width: '100%',
