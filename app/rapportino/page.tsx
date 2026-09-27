@@ -239,13 +239,10 @@ if (risultato.presente) {
 }
 
 const salvaRapportinoPortale = async () => {
-
-  if (!cantiereSelezionato || !dataRapportino) {
-
-  setErrore('Cantiere e data sono obbligatori')
+if (!operaio || !cantiereSelezionato || !dataRapportino) {
+  setErrore('Operaio, cantiere e data sono obbligatori')
   return
 }
-
   const operaiValidi = operaiRapportinoPreparati.filter(
     (operaio) => operaio.nome && operaio.ore > 0
   )
@@ -268,6 +265,8 @@ try {
       body: JSON.stringify({
         cantiereId: cantiereSelezionato.id,
 rapportinoId: statoRapportino?.rapportinoId || undefined,
+compilatoDaOperaioId: operaio.id,
+compilatoDaNome: operaio.nome,
         data: dataRapportino,
         note,
         materiali,
