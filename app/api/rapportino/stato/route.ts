@@ -53,6 +53,7 @@ const dataRapportino = dataRichiesta || oggi
 
     const rapportino = data?.[0] || null
 let timbrature: Array<{
+operaio_id?: string | null
   operaio_nome: string
   ora_entrata?: string | null
   ora_uscita?: string | null
@@ -60,12 +61,11 @@ let timbrature: Array<{
 
 if (rapportino) {
   const { data: timbratureData, error: erroreTimbrature } =
-    await supabase
-      .from('timbrature')
-      .select('operaio_nome,ora_entrata,ora_uscita')
-      .eq('cantiere_id', cantiereId)
-      .eq('data', dataRapportino)
-      .eq('stato', 'da rapportino')
+  await supabase
+    .from('timbrature')
+    .select('operaio_id,operaio_nome,ora_entrata,ora_uscita')
+    .eq('rapportino_id', rapportino.id)
+    .eq('stato', 'da rapportino')
 
   if (erroreTimbrature) {
     console.error(
