@@ -15,6 +15,10 @@ import SmartReportAssistant, {
   type ReminderActivityDraft,
 } from './SmartReportAssistant'
 import { cleanDictationText } from '../utils/cleanDictationText'
+import {
+  risolviMenzioniOperai,
+  type MenzioneOperaioRisolta,
+} from '../utils/risolviMenzioniOperai'
 
 export type OperaioRapportinoTemp = {
   nome: string
@@ -85,7 +89,6 @@ export default function RapportinoForm({
   fermaDettaturaRapportino,
   operaiAnagrafica,
   operaiRapportinoTemp,
-  setOperaiRapportinoTemp,
   setPopupFotoRapportino,
   fotoCantiere,
   setFotoRapportinoAperte,
@@ -94,6 +97,8 @@ export default function RapportinoForm({
   onSalvaPortale,
 }: Props) {
   const [attivita, setAttivita] = useState<RapportinoActivity[]>([])
+  // Batch locale riservato alla futura UI, senza applicazione alla squadra.
+  const [, setMenzioniOperaiRisolte] = useState<MenzioneOperaioRisolta[]>([])
 
   const fotoCollegate = cantiereRapporto && data
     ? fotoCantiere.filter((foto) => {
@@ -152,48 +157,20 @@ export default function RapportinoForm({
       }
     }
 
-    if (report.operai.length > 0) {
-      const operaiEstratti = new Map(
-        report.operai.map((operaio) => [operaio.nome, operaio])
-      )
-
-      setOperaiRapportinoTemp((operaiCorrenti) => {
-        const operaiAggiornati = operaiCorrenti.map((operaio) => {
-          const estratto = operaiEstratti.get(operaio.nome)
-
-          if (!estratto) return operaio
-
-          return {
-            ...operaio,
-            ora_inizio: estratto.ora_inizio || operaio.ora_inizio || '',
-            ora_fine: estratto.ora_fine || operaio.ora_fine || '',
-            ore: estratto.ore > 0 ? estratto.ore : operaio.ore,
-          }
-        })
-        const nomiPresenti = new Set(
-          operaiAggiornati.map((operaio) => operaio.nome)
-        )
-        const nuoviOperai = operaiAnagrafica
-          .filter(
-            (operaio) =>
-              operaiEstratti.has(operaio.nome) &&
-              !nomiPresenti.has(operaio.nome)
-          )
-          .map((operaio) => {
-            const estratto = operaiEstratti.get(operaio.nome)
-
-            return {
-              nome: operaio.nome,
-              ora_inizio: estratto?.ora_inizio || '',
-              ora_fine: estratto?.ora_fine || '',
-              ore: estratto?.ore || 0,
-              costo_orario: Number(operaio.costo_orario || 0),
-            }
-          })
-
-        return [...operaiAggiornati, ...nuoviOperai]
-      })
-    }
+    const anagraficaRisolvibile = operaiAnagrafica.flatMap((operaio) =>
+      typeof operaio.id === 'string' &&
+      operaio.id.trim() &&
+      operaio.nome.trim()
+        ? [{
+            id: operaio.id,
+            nome: operaio.nome,
+            costo_orario: operaio.costo_orario,
+          }]
+        : []
+    )
+    setMenzioniOperaiRisolte(
+      risolviMenzioniOperai(report.menzioniOperai, anagraficaRisolvibile)
+    )
   }
 
   const creaAttivitaDaPromemoria = (activity: ReminderActivityDraft) => {
