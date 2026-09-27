@@ -20,9 +20,13 @@ export function estraiMenzioniOperai(
   racconto: string,
   operaiDisponibili: readonly string[]
 ): MenzioneOperaio[] {
-  const vocabolario = new Set(operaiDisponibili.flatMap((nome) =>
+  const nomiTokenizzati = operaiDisponibili.map((nome) =>
     (nome.match(parola) || []).map(normalizza)
-  ))
+  )
+  const vocabolario = new Set(nomiTokenizzati.flat())
+  const chiaveToken = (token: readonly string[]): string =>
+    JSON.stringify([...token].sort())
+  const nomiCompleti = new Set(nomiTokenizzati.map(chiaveToken))
   const risultato: MenzioneOperaio[] = []
 
   const estraiGruppo = (testo: string, offset: number): MenzioneOperaio[] => {
@@ -47,12 +51,21 @@ export function estraiMenzioniOperai(
 
     for (const parte of parti) {
       const nome = parte.testo.trim()
-      const token = nome.match(parola) || []
-      // L'intero gruppo deve essere nominale: non ritagliare solo parole note.
-      if (!nome || token.length === 0 || nome.replace(parola, '').trim() !== '' ||
-          !token.some((item) => vocabolario.has(normalizza(item)))) return []
+      const token = [...nome.matchAll(parola)]
+      if (!nome || token.length === 0 || nome.replace(parola, '').trim() !== '') return []
+      const normalizzati = token.map((item) => normalizza(item[0]))
       const inizio = offset + parte.offset + parte.testo.indexOf(nome)
-      menzioni.push({ testo: nome, inizio, fine: inizio + nome.length })
+      if (nomiCompleti.has(chiaveToken(normalizzati))) {
+        menzioni.push({ testo: nome, inizio, fine: inizio + nome.length })
+      } else {
+        // Non ritagliare parole note da un gruppo contenente token sconosciuti.
+        if (!normalizzati.every((item) => vocabolario.has(item))) return []
+        menzioni.push(...token.map((item) => ({
+          testo: item[0],
+          inizio: inizio + item.index,
+          fine: inizio + item.index + item[0].length,
+        })))
+      }
     }
     return menzioni
   }
