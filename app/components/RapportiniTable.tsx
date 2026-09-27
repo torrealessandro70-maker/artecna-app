@@ -33,7 +33,16 @@ export default function RapportiniTable({
       <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 950 }}>
         <thead style={{ background: '#f8fafc', color: '#475569' }}>
           <tr>
-            {['Data', ...(mostraCantiere ? ['Cantiere'] : []), 'Descrizione / Note', 'Operai', 'Ore', 'Foto', 'Azioni'].map((titolo) => (
+            {[
+  'Data',
+  ...(mostraCantiere ? ['Cantiere'] : []),
+  'Descrizione / Note',
+  'Operai',
+  'Compilato da',
+  'Ore',
+  'Foto',
+  'Azioni',
+].map((titolo) => (
               <th key={titolo} scope="col" style={{ ...cella, fontWeight: 600 }}>{titolo}</th>
             ))}
           </tr>
@@ -49,6 +58,9 @@ export default function RapportiniTable({
                 {mostraCantiere && <td style={cella}>{r.cantiere}</td>}
                 <td style={{ ...cella, minWidth: 250, maxWidth: 450, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{r.note || '—'}</td>
                 <td style={{ ...cella, minWidth: 140, whiteSpace: 'pre-wrap' }}>{r.operai || '—'}</td>
+<td style={{ ...cella, minWidth: 140 }}>
+  {r.compilato_da_nome || '—'}
+</td>
                 <td style={cella}>{r.ore ?? '—'}</td>
                 <td style={cella}>{fotoCollegate.length}</td>
                 <td style={cella}>
