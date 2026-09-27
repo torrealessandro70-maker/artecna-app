@@ -1,3 +1,5 @@
+import { estraiMenzioniOperai, type MenzioneOperaio } from './worker-mentions'
+
 export interface ReportNarrationContext {
   cantiere?: string
   data?: string
@@ -11,6 +13,7 @@ export interface ParsedReport {
   cantiere?: string
   data?: string
   operai: ParsedReportWorker[]
+  menzioniOperai: MenzioneOperaio[]
   materiali: ParsedMaterial[]
   lavorazioni: string[]
   attivitaDaFare: string[]
@@ -322,6 +325,10 @@ export function parseReportNarration(
   context: ReportNarrationContext
 ): ParsedReport {
   const normalizedNarration = normalizeText(narration)
+  const menzioniOperai = estraiMenzioniOperai(
+    narration,
+    context.operaiDisponibili || []
+  )
 
   const cantieri = [
     context.cantiere,
@@ -420,6 +427,7 @@ export function parseReportNarration(
     data: relativeDate || context.data,
     note: narration,
     operai,
+    menzioniOperai,
     materiali,
     lavorazioni,
     attivitaDaFare,
