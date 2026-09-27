@@ -50,6 +50,7 @@ type Props = {
   salvaRapportino: () => void | Promise<void>
   aggiornaRapportino: () => void | Promise<void>
   rapportinoInModifica: string | null
+  compilatoDaNome?: string | null
   cantieri: Cantiere[]
   inputStyle: CSSProperties
   buttonPrimary: CSSProperties
@@ -90,6 +91,7 @@ export default function RapportinoForm({
   salvaRapportino,
   aggiornaRapportino,
   rapportinoInModifica,
+  compilatoDaNome,
   cantieri,
   inputStyle,
   buttonPrimary,
@@ -291,6 +293,29 @@ export default function RapportinoForm({
           style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 6 }}
         />
       </label>
+
+{rapportinoInModifica !== null && (
+  <div
+    style={{
+      padding: 10,
+      border: '1px solid #e2e8f0',
+      borderRadius: 8,
+      background: '#f8fafc',
+    }}
+  >
+    <div
+      style={{
+        fontSize: 13,
+        color: '#64748b',
+        marginBottom: 4,
+      }}
+    >
+      Compilato da
+    </div>
+
+    <strong>{compilatoDaNome || '—'}</strong>
+  </div>
+)}
 
       <SmartReportAssistant
         testo={note}

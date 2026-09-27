@@ -111,6 +111,12 @@ export default function RapportiniPanel({
     0
   )
 
+  const rapportinoCorrente = rapportinoInModifica
+    ? rapportiniFiltrati.find(
+        (rapportino) => rapportino.id === rapportinoInModifica
+      )
+    : undefined
+
   return (
     <section style={cardStyle}>
       <h2>📅 Diario di Cantiere</h2>
@@ -132,6 +138,7 @@ export default function RapportiniPanel({
           setCantiereRapporto={setCantiereRapporto}
           data={data}
           setData={setData}
+          compilatoDaNome={rapportinoCorrente?.compilato_da_nome}
           note={note}
           setNote={setNote}
           materiali={materiali}
