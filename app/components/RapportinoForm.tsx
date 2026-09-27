@@ -107,10 +107,13 @@ export default function RapportinoForm({
       })
     : []
 
-  const applicaReport = (report: ParsedReport) => {
+ const applicaReport = (report: ParsedReport) => {
+  if (!modalitaPortaleOperai) {
     if (report.cantiere) setCantiereRapporto(report.cantiere)
     if (report.data) setData(report.data)
-    if (report.note.trim()) setNote(cleanDictationText(report.note))
+  }
+
+  if (report.note.trim()) setNote(cleanDictationText(report.note))
 
     if (report.attivitaDaFare.length > 0) {
       setAttivita((attivitaCorrenti) => {
