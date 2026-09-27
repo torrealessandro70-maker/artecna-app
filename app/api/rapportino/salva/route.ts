@@ -286,8 +286,7 @@ if (rapportinoId) {
   const { error: erroreRimozioneTimbrature } = await supabase
     .from('timbrature')
     .delete()
-    .eq('cantiere_id', cantiere.id)
-    .eq('data', data)
+    .eq('rapportino_id', rapportinoCreato.id)
     .eq('stato', 'da rapportino')
 
   if (erroreRimozioneTimbrature) {
