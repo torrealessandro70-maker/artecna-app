@@ -97,8 +97,11 @@ export default function RapportinoForm({
   onSalvaPortale,
 }: Props) {
   const [attivita, setAttivita] = useState<RapportinoActivity[]>([])
-  // Batch locale riservato alla futura UI, senza applicazione alla squadra.
-  const [, setMenzioniOperaiRisolte] = useState<MenzioneOperaioRisolta[]>([])
+  // Batch locale informativo, senza applicazione alla squadra.
+  const [
+    menzioniOperaiRisolte,
+    setMenzioniOperaiRisolte,
+  ] = useState<MenzioneOperaioRisolta[]>([])
 
   const fotoCollegate = cantiereRapporto && data
     ? fotoCantiere.filter((foto) => {
@@ -260,6 +263,62 @@ export default function RapportinoForm({
         onParsedReport={applicaReport}
         onCreateActivityFromReminder={creaAttivitaDaPromemoria}
       />
+
+      {menzioniOperaiRisolte.length > 0 && (
+        <section
+          aria-label="Riconoscimento operai"
+          style={{ display: 'grid', gap: 10, minWidth: 0 }}
+        >
+          <h3 style={{ margin: 0, fontSize: 16 }}>Riconoscimento operai</h3>
+          <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
+            Il riconoscimento non modifica ancora gli operai del rapportino.
+          </p>
+          {menzioniOperaiRisolte.map((risultato, indice) => (
+            <div
+              key={indice}
+              style={{
+                padding: 12,
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                overflowWrap: 'anywhere',
+                background: risultato.stato === 'trovato'
+                  ? '#f0fdf4'
+                  : risultato.stato === 'ambiguo' ? '#fffbeb' : '#fff',
+              }}
+            >
+              <strong>
+                {risultato.stato === 'trovato'
+                  ? 'Operaio riconosciuto'
+                  : risultato.stato === 'ambiguo' ? 'Da chiarire' : 'Non riconosciuto'}
+              </strong>
+              <p style={{ margin: '6px 0' }}>
+                {risultato.stato === 'trovato'
+                  ? risultato.menzione.testo === risultato.operaio.nome
+                    ? risultato.operaio.nome
+                    : `${risultato.menzione.testo} → ${risultato.operaio.nome}`
+                  : risultato.stato === 'ambiguo'
+                    ? `Quale operaio intendi con "${risultato.menzione.testo}"?`
+                    : `"${risultato.menzione.testo}" non è stato trovato nell'anagrafica.`}
+              </p>
+              <p style={{ margin: 0, color: '#475569', fontSize: 14 }}>
+                {risultato.menzione.ora_inizio && risultato.menzione.ora_fine
+                  ? `Orario rilevato: ${risultato.menzione.ora_inizio} - ${risultato.menzione.ora_fine}`
+                  : 'Orario non rilevato'}
+              </p>
+              {risultato.stato === 'ambiguo' && (
+                <div style={{ marginTop: 8 }}>
+                  <span>Possibili:</span>
+                  <ul style={{ margin: '4px 0 0', paddingLeft: 20 }}>
+                    {risultato.candidati.map((candidato) => (
+                      <li key={candidato.id}>{candidato.nome}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
 
       {operaiRapportinoTemp.length > 0 && (
         <div
