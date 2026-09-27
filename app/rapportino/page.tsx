@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import RapportinoForm from '../components/RapportinoForm'
-import { calcolaOreRapportino } from '../utils/rapportinoOperai'
+import RapportinoOperaiEditor from '../components/RapportinoOperaiEditor'
+import type { OperaioRapportinoInput } from '../types'
+import { preparaOperaiRapportino } from '../utils/rapportinoOperai'
 
 type OperaioAccesso = {
   id: string
@@ -12,13 +14,9 @@ type OperaioAccesso = {
 type OperaioDisponibile = {
   id: string
   nome: string
+  costo_orario?: number
 }
 
-type OrariOperaio = {
-  oraInizio: string
-  oraFine: string
-  pausaMinuti: number
-}
 type CantiereAccesso = {
   id: string
   nome: string
@@ -31,10 +29,8 @@ const [fotoRapportino, setFotoRapportino] = useState<string[]>([])
   const [cantieri, setCantieri] = useState<CantiereAccesso[]>([])
   const [operaiDisponibili, setOperaiDisponibili] =
     useState<OperaioDisponibile[]>([])
-  const [operaiPresentiIds, setOperaiPresentiIds] =
-    useState<string[]>([])
-const [orariOperai, setOrariOperai] =
-  useState<Record<string, OrariOperaio>>({})
+  const [operaiRapportino, setOperaiRapportino] =
+    useState<OperaioRapportinoInput[]>([])
 const [rapportinoEsistente, setRapportinoEsistente] = useState<any>(null)
 const [timbratureRapportino, setTimbratureRapportino] = useState<any[]>([])
 
@@ -57,28 +53,11 @@ const [materiali, setMateriali] = useState('')
 const [quantitaMateriali, setQuantitaMateriali] = useState('')
 const [costoMateriali, setCostoMateriali] = useState('')
 const [fotoRapportinoAperte, setFotoRapportinoAperte] = useState<any[]>([])
-const operaiRapportinoPreparati = operaiDisponibili
-  .filter((item) => operaiPresentiIds.includes(item.id))
-  .map((item) => {
-    const orari = orariOperai[item.id] || {
-      oraInizio: '',
-      oraFine: '',
-      pausaMinuti: 0,
-    }
-
-    return {
-      id: item.id,
-      nome: item.nome,
-      ora_inizio: orari.oraInizio,
-      ora_fine: orari.oraFine,
-      pausa_minuti: orari.pausaMinuti,
-      ore: calcolaOreRapportino(
-        orari.oraInizio,
-        orari.oraFine,
-        orari.pausaMinuti
-      ),
-    }
-  })
+const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
+  .sort((a, b) =>
+    operaiDisponibili.findIndex((item) => item.id === a.id) -
+    operaiDisponibili.findIndex((item) => item.id === b.id)
+  )
 
 
   const accedi = async () => {
@@ -108,13 +87,18 @@ const operaiRapportinoPreparati = operaiDisponibili
       }
 
       setOperaio(risultato.operaio)
-      setOperaiDisponibili(risultato.operai || [])
+      setOperaiDisponibili(
+        (Array.isArray(risultato.operai) ? risultato.operai : []).filter(
+          (item: OperaioDisponibile) =>
+            typeof item?.id === 'string' && item.id.trim().length > 0
+        )
+      )
       setCantieri(risultato.cantieri || [])
 
       setCantiereId('')
       setCantiereSelezionato(null)
       setStatoRapportino(null)
-      setOperaiPresentiIds([])
+      setOperaiRapportino([])
       setMostraForm(false)
       setPin('')
     } catch {
@@ -130,8 +114,7 @@ const operaiRapportinoPreparati = operaiDisponibili
     setMostraForm(false)
     setCantiereSelezionato(null)
     setStatoRapportino(null)
-    setOperaiPresentiIds([])
-    setOrariOperai({})
+    setOperaiRapportino([])
 setRapportinoEsistente(null)
 setTimbratureRapportino([])
 setNote('')
@@ -289,7 +272,9 @@ rapportinoId: statoRapportino?.rapportinoId || undefined,
         note,
         materiali,
         quantitaMateriali,
-        operai: operaiValidi,
+        operai: operaiValidi.map(({ id, nome, ora_inizio, ora_fine, pausa_minuti, ore }) => ({
+          id, nome, ora_inizio, ora_fine, pausa_minuti, ore,
+        })),
         foto: fotoRapportino,
       }),
     })
@@ -327,8 +312,7 @@ setNote('')
 setMateriali('')
 setQuantitaMateriali('')
 setCostoMateriali('')
-setOperaiPresentiIds([])
-setOrariOperai({})
+setOperaiRapportino([])
 
     setMostraForm(false)
   } catch {
@@ -342,14 +326,13 @@ setOrariOperai({})
     setOperaio(null)
     setCantieri([])
     setOperaiDisponibili([])
-    setOperaiPresentiIds([])
+    setOperaiRapportino([])
     setCantiereId('')
     setCantiereSelezionato(null)
     setStatoRapportino(null)
     setMostraForm(false)
     setPin('')
     setErrore('')
-setOrariOperai({})
 setNote('')
 setMateriali('')
 setQuantitaMateriali('')
@@ -554,8 +537,15 @@ setCostoMateriali('')
       <button
         type="button"
         onClick={() => {
-  setOperaiPresentiIds([operaio.id])
-setOrariOperai({})
+  const operaioDisponibile = operaiDisponibili.find((item) => item.id === operaio.id)
+  setOperaiRapportino(operaioDisponibile ? [{
+    id: operaioDisponibile.id,
+    nome: operaioDisponibile.nome,
+    ora_inizio: '',
+    ora_fine: '',
+    pausa_minuti: 0,
+    costo_orario: operaioDisponibile.costo_orario,
+  }] : [])
 setMostraForm(true)
 }}
         style={{
@@ -591,27 +581,28 @@ setMostraForm(true)
   setQuantitaMateriali(
     String(rapportinoEsistente.quantita_materiali || '')
   )
-const idsOperai: string[] = []
-const nuoviOrari: Record<string, OrariOperaio> = {}
+const operaiRicostruiti: OperaioRapportinoInput[] = []
+operaiDisponibili.forEach((item) => {
+  const corrispondenze = operaiDisponibili.filter((disponibile) => disponibile.nome === item.nome)
+  if (corrispondenze.length !== 1) return
 
-timbratureRapportino.forEach((timbratura) => {
-  const operaioTrovato = operaiDisponibili.find(
-    (item) => item.nome === timbratura.operaio_nome
+  const timbrature = timbratureRapportino.filter(
+    (timbratura) => timbratura.operaio_nome === item.nome
   )
+  const timbratura = timbrature[timbrature.length - 1]
+  if (!timbratura) return
 
-  if (!operaioTrovato) return
-
-  idsOperai.push(operaioTrovato.id)
-
-  nuoviOrari[operaioTrovato.id] = {
-    oraInizio: timbratura.ora_entrata || '',
-    oraFine: timbratura.ora_uscita || '',
-    pausaMinuti: 0,
-  }
+  operaiRicostruiti.push({
+    id: item.id,
+    nome: item.nome,
+    ora_inizio: timbratura.ora_entrata || '',
+    ora_fine: timbratura.ora_uscita || '',
+    pausa_minuti: 0,
+    costo_orario: item.costo_orario,
+  })
 })
 
-setOperaiPresentiIds(idsOperai)
-setOrariOperai(nuoviOrari)
+setOperaiRapportino(operaiRicostruiti)
   setMostraForm(true)
 }}
       style={{
@@ -679,227 +670,12 @@ setOrariOperai(nuoviOrari)
         </div>
         <strong>{operaio.nome}</strong>
       </div>
-<section
-  style={{
-    display: 'grid',
-    gap: 10,
-    padding: 14,
-    border: '1px solid #e2e8f0',
-    borderRadius: 10,
-    background: '#f8fafc',
-  }}
->
-  <div>
-    <strong>Operai presenti</strong>
-
-    <div
-      style={{
-        marginTop: 4,
-        fontSize: 13,
-        color: '#64748b',
-      }}
-    >
-      Seleziona gli operai che hanno lavorato oggi in questo cantiere.
-    </div>
-  </div>
-
-  {operaiDisponibili.map((item) => {
-    const selezionato = operaiPresentiIds.includes(item.id)
-
-    const orari = orariOperai[item.id] || {
-  oraInizio: '',
-  oraFine: '',
-  pausaMinuti: 0,
-}
-
-    const ore = calcolaOreRapportino(
-  orari.oraInizio,
-  orari.oraFine,
-  orari.pausaMinuti
-)
-
-    return (
-      <div
-        key={item.id}
-        style={{
-          display: 'grid',
-          gap: 10,
-          padding: 10,
-          border: '1px solid #e2e8f0',
-          borderRadius: 8,
-          background: '#fff',
-        }}
-      >
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            minHeight: 36,
-            cursor: 'pointer',
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={selezionato}
-            onChange={() => {
-              setOperaiPresentiIds((correnti) =>
-                selezionato
-                  ? correnti.filter((id) => id !== item.id)
-                  : [...correnti, item.id]
-              )
-
-              if (selezionato) {
-                setOrariOperai((correnti) => {
-                  const aggiornati = { ...correnti }
-                  delete aggiornati[item.id]
-                  return aggiornati
-                })
-              }
-            }}
-            style={{
-              width: 20,
-              height: 20,
-            }}
-          />
-
-          <span style={{ fontWeight: 600 }}>
-            {item.nome}
-          </span>
-        </label>
-
-        {selezionato && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-gap: 10,
-}}
->
-  <label style={{ fontSize: 13 }}>
-    Ora inizio
-    <input
-      type="time"
-      value={orari.oraInizio}
-      onChange={(event) => {
-        const valore = event.target.value
-
-        setOrariOperai((correnti) => ({
-          ...correnti,
-          [item.id]: {
-            ...orari,
-            oraInizio: valore,
-          },
-        }))
-      }}
-      style={{
-        display: 'block',
-        width: '100%',
-        boxSizing: 'border-box',
-        marginTop: 5,
-        padding: 10,
-        border: '1px solid #cbd5e1',
-        borderRadius: 8,
-        fontSize: 16,
-      }}
-    />
-  </label>
-
-  <label style={{ fontSize: 13 }}>
-    Ora fine
-    <input
-      type="time"
-      value={orari.oraFine}
-      onChange={(event) => {
-        const valore = event.target.value
-
-        setOrariOperai((correnti) => ({
-          ...correnti,
-          [item.id]: {
-            ...orari,
-            oraFine: valore,
-          },
-        }))
-      }}
-      style={{
-        display: 'block',
-        width: '100%',
-        boxSizing: 'border-box',
-        marginTop: 5,
-        padding: 10,
-        border: '1px solid #cbd5e1',
-        borderRadius: 8,
-        fontSize: 16,
-      }}
-    />
-  </label>
-
-  <label
-    style={{
-      gridColumn: '1 / -1',
-      fontSize: 13,
-    }}
-  >
-    Pausa
-    <select
-      value={orari.pausaMinuti}
-      onChange={(event) => {
-        const pausaMinuti = Number(event.target.value)
-
-        setOrariOperai((correnti) => ({
-          ...correnti,
-          [item.id]: {
-            ...orari,
-            pausaMinuti,
-          },
-        }))
-      }}
-      style={{
-        display: 'block',
-        width: '100%',
-        boxSizing: 'border-box',
-        marginTop: 5,
-        padding: 10,
-        border: '1px solid #cbd5e1',
-        borderRadius: 8,
-        background: '#fff',
-        fontSize: 16,
-      }}
-    >
-      <option value={0}>Nessuna</option>
-      <option value={15}>15 minuti</option>
-      <option value={30}>30 minuti</option>
-      <option value={45}>45 minuti</option>
-      <option value={60}>60 minuti</option>
-      <option value={90}>90 minuti</option>
-    </select>
-  </label>
-
-  {orari.oraInizio && orari.oraFine && (
-    <div
-      style={{
-        gridColumn: '1 / -1',
-        fontSize: 14,
-        fontWeight: 700,
-        color: ore > 0 ? '#166534' : '#991b1b',
-      }}
-    >
-      {ore > 0
-        ? `Ore lavorate: ${ore.toLocaleString('it-IT', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}`
-        : 'Controlla gli orari inseriti'}
-    </div>
-  )}
-</div>
-)}
-
-
-      </div>
-    )
-  })}
-</section>
+<RapportinoOperaiEditor
+  operaiDisponibili={operaiDisponibili}
+  value={operaiRapportino}
+  onChange={setOperaiRapportino}
+  disabled={statoInCorso}
+/>
 <section
   style={{
     display: 'grid',
