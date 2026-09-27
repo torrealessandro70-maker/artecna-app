@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { Cantiere, FotoCantiere, Operaio } from '../types'
 import type { ParsedReport } from '../engines/document-intelligence/report-parser'
+import type { PropostaOperaioRiconosciuto } from '../utils/applicaOperaiRiconosciuti'
 import RapportinoActivities, {
   type RapportinoActivity,
 } from './RapportinoActivities'
@@ -111,6 +112,33 @@ export default function RapportinoForm({
     Record<string, SceltaIdentitaOperaio>
   >({})
   const idGruppiIdentita = useId()
+
+  const proposteOperaiRiconosciuti: PropostaOperaioRiconosciuto[] =
+    menzioniOperaiRisolte.flatMap((risultato, indice) => {
+      const menzione = risultato.menzione
+      const chiave = `${indice}:${menzione.inizio}:${menzione.fine}`
+      let operaioId: string
+
+      if (risultato.stato === 'trovato') {
+        operaioId = risultato.operaio.id
+      } else if (risultato.stato === 'ambiguo') {
+        const scelta = scelteIdentitaOperai[chiave]
+        if (scelta?.tipo !== 'candidato' ||
+            !risultato.candidati.some((candidato) => candidato.id === scelta.operaioId)) {
+          return []
+        }
+        operaioId = scelta.operaioId
+      } else {
+        return []
+      }
+
+      return [{
+        chiaveMenzione: chiave,
+        operaioId,
+        ora_inizio: menzione.ora_inizio,
+        ora_fine: menzione.ora_fine,
+      }]
+    })
 
   const fotoCollegate = cantiereRapporto && data
     ? fotoCantiere.filter((foto) => {
