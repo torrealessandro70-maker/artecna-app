@@ -49,6 +49,20 @@ export type Operaio = {
   created_at?: string
 }
 
+export type OperaioRapportinoInput = {
+  id: string
+  nome: string
+  ora_inizio: string
+  ora_fine: string
+  pausa_minuti: number
+  costo_orario?: number
+}
+
+export type OperaioRapportinoPreparato =
+  OperaioRapportinoInput & {
+    readonly ore: number
+  }
+
 export type Timbratura = {
   id?: string
   operaio_nome: string

@@ -1,3 +1,8 @@
+import type {
+  OperaioRapportinoInput,
+  OperaioRapportinoPreparato,
+} from '../types'
+
 export const calcolaOreRapportino = (
   oraInizio: string,
   oraFine: string,
@@ -18,3 +23,15 @@ export const calcolaOreRapportino = (
 
   return minutiLavorati / 60
 }
+
+export const preparaOperaiRapportino = (
+  operai: readonly OperaioRapportinoInput[]
+): OperaioRapportinoPreparato[] =>
+  operai.map((operaio) => ({
+    ...operaio,
+    ore: calcolaOreRapportino(
+      operaio.ora_inizio,
+      operaio.ora_fine,
+      operaio.pausa_minuti
+    ),
+  }))
