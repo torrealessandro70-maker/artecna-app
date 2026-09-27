@@ -596,15 +596,19 @@ setCostoMateriali('')
     String(rapportinoEsistente.quantita_materiali || '')
   )
 const operaiRicostruiti: OperaioRapportinoInput[] = []
-operaiDisponibili.forEach((item) => {
-  const corrispondenze = operaiDisponibili.filter((disponibile) => disponibile.nome === item.nome)
-  if (corrispondenze.length !== 1) return
 
-  const timbrature = timbratureRapportino.filter(
-    (timbratura) => timbratura.operaio_nome === item.nome
+timbratureRapportino.forEach((timbratura) => {
+  const operaioId = String(timbratura.operaio_id || '').trim()
+  if (!operaioId) return
+
+  const item = operaiDisponibili.find(
+    (disponibile) => disponibile.id === operaioId
   )
-  const timbratura = timbrature[timbrature.length - 1]
-  if (!timbratura) return
+  if (!item) return
+
+  if (operaiRicostruiti.some((operaio) => operaio.id === item.id)) {
+    return
+  }
 
   operaiRicostruiti.push({
     id: item.id,
@@ -615,7 +619,6 @@ operaiDisponibili.forEach((item) => {
     costo_orario: item.costo_orario,
   })
 })
-
 setOperaiRapportino(operaiRicostruiti)
   setMessaggioApplicazioneOperai('')
   setMostraForm(true)
