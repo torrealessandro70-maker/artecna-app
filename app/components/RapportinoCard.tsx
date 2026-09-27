@@ -76,6 +76,14 @@ export default function RapportinoCard({
     >
       <strong>{r.cantiere}</strong> — {r.data} — {r.ore} ore
       <br />
+{r.compilato_da_nome && (
+  <>
+    <span style={{ color: '#475569' }}>
+      Compilato da: <strong>{r.compilato_da_nome}</strong>
+    </span>
+    <br />
+  </>
+)}
       {r.note}
       <div style={{ marginTop: 6, color: '#475569' }}>
         Foto collegate: {fotoCollegate.length}
