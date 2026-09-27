@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  useId,
   useState,
   type CSSProperties,
   type Dispatch,
@@ -19,6 +20,10 @@ import {
   risolviMenzioniOperai,
   type MenzioneOperaioRisolta,
 } from '../utils/risolviMenzioniOperai'
+
+type SceltaIdentitaOperaio =
+  | { tipo: 'candidato'; operaioId: string }
+  | { tipo: 'nessuno' }
 
 export type OperaioRapportinoTemp = {
   nome: string
@@ -102,6 +107,10 @@ export default function RapportinoForm({
     menzioniOperaiRisolte,
     setMenzioniOperaiRisolte,
   ] = useState<MenzioneOperaioRisolta[]>([])
+  const [scelteIdentitaOperai, setScelteIdentitaOperai] = useState<
+    Record<string, SceltaIdentitaOperaio>
+  >({})
+  const idGruppiIdentita = useId()
 
   const fotoCollegate = cantiereRapporto && data
     ? fotoCantiere.filter((foto) => {
@@ -174,6 +183,7 @@ export default function RapportinoForm({
     setMenzioniOperaiRisolte(
       risolviMenzioniOperai(report.menzioniOperai, anagraficaRisolvibile)
     )
+    setScelteIdentitaOperai({})
   }
 
   const creaAttivitaDaPromemoria = (activity: ReminderActivityDraft) => {
@@ -271,11 +281,15 @@ export default function RapportinoForm({
         >
           <h3 style={{ margin: 0, fontSize: 16 }}>Riconoscimento operai</h3>
           <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
-            Il riconoscimento non modifica ancora gli operai del rapportino.
+            Le identità riconosciute o confermate non sono ancora applicate
+            agli operai del rapportino.
           </p>
-          {menzioniOperaiRisolte.map((risultato, indice) => (
+          {menzioniOperaiRisolte.map((risultato, indice) => {
+            const chiave = `${indice}:${risultato.menzione.inizio}:${risultato.menzione.fine}`
+            const scelta = scelteIdentitaOperai[chiave]
+            return (
             <div
-              key={indice}
+              key={chiave}
               style={{
                 padding: 12,
                 border: '1px solid #e2e8f0',
@@ -306,17 +320,41 @@ export default function RapportinoForm({
                   : 'Orario non rilevato'}
               </p>
               {risultato.stato === 'ambiguo' && (
-                <div style={{ marginTop: 8 }}>
-                  <span>Possibili:</span>
-                  <ul style={{ margin: '4px 0 0', paddingLeft: 20 }}>
+                <fieldset style={{ margin: '8px 0 0', padding: 0, border: 0, minWidth: 0 }}>
+                  <legend>Possibili per "{risultato.menzione.testo}":</legend>
+                  <div style={{ display: 'grid', gap: 8, marginTop: 4 }}>
                     {risultato.candidati.map((candidato) => (
-                      <li key={candidato.id}>{candidato.nome}</li>
+                      <label key={candidato.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input
+                          type="radio"
+                          name={`${idGruppiIdentita}-${chiave}`}
+                          checked={scelta?.tipo === 'candidato' && scelta.operaioId === candidato.id}
+                          onChange={() => setScelteIdentitaOperai((correnti) => ({
+                            ...correnti,
+                            [chiave]: { tipo: 'candidato', operaioId: candidato.id },
+                          }))}
+                        />
+                        {candidato.nome}
+                      </label>
                     ))}
-                  </ul>
-                </div>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input
+                        type="radio"
+                        name={`${idGruppiIdentita}-${chiave}`}
+                        checked={scelta?.tipo === 'nessuno'}
+                        onChange={() => setScelteIdentitaOperai((correnti) => ({
+                          ...correnti,
+                          [chiave]: { tipo: 'nessuno' },
+                        }))}
+                      />
+                      Non è nessuno di questi
+                    </label>
+                  </div>
+                </fieldset>
               )}
             </div>
-          ))}
+            )
+          })}
         </section>
       )}
 
