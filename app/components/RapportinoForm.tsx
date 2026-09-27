@@ -93,7 +93,6 @@ export default function RapportinoForm({
   modalitaPortaleOperai = false,
   onSalvaPortale,
 }: Props) {
-  const [testoRacconto, setTestoRacconto] = useState('')
   const [attivita, setAttivita] = useState<RapportinoActivity[]>([])
 
   const fotoCollegate = cantiereRapporto && data
@@ -267,8 +266,8 @@ export default function RapportinoForm({
       </label>
 
       <SmartReportAssistant
-        testo={testoRacconto}
-        onChangeTesto={setTestoRacconto}
+        testo={note}
+        onChangeTesto={setNote}
         inputStyle={inputStyle}
         buttonPrimary={buttonPrimary}
         buttonSecondary={buttonSecondary}
