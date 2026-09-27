@@ -309,6 +309,8 @@ if (rapportinoId) {
 
 if (operaiValidi.length > 0) {
   const timbratureDaSalvare = operaiValidi.map((operaio) => ({
+rapportino_id: rapportinoCreato.id,
+operaio_id: operaio.id,
     operaio_nome: operaio.nome,
     cantiere_id: cantiere.id,
     cantiere: cantiere.nome,
