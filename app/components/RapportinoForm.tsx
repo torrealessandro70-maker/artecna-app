@@ -68,6 +68,10 @@ onSalvaPortale?: () => void | Promise<void>
   setFotoRapportinoAperte: (foto: FotoCantiere[]) => void
   onClose: () => void
   modalitaPortaleOperai?: boolean
+  onApplicaOperaiRiconosciuti?: (
+    proposte: readonly PropostaOperaioRiconosciuto[]
+  ) => void
+  applicazioneOperaiDisabilitata?: boolean
 }
 
 export default function RapportinoForm({
@@ -101,6 +105,8 @@ export default function RapportinoForm({
   onClose,
   modalitaPortaleOperai = false,
   onSalvaPortale,
+  onApplicaOperaiRiconosciuti,
+  applicazioneOperaiDisabilitata = false,
 }: Props) {
   const [attivita, setAttivita] = useState<RapportinoActivity[]>([])
   // Batch locale informativo, senza applicazione alla squadra.
@@ -309,8 +315,9 @@ export default function RapportinoForm({
         >
           <h3 style={{ margin: 0, fontSize: 16 }}>Riconoscimento operai</h3>
           <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
-            Le identità riconosciute o confermate non sono ancora applicate
-            agli operai del rapportino.
+            {onApplicaOperaiRiconosciuti
+              ? 'Il riconoscimento e la conferma non modificano la squadra. Usa “Applica operai riconosciuti” per applicare le proposte disponibili.'
+              : 'Le identità riconosciute o confermate non sono ancora applicate agli operai del rapportino.'}
           </p>
           {menzioniOperaiRisolte.map((risultato, indice) => {
             const chiave = `${indice}:${risultato.menzione.inizio}:${risultato.menzione.fine}`
@@ -383,6 +390,19 @@ export default function RapportinoForm({
             </div>
             )
           })}
+          {onApplicaOperaiRiconosciuti && proposteOperaiRiconosciuti.length > 0 && (
+            <button
+              type="button"
+              disabled={applicazioneOperaiDisabilitata}
+              onClick={() => {
+                if (applicazioneOperaiDisabilitata) return
+                onApplicaOperaiRiconosciuti(proposteOperaiRiconosciuti)
+              }}
+              style={{ ...buttonSecondary, justifySelf: 'start' }}
+            >
+              Applica operai riconosciuti
+            </button>
+          )}
         </section>
       )}
 
