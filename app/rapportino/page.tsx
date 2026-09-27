@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import RapportinoForm from '../components/RapportinoForm'
+import { calcolaOreRapportino } from '../utils/rapportinoOperai'
 
 type OperaioAccesso = {
   id: string
@@ -21,27 +22,6 @@ type OrariOperaio = {
 type CantiereAccesso = {
   id: string
   nome: string
-}
-
-const calcolaOre = (
-  oraInizio: string,
-  oraFine: string,
-  pausaMinuti: number
-) => {
-  if (!oraInizio || !oraFine) return 0
-
-  const [inizioOre, inizioMinuti] = oraInizio.split(':').map(Number)
-  const [fineOre, fineMinuti] = oraFine.split(':').map(Number)
-
-  const minutiInizio = inizioOre * 60 + inizioMinuti
-  const minutiFine = fineOre * 60 + fineMinuti
-
-  const minutiLavorati =
-    minutiFine - minutiInizio - Math.max(0, pausaMinuti)
-
-  if (minutiLavorati <= 0) return 0
-
-  return minutiLavorati / 60
 }
 
 export default function RapportinoOperaiPage() {
@@ -92,7 +72,7 @@ const operaiRapportinoPreparati = operaiDisponibili
       ora_inizio: orari.oraInizio,
       ora_fine: orari.oraFine,
       pausa_minuti: orari.pausaMinuti,
-      ore: calcolaOre(
+      ore: calcolaOreRapportino(
         orari.oraInizio,
         orari.oraFine,
         orari.pausaMinuti
@@ -732,7 +712,7 @@ setOrariOperai(nuoviOrari)
   pausaMinuti: 0,
 }
 
-    const ore = calcolaOre(
+    const ore = calcolaOreRapportino(
   orari.oraInizio,
   orari.oraFine,
   orari.pausaMinuti
