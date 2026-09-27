@@ -16,6 +16,9 @@ export async function POST(req: Request) {
 
     const cantiereId = String(body?.cantiereId || '').trim()
 const rapportinoId = String(body?.rapportinoId || '').trim()
+const compilatoDaOperaioId = String(
+  body?.compilatoDaOperaioId || ''
+).trim()
     const data = String(body?.data || '').trim()
     const note = String(body?.note || '').trim()
     const materiali = String(body?.materiali || '').trim()
@@ -78,6 +81,47 @@ const foto = Array.isArray(body?.foto)
     }
 
     const cantiere = cantieri[0]
+let compilatore: { id: string; nome: string } | null = null
+
+if (!rapportinoId) {
+  if (!compilatoDaOperaioId) {
+    return NextResponse.json(
+      { error: 'Compilatore del rapportino non disponibile' },
+      { status: 400 }
+    )
+  }
+
+  const { data: operaioCompilatore, error: erroreCompilatore } =
+    await supabase
+      .from('operai')
+      .select('id,nome')
+      .eq('id', compilatoDaOperaioId)
+      .maybeSingle()
+
+  if (erroreCompilatore) {
+    console.error(
+      'Errore verifica compilatore rapportino:',
+      erroreCompilatore.message
+    )
+
+    return NextResponse.json(
+      { error: 'Impossibile verificare il compilatore' },
+      { status: 500 }
+    )
+  }
+
+  if (!operaioCompilatore) {
+    return NextResponse.json(
+      { error: 'Compilatore del rapportino non valido' },
+      { status: 400 }
+    )
+  }
+
+  compilatore = {
+    id: String(operaioCompilatore.id),
+    nome: String(operaioCompilatore.nome || ''),
+  }
+}
 
     if (rapportinoId) {
   const { data: rapportinoDaModificare, error: erroreVerifica } =
@@ -214,7 +258,13 @@ const costoManodopera = operaiValidi.reduce(
       .eq('cantiere_id', cantiere.id)
   : supabase
       .from('rapportini')
-      .insert([nuovoRapportino])
+      .insert([
+        {
+          ...nuovoRapportino,
+          compilato_da_operaio_id: compilatore!.id,
+          compilato_da_nome: compilatore!.nome,
+        },
+      ])
 
 const { data: rapportinoCreato, error: erroreSalvataggio } =
   await queryRapportino
