@@ -917,6 +917,11 @@ const [operaiRapportinoTemp, setOperaiRapportinoTemp] = useState<
 }[]
 >([])
 
+const [
+  operaiRapportinoModificati,
+  setOperaiRapportinoModificati,
+] = useState(false)
+
 const [popupFotoSopralluogo, setPopupFotoSopralluogo] =
   useState(false)
 
@@ -5723,6 +5728,11 @@ const [mostraAttrezziCantiere, setMostraAttrezziCantiere] = useState(false)
   }
 
   const resetFormRapportino = () => {
+    setOperaiRapportinoModificati(false)
+    if (rapportinoInModifica !== null) {
+      setOperaiRapportinoTemp([])
+      setPopupOperaiRapportino(false)
+    }
     setRapportinoInModifica(null)
     setCantiereRapporto('')
     setData('')
@@ -7913,6 +7923,9 @@ fotoGiaInserite.add(chiaveFoto)
 
 
   const preparaModificaRapportino = (r: Rapportino, scorriInAlto = true) => {
+    setOperaiRapportinoModificati(false)
+    setOperaiRapportinoTemp([])
+    setPopupOperaiRapportino(false)
     setRapportinoInModifica(r.id || null)
     setCantiereRapporto(r.cantiere ?? '')
     setData(r.data ?? '')
@@ -7938,28 +7951,37 @@ fotoGiaInserite.add(chiaveFoto)
   return
 }
 
+    const aggiornamentoOperai = operaiRapportinoModificati
+      ? {
+          operai: operaiRapportinoTemp
+            .filter((o) => o.nome && o.ore > 0)
+            .map(
+              (o) =>
+                `${o.nome} (${o.ora_inizio || '-'} / ${o.ora_fine || '-'} - ${o.ore}h)`
+            )
+            .join(', '),
+          ore: String(
+            operaiRapportinoTemp.reduce((tot, o) => tot + o.ore, 0)
+          ),
+          costo_manodopera: operaiRapportinoTemp.reduce(
+            (tot, o) => tot + o.ore * o.costo_orario,
+            0
+          ),
+        }
+      : {}
+
     const { error } = await supabase
       .from('rapportini')
       .update({
   cantiere: cantiereRapporto,
   data,
-  ore: String(
-    operaiRapportinoTemp.reduce(
-      (tot, o) => tot + o.ore,
-      0
-    )
-  ),
   note,
-  operai,
-  costo_manodopera: operaiRapportinoTemp.reduce(
-    (tot, o) => tot + o.ore * o.costo_orario,
-    0
-  ),
   numero_presenti: numeroPresenti,
   ore_per_operaio: orePerOperaio,
   materiali,
   quantita_materiali: quantitaMateriali,
   costo_materiali: costoMateriali,
+  ...aggiornamentoOperai,
 })
       .eq('id', rapportinoInModifica)
 
@@ -12129,7 +12151,12 @@ textarea:not(.impostazioni-input) {
   <PopupOperaiRapportino
     operaiAnagrafica={operaiAnagrafica}
     operaiRapportinoTemp={operaiRapportinoTemp}
-    setOperaiRapportinoTemp={setOperaiRapportinoTemp}
+    setOperaiRapportinoTemp={(azione) => {
+      if (rapportinoInModifica !== null) {
+        setOperaiRapportinoModificati(true)
+      }
+      setOperaiRapportinoTemp(azione)
+    }}
     inputStyle={inputStyle}
     buttonPrimary={buttonPrimary}
     buttonSecondary={buttonSecondary}
