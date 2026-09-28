@@ -1,11 +1,12 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import type { Timbratura } from '../types'
 import RegistroTimbratureRiepilogo from './RegistroTimbratureRiepilogo'
 
 type Props = {
   timbratureFiltrateRegistro: any[]
-  calcolaOre: (t: any) => number
+  calcolaOre: (t: Timbratura) => number
   calcolaCostoTimbratura: (t: any) => number
   formatMoney: (v: any) => string
   excelTable: CSSProperties
@@ -28,6 +29,8 @@ type Props = {
   setTimbraturaRegistroEntrata: (v: string) => void
   timbraturaRegistroUscita: string
   setTimbraturaRegistroUscita: (v: string) => void
+  timbraturaRegistroPausa: string
+  setTimbraturaRegistroPausa: (v: string) => void
   operaiAnagrafica: any[]
   cantieri: any[]
   calcolaOreTimbratura: (entrata?: string, uscita?: string) => any
@@ -64,6 +67,8 @@ export default function RegistroTimbraturePanel({
   setTimbraturaRegistroEntrata,
   timbraturaRegistroUscita,
   setTimbraturaRegistroUscita,
+  timbraturaRegistroPausa,
+  setTimbraturaRegistroPausa,
   operaiAnagrafica,
   cantieri,
   calcolaOreTimbratura,
@@ -74,6 +79,15 @@ export default function RegistroTimbraturePanel({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+
+  const formattaOreLavorate = (ore: number) => {
+    const minutiTotali = Math.round(ore * 60)
+    const oreIntere = Math.floor(minutiTotali / 60)
+    const minuti = minutiTotali % 60
+    return minuti === 0
+      ? `${oreIntere} ${oreIntere === 1 ? 'ora' : 'ore'}`
+      : `${oreIntere}h ${minuti}m`
+  }
 
   const timbratureOrdinate = [...timbratureFiltrateRegistro].sort((a, b) => {
     const valoreA = (a as any)[ordinaTimbratureCampo] || ''
@@ -167,7 +181,9 @@ export default function RegistroTimbraturePanel({
                 Uscita ↕
               </th>
 
+              <th style={excelTh}>Pausa</th>
               <th style={excelTh}>Fascia oraria</th>
+              <th style={excelTh}>Ore lavorate</th>
               <th style={excelTh}>Azioni</th>
             </tr>
           </thead>
@@ -275,12 +291,47 @@ export default function RegistroTimbraturePanel({
                 </td>
 
                 <td style={excelTd}>
+                  {timbraturaRegistroEdit === String(t.id) ? (
+                    <select
+                      value={timbraturaRegistroPausa}
+                      onChange={(e) => setTimbraturaRegistroPausa(e.target.value)}
+                      style={excelInput}
+                      aria-label="Pausa"
+                    >
+                      <option value="0">Nessuna</option>
+                      <option value="15">15 minuti</option>
+                      <option value="30">30 minuti</option>
+                      <option value="45">45 minuti</option>
+                      <option value="60">60 minuti</option>
+                      <option value="90">90 minuti</option>
+                    </select>
+                  ) : Number(t.pausa_minuti || 0) > 0 ? (
+                    `${Number(t.pausa_minuti)} min`
+                  ) : (
+                    '-'
+                  )}
+                </td>
+
+                <td style={excelTd}>
                   {timbraturaRegistroEdit === String(t.id)
                     ? calcolaOreTimbratura(
                         timbraturaRegistroEntrata,
                         timbraturaRegistroUscita
                       )
                     : calcolaOreTimbratura(t.ora_entrata, t.ora_uscita)}
+                </td>
+
+                <td style={excelTd}>
+                  {formattaOreLavorate(calcolaOre(
+                    timbraturaRegistroEdit === String(t.id)
+                      ? {
+                          ...t,
+                          ora_entrata: timbraturaRegistroEntrata,
+                          ora_uscita: timbraturaRegistroUscita,
+                          pausa_minuti: Number(timbraturaRegistroPausa || 0),
+                        }
+                      : t
+                  ))}
                 </td>
 
                 <td style={excelTd}>

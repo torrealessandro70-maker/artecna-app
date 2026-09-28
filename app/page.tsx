@@ -796,6 +796,7 @@ const [timbraturaRegistroOperaio, setTimbraturaRegistroOperaio] = useState('')
 const [timbraturaRegistroCantiere, setTimbraturaRegistroCantiere] = useState('')
 const [timbraturaRegistroEntrata, setTimbraturaRegistroEntrata] = useState('')
 const [timbraturaRegistroUscita, setTimbraturaRegistroUscita] = useState('')
+const [timbraturaRegistroPausa, setTimbraturaRegistroPausa] = useState('0')
 const [timbraturaRegistroOre, setTimbraturaRegistroOre] = useState('')
 
 
@@ -6555,6 +6556,7 @@ const preparaModificaRegistroTimbratura = (t: any) => {
   setTimbraturaRegistroCantiere(t.cantiere || '')
   setTimbraturaRegistroEntrata(t.ora_entrata || '')
   setTimbraturaRegistroUscita(t.ora_uscita || '')
+  setTimbraturaRegistroPausa(String(Number(t.pausa_minuti || 0)))
   setTimbraturaRegistroOre(String(t.ore_totali || ''))
 }
 
@@ -6565,11 +6567,14 @@ const annullaModificaRegistroTimbratura = () => {
   setTimbraturaRegistroCantiere('')
   setTimbraturaRegistroEntrata('')
   setTimbraturaRegistroUscita('')
+  setTimbraturaRegistroPausa('0')
   setTimbraturaRegistroOre('')
 }
 
 const salvaModificaRegistroTimbratura = async (id?: string) => {
   if (!id) return
+
+  const pausa = Math.max(0, Number(timbraturaRegistroPausa || 0))
 
   const { error } = await supabase
     .from('timbrature')
@@ -6579,6 +6584,7 @@ const salvaModificaRegistroTimbratura = async (id?: string) => {
       cantiere: timbraturaRegistroCantiere,
       ora_entrata: timbraturaRegistroEntrata,
       ora_uscita: timbraturaRegistroUscita,
+      pausa_minuti: pausa,
     })
     .eq('id', id)
 
@@ -13403,6 +13409,8 @@ salvaRevisionePreventivoAi={salvaRevisionePreventivoAi}
   setTimbraturaRegistroEntrata={setTimbraturaRegistroEntrata}
   timbraturaRegistroUscita={timbraturaRegistroUscita}
   setTimbraturaRegistroUscita={setTimbraturaRegistroUscita}
+  timbraturaRegistroPausa={timbraturaRegistroPausa}
+  setTimbraturaRegistroPausa={setTimbraturaRegistroPausa}
 
   pagamentoOperaioRegistroEdit={pagamentoOperaioRegistroEdit}
   pagamentoOperaioRegistroNome={pagamentoOperaioRegistroNome}
