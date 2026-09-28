@@ -12,7 +12,7 @@ import type { PropostaOperaioRiconosciuto } from '../utils/applicaOperaiRiconosc
 import RapportinoForm, {
   type OperaioRapportinoTemp,
 } from './RapportinoForm'
-import RapportiniList from './RapportiniList'
+import RapportiniTable from './RapportiniTable'
 
 type Props = {
   cardStyle: CSSProperties
@@ -239,14 +239,14 @@ export default function RapportiniPanel({
         </div>
       </div>
 
-      <RapportiniList
-        rapportiniFiltrati={rapportiniFiltrati}
+      <RapportiniTable
+        rapportini={rapportiniFiltrati}
+        mostraCantiere={true}
         fotoCantiere={fotoCantiere}
         setFotoRapportinoAperte={setFotoRapportinoAperte}
-        preparaModificaRapportino={preparaModificaRapportino}
+        onModifica={preparaModificaRapportino}
         eliminaRapportino={eliminaRapportino}
         generaPdfRapportinoFotografico={generaPdfRapportinoFotografico}
-        buttonSecondary={buttonSecondary}
       />
     </section>
   )
