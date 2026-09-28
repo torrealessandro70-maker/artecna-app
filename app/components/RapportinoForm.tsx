@@ -7,7 +7,8 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react'
-import type { Cantiere, FotoCantiere, Operaio } from '../types'
+import type { Cantiere, FotoCantiere, Operaio, OperaioRapportinoInput } from '../types'
+import RapportinoOperaiEditor from './RapportinoOperaiEditor'
 import type { ParsedReport } from '../engines/document-intelligence/report-parser'
 import type { PropostaOperaioRiconosciuto } from '../utils/applicaOperaiRiconosciuti'
 import RapportinoActivities, {
@@ -59,6 +60,9 @@ type Props = {
   avviaDettaturaRapportino?: () => void
   fermaDettaturaRapportino?: () => void
   operaiAnagrafica: Operaio[]
+  operaiRapportino?: readonly OperaioRapportinoInput[]
+  onChangeOperaiRapportino?: (operai: OperaioRapportinoInput[]) => void
+  operaiRapportinoDisabilitati?: boolean
   operaiRapportinoTemp: OperaioRapportinoTemp[]
  setOperaiRapportinoTemp: Dispatch<
   SetStateAction<OperaioRapportinoTemp[]>
@@ -100,6 +104,9 @@ export default function RapportinoForm({
   avviaDettaturaRapportino,
   fermaDettaturaRapportino,
   operaiAnagrafica,
+  operaiRapportino,
+  onChangeOperaiRapportino,
+  operaiRapportinoDisabilitati = false,
   operaiRapportinoTemp,
   setPopupFotoRapportino,
   fotoCantiere,
@@ -429,6 +436,18 @@ export default function RapportinoForm({
             </button>
           )}
         </section>
+      )}
+
+      {operaiRapportino && onChangeOperaiRapportino && (
+        <RapportinoOperaiEditor
+          operaiDisponibili={operaiAnagrafica.filter(
+            (operaio): operaio is Operaio & { id: string } =>
+              typeof operaio.id === 'string' && operaio.id.trim().length > 0
+          )}
+          value={operaiRapportino}
+          onChange={onChangeOperaiRapportino}
+          disabled={operaiRapportinoDisabilitati}
+        />
       )}
 
       {operaiRapportinoTemp.length > 0 && (
