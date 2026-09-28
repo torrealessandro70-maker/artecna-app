@@ -6623,6 +6623,38 @@ const cambiaOrdinamentoCantieri = (
     alert(`Operaio ${nuovoStato === 'attivo' ? 'riattivato' : 'sospeso'}`)
   }
 
+  const cambiaAccessoPortale = async (
+    operaio: Operaio,
+    abilitato: boolean
+  ) => {
+    if (!operaio.id) return
+
+    if (abilitato && !String(operaio.pin || '').trim()) {
+      alert('Assegna prima un PIN all’operaio')
+      return
+    }
+
+    const { error } = await supabase
+      .from('operai')
+      .update({
+        accesso_portale: abilitato,
+      })
+      .eq('id', operaio.id)
+
+    if (error) {
+      alert('Errore modifica accesso portale: ' + error.message)
+      return
+    }
+
+    await caricaOperai()
+
+    alert(
+      abilitato
+        ? 'Accesso al portale abilitato'
+        : 'Accesso al portale disabilitato'
+    )
+  }
+
 
 const coloreStatoSopralluogo = (
   stato?: string
@@ -12984,6 +13016,7 @@ onDocumentAction={gestisciAzioneDocumento}
   formatMoney={formatMoney}
   preparaModificaOperaio={preparaModificaOperaio}
   cambiaStatoOperaio={cambiaStatoOperaio}
+  cambiaAccessoPortale={cambiaAccessoPortale}
   eliminaOperaio={eliminaOperaio}
   buttonPrimary={buttonPrimary}
   buttonSecondary={buttonSecondary}

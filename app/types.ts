@@ -49,6 +49,7 @@ export type Operaio = {
   stato?: string
   costo_orario?: number
   created_at?: string
+  accesso_portale?: boolean
 }
 
 export type OperaioRapportinoInput = {

@@ -8,7 +8,8 @@ type Props = {
   badgeStyle: (stato?: string) => CSSProperties
   formatMoney: (v: number) => string
   preparaModificaOperaio: (o: any) => void
- cambiaStatoOperaio: (o: any, stato: 'attivo' | 'sospeso') => void | Promise<void>
+  cambiaStatoOperaio: (o: any, stato: 'attivo' | 'sospeso') => void | Promise<void>
+  cambiaAccessoPortale?: (o: any, abilitato: boolean) => void | Promise<void>
   eliminaOperaio: (id?: string) => void | Promise<void>
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
@@ -21,6 +22,7 @@ export default function OperaioCard({
   formatMoney,
   preparaModificaOperaio,
   cambiaStatoOperaio,
+  cambiaAccessoPortale,
   eliminaOperaio,
   buttonPrimary,
   buttonSecondary,
@@ -44,6 +46,11 @@ export default function OperaioCard({
       <br />
       PIN: {o.pin || '-'}
       <br />
+      Accesso portale:{' '}
+      <strong>
+        {o.accesso_portale ? 'ABILITATO' : 'DISABILITATO'}
+      </strong>
+      <br />
       Costo orario: {formatMoney(Number(o.costo_orario || 0))}
       <br />
       Nota: {o.nota || '-'}
@@ -59,6 +66,23 @@ export default function OperaioCard({
         <button onClick={() => preparaModificaOperaio(o)} style={buttonSecondary}>
           Modifica
         </button>
+
+               {cambiaAccessoPortale && (
+          <button
+            onClick={() =>
+              cambiaAccessoPortale(o, !Boolean(o.accesso_portale))
+            }
+            style={
+              o.accesso_portale
+                ? buttonSecondary
+                : buttonPrimary
+            }
+          >
+            {o.accesso_portale
+              ? 'Disabilita portale'
+              : 'Abilita portale'}
+          </button>
+        )}
 
         {o.stato === 'sospeso' ? (
           <button

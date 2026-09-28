@@ -51,8 +51,9 @@ export default function OperaiContainer(props: Props) {
     operaiFiltrati={p.operaiFiltrati}
     badgeStyle={p.badgeStyle}
     formatMoney={p.formatMoney}
-    preparaModificaOperaio={p.preparaModificaOperaio}
+       preparaModificaOperaio={p.preparaModificaOperaio}
     cambiaStatoOperaio={p.cambiaStatoOperaio}
+    cambiaAccessoPortale={p.cambiaAccessoPortale}
     eliminaOperaio={p.eliminaOperaio}
     buttonPrimary={p.buttonPrimary}
     buttonSecondary={p.buttonSecondary}

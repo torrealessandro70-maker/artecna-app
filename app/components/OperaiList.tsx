@@ -9,6 +9,7 @@ type Props = {
   formatMoney: (v: number) => string
   preparaModificaOperaio: (o: any) => void
   cambiaStatoOperaio: (o: any, stato: 'attivo' | 'sospeso') => void | Promise<void>
+  cambiaAccessoPortale?: (o: any, abilitato: boolean) => void | Promise<void>
   eliminaOperaio: (id?: string) => void | Promise<void>
   buttonPrimary: CSSProperties
   buttonSecondary: CSSProperties
@@ -20,6 +21,7 @@ export default function OperaiList({
   formatMoney,
   preparaModificaOperaio,
   cambiaStatoOperaio,
+  cambiaAccessoPortale,
   eliminaOperaio,
   buttonPrimary,
   buttonSecondary,
@@ -39,6 +41,7 @@ export default function OperaiList({
           formatMoney={formatMoney}
           preparaModificaOperaio={preparaModificaOperaio}
           cambiaStatoOperaio={cambiaStatoOperaio}
+          cambiaAccessoPortale={cambiaAccessoPortale}
           eliminaOperaio={eliminaOperaio}
           buttonPrimary={buttonPrimary}
           buttonSecondary={buttonSecondary}

@@ -44,9 +44,15 @@ type Props = {
   formatMoney: (value: number) => string
   preparaModificaOperaio: (operaio: any) => void
   cambiaStatoOperaio: (
-  operaio: any,
-  stato: 'attivo' | 'sospeso'
-) => void | Promise<void>
+    operaio: any,
+    stato: 'attivo' | 'sospeso'
+  ) => void | Promise<void>
+
+  cambiaAccessoPortale: (
+    operaio: any,
+    abilitato: boolean
+  ) => void | Promise<void>
+
   eliminaOperaio: (id?: string) => void | Promise<void>
 
   buttonPrimary: CSSProperties
@@ -103,6 +109,7 @@ export default function OperaiAnagraficaPanel(p: Props) {
         formatMoney={p.formatMoney}
         preparaModificaOperaio={p.preparaModificaOperaio}
         cambiaStatoOperaio={p.cambiaStatoOperaio}
+        cambiaAccessoPortale={p.cambiaAccessoPortale}
         eliminaOperaio={p.eliminaOperaio}
         buttonPrimary={p.buttonPrimary}
         buttonSecondary={p.buttonSecondary}
