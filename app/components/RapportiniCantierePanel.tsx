@@ -51,7 +51,12 @@ export default function RapportiniCantierePanel({
       </div>
       {mostraForm && (
         <div ref={formRef} tabIndex={-1} style={{ padding: '0 18px 18px' }}>
-          <RapportinoForm {...formProps} onClose={() => setMostraForm(false)} />
+          <RapportinoForm
+            {...formProps}
+            operaiRapportino={formProps.rapportinoInModifica === null ? formProps.operaiRapportino : undefined}
+            onChangeOperaiRapportino={formProps.rapportinoInModifica === null ? formProps.onChangeOperaiRapportino : undefined}
+            onClose={() => setMostraForm(false)}
+          />
         </div>
       )}
       {rapportiniCantiere.length === 0 ? (

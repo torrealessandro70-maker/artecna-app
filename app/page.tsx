@@ -12676,6 +12676,9 @@ strutturaPreventivoEsistente,
     rapportinoInModifica, cantieri, inputStyle, buttonPrimary, buttonSecondary,
     ascoltoRapportino, avviaDettaturaRapportino, fermaDettaturaRapportino,
     operaiAnagrafica, operaiRapportinoTemp, setOperaiRapportinoTemp,
+    operaiRapportino: squadraRapportino,
+    onChangeOperaiRapportino: cambiaSquadraRapportino,
+    operaiRapportinoDisabilitati: rapportinoInModifica !== null,
     setPopupFotoRapportino, fotoCantiere, setFotoRapportinoAperte,
   }}
   setSezioneAttiva={setSezioneAttiva}
