@@ -7310,22 +7310,21 @@ const salvaRapportino = async () => {
 
   const cantiereSelezionato = corrispondenzeCantiere[0]
 
-  const operaiValidi = operaiRapportinoTemp.filter(
-    (o) => o.nome && o.ore > 0
+  const operaiValidi = squadraRapportinoPreparata.filter(
+    (o) => typeof o.id === 'string' && o.id.trim().length > 0 && o.nome.trim().length > 0 && o.ore > 0
   )
 
   const costoManodoperaRapportino = operaiValidi.reduce(
-    (tot, o) => tot + Number(o.ore || 0) * Number(o.costo_orario || 0),
+    (tot, o) => tot + o.ore * Number(o.costo_orario || 0),
     0
   )
 
   const oreTotali = operaiValidi.reduce(
-    (tot, o) => tot + Number(o.ore || 0),
+    (tot, o) => tot + o.ore,
     0
   )
 
   const riepilogoOperai =
-    operai ||
     operaiValidi
       .map(
         (o) =>
@@ -7339,7 +7338,7 @@ const salvaRapportino = async () => {
   cantiere_id: cantiereSelezionato.id,
   cantiere: cantiereSelezionato.nome,
   data,
-    ore: String(oreTotali || ore || ''),
+    ore: String(oreTotali),
     note,
     operai: riepilogoOperai,
     costo_manodopera: costoManodoperaRapportino,
@@ -7359,8 +7358,18 @@ const salvaRapportino = async () => {
     return
   }
 
+  if (!rapportinoCreato?.id) {
+    alert('Rapportino salvato, ma impossibile identificare il record creato.')
+    await caricaRapportini()
+    return
+  }
+
+  const rapportinoId = String(rapportinoCreato.id)
+
   if (operaiValidi.length > 0) {
     const timbratureDaSalvare = operaiValidi.map((o) => ({
+  rapportino_id: rapportinoId,
+  operaio_id: o.id,
   operaio_nome: o.nome,
   cantiere_id: cantiereSelezionato.id,
   cantiere: cantiereSelezionato.nome,
@@ -7382,8 +7391,6 @@ const salvaRapportino = async () => {
       return
     }
   }
-
-  const rapportinoId = rapportinoCreato?.id ? String(rapportinoCreato.id) : undefined
 
   setUltimoRapportino({ ...nuovoRapportino, id: rapportinoId })
 
