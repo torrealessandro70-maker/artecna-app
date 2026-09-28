@@ -83,46 +83,59 @@ const foto = Array.isArray(body?.foto)
     const cantiere = cantieri[0]
 let compilatore: { id: string; nome: string } | null = null
 
+if (!compilatoDaOperaioId) {
+  return NextResponse.json(
+    { error: 'Accesso al portale non disponibile' },
+    { status: 403 }
+  )
+}
+
+const { data: operaioCompilatore, error: erroreCompilatore } =
+  await supabase
+    .from('operai')
+    .select('id,nome,stato,accesso_portale')
+    .eq('id', compilatoDaOperaioId)
+    .maybeSingle()
+
+if (erroreCompilatore) {
+  console.error(
+    'Errore verifica compilatore rapportino:',
+    erroreCompilatore.message
+  )
+
+  return NextResponse.json(
+    { error: 'Impossibile verificare il compilatore' },
+    { status: 500 }
+  )
+}
+
+if (!operaioCompilatore) {
+  return NextResponse.json(
+    { error: 'Accesso al portale non autorizzato' },
+    { status: 403 }
+  )
+}
+
+if (!operaioCompilatore.accesso_portale) {
+  return NextResponse.json(
+    { error: 'Accesso al portale non autorizzato' },
+    { status: 403 }
+  )
+}
+
+if (operaioCompilatore.stato === 'sospeso') {
+  return NextResponse.json(
+    { error: 'Operaio non abilitato' },
+    { status: 403 }
+  )
+}
+
 if (!rapportinoId) {
-  if (!compilatoDaOperaioId) {
-    return NextResponse.json(
-      { error: 'Compilatore del rapportino non disponibile' },
-      { status: 400 }
-    )
-  }
-
-  const { data: operaioCompilatore, error: erroreCompilatore } =
-    await supabase
-      .from('operai')
-      .select('id,nome')
-      .eq('id', compilatoDaOperaioId)
-      .maybeSingle()
-
-  if (erroreCompilatore) {
-    console.error(
-      'Errore verifica compilatore rapportino:',
-      erroreCompilatore.message
-    )
-
-    return NextResponse.json(
-      { error: 'Impossibile verificare il compilatore' },
-      { status: 500 }
-    )
-  }
-
-  if (!operaioCompilatore) {
-    return NextResponse.json(
-      { error: 'Compilatore del rapportino non valido' },
-      { status: 400 }
-    )
-  }
-
   compilatore = {
     id: String(operaioCompilatore.id),
     nome: String(operaioCompilatore.nome || ''),
   }
 }
-
     if (rapportinoId) {
   const { data: rapportinoDaModificare, error: erroreVerifica } =
     await supabase
