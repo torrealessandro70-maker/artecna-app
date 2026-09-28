@@ -73,6 +73,7 @@ export type Timbratura = {
   data: string
   ora_entrata?: string
   ora_uscita?: string
+  pausa_minuti?: number
   stato?: string
   created_at?: string
 }

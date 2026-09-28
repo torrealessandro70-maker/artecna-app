@@ -10470,7 +10470,11 @@ const calcolaOre = (t: Timbratura) => {
 
   if (entrata === null || uscita === null || uscita < entrata) return 0
 
-  return (uscita - entrata) / 60
+  const pausa = Math.max(0, Number(t.pausa_minuti || 0))
+  const minutiNetti = uscita - entrata - pausa
+  if (minutiNetti <= 0) return 0
+
+  return minutiNetti / 60
 }
 
 
