@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
     const { data: operai, error: erroreOperaio } = await supabase
       .from('operai')
-      .select('id,nome,stato')
+      .select('id,nome,stato,accesso_portale')
       .eq('pin', pin)
       .limit(2)
 
@@ -51,6 +51,12 @@ export async function POST(req: Request) {
     }
 
     const operaio = operai[0]
+if (!operaio.accesso_portale) {
+  return NextResponse.json(
+    { error: 'Accesso al portale non autorizzato' },
+    { status: 403 }
+  )
+}
 
     if (operaio.stato === 'sospeso') {
       return NextResponse.json(
