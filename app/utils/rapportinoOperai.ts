@@ -3,6 +3,26 @@ import type {
   OperaioRapportinoPreparato,
 } from '../types'
 
+export const calcolaOreNetteTimbratura = (
+  oraEntrata?: string | null,
+  oraUscita?: string | null,
+  pausaMinuti?: number | null
+): number => {
+  const formatoOrario = /^(?:[01]\d|2[0-3]):[0-5]\d$/
+  if (!oraEntrata || !oraUscita ||
+      !formatoOrario.test(oraEntrata) || !formatoOrario.test(oraUscita)) return 0
+
+  const [entrataOre, entrataMinuti] = oraEntrata.split(':').map(Number)
+  const [uscitaOre, uscitaMinuti] = oraUscita.split(':').map(Number)
+  const entrata = entrataOre * 60 + entrataMinuti
+  const uscita = uscitaOre * 60 + uscitaMinuti
+  if (uscita <= entrata) return 0
+
+  const pausa = Math.max(0, Number(pausaMinuti || 0))
+  const minutiNetti = uscita - entrata - pausa
+  return minutiNetti <= 0 ? 0 : minutiNetti / 60
+}
+
 export const calcolaOreRapportino = (
   oraInizio: string,
   oraFine: string,

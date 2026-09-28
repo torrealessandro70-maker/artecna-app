@@ -21,7 +21,7 @@ import Tesseract from 'tesseract.js'
 import JSZip from 'jszip'
 import { cleanDictationText } from './utils/cleanDictationText'
 import type { OperaioRapportinoInput } from './types'
-import { preparaOperaiRapportino } from './utils/rapportinoOperai'
+import { preparaOperaiRapportino, calcolaOreNetteTimbratura } from './utils/rapportinoOperai'
 import PopupModificaTimbratura from './components/PopupModificaTimbratura'
 import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
@@ -9728,13 +9728,11 @@ if (modalita === 'documento' && !totale) {
   }
 
   const calcolaCostoTimbratura = (timbratura: Timbratura) => {
-    const entrata = parseOra(timbratura.ora_entrata)
-    const uscita = parseOra(timbratura.ora_uscita)
-
-    if (entrata === null || uscita === null || uscita < entrata) return 0
-
-    const minuti = uscita - entrata
-    const ore = minuti / 60
+    const ore = calcolaOreNetteTimbratura(
+      timbratura.ora_entrata,
+      timbratura.ora_uscita,
+      timbratura.pausa_minuti
+    )
 
     const operaio = operaiAnagrafica.find((o) => o.nome === timbratura.operaio_nome)
     const costoOrario = Number(operaio?.costo_orario || 0)
@@ -10465,16 +10463,11 @@ const sectionTitle = {
   color: '#94a3b8',
 }
 const calcolaOre = (t: Timbratura) => {
-  const entrata = parseOra(t.ora_entrata)
-  const uscita = parseOra(t.ora_uscita)
-
-  if (entrata === null || uscita === null || uscita < entrata) return 0
-
-  const pausa = Math.max(0, Number(t.pausa_minuti || 0))
-  const minutiNetti = uscita - entrata - pausa
-  if (minutiNetti <= 0) return 0
-
-  return minutiNetti / 60
+  return calcolaOreNetteTimbratura(
+    t.ora_entrata,
+    t.ora_uscita,
+    t.pausa_minuti
+  )
 }
 
 
