@@ -20,6 +20,8 @@ import * as XLSX from 'xlsx'
 import Tesseract from 'tesseract.js'
 import JSZip from 'jszip'
 import { cleanDictationText } from './utils/cleanDictationText'
+import type { OperaioRapportinoInput } from './types'
+import { preparaOperaiRapportino } from './utils/rapportinoOperai'
 import PopupModificaTimbratura from './components/PopupModificaTimbratura'
 import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
@@ -907,6 +909,10 @@ const [ordineSpeseCampo, setOrdineSpeseCampo] =
 
 const [popupOperaiRapportino, setPopupOperaiRapportino] = useState(false)
 
+const [squadraRapportino, setSquadraRapportino] =
+  useState<OperaioRapportinoInput[]>([])
+const squadraRapportinoPreparata = preparaOperaiRapportino(squadraRapportino)
+
 const [operaiRapportinoTemp, setOperaiRapportinoTemp] = useState<
  {
   nome: string
@@ -921,6 +927,11 @@ const [
   operaiRapportinoModificati,
   setOperaiRapportinoModificati,
 ] = useState(false)
+
+const cambiaSquadraRapportino = (nuovaSquadra: OperaioRapportinoInput[]) => {
+  setSquadraRapportino(nuovaSquadra)
+  setOperaiRapportinoModificati(true)
+}
 
 const [popupFotoSopralluogo, setPopupFotoSopralluogo] =
   useState(false)
@@ -5728,6 +5739,7 @@ const [mostraAttrezziCantiere, setMostraAttrezziCantiere] = useState(false)
   }
 
   const resetFormRapportino = () => {
+    setSquadraRapportino([])
     setOperaiRapportinoModificati(false)
     if (rapportinoInModifica !== null) {
       setOperaiRapportinoTemp([])
@@ -7955,6 +7967,7 @@ fotoGiaInserite.add(chiaveFoto)
 
 
   const preparaModificaRapportino = (r: Rapportino, scorriInAlto = true) => {
+    setSquadraRapportino([])
     setOperaiRapportinoModificati(false)
     setOperaiRapportinoTemp([])
     setPopupOperaiRapportino(false)
