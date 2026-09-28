@@ -1,9 +1,9 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import PopupModificaOperaio from './PopupModificaOperaio'
 import OperaioForm from './OperaioForm'
-import OperaiList from './OperaiList'
+import OperaiTable from './OperaiTable'
 
 type Props = {
   cardStyle: CSSProperties
@@ -60,6 +60,11 @@ type Props = {
 }
 
 export default function OperaiAnagraficaPanel(p: Props) {
+  const [mostraSospesi, setMostraSospesi] = useState(false)
+  const operaiVisualizzati = p.operaiFiltrati.filter(
+    (o) => mostraSospesi || o.stato !== 'sospeso'
+  )
+
   return (
     <div style={p.cardStyle}>
       <h2>Anagrafica operai</h2>
@@ -103,8 +108,18 @@ export default function OperaiAnagraficaPanel(p: Props) {
         buttonPrimary={p.buttonPrimary}
       />
 
-      <OperaiList
-        operaiFiltrati={p.operaiFiltrati}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <button type="button" style={p.buttonSecondary} onClick={() => setMostraSospesi((valore) => !valore)}>
+          {mostraSospesi ? 'Nascondi sospesi' : 'Mostra sospesi'}
+        </button>
+        <span style={{ color: '#64748b', fontSize: 13 }}>Operai visualizzati: {operaiVisualizzati.length}</span>
+      </div>
+
+      {p.operaiFiltrati.length > 0 && operaiVisualizzati.length === 0 ? (
+        <p>Nessun operaio attivo</p>
+      ) : (
+      <OperaiTable
+        operai={operaiVisualizzati}
         badgeStyle={p.badgeStyle}
         formatMoney={p.formatMoney}
         preparaModificaOperaio={p.preparaModificaOperaio}
@@ -114,6 +129,7 @@ export default function OperaiAnagraficaPanel(p: Props) {
         buttonPrimary={p.buttonPrimary}
         buttonSecondary={p.buttonSecondary}
       />
+      )}
     </div>
   )
 }
