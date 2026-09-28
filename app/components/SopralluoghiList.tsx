@@ -2,6 +2,17 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 
+const excelTable: CSSProperties = {
+  width: '100%', borderCollapse: 'collapse', tableLayout: 'auto', fontSize: 14, minWidth: 1100,
+}
+const excelTh: CSSProperties = {
+  background: '#e5e7eb', border: '1px solid #cbd5e1', padding: '8px 10px',
+  fontWeight: 700, textAlign: 'left', whiteSpace: 'nowrap',
+}
+const excelTd: CSSProperties = {
+  border: '1px solid #cbd5e1', padding: '7px 10px', verticalAlign: 'middle', lineHeight: 1.35,
+}
+
 type Props = {
   sopralluoghi: any[]
   mostraElencoSopralluoghi: boolean
@@ -187,17 +198,18 @@ const toggleInLavorazione = (id: string) => {
   </div>
 </div>
 
-    {sopralluoghiInLavorazioneLista.map((s) => (
-    <div
-  key={s.id}
-  role="button"
-  tabIndex={0}
-  onClick={() => {
+    <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map((titolo) => (
+        <th key={titolo} scope="col" style={excelTh}>{titolo}</th>
+      ))}</tr></thead><tbody>{sopralluoghiInLavorazioneLista.map((s) => (
+    <tr key={s.id}
+role="button"
+tabIndex={0}
+onClick={() => {
     setUltimoSopralluogo(s)
     setSopralluogoAperto(s)
     setMostraElencoSopralluoghi(false)
   }}
-  onKeyDown={(event) => {
+onKeyDown={(event) => {
     if (
       event.key === 'Enter' ||
       event.key === ' '
@@ -208,64 +220,14 @@ const toggleInLavorazione = (id: string) => {
       setSopralluogoAperto(s)
       setMostraElencoSopralluoghi(false)
     }
-  }}
-  style={{
-    textAlign: 'left',
-    padding: 12,
-    border: '1px solid #bbf7d0',
-    borderRadius: 12,
-    background: '#ffffff',
-    cursor: 'pointer',
-  }}
->
-  <strong style={{ display: 'block', color: '#0f172a' }}>
-    {s.cliente || 'Sopralluogo'}
-  </strong>
-
-  <div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>
-    {s.indirizzo || '-'}
-  </div>
-
- <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-  <span
-    style={{
-      padding: '3px 8px',
-      borderRadius: 999,
-      background: '#dcfce7',
-      color: '#166534',
-      fontSize: 12,
-      fontWeight: 800,
-    }}
-  >
-    {s.stato || 'Stato non impostato'}
-  </span>
-
-  {s.data_sopralluogo && (
-    <span
-      style={{
-        padding: '3px 8px',
-        borderRadius: 999,
-        background: '#f1f5f9',
-        color: '#475569',
-        fontSize: 12,
-        fontWeight: 700,
-      }}
-    >
-      {s.data_sopralluogo}
-    </span>
-  )}
-</div>
-
-<div
-  style={{
-    display: 'grid',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTop: '1px solid #e5e7eb',
-  }}
->
-  <button
+  }} style={{ background: '#fff', cursor: 'pointer' }}>
+<td style={{ ...excelTd, whiteSpace: 'nowrap' }}>{s.data_sopralluogo || '-'}</td>
+        <td style={excelTd}>{s.cliente || '-'}</td>
+        <td style={excelTd}>{s.indirizzo || '-'}</td>
+        <td style={{ ...excelTd, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{[s.tipo_lavoro, s.note].filter(Boolean).join('\n') || '-'}</td>
+        <td style={excelTd}>{s.stato || '-'}</td>
+<td style={excelTd}>
+<div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><button
     type="button"
     onClick={(event) => {
       event.stopPropagation()
@@ -275,22 +237,14 @@ const toggleInLavorazione = (id: string) => {
     }}
     style={{
       ...buttonPrimary,
-      width: '100%',
-      padding: '12px 14px',
+      width: 'auto',
+      padding: '8px 12px',
       fontWeight: 900,
     }}
   >
     ✏️ Continua sopralluogo
   </button>
-
-  <div
-    style={{
-      display: 'flex',
-      gap: 8,
-      flexWrap: 'wrap',
-    }}
-  >
-    <button
+<button
       type="button"
       onClick={(event) => {
         event.stopPropagation()
@@ -306,8 +260,7 @@ const toggleInLavorazione = (id: string) => {
     >
       📂 Fascicolo
     </button>
-
-    <button
+<button
       type="button"
       onClick={(event) => {
         event.stopPropagation()
@@ -321,8 +274,7 @@ const toggleInLavorazione = (id: string) => {
     >
       📄 PDF
     </button>
-
-    <button
+<button
       type="button"
       onClick={(event) => {
         event.stopPropagation()
@@ -335,34 +287,33 @@ const toggleInLavorazione = (id: string) => {
       }}
     >
       🤖 Preventivo
-    </button>
-   </div>
-</div>
-</div>
-    ))}
+    </button></div>
+</td></tr>
+    ))}</tbody></table></div>
   </section>
 )}
 
+      <h3>Archivio sopralluoghi</h3>
       {sopralluoghi.length === 0 ? (
         <p>Nessun sopralluogo salvato</p>
       ) : (
        <div style={{ display: 'grid', gap: 10 }}>
-  {sopralluoghiOrdinati
+  <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map((titolo) => (
+        <th key={titolo} scope="col" style={excelTh}>{titolo}</th>
+      ))}</tr></thead><tbody>{sopralluoghiOrdinati
     .slice(0, mostraElencoSopralluoghi ? undefined : 1)
     .map((s, i) => (
-              <div
-                key={s.id || i}
-                style={{
-                  padding: 12,
-                  border: '1px solid #ddd',
-                  borderRadius: 10,
-                  background: '#fff',
-                }}
-              >
-               <div
+              <tr key={s.id || i} style={{ background: '#fff' }}>
+<td style={{ ...excelTd, whiteSpace: 'nowrap' }}>{s.data_sopralluogo || '-'}</td>
+        <td style={excelTd}>{s.cliente || '-'}</td>
+        <td style={excelTd}>{s.indirizzo || '-'}</td>
+        <td style={{ ...excelTd, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{[s.tipo_lavoro, s.note].filter(Boolean).join('\n') || '-'}</td>
+        <td style={excelTd}>{s.stato || '-'}</td>
+<td style={excelTd}>
+<div
   style={{
     display: 'flex',
-    gap: 8,
+    gap: 6,
     alignItems: 'center',
     flexWrap: 'wrap',
     width: 'auto',
@@ -472,18 +423,8 @@ const toggleInLavorazione = (id: string) => {
                     🗑 Elimina
                   </button>
                 </div>
-
-                <strong>{s.cliente}</strong>
-                <br />
-                {s.indirizzo || '-'}
-                <br />
-                Data: {s.data_sopralluogo || '-'}
-                <br />
-                Tipo lavoro: {s.tipo_lavoro || '-'}
-                <br />
-                Stato: {s.stato || '-'}
-              </div>
-            ))}
+</td></tr>
+            ))}</tbody></table></div>
         </div>
       )}
     </>
