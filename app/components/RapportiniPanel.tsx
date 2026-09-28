@@ -98,6 +98,27 @@ export default function RapportiniPanel({
   setPopupFotoRapportino,
 }: Props) {
   const [mostraInserimento, setMostraInserimento] = useState(false)
+  const [ricercaStorico, setRicercaStorico] = useState('')
+  const [cantiereStorico, setCantiereStorico] = useState('')
+  const cantieriStorico = Array.from(new Set(
+    rapportiniFiltrati.map((rapportino) => String(rapportino.cantiere || '').trim()).filter(Boolean)
+  ))
+  const [dataDaStorico, setDataDaStorico] = useState('')
+  const [dataAStorico, setDataAStorico] = useState('')
+  const queryStorico = ricercaStorico.trim().toLowerCase()
+  const adesso = new Date()
+  const oggi = `${adesso.getFullYear()}-${String(adesso.getMonth() + 1).padStart(2, '0')}-${String(adesso.getDate()).padStart(2, '0')}`
+  const rapportiniVisualizzati = rapportiniFiltrati.filter((rapportino) => {
+    const dataRapportino = String(rapportino.data || '')
+    if (!queryStorico && !cantiereStorico && !dataDaStorico && !dataAStorico) return dataRapportino === oggi
+    if (cantiereStorico && String(rapportino.cantiere || '').trim() !== cantiereStorico) return false
+    if (dataDaStorico && dataRapportino < dataDaStorico) return false
+    if (dataAStorico && dataRapportino > dataAStorico) return false
+    return !queryStorico || [
+      rapportino.cantiere, rapportino.note, rapportino.operai,
+      rapportino.compilato_da_nome, rapportino.materiali,
+    ].some((valore) => String(valore || '').toLowerCase().includes(queryStorico))
+  })
 
   useEffect(() => {
     if (rapportinoInModifica !== null) {
@@ -239,8 +260,52 @@ export default function RapportiniPanel({
         </div>
       </div>
 
+      <div style={{ display: 'grid', gap: 10, marginBottom: 12 }}>
+        <label style={{ display: 'grid', gap: 4 }}>
+          Cerca rapportino
+          <input
+            type="search"
+            value={ricercaStorico}
+            onChange={(e) => setRicercaStorico(e.target.value)}
+            style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+          />
+        </label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: 10 }}>
+          <label style={{ display: 'grid', gap: 4 }}>
+            Cantiere
+            <select value={cantiereStorico} onChange={(e) => setCantiereStorico(e.target.value)} style={inputStyle}>
+              <option value="">Tutti i cantieri</option>
+              {cantieriStorico.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 4 }}>
+            Da
+            <input type="date" value={dataDaStorico} onChange={(e) => setDataDaStorico(e.target.value)} style={inputStyle} />
+          </label>
+          <label style={{ display: 'grid', gap: 4 }}>
+            A
+            <input type="date" value={dataAStorico} onChange={(e) => setDataAStorico(e.target.value)} style={inputStyle} />
+          </label>
+          <button type="button" style={buttonSecondary} onClick={() => {
+            setRicercaStorico('')
+            setCantiereStorico('')
+            setDataDaStorico('')
+            setDataAStorico('')
+          }}>
+            Reset filtri
+          </button>
+        </div>
+        <div style={{ color: '#64748b', fontSize: 13 }}>
+          Rapportini visualizzati: {rapportiniVisualizzati.length}
+        </div>
+      </div>
+
+      {rapportiniVisualizzati.length === 0 ? (
+        <p>Nessun rapportino trovato</p>
+      ) : (
       <RapportiniTable
-        rapportini={rapportiniFiltrati}
+        rapportini={rapportiniVisualizzati}
+        queryRicerca={ricercaStorico}
         mostraCantiere={true}
         fotoCantiere={fotoCantiere}
         setFotoRapportinoAperte={setFotoRapportinoAperte}
@@ -248,6 +313,7 @@ export default function RapportiniPanel({
         eliminaRapportino={eliminaRapportino}
         generaPdfRapportinoFotografico={generaPdfRapportinoFotografico}
       />
+      )}
     </section>
   )
 }

@@ -1,12 +1,13 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { FotoCantiere, Rapportino } from '../types'
 import { apriFotoRapportino, fotoCollegataAlRapportino } from './RapportinoCard'
 
 type Props = {
   rapportini: Rapportino[]
   mostraCantiere?: boolean
+  queryRicerca?: string
   fotoCantiere: FotoCantiere[]
   onModifica: (rapportino: Rapportino) => void
   setFotoRapportinoAperte: (foto: FotoCantiere[]) => void
@@ -25,9 +26,26 @@ const azione: CSSProperties = {
 }
 
 export default function RapportiniTable({
-  rapportini, mostraCantiere = false, fotoCantiere, onModifica,
+  rapportini, mostraCantiere = false, queryRicerca = '', fotoCantiere, onModifica,
   setFotoRapportinoAperte, eliminaRapportino, generaPdfRapportinoFotografico,
 }: Props) {
+  const evidenziaTesto = (testo: string) => {
+    const query = queryRicerca.trim().toLowerCase()
+    if (!query) return testo
+    const segmenti: ReactNode[] = []
+    const testoMinuscolo = testo.toLowerCase()
+    let posizione = 0
+    let indice = testoMinuscolo.indexOf(query)
+    while (indice !== -1) {
+      segmenti.push(testo.slice(posizione, indice))
+      segmenti.push(<mark key={indice}>{testo.slice(indice, indice + query.length)}</mark>)
+      posizione = indice + query.length
+      indice = testoMinuscolo.indexOf(query, posizione)
+    }
+    segmenti.push(testo.slice(posizione))
+    return segmenti
+  }
+
   return (
     <div role="region" aria-label="Tabella rapportini" tabIndex={0} style={{ overflowX: 'auto' }}>
       <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 950 }}>
@@ -55,11 +73,11 @@ export default function RapportiniTable({
             return (
               <tr key={r.id || indice}>
                 <td style={{ ...cella, whiteSpace: 'nowrap' }}>{data || '—'}</td>
-                {mostraCantiere && <td style={cella}>{r.cantiere}</td>}
-                <td style={{ ...cella, minWidth: 250, maxWidth: 450, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{r.note || '—'}</td>
-                <td style={{ ...cella, minWidth: 140, whiteSpace: 'pre-wrap' }}>{r.operai || '—'}</td>
+                {mostraCantiere && <td style={cella}>{evidenziaTesto(r.cantiere || '')}</td>}
+                <td style={{ ...cella, minWidth: 250, maxWidth: 450, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{evidenziaTesto(r.note || '—')}</td>
+                <td style={{ ...cella, minWidth: 140, whiteSpace: 'pre-wrap' }}>{evidenziaTesto(r.operai || '—')}</td>
 <td style={{ ...cella, minWidth: 140 }}>
-  {r.compilato_da_nome || '—'}
+  {evidenziaTesto(r.compilato_da_nome || '—')}
 </td>
                 <td style={cella}>{r.ore ?? '—'}</td>
                 <td style={cella}>{fotoCollegate.length}</td>
