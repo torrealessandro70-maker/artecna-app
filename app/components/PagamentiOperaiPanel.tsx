@@ -572,14 +572,10 @@ export default function PagamentiOperaiPanel({
             0
           )
 
-          const totaleOrePeriodo = timbratureOperaioPeriodo.reduce((tot, t) => {
-            const entrata = parseOra(t.ora_entrata)
-            const uscita = parseOra(t.ora_uscita)
-
-            if (entrata === null || uscita === null || uscita < entrata) return tot
-
-            return tot + (uscita - entrata) / 60
-          }, 0)
+          const totaleOrePeriodo = timbratureOperaioPeriodo.reduce(
+            (tot, t) => tot + calcolaOre(t),
+            0
+          )
 
           const pagamentiOperaioPeriodo = pagamentiOperai.filter((p) => {
             if (p.operaio_nome !== o.nome) return false
@@ -668,19 +664,7 @@ export default function PagamentiOperaiPanel({
                   )
 
                   const oreCantiere = timbratureOperaioCantiere.reduce(
-                    (tot, t) => {
-                      const entrata = parseOra(t.ora_entrata)
-                      const uscita = parseOra(t.ora_uscita)
-
-                      if (
-                        entrata === null ||
-                        uscita === null ||
-                        uscita < entrata
-                      )
-                        return tot
-
-                      return tot + (uscita - entrata) / 60
-                    },
+                    (tot, t) => tot + calcolaOre(t),
                     0
                   )
 
