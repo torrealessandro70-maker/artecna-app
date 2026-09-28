@@ -329,6 +329,7 @@ operaio_id: operaio.id,
     data,
     ora_entrata: operaio.ora_inizio || null,
     ora_uscita: operaio.ora_fine || null,
+    pausa_minuti: Number(operaio.pausa_minuti || 0),
     stato: 'da rapportino',
   }))
 

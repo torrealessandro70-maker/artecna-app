@@ -7376,6 +7376,7 @@ const salvaRapportino = async () => {
   data,
   ora_entrata: o.ora_inizio || null,
   ora_uscita: o.ora_fine || null,
+  pausa_minuti: Number(o.pausa_minuti || 0),
   stato: 'da rapportino',
 }))
 
