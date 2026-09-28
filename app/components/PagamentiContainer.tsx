@@ -27,6 +27,7 @@ export default function PagamentiContainer(props: Props) {
           formatMoney={p.formatMoney}
           calcolaOreNumero={p.calcolaOreNumero}
           totaleOreOperaio={p.totaleOreOperaio}
+          calcolaOre={p.calcolaOre}
           calcolaCostoTimbratura={p.calcolaCostoTimbratura}
           parseOra={p.parseOra}
           totaleMaturatoOperai={p.totaleMaturatoOperai}

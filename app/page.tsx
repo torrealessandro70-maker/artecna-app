@@ -10361,7 +10361,7 @@ const totaleOreOperaio = (operaio: string) => {
     .filter((t) => t.operaio_nome === operaio)
     .reduce(
       (tot, t) =>
-        tot + calcolaOreNumero(t.ora_entrata, t.ora_uscita),
+        tot + calcolaOreNetteTimbratura(t.ora_entrata, t.ora_uscita, t.pausa_minuti),
       0
     )
 }
@@ -13252,6 +13252,7 @@ onDocumentAction: gestisciAzioneDocumento,
   formatMoney={formatMoney}
   calcolaOreNumero={calcolaOreNumero}
   totaleOreOperaio={totaleOreOperaio}
+  calcolaOre={calcolaOre}
   calcolaCostoTimbratura={calcolaCostoTimbratura}
   parseOra={parseOra}
 

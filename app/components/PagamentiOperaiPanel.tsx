@@ -1,6 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import type { Timbratura } from '../types'
 
 type Props = {
   cardStyle: CSSProperties
@@ -13,6 +14,7 @@ type Props = {
   formatMoney: (v: number) => string
   calcolaOreNumero: (entrata: string, uscita: string) => number
   totaleOreOperaio: (nome: string) => number
+  calcolaOre: (t: Timbratura) => number
   calcolaCostoTimbratura: (t: any) => number
   parseOra: (ora: string) => number | null
 
@@ -72,6 +74,7 @@ export default function PagamentiOperaiPanel({
   formatMoney,
   calcolaOreNumero,
   totaleOreOperaio,
+  calcolaOre,
   calcolaCostoTimbratura,
   parseOra,
 
@@ -268,7 +271,7 @@ export default function PagamentiOperaiPanel({
               {timbrature
                 .reduce(
                   (tot, t) =>
-                    tot + calcolaOreNumero(t.ora_entrata, t.ora_uscita),
+                    tot + calcolaOre(t),
                   0
                 )
                 .toFixed(1)}{' '}
