@@ -82,7 +82,7 @@ export default function RegistroHeaderToolbar({
         }}
       >
         <input
-          placeholder="Ricerca libera..."
+          placeholder={registroTab === 'timbrature' ? 'Cerca operaio o cantiere...' : 'Ricerca libera...'}
           value={registroCerca}
           onChange={(e) => setRegistroCerca(e.target.value)}
           style={{
@@ -93,7 +93,7 @@ export default function RegistroHeaderToolbar({
           }}
         />
 
-        <input
+        {registroTab !== 'timbrature' && <input
           placeholder={
             registroTab === 'preventivi'
               ? 'Cantiere / File'
@@ -109,7 +109,7 @@ export default function RegistroHeaderToolbar({
               ? 'Operaio / Metodo'
               : 'Filtro specifico'
           }
-        />
+        />}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span>Da</span>

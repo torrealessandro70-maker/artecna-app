@@ -4779,7 +4779,7 @@ useEffect(() => {
 }, [registroFiltroCantiere, cantieriRegistroDisponibili])
 
 const timbratureFiltrateRegistro = timbrature.filter((t) => {
-  const cerca = registroCerca.toLowerCase()
+  const cerca = registroCerca.trim().toLowerCase()
 
   const passaRicerca =
     String(t.operaio_nome || '').toLowerCase().includes(cerca) ||

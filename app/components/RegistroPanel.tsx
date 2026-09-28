@@ -177,6 +177,7 @@ salvaRevisionePreventivoAi={p.salvaRevisionePreventivoAi}
 )}
      {p.registroTab === 'timbrature' && (
   <RegistroTimbraturePanel
+    queryRicerca={p.registroCerca}
     timbratureFiltrateRegistro={p.timbratureFiltrateRegistro}
     calcolaOre={p.calcolaOre}
     calcolaCostoTimbratura={p.calcolaCostoTimbratura}

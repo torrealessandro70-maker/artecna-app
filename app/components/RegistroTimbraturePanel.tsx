@@ -5,6 +5,7 @@ import type { Timbratura } from '../types'
 import RegistroTimbratureRiepilogo from './RegistroTimbratureRiepilogo'
 
 type Props = {
+  queryRicerca: string
   timbratureFiltrateRegistro: any[]
   calcolaOre: (t: Timbratura) => number
   calcolaCostoTimbratura: (t: any) => number
@@ -43,6 +44,7 @@ type Props = {
 }
 
 export default function RegistroTimbraturePanel({
+  queryRicerca,
   timbratureFiltrateRegistro,
   calcolaOre,
   calcolaCostoTimbratura,
@@ -79,6 +81,23 @@ export default function RegistroTimbraturePanel({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+
+  const cerca = queryRicerca.trim().toLowerCase()
+  const evidenziaTesto = (testo: string) => {
+    if (!cerca) return testo
+    const segmenti = []
+    const normalizzato = testo.toLowerCase()
+    let posizione = 0
+    let indice = normalizzato.indexOf(cerca)
+    while (indice !== -1) {
+      segmenti.push(testo.slice(posizione, indice))
+      segmenti.push(<mark key={indice}>{testo.slice(indice, indice + cerca.length)}</mark>)
+      posizione = indice + cerca.length
+      indice = normalizzato.indexOf(cerca, posizione)
+    }
+    segmenti.push(testo.slice(posizione))
+    return segmenti
+  }
 
   const formattaOreLavorate = (ore: number) => {
     const minutiTotali = Math.round(ore * 60)
@@ -233,7 +252,7 @@ export default function RegistroTimbraturePanel({
                         ))}
                     </select>
                   ) : (
-                    t.operaio_nome || '-'
+                    evidenziaTesto(t.operaio_nome || '-')
                   )}
                 </td>
 
@@ -256,7 +275,7 @@ export default function RegistroTimbraturePanel({
                         ))}
                     </select>
                   ) : (
-                    t.cantiere || '-'
+                    evidenziaTesto(t.cantiere || '-')
                   )}
                 </td>
 
