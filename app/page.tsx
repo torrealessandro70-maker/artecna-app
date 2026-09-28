@@ -6,7 +6,7 @@ import { eliminaPreventivoConFile, eliminaFilePreventivi, messaggioEliminazione 
 
 import { parsePreventivoItems, type VoceAnalizzata } from './engines/document-intelligence/preventivo-items'
 
-import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
 import type { RigaMaterialeFatturaStorico } from './utils/suggerimentiMateriali'
 import { calcolaAttrezzoManuale } from './utils/attrezzoManuale'
 import type { RigaAttrezzaturaFatturaStorico } from './utils/suggerimentiAttrezzature'
@@ -869,6 +869,7 @@ const [mostraAcconti, setMostraAcconti] = useState(false)
 
 const [registroTab, setRegistroTab] = useState('cantieri')
 const [registroCerca, setRegistroCerca] = useState('')
+const [registroFiltroCantiere, setRegistroFiltroCantiere] = useState('')
 const [registroFiltroNome, setRegistroFiltroNome] = useState('')
 const [registroFiltroDataDa, setRegistroFiltroDataDa] = useState('')
 const [registroFiltroDataA, setRegistroFiltroDataA] = useState('')
@@ -4747,6 +4748,36 @@ const utileCumulatoPerCantiere = () => {
   })
 }
 
+const cantieriRegistroDisponibili = useMemo(() => {
+  if (registroTab !== 'timbrature') return []
+  const timbratureNelPeriodo = timbrature.filter((t) => {
+    if (registroFiltroDataDa || registroFiltroDataA) {
+      const data = String(t.data || '')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return false
+
+      const dataVerificata = new Date(data + 'T00:00:00Z')
+      if (
+        Number.isNaN(dataVerificata.getTime()) ||
+        dataVerificata.toISOString().slice(0, 10) !== data
+      ) return false
+
+      if (registroFiltroDataDa && data < registroFiltroDataDa) return false
+      if (registroFiltroDataA && data > registroFiltroDataA) return false
+    }
+    return true
+  })
+  return [...new Set(timbratureNelPeriodo
+    .map((t) => String(t.cantiere || '').trim())
+    .filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }))
+}, [timbrature, registroTab, registroFiltroDataDa, registroFiltroDataA])
+
+useEffect(() => {
+  if (registroFiltroCantiere && !cantieriRegistroDisponibili.includes(registroFiltroCantiere)) {
+    setRegistroFiltroCantiere('')
+  }
+}, [registroFiltroCantiere, cantieriRegistroDisponibili])
+
 const timbratureFiltrateRegistro = timbrature.filter((t) => {
   const cerca = registroCerca.toLowerCase()
 
@@ -4755,6 +4786,24 @@ const timbratureFiltrateRegistro = timbrature.filter((t) => {
     String(t.cantiere || '').toLowerCase().includes(cerca)
 
   if (!passaRicerca) return false
+
+  if (registroFiltroDataDa || registroFiltroDataA) {
+    const data = String(t.data || '')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return false
+
+    const dataVerificata = new Date(data + 'T00:00:00Z')
+    if (
+      Number.isNaN(dataVerificata.getTime()) ||
+      dataVerificata.toISOString().slice(0, 10) !== data
+    ) return false
+
+    if (registroFiltroDataDa && data < registroFiltroDataDa) return false
+    if (registroFiltroDataA && data > registroFiltroDataA) return false
+  }
+
+  if (registroFiltroCantiere && String(t.cantiere || '').trim() !== registroFiltroCantiere) {
+    return false
+  }
 
   if (
     filtroTimbratureDal &&
@@ -13363,6 +13412,9 @@ onDocumentAction: gestisciAzioneDocumento,
   registroFiltroDataA={registroFiltroDataA}
   setRegistroFiltroDataA={setRegistroFiltroDataA}
   setRegistroFiltroNome={setRegistroFiltroNome}
+  registroFiltroCantiere={registroFiltroCantiere}
+  setRegistroFiltroCantiere={setRegistroFiltroCantiere}
+  cantieriRegistroDisponibili={cantieriRegistroDisponibili}
 salvaRevisionePreventivoAi={salvaRevisionePreventivoAi}
 
   cantieri={cantieri}

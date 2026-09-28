@@ -32,6 +32,9 @@ export default function RegistroPanel(props: any) {
         registroFiltroDataA={p.registroFiltroDataA}
         setRegistroFiltroDataA={p.setRegistroFiltroDataA}
         setRegistroFiltroNome={p.setRegistroFiltroNome}
+        registroFiltroCantiere={p.registroFiltroCantiere}
+        setRegistroFiltroCantiere={p.setRegistroFiltroCantiere}
+        cantieriRegistroDisponibili={p.cantieriRegistroDisponibili}
         buttonSecondary={p.buttonSecondary}
       />
 

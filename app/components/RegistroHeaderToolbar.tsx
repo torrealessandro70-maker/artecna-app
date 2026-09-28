@@ -12,6 +12,9 @@ type Props = {
   registroFiltroDataA: string
   setRegistroFiltroDataA: (value: string) => void
   setRegistroFiltroNome: (value: string) => void
+  registroFiltroCantiere: string
+  setRegistroFiltroCantiere: (value: string) => void
+  cantieriRegistroDisponibili: readonly string[]
   buttonSecondary: CSSProperties
 }
 
@@ -25,6 +28,9 @@ export default function RegistroHeaderToolbar({
   registroFiltroDataA,
   setRegistroFiltroDataA,
   setRegistroFiltroNome,
+  registroFiltroCantiere,
+  setRegistroFiltroCantiere,
+  cantieriRegistroDisponibili,
   buttonSecondary,
 }: Props) {
   return (
@@ -135,12 +141,29 @@ export default function RegistroHeaderToolbar({
           />
         </div>
 
+        {registroTab === 'timbrature' && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            Cantiere
+            <select
+              value={registroFiltroCantiere}
+              onChange={(e) => setRegistroFiltroCantiere(e.target.value)}
+              style={{ padding: 10, borderRadius: 8, border: '1px solid #cbd5e1' }}
+            >
+              <option value="">Tutti i cantieri</option>
+              {cantieriRegistroDisponibili.map((cantiere) => (
+                <option key={cantiere} value={cantiere}>{cantiere}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
         <button
           onClick={() => {
             setRegistroCerca('')
             setRegistroFiltroNome('')
             setRegistroFiltroDataDa('')
             setRegistroFiltroDataA('')
+            setRegistroFiltroCantiere('')
           }}
           style={buttonSecondary}
         >
