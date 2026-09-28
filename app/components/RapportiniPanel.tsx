@@ -7,7 +7,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react'
-import type { Cantiere, Operaio } from '../types'
+import type { Cantiere, Operaio, OperaioRapportinoInput } from '../types'
 import RapportinoForm, {
   type OperaioRapportinoTemp,
 } from './RapportinoForm'
@@ -46,6 +46,9 @@ type Props = {
   avviaDettaturaRapportino: () => void
   fermaDettaturaRapportino: () => void
   operaiAnagrafica: Operaio[]
+  operaiRapportino: readonly OperaioRapportinoInput[]
+  onChangeOperaiRapportino: (operai: OperaioRapportinoInput[]) => void
+  operaiRapportinoDisabilitati?: boolean
   operaiRapportinoTemp: OperaioRapportinoTemp[]
   setOperaiRapportinoTemp: Dispatch<
     SetStateAction<OperaioRapportinoTemp[]>
@@ -84,6 +87,9 @@ export default function RapportiniPanel({
   avviaDettaturaRapportino,
   fermaDettaturaRapportino,
   operaiAnagrafica,
+  operaiRapportino,
+  onChangeOperaiRapportino,
+  operaiRapportinoDisabilitati,
   operaiRapportinoTemp,
   setOperaiRapportinoTemp,
   setPopupFotoRapportino,
@@ -158,6 +164,9 @@ export default function RapportiniPanel({
           avviaDettaturaRapportino={avviaDettaturaRapportino}
           fermaDettaturaRapportino={fermaDettaturaRapportino}
           operaiAnagrafica={operaiAnagrafica}
+          operaiRapportino={rapportinoInModifica === null ? operaiRapportino : undefined}
+          onChangeOperaiRapportino={rapportinoInModifica === null ? onChangeOperaiRapportino : undefined}
+          operaiRapportinoDisabilitati={operaiRapportinoDisabilitati}
           operaiRapportinoTemp={operaiRapportinoTemp}
           setOperaiRapportinoTemp={setOperaiRapportinoTemp}
           setPopupFotoRapportino={setPopupFotoRapportino}

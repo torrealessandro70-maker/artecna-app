@@ -13117,6 +13117,9 @@ onDocumentAction={gestisciAzioneDocumento}
     avviaDettaturaRapportino={avviaDettaturaRapportino}
     fermaDettaturaRapportino={fermaDettaturaRapportino}
     operaiAnagrafica={operaiAnagrafica}
+    operaiRapportino={squadraRapportino}
+    onChangeOperaiRapportino={cambiaSquadraRapportino}
+    operaiRapportinoDisabilitati={rapportinoInModifica !== null}
     operaiRapportinoTemp={operaiRapportinoTemp}
     setOperaiRapportinoTemp={setOperaiRapportinoTemp}
     setPopupFotoRapportino={setPopupFotoRapportino}
