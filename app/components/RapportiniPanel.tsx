@@ -8,6 +8,7 @@ import {
   type SetStateAction,
 } from 'react'
 import type { Cantiere, Operaio, OperaioRapportinoInput } from '../types'
+import type { PropostaOperaioRiconosciuto } from '../utils/applicaOperaiRiconosciuti'
 import RapportinoForm, {
   type OperaioRapportinoTemp,
 } from './RapportinoForm'
@@ -48,6 +49,7 @@ type Props = {
   operaiAnagrafica: Operaio[]
   operaiRapportino: readonly OperaioRapportinoInput[]
   onChangeOperaiRapportino: (operai: OperaioRapportinoInput[]) => void
+  onApplicaOperaiRiconosciuti?: (proposte: readonly PropostaOperaioRiconosciuto[]) => void
   operaiRapportinoDisabilitati?: boolean
   operaiRapportinoTemp: OperaioRapportinoTemp[]
   setOperaiRapportinoTemp: Dispatch<
@@ -89,6 +91,7 @@ export default function RapportiniPanel({
   operaiAnagrafica,
   operaiRapportino,
   onChangeOperaiRapportino,
+  onApplicaOperaiRiconosciuti,
   operaiRapportinoDisabilitati,
   operaiRapportinoTemp,
   setOperaiRapportinoTemp,
@@ -166,6 +169,7 @@ export default function RapportiniPanel({
           operaiAnagrafica={operaiAnagrafica}
           operaiRapportino={rapportinoInModifica === null ? operaiRapportino : undefined}
           onChangeOperaiRapportino={rapportinoInModifica === null ? onChangeOperaiRapportino : undefined}
+          onApplicaOperaiRiconosciuti={rapportinoInModifica === null ? onApplicaOperaiRiconosciuti : undefined}
           operaiRapportinoDisabilitati={operaiRapportinoDisabilitati}
           operaiRapportinoTemp={operaiRapportinoTemp}
           setOperaiRapportinoTemp={setOperaiRapportinoTemp}

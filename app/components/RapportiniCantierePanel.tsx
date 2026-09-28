@@ -55,6 +55,7 @@ export default function RapportiniCantierePanel({
             {...formProps}
             operaiRapportino={formProps.rapportinoInModifica === null ? formProps.operaiRapportino : undefined}
             onChangeOperaiRapportino={formProps.rapportinoInModifica === null ? formProps.onChangeOperaiRapportino : undefined}
+            onApplicaOperaiRiconosciuti={formProps.rapportinoInModifica === null ? formProps.onApplicaOperaiRiconosciuti : undefined}
             onClose={() => setMostraForm(false)}
           />
         </div>

@@ -22,6 +22,7 @@ import JSZip from 'jszip'
 import { cleanDictationText } from './utils/cleanDictationText'
 import type { OperaioRapportinoInput } from './types'
 import { preparaOperaiRapportino, calcolaOreNetteTimbratura } from './utils/rapportinoOperai'
+import { applicaOperaiRiconosciuti, type PropostaOperaioRiconosciuto } from './utils/applicaOperaiRiconosciuti'
 import PopupModificaTimbratura from './components/PopupModificaTimbratura'
 import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
@@ -932,6 +933,21 @@ const [
 const cambiaSquadraRapportino = (nuovaSquadra: OperaioRapportinoInput[]) => {
   setSquadraRapportino(nuovaSquadra)
   setOperaiRapportinoModificati(true)
+}
+
+const applicaProposteOperaiRiconosciutiDesktop = (
+  proposte: readonly PropostaOperaioRiconosciuto[]
+) => {
+  const anagrafica = operaiAnagrafica.flatMap((operaio) =>
+    typeof operaio.id === 'string' && operaio.id.trim()
+      ? [{ id: operaio.id, nome: operaio.nome, costo_orario: operaio.costo_orario }]
+      : []
+  )
+  const risultato = applicaOperaiRiconosciuti(squadraRapportino, proposte, anagrafica)
+  const squadraModificata = risultato.esiti.some(
+    (esito) => esito.stato === 'aggiunto' || esito.stato === 'completato'
+  )
+  if (squadraModificata) cambiaSquadraRapportino(risultato.operai)
 }
 
 const [popupFotoSopralluogo, setPopupFotoSopralluogo] =
@@ -12689,6 +12705,7 @@ strutturaPreventivoEsistente,
     operaiAnagrafica, operaiRapportinoTemp, setOperaiRapportinoTemp,
     operaiRapportino: squadraRapportino,
     onChangeOperaiRapportino: cambiaSquadraRapportino,
+    onApplicaOperaiRiconosciuti: rapportinoInModifica === null ? applicaProposteOperaiRiconosciutiDesktop : undefined,
     operaiRapportinoDisabilitati: rapportinoInModifica !== null,
     setPopupFotoRapportino, fotoCantiere, setFotoRapportinoAperte,
   }}
@@ -13133,6 +13150,7 @@ onDocumentAction={gestisciAzioneDocumento}
     operaiAnagrafica={operaiAnagrafica}
     operaiRapportino={squadraRapportino}
     onChangeOperaiRapportino={cambiaSquadraRapportino}
+    onApplicaOperaiRiconosciuti={rapportinoInModifica === null ? applicaProposteOperaiRiconosciutiDesktop : undefined}
     operaiRapportinoDisabilitati={rapportinoInModifica !== null}
     operaiRapportinoTemp={operaiRapportinoTemp}
     setOperaiRapportinoTemp={setOperaiRapportinoTemp}
