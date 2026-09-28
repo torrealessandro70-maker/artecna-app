@@ -54,6 +54,46 @@ export default function SopralluoghiList({
 
   const [ordineSopralluoghi, setOrdineSopralluoghi] = useState<string[]>([])
 const [sopralluoghiInLavorazione, setSopralluoghiInLavorazione] = useState<string[]>([])
+  const [campoOrdinamento, setCampoOrdinamento] = useState<'data' | 'cliente'>('data')
+  const [direzioneOrdinamento, setDirezioneOrdinamento] = useState<'asc' | 'desc'>('desc')
+
+  const cambiaOrdinamento = (campo: 'data' | 'cliente') => {
+    if (campo === campoOrdinamento) {
+      setDirezioneOrdinamento((direzione) => direzione === 'asc' ? 'desc' : 'asc')
+    } else {
+      setCampoOrdinamento(campo)
+      setDirezioneOrdinamento(campo === 'data' ? 'desc' : 'asc')
+    }
+  }
+
+  const confrontaSopralluoghi = (a: any, b: any) => {
+    const cliente = (a.cliente || '').localeCompare(b.cliente || '', 'it', { sensitivity: 'base' })
+    const dataA = /^\d{4}-\d{2}-\d{2}$/.test(a.data_sopralluogo || '') ? a.data_sopralluogo : ''
+    const dataB = /^\d{4}-\d{2}-\d{2}$/.test(b.data_sopralluogo || '') ? b.data_sopralluogo : ''
+    const confrontaDate = (direzione: 'asc' | 'desc') => {
+      if (!dataA && !dataB) return 0
+      if (!dataA) return 1
+      if (!dataB) return -1
+      const confronto = dataA.localeCompare(dataB)
+      return direzione === 'asc' ? confronto : -confronto
+    }
+    return campoOrdinamento === 'data'
+      ? confrontaDate(direzioneOrdinamento) || cliente
+      : (direzioneOrdinamento === 'asc' ? cliente : -cliente) || confrontaDate('desc')
+  }
+
+  const intestazioneOrdinabile = (titolo: string) => {
+    const campo = titolo === 'Data' ? 'data' : titolo === 'Cliente' ? 'cliente' : null
+    if (!campo) return <th key={titolo} scope="col" style={excelTh}>{titolo}</th>
+    const selezionato = campoOrdinamento === campo
+    return (
+      <th key={titolo} scope="col" style={excelTh} aria-sort={selezionato ? (direzioneOrdinamento === 'asc' ? 'ascending' : 'descending') : 'none'}>
+        <button type="button" onClick={() => cambiaOrdinamento(campo)} style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}>
+          {titolo}{selezionato ? (direzioneOrdinamento === 'asc' ? ' ↑' : ' ↓') : ''}
+        </button>
+      </th>
+    )
+  }
 
  useEffect(() => {
   try {
@@ -122,6 +162,9 @@ const sopralluoghiInLavorazioneLista = useMemo(() => {
     (s) => s.id && ids.has(String(s.id))
   )
 }, [sopralluoghiOrdinati, sopralluoghiInLavorazione])
+
+  const attiviVisualizzati = [...sopralluoghiInLavorazioneLista].sort(confrontaSopralluoghi)
+  const archivioVisualizzato = [...sopralluoghiOrdinati].sort(confrontaSopralluoghi)
 
 
 
@@ -198,9 +241,7 @@ const toggleInLavorazione = (id: string) => {
   </div>
 </div>
 
-    <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map((titolo) => (
-        <th key={titolo} scope="col" style={excelTh}>{titolo}</th>
-      ))}</tr></thead><tbody>{sopralluoghiInLavorazioneLista.map((s) => (
+    <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{attiviVisualizzati.map((s) => (
     <tr key={s.id}
 role="button"
 tabIndex={0}
@@ -298,9 +339,7 @@ onKeyDown={(event) => {
         <p>Nessun sopralluogo salvato</p>
       ) : (
        <div style={{ display: 'grid', gap: 10 }}>
-  <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map((titolo) => (
-        <th key={titolo} scope="col" style={excelTh}>{titolo}</th>
-      ))}</tr></thead><tbody>{sopralluoghiOrdinati
+  <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{archivioVisualizzato
     .slice(0, mostraElencoSopralluoghi ? undefined : 1)
     .map((s, i) => (
               <tr key={s.id || i} style={{ background: '#fff' }}>
@@ -344,31 +383,9 @@ onKeyDown={(event) => {
     : '➕ Metti in lavorazione'}
 </button>
 
-      <button
-        type="button"
-        onClick={() => spostaSopralluogo(String(s.id), 'su')}
-        style={{
-          ...buttonSecondary,
-          width: 'auto',
-          minWidth: 0,
-          padding: '8px 10px',
-        }}
-      >
-        ⬆️
-      </button>
 
-      <button
-        type="button"
-        onClick={() => spostaSopralluogo(String(s.id), 'giu')}
-        style={{
-          ...buttonSecondary,
-          width: 'auto',
-          minWidth: 0,
-          padding: '8px 10px',
-        }}
-      >
-        ⬇️
-      </button>
+
+
     </>
   )}
 
