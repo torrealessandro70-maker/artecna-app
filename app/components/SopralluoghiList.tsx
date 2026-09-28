@@ -57,6 +57,41 @@ const [sopralluoghiInLavorazione, setSopralluoghiInLavorazione] = useState<strin
   const [campoOrdinamento, setCampoOrdinamento] = useState<'data' | 'cliente'>('data')
   const [direzioneOrdinamento, setDirezioneOrdinamento] = useState<'asc' | 'desc'>('desc')
 
+  const [ricercaSopralluogo, setRicercaSopralluogo] = useState('')
+  const [dataDaSopralluogo, setDataDaSopralluogo] = useState('')
+  const [dataASopralluogo, setDataASopralluogo] = useState('')
+  const query = ricercaSopralluogo.trim().toLowerCase()
+  const filtriAttivi = Boolean(query || dataDaSopralluogo || dataASopralluogo)
+
+  const corrispondeAiFiltri = (s: any) => {
+    if (dataDaSopralluogo || dataASopralluogo) {
+      const data = s.data_sopralluogo || ''
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return false
+      const dataVerificata = new Date(data + 'T00:00:00Z')
+      if (Number.isNaN(dataVerificata.getTime()) || dataVerificata.toISOString().slice(0, 10) !== data) return false
+      if (dataDaSopralluogo && data < dataDaSopralluogo) return false
+      if (dataASopralluogo && data > dataASopralluogo) return false
+    }
+    return !query || [s.cliente, s.indirizzo, s.tipo_lavoro, s.note]
+      .some((testo) => String(testo || '').toLowerCase().includes(query))
+  }
+
+  const evidenziaTesto = (testo: string) => {
+    if (!query) return testo
+    const segmenti = []
+    const normalizzato = testo.toLowerCase()
+    let posizione = 0
+    let indice = normalizzato.indexOf(query)
+    while (indice !== -1) {
+      segmenti.push(testo.slice(posizione, indice))
+      segmenti.push(<mark key={indice}>{testo.slice(indice, indice + query.length)}</mark>)
+      posizione = indice + query.length
+      indice = normalizzato.indexOf(query, posizione)
+    }
+    segmenti.push(testo.slice(posizione))
+    return segmenti
+  }
+
   const cambiaOrdinamento = (campo: 'data' | 'cliente') => {
     if (campo === campoOrdinamento) {
       setDirezioneOrdinamento((direzione) => direzione === 'asc' ? 'desc' : 'asc')
@@ -165,6 +200,8 @@ const sopralluoghiInLavorazioneLista = useMemo(() => {
 
   const attiviVisualizzati = [...sopralluoghiInLavorazioneLista].sort(confrontaSopralluoghi)
   const archivioVisualizzato = [...sopralluoghiOrdinati].sort(confrontaSopralluoghi)
+  const attiviFiltrati = attiviVisualizzati.filter(corrispondeAiFiltri)
+  const archivioFiltrato = archivioVisualizzato.filter(corrispondeAiFiltri)
 
 
 
@@ -194,6 +231,28 @@ const toggleInLavorazione = (id: string) => {
 
   return (
     <>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'end', marginBottom: 12 }}>
+        <label style={{ display: 'grid', gap: 4 }}>
+          Da
+          <input type="date" value={dataDaSopralluogo} onChange={(event) => setDataDaSopralluogo(event.target.value)} />
+        </label>
+        <label style={{ display: 'grid', gap: 4 }}>
+          A
+          <input type="date" value={dataASopralluogo} onChange={(event) => setDataASopralluogo(event.target.value)} />
+        </label>
+        <label style={{ display: 'grid', gap: 4, flex: '1 1 240px' }}>
+          Cerca sopralluogo
+          <input type="search" value={ricercaSopralluogo} onChange={(event) => setRicercaSopralluogo(event.target.value)} />
+        </label>
+        <button type="button" style={{ ...buttonSecondary, width: 'auto' }} onClick={() => {
+          setRicercaSopralluogo('')
+          setDataDaSopralluogo('')
+          setDataASopralluogo('')
+        }}>Reset filtri</button>
+      </div>
+      <p style={{ color: '#64748b', fontSize: 13 }}>
+        Attivi visualizzati: {attiviFiltrati.length} · Archivio trovato: {archivioFiltrato.length}
+      </p>
       <div
         style={{
           display: 'flex',
@@ -220,7 +279,7 @@ const toggleInLavorazione = (id: string) => {
 </button>
       </div>
 
-{sopralluoghiInLavorazioneLista.length > 0 && (
+{attiviFiltrati.length === 0 ? <p>Nessun lavoro attivo trovato</p> : (
   <section
     style={{
       display: 'grid',
@@ -241,7 +300,7 @@ const toggleInLavorazione = (id: string) => {
   </div>
 </div>
 
-    <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{attiviVisualizzati.map((s) => (
+    <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{attiviFiltrati.map((s) => (
     <tr key={s.id}
 role="button"
 tabIndex={0}
@@ -263,9 +322,9 @@ onKeyDown={(event) => {
     }
   }} style={{ background: '#fff', cursor: 'pointer' }}>
 <td style={{ ...excelTd, whiteSpace: 'nowrap' }}>{s.data_sopralluogo || '-'}</td>
-        <td style={excelTd}>{s.cliente || '-'}</td>
-        <td style={excelTd}>{s.indirizzo || '-'}</td>
-        <td style={{ ...excelTd, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{[s.tipo_lavoro, s.note].filter(Boolean).join('\n') || '-'}</td>
+        <td style={excelTd}>{evidenziaTesto(s.cliente || '-')}</td>
+        <td style={excelTd}>{evidenziaTesto(s.indirizzo || '-')}</td>
+        <td style={{ ...excelTd, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{evidenziaTesto([s.tipo_lavoro, s.note].filter(Boolean).join('\n') || '-')}</td>
         <td style={excelTd}>{s.stato || '-'}</td>
 <td style={excelTd}>
 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><button
@@ -335,18 +394,18 @@ onKeyDown={(event) => {
 )}
 
       <h3>Archivio sopralluoghi</h3>
-      {sopralluoghi.length === 0 ? (
-        <p>Nessun sopralluogo salvato</p>
+      {archivioFiltrato.length === 0 ? (
+        <p>Nessun sopralluogo trovato</p>
       ) : (
        <div style={{ display: 'grid', gap: 10 }}>
-  <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{archivioVisualizzato
-    .slice(0, mostraElencoSopralluoghi ? undefined : 1)
+  <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{archivioFiltrato
+    .slice(0, filtriAttivi || mostraElencoSopralluoghi ? undefined : 1)
     .map((s, i) => (
               <tr key={s.id || i} style={{ background: '#fff' }}>
 <td style={{ ...excelTd, whiteSpace: 'nowrap' }}>{s.data_sopralluogo || '-'}</td>
-        <td style={excelTd}>{s.cliente || '-'}</td>
-        <td style={excelTd}>{s.indirizzo || '-'}</td>
-        <td style={{ ...excelTd, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{[s.tipo_lavoro, s.note].filter(Boolean).join('\n') || '-'}</td>
+        <td style={excelTd}>{evidenziaTesto(s.cliente || '-')}</td>
+        <td style={excelTd}>{evidenziaTesto(s.indirizzo || '-')}</td>
+        <td style={{ ...excelTd, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{evidenziaTesto([s.tipo_lavoro, s.note].filter(Boolean).join('\n') || '-')}</td>
         <td style={excelTd}>{s.stato || '-'}</td>
 <td style={excelTd}>
 <div
