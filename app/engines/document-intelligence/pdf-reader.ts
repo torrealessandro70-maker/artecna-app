@@ -2,7 +2,7 @@ let pdfjsLib: any = null
 
 export const readPdfText = async (file: File): Promise<string> => {
   if (!pdfjsLib) {
-    pdfjsLib = await import('pdfjs-dist')
+    pdfjsLib = await import('pdfjs-dist/build/pdf.min.mjs')
     pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
   }
 

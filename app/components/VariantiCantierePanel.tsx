@@ -4,14 +4,34 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { elencaPreventiviSorgenteVariante, caricaLavorazioniPreventivoSorgente, type PreventivoSorgenteCandidato } from '../engines/varianti/repositoryPreventiviSorgente'
 import { adattaPreventivoAVariante } from '../engines/varianti/adattaPreventivoAVariante'
-import type { PropostaVarianteDaPreventivo, NaturaVariante, AcquisizioneVariante } from '../engines/varianti/types'
+import type { PropostaVarianteDaPreventivo, PropostaVarianteDaFile, NaturaVariante, AcquisizioneVariante, AnomaliaPropostaVarianteDaFile } from '../engines/varianti/types'
 import type { AnomaliaMappingLavorazionePreventivo } from '../engines/varianti/mappaLavorazioniPreventivo'
+import { estraiVociVarianteDaFile } from '../engines/varianti/estraiVociVarianteDaFile'
+import { adattaFileAVariante } from '../engines/varianti/adattaFileAVariante'
+
+const etichetteAnomalieFile: Record<AnomaliaPropostaVarianteDaFile['codice'], string> = {
+  cantiere_id_non_valido: 'Cantiere non valido',
+  nome_file_mancante: 'Nome file mancante',
+  formato_non_supportato: 'Formato non supportato',
+  descrizione_mancante: 'Descrizione mancante',
+  quantita_non_valida: 'Quantità non valida',
+  unita_misura_mancante: 'UM mancante',
+  prezzo_non_valido: 'Prezzo non valido',
+  totale_non_valido: 'Totale non valido',
+  totale_incoerente: 'Totale incoerente',
+}
 
 function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
   const [aperto, setAperto] = useState(false)
   const [natura, setNatura] = useState<NaturaVariante>('preventivo_integrativo')
   const [acquisizione, setAcquisizione] = useState<AcquisizioneVariante>('dati_artecna')
   const percorsoPreventivo = natura === 'preventivo_integrativo' && acquisizione === 'dati_artecna'
+  const percorsoFile = natura === 'preventivo_integrativo' && acquisizione === 'file'
+  const [fileSelezionato, setFileSelezionato] = useState<File | null>(null)
+  const [analisiFile, setAnalisiFile] = useState(false)
+  const [erroreFile, setErroreFile] = useState('')
+  const [warningsFile, setWarningsFile] = useState<string[]>([])
+  const [propostaFile, setPropostaFile] = useState<PropostaVarianteDaFile | null>(null)
   const [preventivi, setPreventivi] = useState<PreventivoSorgenteCandidato[]>([])
   const [preventivoId, setPreventivoId] = useState('')
   const [caricamentoElenco, setCaricamentoElenco] = useState(false)
@@ -23,8 +43,17 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
   } | null>(null)
   const richiesta = useRef(0)
 
+  function resetFile() {
+    setFileSelezionato(null)
+    setAnalisiFile(false)
+    setErroreFile('')
+    setWarningsFile([])
+    setPropostaFile(null)
+  }
+
   function resetPercorso() {
     richiesta.current += 1
+    resetFile()
     setPreventivi([])
     setPreventivoId('')
     setAnteprima(null)
@@ -36,6 +65,7 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
   useEffect(() => {
     let attivo = true
     const corrente = ++richiesta.current
+    resetFile()
     setPreventivi([])
     setPreventivoId('')
     setAnteprima(null)
@@ -81,15 +111,46 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
     }
   }
 
+  async function analizzaFile() {
+    if (!aperto || !percorsoFile || !fileSelezionato || analisiFile) return
+    const corrente = ++richiesta.current
+    setAnalisiFile(true)
+    setErroreFile('')
+    setWarningsFile([])
+    setPropostaFile(null)
+    try {
+      const esito = await estraiVociVarianteDaFile(fileSelezionato)
+      if (corrente !== richiesta.current) return
+      setWarningsFile(esito.warnings)
+      if (esito.stato === 'errore') { setErroreFile(esito.messaggio); return }
+      if (esito.voci.length === 0) { setErroreFile('Nessuna voce riconosciuta nel file.'); return }
+      const risultato = adattaFileAVariante({
+        cantiereId, nomeFile: esito.nomeFile, formato: esito.formato, voci: esito.voci,
+      })
+      if (risultato.stato === 'errore') {
+        setErroreFile(risultato.anomalie.map(a => etichetteAnomalieFile[a.codice]).join('; '))
+        return
+      }
+      setPropostaFile(risultato.proposta)
+    } catch {
+      if (corrente === richiesta.current) setErroreFile('Impossibile analizzare il file.')
+    } finally {
+      if (corrente === richiesta.current) setAnalisiFile(false)
+    }
+  }
+
   const numero = (valore: number | undefined) => typeof valore === 'number' && Number.isFinite(valore)
     ? valore.toLocaleString('it-IT', { maximumFractionDigits: 20 }) : 'Non disponibile'
   const totale = anteprima?.proposta.lavorazioni.reduce((somma, voce) =>
     somma + (typeof voce.totale === 'number' && Number.isFinite(voce.totale) && voce.totale >= 0 ? voce.totale : 0), 0)
   const cella = { padding: '8px 10px', border: '1px solid #dbe3ee', verticalAlign: 'top' as const }
+  const totaleFile = propostaFile?.lavorazioni.reduce((somma, voce) =>
+    somma + (typeof voce.totale === 'number' && Number.isFinite(voce.totale) && voce.totale >= 0 ? voce.totale : 0), 0)
 
   return <div style={{ margin: '12px 0' }}>
     <button type="button" onClick={() => {
       richiesta.current += 1
+      resetFile()
       setAperto(!aperto)
     }}>{aperto ? 'Chiudi anteprima da preventivo' : '+ Nuova variante da preventivo'}</button>
     {aperto && <section aria-label="Origine e acquisizione variante"
@@ -107,7 +168,49 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
           <option value="file">Importa file</option>
         </select></label>
       </div>
-      {!percorsoPreventivo && <p role="status">Questo percorso non è ancora configurato.</p>}
+      {!percorsoPreventivo && !percorsoFile && <p role="status">Questo percorso non è ancora configurato.</p>}
+      {percorsoFile && <>
+        <p>Solo anteprima: il file resta locale e nessuna variante viene creata o salvata.</p>
+        <label>File preventivo<input type="file" accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp"
+          style={{ display: 'block', margin: '8px 0', maxWidth: '100%' }}
+          onChange={e => {
+            richiesta.current += 1
+            resetFile()
+            setFileSelezionato(e.target.files?.[0] ?? null)
+            e.target.value = ''
+          }} /></label>
+        {fileSelezionato && <p style={{ overflowWrap: 'anywhere' }}>{fileSelezionato.name}</p>}
+        <button type="button" disabled={!fileSelezionato || analisiFile}
+          onClick={() => void analizzaFile()}>{analisiFile ? 'Analisi in corso...' : 'Analizza file'}</button>
+        {erroreFile && <p role="status">{erroreFile}</p>}
+        {warningsFile.length > 0 && <div><p>Avvisi lettura file:</p>
+          <ul>{warningsFile.map((warning, i) => <li key={i}>{warning}</li>)}</ul>
+        </div>}
+        {propostaFile && <>
+          <p>Totale sorgente leggibile: {numero(totaleFile)} € (solo totali validi e finiti).</p>
+          {propostaFile.anomalie.filter(a => a.indiceVoce === undefined).map((a, i) =>
+            <p key={i}>{etichetteAnomalieFile[a.codice]}</p>)}
+          <div style={{ overflowX: 'auto', marginTop: 12 }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 780, fontSize: 14 }}>
+              <caption style={{ textAlign: 'left', padding: 8 }}>Lavorazioni del file — sola lettura</caption>
+              <thead><tr>{['Descrizione', 'UM', 'Quantità', 'Prezzo sorgente', 'Totale sorgente', 'Verifica'].map(t =>
+                <th key={t} scope="col" style={{ ...cella, textAlign: 'left', background: '#f1f5f9' }}>{t}</th>)}</tr></thead>
+              <tbody>{propostaFile.lavorazioni.map((voce, indice) => {
+                const anomalie = propostaFile.anomalie.filter(a => a.indiceVoce === indice)
+                return <tr key={indice} style={{ background: indice % 2 ? '#f8fafc' : '#fff' }}>
+                  <td style={{ ...cella, whiteSpace: 'pre-wrap' }}>{voce.descrizione ?? 'Non disponibile'}</td>
+                  <td style={cella}>{voce.unitaMisura ?? 'Non disponibile'}</td>
+                  <td style={cella}>{numero(voce.quantita)}</td>
+                  <td style={cella}>{numero(voce.prezzoSorgente)}</td>
+                  <td style={cella}>{numero(voce.totale)}</td>
+                  <td style={cella}>{anomalie.length ? anomalie.map((a, i) =>
+                    <div key={i}>{etichetteAnomalieFile[a.codice]}</div>) : 'Nessuna anomalia rilevata'}</td>
+                </tr>
+              })}</tbody>
+            </table>
+          </div>
+        </>}
+      </>}
       {percorsoPreventivo && <>
       <p>Solo anteprima: nessuna variante viene creata o salvata. Le voci e gli importi sorgente non vengono corretti automaticamente.</p>
       <label>Preventivo sorgente<select value={preventivoId} disabled={caricamentoElenco}

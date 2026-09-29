@@ -20,7 +20,13 @@ export type RisultatoEstrazioneVociVariante =
 // NaN resta distinto da zero nel parser; non viene esposto nelle voci del servizio.
 const convertiNumeroTestuale = (valore: string): number => {
   const testo = valore.trim().replace(/^€\s*/, '').replace(/\s*€$/, '').trim()
-  if (!/^[+-]?\d+(?:[.,]\d+)?$/.test(testo)) return Number.NaN
+  if (/^[+-]?\d{1,3}(?:\.\d{3})+,\d+$/.test(testo)) {
+    const numero = Number(testo.replace(/\./g, '').replace(',', '.'))
+    return Number.isFinite(numero) ? numero : Number.NaN
+  }
+  if (!/^[+-]?\d+(?:[.,]\d+)?$/.test(testo)) {
+    return Number.NaN
+  }
   const numero = Number(testo.replace(',', '.'))
   return Number.isFinite(numero) ? numero : Number.NaN
 }
