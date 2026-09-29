@@ -93,3 +93,7 @@ export type PropostaVarianteDaFile = {
   lavorazioni: PropostaLavorazioneVarianteDaFile[]
   anomalie: AnomaliaPropostaVarianteDaFile[]
 }
+
+export type RisultatoAdattamentoFileVariante =
+  | { stato: 'ok'; proposta: PropostaVarianteDaFile }
+  | { stato: 'errore'; anomalie: AnomaliaPropostaVarianteDaFile[] }
