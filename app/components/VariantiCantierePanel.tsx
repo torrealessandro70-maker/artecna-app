@@ -2,6 +2,144 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
+import { elencaPreventiviSorgenteVariante, caricaLavorazioniPreventivoSorgente, type PreventivoSorgenteCandidato } from '../engines/varianti/repositoryPreventiviSorgente'
+import { adattaPreventivoAVariante } from '../engines/varianti/adattaPreventivoAVariante'
+import type { PropostaVarianteDaPreventivo } from '../engines/varianti/types'
+import type { AnomaliaMappingLavorazionePreventivo } from '../engines/varianti/mappaLavorazioniPreventivo'
+
+function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
+  const [aperto, setAperto] = useState(false)
+  const [preventivi, setPreventivi] = useState<PreventivoSorgenteCandidato[]>([])
+  const [preventivoId, setPreventivoId] = useState('')
+  const [caricamentoElenco, setCaricamentoElenco] = useState(false)
+  const [caricamentoAnteprima, setCaricamentoAnteprima] = useState(false)
+  const [messaggio, setMessaggio] = useState('')
+  const [anteprima, setAnteprima] = useState<{
+    proposta: PropostaVarianteDaPreventivo
+    anomalieMapper: AnomaliaMappingLavorazionePreventivo[]
+  } | null>(null)
+  const richiesta = useRef(0)
+
+  useEffect(() => {
+    let attivo = true
+    richiesta.current += 1
+    setPreventivi([])
+    setPreventivoId('')
+    setAnteprima(null)
+    setMessaggio('')
+    setCaricamentoAnteprima(false)
+    setCaricamentoElenco(aperto)
+    if (aperto) {
+      void elencaPreventiviSorgenteVariante(supabase, cantiereId).then(esito => {
+        if (!attivo) return
+        if (esito.stato === 'errore') setMessaggio(esito.messaggio)
+        else setPreventivi(esito.preventivi)
+      }).catch(() => {
+        if (attivo) setMessaggio('Impossibile caricare i preventivi sorgente.')
+      }).finally(() => {
+        if (attivo) setCaricamentoElenco(false)
+      })
+    }
+    return () => { attivo = false; richiesta.current += 1 }
+  }, [aperto, cantiereId])
+
+  async function caricaAnteprima() {
+    if (!preventivi.some(p => p.id === preventivoId)) return
+    const corrente = ++richiesta.current
+    setAnteprima(null)
+    setMessaggio('')
+    setCaricamentoAnteprima(true)
+    try {
+      const esito = await caricaLavorazioniPreventivoSorgente(supabase, cantiereId, preventivoId)
+      if (corrente !== richiesta.current) return
+      if (esito.stato === 'errore') { setMessaggio(esito.messaggio); return }
+      if (esito.stato === 'nessuna_lavorazione') {
+        setMessaggio('Il preventivo selezionato non contiene lavorazioni disponibili.')
+        return
+      }
+      setAnteprima({
+        proposta: adattaPreventivoAVariante(cantiereId, preventivoId, esito.voci),
+        anomalieMapper: esito.anomalie,
+      })
+    } catch {
+      if (corrente === richiesta.current) setMessaggio('Impossibile caricare l’anteprima.')
+    } finally {
+      if (corrente === richiesta.current) setCaricamentoAnteprima(false)
+    }
+  }
+
+  const numero = (valore: number | undefined) => typeof valore === 'number' && Number.isFinite(valore)
+    ? valore.toLocaleString('it-IT', { maximumFractionDigits: 20 }) : 'Non disponibile'
+  const totale = anteprima?.proposta.lavorazioni.reduce((somma, voce) =>
+    somma + (typeof voce.totale === 'number' && Number.isFinite(voce.totale) && voce.totale >= 0 ? voce.totale : 0), 0)
+  const cella = { padding: '8px 10px', border: '1px solid #dbe3ee', verticalAlign: 'top' as const }
+
+  return <div style={{ margin: '12px 0' }}>
+    <button type="button" onClick={() => {
+      richiesta.current += 1
+      setAperto(!aperto)
+    }}>{aperto ? 'Chiudi anteprima da preventivo' : '+ Nuova variante da preventivo'}</button>
+    {aperto && <section aria-label="Anteprima da preventivo integrativo"
+      style={{ marginTop: 12, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+        <label>Origine variante<select disabled value="preventivo_integrativo" style={{ display: 'block', padding: 8 }}>
+          <option value="preventivo_integrativo">Preventivo integrativo</option>
+        </select></label>
+        <label>Acquisizione<select disabled value="dati_artecna" style={{ display: 'block', padding: 8 }}>
+          <option value="dati_artecna">Da dati ARTECNA</option>
+        </select></label>
+      </div>
+      <p>Solo anteprima: nessuna variante viene creata o salvata. Le voci e gli importi sorgente non vengono corretti automaticamente.</p>
+      <label>Preventivo sorgente<select value={preventivoId} disabled={caricamentoElenco}
+        style={{ display: 'block', width: '100%', padding: 8, margin: '8px 0' }}
+        onChange={e => {
+          richiesta.current += 1
+          setPreventivoId(e.target.value)
+          setAnteprima(null)
+          setMessaggio('')
+          setCaricamentoAnteprima(false)
+        }}>
+        <option value="">Seleziona un preventivo</option>
+        {preventivi.map(p => <option key={p.id} value={p.id}>
+          {p.nomeFile || 'Preventivo'} — {p.dataPreventivo || p.createdAt || 'Data non disponibile'}
+          {' — '}{p.importoTotale !== undefined ? `${p.importoTotale} €` : 'Importo non disponibile'}
+          {' — '}{p.numeroLavorazioni} voci
+        </option>)}
+      </select></label>
+      {caricamentoElenco && <p role="status">Caricamento preventivi...</p>}
+      {!caricamentoElenco && !messaggio && preventivi.length === 0 && <p>Nessun preventivo strutturato disponibile per questo cantiere.</p>}
+      <button type="button" disabled={!preventivoId || caricamentoElenco || caricamentoAnteprima}
+        onClick={() => void caricaAnteprima()}>{caricamentoAnteprima ? 'Caricamento anteprima...' : 'Carica anteprima'}</button>
+      {messaggio && <p role="status">{messaggio}</p>}
+      {anteprima && <>
+        <p>Totale sorgente leggibile: {numero(totale)} € (solo totali validi e finiti).</p>
+        {anteprima.proposta.anomalie.filter(a => a.indiceVoce === undefined).map((a, i) =>
+          <p key={i}>Adapter: {a.codice.replaceAll('_', ' ')}</p>)}
+        <div style={{ overflowX: 'auto', marginTop: 12 }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 780, fontSize: 14 }}>
+            <caption style={{ textAlign: 'left', padding: 8 }}>Lavorazioni sorgente — sola lettura</caption>
+            <thead><tr>{['Descrizione', 'UM', 'Quantità', 'Prezzo sorgente', 'Totale sorgente', 'Verifica'].map(t =>
+              <th key={t} scope="col" style={{ ...cella, textAlign: 'left', background: '#f1f5f9' }}>{t}</th>)}</tr></thead>
+            <tbody>{anteprima.proposta.lavorazioni.map((voce, indice) => {
+              const anomalie = [
+                ...anteprima.anomalieMapper.filter(a => a.indiceRiga === indice).map(a => `Mapper: ${a.codice.replaceAll('_', ' ')}`),
+                ...anteprima.proposta.anomalie.filter(a => a.indiceVoce === indice).map(a => `Adapter: ${a.codice.replaceAll('_', ' ')}`),
+              ]
+              return <tr key={indice} style={{ background: indice % 2 ? '#f8fafc' : '#fff' }}>
+                <td style={{ ...cella, whiteSpace: 'pre-wrap' }}>{voce.descrizione ?? 'Non disponibile'}</td>
+                <td style={cella}>{voce.unitaMisura ?? 'Non disponibile'}</td>
+                <td style={cella}>{numero(voce.quantita)}</td>
+                <td style={cella}>{numero(voce.prezzoSorgente)}</td>
+                <td style={cella}>{numero(voce.totale)}</td>
+                <td style={cella}>{anomalie.length ? anomalie.map((a, i) => <div key={i}>{a}</div>) : 'Nessuna anomalia rilevata'}</td>
+              </tr>
+            })}</tbody>
+          </table>
+        </div>
+      </>}
+    </section>}
+  </div>
+}
 
 type Variante = {
   id: string
@@ -207,6 +345,7 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
   return (
     <section aria-label="Varianti" style={{ marginTop: 16 }}>
       <h3>Varianti</h3>
+      {cantiereId && <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} />}
       {!formAperto && (
         <button type="button" disabled={!cantiereId || salvataggio}
           onClick={() => { setErroreSalvataggio(''); setFormAperto(true) }}>
