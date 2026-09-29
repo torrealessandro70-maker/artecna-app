@@ -4,11 +4,14 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { elencaPreventiviSorgenteVariante, caricaLavorazioniPreventivoSorgente, type PreventivoSorgenteCandidato } from '../engines/varianti/repositoryPreventiviSorgente'
 import { adattaPreventivoAVariante } from '../engines/varianti/adattaPreventivoAVariante'
-import type { PropostaVarianteDaPreventivo } from '../engines/varianti/types'
+import type { PropostaVarianteDaPreventivo, NaturaVariante, AcquisizioneVariante } from '../engines/varianti/types'
 import type { AnomaliaMappingLavorazionePreventivo } from '../engines/varianti/mappaLavorazioniPreventivo'
 
 function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
   const [aperto, setAperto] = useState(false)
+  const [natura, setNatura] = useState<NaturaVariante>('preventivo_integrativo')
+  const [acquisizione, setAcquisizione] = useState<AcquisizioneVariante>('dati_artecna')
+  const percorsoPreventivo = natura === 'preventivo_integrativo' && acquisizione === 'dati_artecna'
   const [preventivi, setPreventivi] = useState<PreventivoSorgenteCandidato[]>([])
   const [preventivoId, setPreventivoId] = useState('')
   const [caricamentoElenco, setCaricamentoElenco] = useState(false)
@@ -20,31 +23,41 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
   } | null>(null)
   const richiesta = useRef(0)
 
-  useEffect(() => {
-    let attivo = true
+  function resetPercorso() {
     richiesta.current += 1
     setPreventivi([])
     setPreventivoId('')
     setAnteprima(null)
     setMessaggio('')
     setCaricamentoAnteprima(false)
-    setCaricamentoElenco(aperto)
-    if (aperto) {
+    setCaricamentoElenco(false)
+  }
+
+  useEffect(() => {
+    let attivo = true
+    const corrente = ++richiesta.current
+    setPreventivi([])
+    setPreventivoId('')
+    setAnteprima(null)
+    setMessaggio('')
+    setCaricamentoAnteprima(false)
+    setCaricamentoElenco(aperto && percorsoPreventivo)
+    if (aperto && percorsoPreventivo) {
       void elencaPreventiviSorgenteVariante(supabase, cantiereId).then(esito => {
-        if (!attivo) return
+        if (!attivo || corrente !== richiesta.current) return
         if (esito.stato === 'errore') setMessaggio(esito.messaggio)
         else setPreventivi(esito.preventivi)
       }).catch(() => {
-        if (attivo) setMessaggio('Impossibile caricare i preventivi sorgente.')
+        if (attivo && corrente === richiesta.current) setMessaggio('Impossibile caricare i preventivi sorgente.')
       }).finally(() => {
-        if (attivo) setCaricamentoElenco(false)
+        if (attivo && corrente === richiesta.current) setCaricamentoElenco(false)
       })
     }
     return () => { attivo = false; richiesta.current += 1 }
-  }, [aperto, cantiereId])
+  }, [aperto, cantiereId, natura, acquisizione, percorsoPreventivo])
 
   async function caricaAnteprima() {
-    if (!preventivi.some(p => p.id === preventivoId)) return
+    if (!aperto || !percorsoPreventivo || !preventivi.some(p => p.id === preventivoId)) return
     const corrente = ++richiesta.current
     setAnteprima(null)
     setMessaggio('')
@@ -79,16 +92,23 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
       richiesta.current += 1
       setAperto(!aperto)
     }}>{aperto ? 'Chiudi anteprima da preventivo' : '+ Nuova variante da preventivo'}</button>
-    {aperto && <section aria-label="Anteprima da preventivo integrativo"
+    {aperto && <section aria-label="Origine e acquisizione variante"
       style={{ marginTop: 12, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-        <label>Origine variante<select disabled value="preventivo_integrativo" style={{ display: 'block', padding: 8 }}>
+        <label>Origine variante<select value={natura} style={{ display: 'block', padding: 8 }}
+          onChange={e => { resetPercorso(); setNatura(e.target.value as NaturaVariante) }}>
           <option value="preventivo_integrativo">Preventivo integrativo</option>
+          <option value="lavori_in_economia">Lavori in economia</option>
         </select></label>
-        <label>Acquisizione<select disabled value="dati_artecna" style={{ display: 'block', padding: 8 }}>
+        <label>Acquisizione<select value={acquisizione} style={{ display: 'block', padding: 8 }}
+          onChange={e => { resetPercorso(); setAcquisizione(e.target.value as AcquisizioneVariante) }}>
+          <option value="manuale">Manuale</option>
           <option value="dati_artecna">Da dati ARTECNA</option>
+          <option value="file">Importa file</option>
         </select></label>
       </div>
+      {!percorsoPreventivo && <p role="status">Questo percorso non è ancora configurato.</p>}
+      {percorsoPreventivo && <>
       <p>Solo anteprima: nessuna variante viene creata o salvata. Le voci e gli importi sorgente non vengono corretti automaticamente.</p>
       <label>Preventivo sorgente<select value={preventivoId} disabled={caricamentoElenco}
         style={{ display: 'block', width: '100%', padding: 8, margin: '8px 0' }}
@@ -136,6 +156,7 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
             })}</tbody>
           </table>
         </div>
+      </>}
       </>}
     </section>}
   </div>
