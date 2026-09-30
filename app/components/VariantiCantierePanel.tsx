@@ -89,7 +89,7 @@ function RevisioneVarianteLocale({ righe, onChange, onAnnulla, onRipristina }: {
 
   return <section aria-label="Revisione locale variante" style={{ marginTop: 16 }}>
     <h4>Revisione locale del Preventivo integrativo</h4>
-    <p>Le modifiche restano locali. La sorgente non viene modificata e nessuna variante viene salvata.</p>
+    <p>Le modifiche restano locali. La sorgente salvata non viene modificata e la revisione non viene salvata.</p>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       <button type="button" onClick={onAnnulla}>Annulla revisione</button>
       <button type="button" onClick={onRipristina}>Ripristina da sorgente</button>
@@ -127,7 +127,115 @@ function RevisioneVarianteLocale({ righe, onChange, onAnnulla, onRipristina }: {
   </section>
 }
 
-function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
+type SnapshotSorgenteVariante =
+  | {
+      chiave: string
+      tipo: 'preventivo_artecna'
+      preventivoId: string
+      titolo: string
+      proposta: PropostaVarianteDaPreventivo
+      anomalieMapper: AnomaliaMappingLavorazionePreventivo[]
+    }
+  | {
+      chiave: string
+      tipo: 'file'
+      titolo: string
+      proposta: PropostaVarianteDaFile
+      warnings: string[]
+    }
+
+const titoloBozzaSorgenti = 'Preventivo integrativo - bozza'
+
+type SorgenteVarianteAggiunta = {
+  id: string
+  varianteId: string
+  tipo: 'preventivo_artecna' | 'file'
+  preventivoId: string | null
+  titolo: string
+  nomeFile: string | null
+  formato: 'pdf' | 'excel' | 'immagine' | null
+  snapshotVersion: number
+  snapshot?: SnapshotSorgenteVariante
+}
+
+const recordSorgente = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+const idSorgenteValido = (v: unknown): v is string =>
+  typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+const formatoSorgenteValido = (v: unknown): v is 'pdf' | 'excel' | 'immagine' =>
+  v === 'pdf' || v === 'excel' || v === 'immagine'
+const singolaRigaSorgente = (v: unknown): unknown =>
+  Array.isArray(v) ? v.length === 1 ? v[0] : null : v
+
+function leggiMetadataSorgente(v: unknown, varianteId: string): SorgenteVarianteAggiunta {
+  if (!recordSorgente(v) || !idSorgenteValido(v.id) || v.variante_id !== varianteId ||
+      typeof v.titolo !== 'string' || !v.titolo.trim() ||
+      typeof v.snapshot_version !== 'number' || !Number.isInteger(v.snapshot_version) ||
+      (v.tipo !== 'preventivo_artecna' && v.tipo !== 'file')) throw new Error('Metadata sorgente non validi.')
+  if (v.tipo === 'preventivo_artecna') {
+    if (!idSorgenteValido(v.preventivo_sorgente_id) || v.nome_file !== null || v.formato !== null)
+      throw new Error('Metadata sorgente ARTECNA non validi.')
+    return { id: v.id, varianteId, tipo: v.tipo, preventivoId: v.preventivo_sorgente_id,
+      titolo: v.titolo, nomeFile: null, formato: null, snapshotVersion: v.snapshot_version }
+  }
+  if (v.preventivo_sorgente_id !== null || typeof v.nome_file !== 'string' ||
+      !v.nome_file.trim() || !formatoSorgenteValido(v.formato)) throw new Error('Metadata file non validi.')
+  return { id: v.id, varianteId, tipo: v.tipo, preventivoId: null,
+    titolo: v.titolo, nomeFile: v.nome_file, formato: v.formato, snapshotVersion: v.snapshot_version }
+}
+
+// Valida la struttura consumata dall'anteprima senza correggere valori o ricalcolare importi.
+function snapshotSorgenteValido(v: unknown, meta: SorgenteVarianteAggiunta,
+  cantiereId: string): v is SnapshotSorgenteVariante {
+  if (!recordSorgente(v) || v.tipo !== meta.tipo || typeof v.chiave !== 'string' ||
+      v.titolo !== meta.titolo || !recordSorgente(v.proposta)) return false
+  const p = v.proposta
+  if (p.natura !== 'preventivo_integrativo' || p.cantiereId !== cantiereId ||
+      !Array.isArray(p.lavorazioni) || !Array.isArray(p.anomalie)) return false
+  const codici = meta.tipo === 'file' ? Object.keys(etichetteAnomalieFile) : [
+    'cantiere_id_non_valido', 'preventivo_sorgente_id_non_valido', 'lavorazione_sorgente_id_non_valido',
+    'descrizione_mancante', 'quantita_non_valida', 'unita_misura_mancante',
+    'prezzo_non_valido', 'totale_non_valido', 'totale_incoerente',
+  ]
+  if (!p.anomalie.every(a => recordSorgente(a) && typeof a.codice === 'string' &&
+      codici.includes(a.codice) && (a.indiceVoce === undefined ||
+        (Number.isInteger(a.indiceVoce) && Number(a.indiceVoce) >= 0)))) return false
+  if (!p.lavorazioni.every(voce => {
+    if (!recordSorgente(voce) || !recordSorgente(voce.sorgente)) return false
+    if (!['descrizione', 'unitaMisura', 'codice', 'categoria', 'note'].every(k =>
+      voce[k] === undefined || typeof voce[k] === 'string')) return false
+    if (!['quantita', 'prezzoSorgente', 'totale'].every(k =>
+      voce[k] === undefined || (typeof voce[k] === 'number' && Number.isFinite(voce[k])))) return false
+    const origine = voce.sorgente
+    if (origine.cantiereId !== cantiereId) return false
+    return meta.tipo === 'preventivo_artecna'
+      ? origine.tipo === 'preventivo_strutturato' && origine.preventivoSorgenteId === meta.preventivoId &&
+        (origine.lavorazioneSorgenteId === undefined || typeof origine.lavorazioneSorgenteId === 'string')
+      : origine.tipo === 'file' && origine.nomeFile === meta.nomeFile && origine.formato === meta.formato &&
+        Number.isInteger(origine.indiceVoce) && Number(origine.indiceVoce) >= 0
+  })) return false
+  if (meta.tipo === 'preventivo_artecna') return p.acquisizione === 'dati_artecna' &&
+    v.preventivoId === meta.preventivoId && p.preventivoSorgenteId === meta.preventivoId &&
+    Array.isArray(v.anomalieMapper) && v.anomalieMapper.every(a => recordSorgente(a) &&
+      typeof a.codice === 'string' && ['id_riga_non_valido', 'descrizione_mancante', 'quantita_non_valida',
+        'unita_misura_mancante', 'prezzo_non_valido', 'totale_non_valido'].includes(a.codice) &&
+      Number.isInteger(a.indiceRiga) && Number(a.indiceRiga) >= 0)
+  return p.acquisizione === 'file' && recordSorgente(p.file) && p.file.nome === meta.nomeFile &&
+    p.file.formato === meta.formato && Array.isArray(v.warnings) && v.warnings.every(w => typeof w === 'string')
+}
+
+function messaggioRpcSorgenti(errore: { code?: string }): string {
+  if (errore.code === '23505') return 'Sorgente già presente nella Variante.'
+  if (errore.code === '42501') return 'Sessione non valida o cantiere non autorizzato.'
+  if (errore.code === '22023') return 'Operazione non consentita: verifica i dati e che la Variante sia ancora in bozza.'
+  if (errore.code === 'P0002') return 'Sorgente o Variante non più disponibile.'
+  return 'Operazione non confermata. Ricarica le sorgenti prima di riprovare.'
+}
+
+function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
+  cantiereId: string
+  elencoVarianti: Stato
+}) {
   const [aperto, setAperto] = useState(false)
   const [natura, setNatura] = useState<NaturaVariante>('preventivo_integrativo')
   const [acquisizione, setAcquisizione] = useState<AcquisizioneVariante>('dati_artecna')
@@ -136,21 +244,111 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
   const [fileSelezionato, setFileSelezionato] = useState<File | null>(null)
   const [analisiFile, setAnalisiFile] = useState(false)
   const [erroreFile, setErroreFile] = useState('')
-  const [warningsFile, setWarningsFile] = useState<string[]>([])
-  const [propostaFile, setPropostaFile] = useState<PropostaVarianteDaFile | null>(null)
+  const [warningsFileLettura, setWarningsFile] = useState<string[]>([])
+  const [propostaFileCaricata, setPropostaFile] = useState<PropostaVarianteDaFile | null>(null)
   const [preventivi, setPreventivi] = useState<PreventivoSorgenteCandidato[]>([])
   const [preventivoId, setPreventivoId] = useState('')
   const [caricamentoElenco, setCaricamentoElenco] = useState(false)
   const [caricamentoAnteprima, setCaricamentoAnteprima] = useState(false)
   const [messaggio, setMessaggio] = useState('')
-  const [anteprima, setAnteprima] = useState<{
+  const [anteprimaCaricata, setAnteprima] = useState<{
     proposta: PropostaVarianteDaPreventivo
     anomalieMapper: AnomaliaMappingLavorazionePreventivo[]
   } | null>(null)
   const [revisione, setRevisione] = useState<RigaRevisioneVariante[] | null>(null)
+  const [sorgenti, setSorgenti] = useState<SorgenteVarianteAggiunta[]>([])
+  const [chiaveSorgenteAperta, setChiaveSorgenteAperta] = useState<string | null>(null)
+  const [messaggioSorgenti, setMessaggioSorgenti] = useState('')
+  const [bozzaSorgentiVarianteId, setBozzaSorgentiVarianteId] = useState<string | null>(null)
+  const bozzaIdRef = useRef<string | null>(null)
+  const [salvataggioSorgente, setSalvataggioSorgente] = useState(false)
+  const [caricamentoSorgenti, setCaricamentoSorgenti] = useState(false)
+  const [sorgentiPronte, setSorgentiPronte] = useState(false)
+  const invioSorgente = useRef(false)
+  const sessioneSorgenti = useRef<object | null>(null)
+  const letturaSorgenti = useRef(0)
+  const candidate = elencoVarianti.tipo === 'elenco' && elencoVarianti.cantiereId === cantiereId
+    ? elencoVarianti.righe.filter(v => v.stato === 'bozza' && v.titolo === titoloBozzaSorgenti) : []
+  const elencoPronto = elencoVarianti.tipo === 'elenco' && elencoVarianti.cantiereId === cantiereId
+  const operazioneSorgenti = salvataggioSorgente || caricamentoSorgenti
+
+  useEffect(() => {
+    sessioneSorgenti.current = {}
+    return () => { sessioneSorgenti.current = null; letturaSorgenti.current += 1 }
+  }, [])
+
+  async function caricaSorgentiSalvate(id: string) {
+    if (invioSorgente.current) return
+    const sessione = sessioneSorgenti.current
+    const lettura = ++letturaSorgenti.current
+    bozzaIdRef.current = id
+    setBozzaSorgentiVarianteId(id)
+    richiesta.current += 1
+    resetFile()
+    setAnteprima(null)
+    setPreventivoId('')
+    setCaricamentoAnteprima(false)
+    setSorgenti([])
+    setSorgentiPronte(false)
+    setCaricamentoSorgenti(true)
+    try {
+      const righe: SorgenteVarianteAggiunta[] = []
+      for (let offset = 0; ; offset += 200) {
+        const { data, error } = await supabase.rpc('leggi_sorgenti_variante', { p_variante_id: id })
+          .order('created_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 199)
+        if (sessioneSorgenti.current !== sessione || lettura !== letturaSorgenti.current) return
+        if (error) { setMessaggioSorgenti(messaggioRpcSorgenti(error)); return }
+        if (!Array.isArray(data)) throw new Error('Elenco non valido')
+        righe.push(...data.map(v => leggiMetadataSorgente(v, id)))
+        if (data.length < 200) break
+      }
+      setSorgenti(righe)
+      setSorgentiPronte(true)
+    } catch {
+      if (sessioneSorgenti.current === sessione && lettura === letturaSorgenti.current)
+        setMessaggioSorgenti('Impossibile caricare le sorgenti. Riprova la lettura.')
+    } finally {
+      if (sessioneSorgenti.current === sessione && lettura === letturaSorgenti.current) setCaricamentoSorgenti(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!elencoPronto || bozzaIdRef.current) return
+    if (candidate.length === 1) void caricaSorgentiSalvate(candidate[0].id)
+    else setSorgentiPronte(candidate.length === 0)
+  }, [elencoVarianti, cantiereId])
   const richiesta = useRef(0)
+  const sorgenteMemorizzata = sorgenti.find(s => s.id === chiaveSorgenteAperta)?.snapshot
+  const anteprima = sorgenteMemorizzata
+    ? sorgenteMemorizzata.tipo === 'preventivo_artecna' ? sorgenteMemorizzata : null
+    : anteprimaCaricata
+  const propostaFile = sorgenteMemorizzata
+    ? sorgenteMemorizzata.tipo === 'file' ? sorgenteMemorizzata.proposta : null
+    : propostaFileCaricata
+  const warningsFile = sorgenteMemorizzata
+    ? sorgenteMemorizzata.tipo === 'file' ? sorgenteMemorizzata.warnings : []
+    : warningsFileLettura
+  const sorgenteCorrente: SnapshotSorgenteVariante | null = sorgenteMemorizzata ?? (
+    percorsoPreventivo && anteprimaCaricata ? {
+      chiave: 'artecna:' + anteprimaCaricata.proposta.preventivoSorgenteId,
+      tipo: 'preventivo_artecna',
+      preventivoId: anteprimaCaricata.proposta.preventivoSorgenteId,
+      titolo: preventivi.find(p => p.id === preventivoId)?.nomeFile || 'Preventivo ARTECNA',
+      proposta: anteprimaCaricata.proposta,
+      anomalieMapper: anteprimaCaricata.anomalieMapper,
+    } : percorsoFile && propostaFileCaricata && fileSelezionato ? {
+      // Chiave della sola sessione: non viene aggiunta alla provenienza delle voci.
+      chiave: 'file:' + JSON.stringify([fileSelezionato.name, fileSelezionato.size, fileSelezionato.lastModified]),
+      tipo: 'file',
+      titolo: propostaFileCaricata.file.nome,
+      proposta: propostaFileCaricata,
+      warnings: warningsFileLettura,
+    } : null
+  )
 
   function resetFile() {
+    setChiaveSorgenteAperta(null)
+    setMessaggioSorgenti('')
     setRevisione(null)
     setFileSelezionato(null)
     setAnalisiFile(false)
@@ -172,7 +370,7 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
 
   useEffect(() => {
     let attivo = true
-    const corrente = ++richiesta.current
+    richiesta.current += 1
     resetFile()
     setPreventivi([])
     setPreventivoId('')
@@ -182,13 +380,13 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
     setCaricamentoElenco(aperto && percorsoPreventivo)
     if (aperto && percorsoPreventivo) {
       void elencaPreventiviSorgenteVariante(supabase, cantiereId).then(esito => {
-        if (!attivo || corrente !== richiesta.current) return
+        if (!attivo) return
         if (esito.stato === 'errore') setMessaggio(esito.messaggio)
         else setPreventivi(esito.preventivi)
       }).catch(() => {
-        if (attivo && corrente === richiesta.current) setMessaggio('Impossibile caricare i preventivi sorgente.')
+        if (attivo) setMessaggio('Impossibile caricare i preventivi sorgente.')
       }).finally(() => {
-        if (attivo && corrente === richiesta.current) setCaricamentoElenco(false)
+        if (attivo) setCaricamentoElenco(false)
       })
     }
     return () => { attivo = false; richiesta.current += 1 }
@@ -197,6 +395,8 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
   async function caricaAnteprima() {
     if (!aperto || !percorsoPreventivo || !preventivi.some(p => p.id === preventivoId)) return
     const corrente = ++richiesta.current
+    setChiaveSorgenteAperta(null)
+    setMessaggioSorgenti('')
     setRevisione(null)
     setAnteprima(null)
     setMessaggio('')
@@ -223,6 +423,8 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
   async function analizzaFile() {
     if (!aperto || !percorsoFile || !fileSelezionato || analisiFile) return
     const corrente = ++richiesta.current
+    setChiaveSorgenteAperta(null)
+    setMessaggioSorgenti('')
     setRevisione(null)
     setAnalisiFile(true)
     setErroreFile('')
@@ -249,10 +451,127 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
     }
   }
 
+  async function aggiungiSorgente() {
+    if (invioSorgente.current || caricamentoSorgenti || !elencoPronto || !sorgentiPronte ||
+        (!bozzaIdRef.current && candidate.length > 0) ||
+        !sorgenteCorrente || sorgenteCorrente.proposta.lavorazioni.length === 0) return
+    if (sorgenti.some(s => s.id === chiaveSorgenteAperta || s.snapshot?.chiave === sorgenteCorrente.chiave ||
+        (sorgenteCorrente.tipo === 'preventivo_artecna' && s.preventivoId === sorgenteCorrente.preventivoId))) {
+      setMessaggioSorgenti('Sorgente già aggiunta')
+      return
+    }
+    const sessione = sessioneSorgenti.current
+    if (!sessione) return
+    const copia = structuredClone(sorgenteCorrente)
+    invioSorgente.current = true
+    setSalvataggioSorgente(true)
+    setMessaggioSorgenti('')
+    try {
+      let id = bozzaIdRef.current
+      if (!id) {
+        const { data, error } = await supabase.rpc('crea_bozza_variante', {
+          p_cantiere_id: cantiereId, p_titolo: titoloBozzaSorgenti,
+          p_descrizione: 'Raccolta sorgenti del Preventivo integrativo.', p_data_variante: null,
+        })
+        if (sessioneSorgenti.current !== sessione) return
+        if (error) { setSorgentiPronte(false); setMessaggioSorgenti('Creazione non confermata. Riapri la tab per verificare le bozze prima di riprovare.'); return }
+        const riga = singolaRigaSorgente(data)
+        id = idSorgenteValido(riga) ? riga : recordSorgente(riga) && idSorgenteValido(riga.id) ? riga.id : null
+        if (!id) { setSorgentiPronte(false); setMessaggioSorgenti('Identità della bozza non verificabile. Riapri la tab prima di riprovare.'); return }
+        // Conservato anche se la seconda RPC fallisce: nessuna nuova bozza al retry.
+        bozzaIdRef.current = id
+        setBozzaSorgentiVarianteId(id)
+      }
+      const { data, error } = await supabase.rpc('aggiungi_sorgente_variante', {
+        p_variante_id: id, p_tipo: copia.tipo,
+        p_preventivo_sorgente_id: copia.tipo === 'preventivo_artecna' ? copia.preventivoId : null,
+        p_titolo: copia.titolo, p_nome_file: copia.tipo === 'file' ? copia.proposta.file.nome : null,
+        p_formato: copia.tipo === 'file' ? copia.proposta.file.formato : null,
+        p_file_sha256: null, p_snapshot_version: 1, p_snapshot: copia,
+      })
+      if (sessioneSorgenti.current !== sessione) return
+      if (error) { setMessaggioSorgenti(messaggioRpcSorgenti(error)); return }
+      const riga = singolaRigaSorgente(data)
+      const salvata = leggiMetadataSorgente(riga, id)
+      if (!recordSorgente(riga) || salvata.snapshotVersion !== 1 ||
+          !snapshotSorgenteValido(riga.snapshot, salvata, cantiereId)) throw new Error('Snapshot non valido')
+      const snapshot = riga.snapshot
+      setSorgenti(precedenti => [...precedenti.filter(s => s.id !== salvata.id), { ...salvata, snapshot }])
+      setMessaggioSorgenti('Sorgente salvata nella bozza.')
+    } catch {
+      if (sessioneSorgenti.current === sessione) {
+        setSorgentiPronte(false)
+        setMessaggioSorgenti('Salvataggio non confermato. Ricarica le sorgenti o riapri la tab prima di riprovare.')
+      }
+    } finally {
+      if (sessioneSorgenti.current === sessione) { invioSorgente.current = false; setSalvataggioSorgente(false) }
+    }
+  }
+
+  async function apriSorgente(id: string) {
+    const sorgente = sorgenti.find(s => s.id === id)
+    if (!sorgente || invioSorgente.current || caricamentoSorgenti) return
+    const sessione = sessioneSorgenti.current
+    const corrente = ++richiesta.current
+    resetFile()
+    setAnteprima(null)
+    setCaricamentoAnteprima(true)
+    try {
+      const { data, error } = await supabase.rpc('leggi_sorgente_variante', { p_sorgente_id: id })
+      if (sessioneSorgenti.current !== sessione || corrente !== richiesta.current) return
+      if (error) { setMessaggioSorgenti(messaggioRpcSorgenti(error)); return }
+      const riga = singolaRigaSorgente(data)
+      const meta = leggiMetadataSorgente(riga, sorgente.varianteId)
+      if (meta.id !== id) throw new Error('Identità sorgente incoerente')
+      if (meta.snapshotVersion !== 1) { setMessaggioSorgenti('Versione snapshot non supportata'); return }
+      if (!recordSorgente(riga) || !snapshotSorgenteValido(riga.snapshot, meta, cantiereId)) throw new Error('Snapshot non valido')
+      const snapshot = riga.snapshot
+      setSorgenti(precedenti => precedenti.map(s => s.id === id ? { ...meta, snapshot } : s))
+      setRevisione(null)
+      setChiaveSorgenteAperta(id)
+    } catch {
+      if (sessioneSorgenti.current === sessione && corrente === richiesta.current)
+        setMessaggioSorgenti('Snapshot non valido o non disponibile. Nessuna conversione applicata.')
+    } finally {
+      if (sessioneSorgenti.current === sessione && corrente === richiesta.current) setCaricamentoAnteprima(false)
+    }
+  }
+
+  async function rimuoviSorgente(id: string) {
+    const sorgente = sorgenti.find(s => s.id === id)
+    if (!sorgente || invioSorgente.current || caricamentoSorgenti) return
+    const sessione = sessioneSorgenti.current
+    invioSorgente.current = true
+    setSalvataggioSorgente(true)
+    setMessaggioSorgenti('')
+    richiesta.current += 1
+    setCaricamentoAnteprima(false)
+    try {
+      const { data, error } = await supabase.rpc('rimuovi_sorgente_variante', { p_sorgente_id: id })
+      if (sessioneSorgenti.current !== sessione) return
+      if (error) { setMessaggioSorgenti(messaggioRpcSorgenti(error)); return }
+      const rimossa = singolaRigaSorgente(data)
+      if (!recordSorgente(rimossa) || rimossa.id !== id || rimossa.variante_id !== sorgente.varianteId)
+        throw new Error('Rimozione non verificabile')
+      if (chiaveSorgenteAperta === id || (sorgente.snapshot && sorgenteCorrente?.chiave === sorgente.snapshot.chiave)) {
+        resetFile()
+        setAnteprima(null)
+        setPreventivoId('')
+        setMessaggio('')
+      }
+      setSorgenti(precedenti => precedenti.filter(s => s.id !== id))
+      setMessaggioSorgenti('Sorgente rimossa.')
+    } catch {
+      if (sessioneSorgenti.current === sessione) setMessaggioSorgenti('Rimozione non confermata. Ricarica le sorgenti prima di riprovare.')
+    } finally {
+      if (sessioneSorgenti.current === sessione) { invioSorgente.current = false; setSalvataggioSorgente(false) }
+    }
+  }
+
   function revisionaSorgente() {
-    if (percorsoPreventivo && anteprima && anteprima.proposta.lavorazioni.length > 0) {
+    if (anteprima && anteprima.proposta.lavorazioni.length > 0) {
       setRevisione(creaRevisioneVariante(anteprima.proposta, anteprima.anomalieMapper))
-    } else if (percorsoFile && propostaFile && propostaFile.lavorazioni.length > 0) {
+    } else if (propostaFile && propostaFile.lavorazioni.length > 0) {
       setRevisione(creaRevisioneVariante(propostaFile))
     }
   }
@@ -274,22 +593,74 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
     {aperto && <section aria-label="Origine e acquisizione variante"
       style={{ marginTop: 12, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-        <label>Origine variante<select value={natura} style={{ display: 'block', padding: 8 }}
-          onChange={e => { resetPercorso(); setNatura(e.target.value as NaturaVariante) }}>
+        <label>Origine variante<select disabled={operazioneSorgenti} value={natura} style={{ display: 'block', padding: 8 }}
+          onChange={e => {
+            if (sorgenti.length > 0) {
+              setMessaggioSorgenti('Questa bozza contiene sorgenti salvate. Rimuovile prima di cambiare origine.')
+              return
+            }
+            if (!sorgentiPronte) {
+              setMessaggioSorgenti('Verifica le sorgenti della bozza prima di cambiare origine.')
+              return
+            }
+            resetPercorso()
+            setNatura(e.target.value as NaturaVariante)
+          }}>
           <option value="preventivo_integrativo">Preventivo integrativo</option>
           <option value="lavori_in_economia">Lavori in economia</option>
         </select></label>
-        <label>Acquisizione<select value={acquisizione} style={{ display: 'block', padding: 8 }}
+        <label>Acquisizione<select disabled={operazioneSorgenti} value={acquisizione} style={{ display: 'block', padding: 8 }}
           onChange={e => { resetPercorso(); setAcquisizione(e.target.value as AcquisizioneVariante) }}>
           <option value="manuale">Manuale</option>
           <option value="dati_artecna">Da dati ARTECNA</option>
           <option value="file">Importa file</option>
         </select></label>
       </div>
+      {!elencoPronto && <p role="status">Attendi il caricamento delle varianti prima di salvare sorgenti.</p>}
+      {candidate.length > 1 && <label>
+        Esistono più bozze di Preventivo integrativo. Seleziona quella da continuare.
+        <select value={bozzaSorgentiVarianteId ?? ''} disabled={operazioneSorgenti}
+          onChange={e => { if (e.target.value) void caricaSorgentiSalvate(e.target.value) }}>
+          <option value="" disabled>Seleziona una bozza</option>
+          {candidate.map(b => <option key={b.id} value={b.id}>
+            {b.data_variante || 'Data non disponibile'} — {b.created_at || ''} — {b.id.slice(0, 8)}
+          </option>)}
+        </select>
+      </label>}
+      {bozzaSorgentiVarianteId && <button type="button" disabled={operazioneSorgenti}
+        onClick={() => void caricaSorgentiSalvate(bozzaSorgentiVarianteId)}>Ricarica sorgenti</button>}
+      {caricamentoSorgenti && <p role="status">Caricamento sorgenti...</p>}
+      {sorgenti.length > 0 && <section aria-label="Sorgenti della variante" style={{ marginTop: 16 }}>
+        <h4>Sorgenti della variante</h4>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 650, fontSize: 14 }}>
+            <thead><tr>{['Tipo', 'Sorgente', 'Voci', 'Totale sorgente', 'Azioni'].map(t =>
+              <th key={t} scope="col" style={{ ...cella, textAlign: 'left', background: '#f1f5f9' }}>{t}</th>)}</tr></thead>
+            <tbody>{sorgenti.map(sorgente => {
+              const totaleSorgente = sorgente.snapshot?.proposta.lavorazioni.reduce((somma, voce) =>
+                somma + (typeof voce.totale === 'number' && Number.isFinite(voce.totale) && voce.totale >= 0
+                  ? voce.totale : 0), 0)
+              return <tr key={sorgente.id}>
+                <td style={cella}>{sorgente.tipo === 'preventivo_artecna' ? 'ARTECNA' : 'FILE'}</td>
+                <td style={{ ...cella, overflowWrap: 'anywhere' }}>{sorgente.titolo}</td>
+                <td style={cella}>{sorgente.snapshot?.proposta.lavorazioni.length ?? '—'}</td>
+                <td style={cella}>{totaleSorgente === undefined ? '—' : numero(totaleSorgente) + ' €'}</td>
+                <td style={cella}>
+                  <button type="button" disabled={operazioneSorgenti} onClick={() => void apriSorgente(sorgente.id)}
+                    aria-label={'Apri sorgente ' + sorgente.titolo}>Apri</button>{' '}
+                  <button type="button" disabled={operazioneSorgenti} onClick={() => void rimuoviSorgente(sorgente.id)}
+                    aria-label={'Rimuovi sorgente ' + sorgente.titolo}>Rimuovi</button>
+                </td>
+              </tr>
+            })}</tbody>
+          </table>
+        </div>
+      </section>}
+      {sorgenteMemorizzata && <p>Sorgente aperta: {sorgenteMemorizzata.titolo}</p>}
       {!percorsoPreventivo && !percorsoFile && <p role="status">Questo percorso non è ancora configurato.</p>}
       {percorsoFile && <>
-        <p>Solo anteprima: il file resta locale e nessuna variante viene creata o salvata.</p>
-        <label>File preventivo<input type="file" accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp"
+        <p>Il file resta locale. Aggiungi alle sorgenti salva lo snapshot nella bozza, senza lavorazioni economiche.</p>
+        <label>File preventivo<input type="file" disabled={operazioneSorgenti} accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp"
           style={{ display: 'block', margin: '8px 0', maxWidth: '100%' }}
           onChange={e => {
             richiesta.current += 1
@@ -298,9 +669,10 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
             e.target.value = ''
           }} /></label>
         {fileSelezionato && <p style={{ overflowWrap: 'anywhere' }}>{fileSelezionato.name}</p>}
-        <button type="button" disabled={!fileSelezionato || analisiFile}
+        <button type="button" disabled={operazioneSorgenti || !fileSelezionato || analisiFile}
           onClick={() => void analizzaFile()}>{analisiFile ? 'Analisi in corso...' : 'Analizza file'}</button>
         {erroreFile && <p role="status">{erroreFile}</p>}
+      </>}
         {warningsFile.length > 0 && <div><p>Avvisi lettura file:</p>
           <ul>{warningsFile.map((warning, i) => <li key={i}>{warning}</li>)}</ul>
         </div>}
@@ -331,14 +703,13 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
             Revisiona variante
           </button>}
         </>}
-      </>}
       {percorsoPreventivo && <>
-      <p>Solo anteprima: nessuna variante viene creata o salvata. Le voci e gli importi sorgente non vengono corretti automaticamente.</p>
-      <label>Preventivo sorgente<select value={preventivoId} disabled={caricamentoElenco}
+      <p>L’anteprima non salva dati. Aggiungi alle sorgenti salva lo snapshot nella bozza senza correggere voci o importi.</p>
+      <label>Preventivo sorgente<select value={preventivoId} disabled={operazioneSorgenti || caricamentoElenco}
         style={{ display: 'block', width: '100%', padding: 8, margin: '8px 0' }}
         onChange={e => {
           richiesta.current += 1
-          setRevisione(null)
+          resetFile()
           setPreventivoId(e.target.value)
           setAnteprima(null)
           setMessaggio('')
@@ -353,9 +724,10 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
       </select></label>
       {caricamentoElenco && <p role="status">Caricamento preventivi...</p>}
       {!caricamentoElenco && !messaggio && preventivi.length === 0 && <p>Nessun preventivo strutturato disponibile per questo cantiere.</p>}
-      <button type="button" disabled={!preventivoId || caricamentoElenco || caricamentoAnteprima}
+      <button type="button" disabled={operazioneSorgenti || !preventivoId || caricamentoElenco || caricamentoAnteprima}
         onClick={() => void caricaAnteprima()}>{caricamentoAnteprima ? 'Caricamento anteprima...' : 'Carica anteprima'}</button>
       {messaggio && <p role="status">{messaggio}</p>}
+      </>}
       {anteprima && revisione === null && <>
         <p>Totale sorgente leggibile: {numero(totale)} € (solo totali validi e finiti).</p>
         {anteprima.proposta.anomalie.filter(a => a.indiceVoce === undefined).map((a, i) =>
@@ -385,7 +757,10 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
           Revisiona variante
         </button>}
       </>}
-      </>}
+      {revisione === null && sorgenteCorrente && sorgenteCorrente.proposta.lavorazioni.length > 0 &&
+        <button type="button" disabled={operazioneSorgenti || !elencoPronto || !sorgentiPronte || caricamentoAnteprima}
+          onClick={() => void aggiungiSorgente()}>{salvataggioSorgente ? 'Salvataggio...' : 'Aggiungi alle sorgenti'}</button>}
+      {messaggioSorgenti && <p role="status">{messaggioSorgenti}</p>}
       {revisione !== null && <RevisioneVarianteLocale righe={revisione} onChange={setRevisione}
         onAnnulla={() => setRevisione(null)} onRipristina={revisionaSorgente} />}
     </section>}
@@ -399,6 +774,7 @@ type Variante = {
   descrizione: string
   stato: string
   data_variante: string | null
+  created_at?: string | null
   importo_delta_approvato: number | string | null
   approvata_at?: string | null
   riferimento_approvazione?: string | null
@@ -408,7 +784,7 @@ type Variante = {
 type Stato =
   | { tipo: 'loading' }
   | { tipo: 'errore'; messaggio: string }
-  | { tipo: 'elenco'; righe: Variante[] }
+  | { tipo: 'elenco'; righe: Variante[]; cantiereId: string }
 
 const erroriLetturaRpc: Record<string, string> = {
   P2020: 'Sessione utente non valida.',
@@ -485,7 +861,7 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
           righe.push(...data)
           if (data.length < pagina) break
         }
-        if (attivo) setStato({ tipo: 'elenco', righe })
+        if (attivo) setStato({ tipo: 'elenco', righe, cantiereId: cantiereId! })
       } catch {
         if (attivo) setStato({ tipo: 'errore', messaggio: 'Errore di aggiornamento elenco. Le bozze già confermate restano salvate. Riapri la tab per riprovare la lettura.' })
       }
@@ -596,7 +972,7 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
   return (
     <section aria-label="Varianti" style={{ marginTop: 16 }}>
       <h3>Varianti</h3>
-      {cantiereId && <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} />}
+      {cantiereId && <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} elencoVarianti={stato} />}
       {!formAperto && (
         <button type="button" disabled={!cantiereId || salvataggio}
           onClick={() => { setErroreSalvataggio(''); setFormAperto(true) }}>
