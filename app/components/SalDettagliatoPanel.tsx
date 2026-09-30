@@ -2,7 +2,7 @@ import ImportaPreventivoSalPanel from './ImportaPreventivoSalPanel'
 
 import { eliminaPreventivoConFile, messaggioEliminazione } from '../utils/eliminazionePreventivo'
 
-import type { CSSProperties } from 'react'
+import { useRef, type CSSProperties } from 'react'
 
 import SalForm from './SalForm'
 import PreventivoLavorazioniForm from './PreventivoLavorazioniForm'
@@ -158,6 +158,84 @@ export default function SalDettagliatoPanel({
   eliminaSalLavorazione,
   ...contesto
 }: Props) {
+  const aggiornamentiSal = useRef(new Map<string, {
+    versione: number
+    coda: Promise<void>
+  }>())
+
+  const aggiornaSalStrutturato = async (
+    riga: any,
+    percentuale: number | null,
+    completata: boolean | null,
+  ): Promise<boolean> => {
+    const base = riga.source_lavorazione_id != null
+    const variante = riga.source_variante_lavorazione_id != null
+    if (!base && !variante) return false
+    if (base && variante) {
+      alert('Riga SAL con sorgente incoerente.')
+      return true
+    }
+
+    const chiave = String(riga.id)
+    const richieste = aggiornamentiSal.current.get(chiave) || {
+      versione: 0,
+      coda: Promise.resolve(),
+    }
+    aggiornamentiSal.current.set(chiave, richieste)
+    const versione = ++richieste.versione
+    const corrente = () => richieste.versione === versione
+    const messaggi: Record<string, string> = {
+      P2030: 'Riga SAL non disponibile.',
+      P2031: 'Richiesta SAL non valida.',
+      P2032: 'Contesto SAL cambiato. Ricarica.',
+      P2033: 'Sorgente contrattuale non valida.',
+      P2034: 'Importo SAL incoerente con la sorgente.',
+      P2035: 'Sorgente Variante non valida.',
+      P2036: 'Percentuale non valida.',
+      P2037: 'Residuo contrattuale insufficiente o incoerente.',
+      P2038: 'Riga SAL con doppia sorgente.',
+      P2039: 'Conflitto durante aggiornamento SAL. Riprova.',
+      P2040: 'Operazione SAL non autorizzata.',
+    }
+    const numeroFinito = (valore: unknown) =>
+      (typeof valore === 'number' ||
+        (typeof valore === 'string' && valore.trim() !== '')) &&
+      Number.isFinite(Number(valore))
+
+    // Ordina le scritture della stessa riga; le altre righe restano indipendenti.
+    const esegui = async () => {
+      try {
+        const { data, error } = await supabase.rpc('aggiorna_avanzamento_sal', {
+          p_sal_id: riga.id,
+          p_percentuale: percentuale,
+          p_completata: completata,
+        })
+        if (!corrente()) return
+        if (error) {
+          alert(messaggi[error.code] || 'Errore aggiornamento SAL. Ricarica e riprova.')
+          await caricaSalLavorazioni()
+          return
+        }
+        const esito = Array.isArray(data) && data.length === 1 ? data[0] : null
+        if (!esito || String(esito.id) !== chiave ||
+            esito.classificazione !== (base ? 'STRUTTURATA_BASE' : 'STRUTTURATA_VARIANTE') ||
+            !numeroFinito(esito.percentuale) || !numeroFinito(esito.importo_maturato) ||
+            typeof esito.completata !== 'boolean') {
+          alert('Risposta SAL non verificabile. Ricarica i dati.')
+          await caricaSalLavorazioni()
+          return
+        }
+        // Rilegge i valori persistiti dal server, senza calcoli o patch locali.
+        await caricaSalLavorazioni()
+      } catch {
+        if (corrente()) alert('Aggiornamento SAL non confermato. Ricarica i dati.')
+      }
+    }
+    richieste.coda = richieste.coda.then(esegui, esegui)
+    await richieste.coda
+    return true
+  }
+
   // Il record contestuale arriva dalla selezione UUID della Scheda.
   const salCantiere = contesto.contestuale
     ? contesto.cantiereContestuale.nome
@@ -664,6 +742,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   excelTd={excelTd}
   formatMoney={formatMoney}
   onToggleCompletata={async (s, completata) => {
+    if (await aggiornaSalStrutturato(s, null, completata)) return
     const nuovaPercentuale = completata
       ? Number(s.percentuale || 0)
       : 0
@@ -718,6 +797,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     }
   }}
   onUpdatePercentuale={async (s, valore) => {
+    if (await aggiornaSalStrutturato(s, Number(valore || 0), null)) return
     const percentuale = Number(valore || 0)
 
     const maturato =
