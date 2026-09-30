@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { elencaPreventiviSorgenteVariante, caricaLavorazioniPreventivoSorgente, type PreventivoSorgenteCandidato } from '../engines/varianti/repositoryPreventiviSorgente'
 import { adattaPreventivoAVariante } from '../engines/varianti/adattaPreventivoAVariante'
@@ -1339,16 +1339,17 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
                 <p>Data approvazione: {variante.approvata_at && Number.isFinite(Date.parse(variante.approvata_at))
                   ? new Date(variante.approvata_at).toLocaleString('it-IT') : 'Non disponibile'}</p>
               </>}
-              {variante.stato === 'proposta' && <ApprovazioneVarianteForm key={`approva:${cantiereId}:${variante.id}`}
-                variante={variante} cantiereId={cantiereId}
-                onApprovata={esito => confermaApprovazione(variante, esito)} />}
               <details>
                 <summary>Preventivo contrattuale collegato</summary>
                 <p style={{ overflowWrap: 'anywhere' }}>{variante.preventivo_contrattuale_id || 'Non disponibile'}</p>
               </details>
               <LavorazioniVariantePanel key={`${cantiereId}:${variante.id}`} varianteId={variante.id}
                 cantiereId={cantiereId} statoVariante={variante.stato}
-                onProposta={numero => confermaProposta(variante, numero)} />
+                onProposta={numero => confermaProposta(variante, numero)}
+                renderApprovazione={lavorazioniLette => variante.stato === 'proposta' &&
+                  <ApprovazioneVarianteForm key={'approva:' + cantiereId + ':' + variante.id}
+                    variante={variante} cantiereId={cantiereId} lavorazioniLette={lavorazioniLette}
+                    onApprovata={esito => confermaApprovazione(variante, esito)} />} />
             </article>
           ))}
         </div>
@@ -1402,11 +1403,12 @@ const erroriPropostaRpc: Record<string, string> = {
   P2017: 'Conflitto durante la proposta. Riprova.',
 }
 
-function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, onProposta }: {
+function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, onProposta, renderApprovazione }: {
   varianteId: string
   cantiereId?: string | null
   statoVariante: string
   onProposta: (numero: number) => void
+  renderApprovazione?: (lavorazioniLette: readonly LavorazioneVariante[] | null) => ReactNode
 }) {
   const [righe, setRighe] = useState<LavorazioneVariante[]>([])
   const [confermate, setConfermate] = useState<LavorazioneVariante[]>([])
@@ -1586,6 +1588,7 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, onPro
   return (
     <section aria-label="Lavorazioni della variante" style={{ marginTop: 20, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
       <h5>Lavorazioni della variante</h5>
+      {renderApprovazione?.(lettura === 'elenco' && !nonRilette ? righe : null)}
       {modificabile && lettura === 'elenco' && righe.length > 0 && (
         <button type="button" disabled={propostaInCorso || salvataggio || !cantiereId} onClick={() => void proponiVariante()}>
           {propostaInCorso ? 'Proposta in corso...' : 'Proponi variante'}
@@ -1653,15 +1656,21 @@ const erroriApprovazioneRpc: Record<string, string> = {
   P2033: "Conflitto durante l'approvazione. Riprova.",
 }
 
-function ApprovazioneVarianteForm({ variante, cantiereId, onApprovata }: {
+function ApprovazioneVarianteForm({ variante, cantiereId, lavorazioniLette, onApprovata }: {
   variante: Variante
   cantiereId?: string | null
+  lavorazioniLette: readonly LavorazioneVariante[] | null
   onApprovata: (esito: EsitoApprovazione) => void
 }) {
   const [aperto, setAperto] = useState(false)
   const [riferimento, setRiferimento] = useState('')
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState('')
+  const totale = lavorazioniLette?.reduce((somma, riga) => somma + numeroLavorazione(riga.delta_contratto), 0)
+  const lavorazioniPronte = !!lavorazioniLette?.length && totale !== undefined && Number.isFinite(totale)
+  const totaleFormattato = lavorazioniPronte ? totale!.toLocaleString('it-IT', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }) + ' €' : 'Non disponibile'
   const invio = useRef(false)
   const contesto = useRef<object | null>(null)
 
@@ -1683,12 +1692,16 @@ function ApprovazioneVarianteForm({ variante, cantiereId, onApprovata }: {
       setErrore(erroriApprovazioneRpc.P2030)
       return
     }
+    if (!lavorazioniPronte) {
+      setErrore('Ricarica le lavorazioni prima di approvare.')
+      return
+    }
     const riferimentoInviato = riferimento.trim()
     if (!riferimentoInviato) {
       setErrore(erroriApprovazioneRpc.P2028)
       return
     }
-    if (!confirm(`Approvare definitivamente la variante n. ${variante.numero}? Dopo l'approvazione la variante diventa storica e il preventivo contrattuale di base viene congelato.`)) return
+    if (!confirm(`Approvare definitivamente la Variante n. ${variante.numero} per ${totaleFormattato}? Lavorazioni: ${lavorazioniLette!.length}. L'approvazione renderà la Variante storica e aggiornerà il valore contrattuale. Continuare?`)) return
     const corrente = contesto.current
     if (!corrente) return
     invio.current = true
@@ -1741,6 +1754,13 @@ function ApprovazioneVarianteForm({ variante, cantiereId, onApprovata }: {
       {aperto && <form onSubmit={approva}>
         <fieldset disabled={inCorso} style={{ display: 'grid', gap: 12, padding: 12, border: '1px solid #e2e8f0' }}>
           <legend>Approva variante</legend>
+          <div>
+            <p>Variante n. {variante.numero}</p>
+            <p>Lavorazioni: {lavorazioniLette?.length ?? 'Non disponibili'}</p>
+            <p>Totale variante: {totaleFormattato}</p>
+            <p>Riepilogo delle lavorazioni rilette. L’importo approvato sarà ricalcolato dal server.</p>
+            {!lavorazioniPronte && <p role="status">Ricarica le lavorazioni prima di approvare.</p>}
+          </div>
           <label>Riferimento approvazione *
             <input required value={riferimento} onChange={e => setRiferimento(e.target.value)}
               placeholder="Approvazione cliente del 18/09/2026"
@@ -1748,7 +1768,7 @@ function ApprovazioneVarianteForm({ variante, cantiereId, onApprovata }: {
           </label>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={annulla}>Annulla</button>
-            <button type="submit" disabled={inCorso}>{inCorso ? 'Approvazione in corso...' : 'Conferma approvazione'}</button>
+            <button type="submit" disabled={inCorso || !lavorazioniPronte || !riferimento.trim()}>{inCorso ? 'Approvazione in corso...' : 'Conferma approvazione'}</button>
           </div>
         </fieldset>
       </form>}
