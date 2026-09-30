@@ -127,6 +127,77 @@ function RevisioneVarianteLocale({ righe, onChange, onAnnulla, onRipristina }: {
   </section>
 }
 
+type RigaRevisioneCumulativa = RigaRevisioneVariante & {
+  sorgenteId: string
+  indiceVoce: number
+  titoloSorgente: string
+}
+
+type RevisioneCumulativa = {
+  originali: readonly RigaRevisioneCumulativa[]
+  righe: RigaRevisioneCumulativa[]
+}
+
+function RevisioneCumulativaLocale({ valore, onChange, onAnnulla }: {
+  valore: RevisioneCumulativa
+  onChange: (valore: RevisioneCumulativa) => void
+  onAnnulla: () => void
+}) {
+  const valutate = valore.righe.map(riga => ({ riga, ...valutaRigaRevisione(riga) }))
+  const incluse = valutate.filter(v => v.riga.inclusa)
+  const totale = incluse.reduce((somma, v) => somma + (v.totale ?? 0), 0)
+  const pronta = incluse.length > 0 && incluse.every(v => v.valida) && Number.isFinite(totale)
+  const cella = { padding: '8px 10px', border: '1px solid #dbe3ee', verticalAlign: 'top' as const }
+  const input = { width: '100%', boxSizing: 'border-box' as const, padding: 6 }
+  const numero = (v: number) => v.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })
+  const cambia = (indice: number, campi: Partial<Pick<RigaRevisioneCumulativa,
+    'descrizione' | 'unitaMisura' | 'quantita' | 'prezzoUnitario' | 'inclusa'>>) =>
+    onChange({ ...valore, righe: valore.righe.map((r, i) => i === indice ? { ...r, ...campi } : r) })
+  const ripristina = (riga: RigaRevisioneCumulativa) => {
+    const originale = valore.originali.find(r => r.sorgenteId === riga.sorgenteId && r.indiceVoce === riga.indiceVoce)
+    if (!originale) return
+    onChange({ ...valore, righe: valore.righe.map(r =>
+      r.sorgenteId === riga.sorgenteId && r.indiceVoce === riga.indiceVoce
+        ? structuredClone(originale) : r) })
+  }
+  return <section aria-label="Revisione cumulativa multi-sorgente" style={{ marginTop: 16 }}>
+    <h4>Revisione cumulativa del Preventivo integrativo</h4>
+    <p>Modifiche solo locali: gli snapshot salvati restano invariati. Nessuna lavorazione economica viene creata.</p>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      <button type="button" onClick={() => onChange({ ...valore, righe: valore.originali.map(r => structuredClone(r)) })}>Ripristina tutte</button>
+      <button type="button" onClick={onAnnulla}>Annulla revisione cumulativa</button>
+    </div>
+    <div style={{ overflowX: 'auto', marginTop: 12 }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 1050, fontSize: 14 }}>
+        <thead><tr>{['Includi', 'Sorgente', 'Descrizione', 'UM', 'Quantità', 'Prezzo unitario', 'Totale riga', 'Verifica', 'Azioni'].map(t =>
+          <th key={t} scope="col" style={{ ...cella, textAlign: 'left', background: '#f1f5f9' }}>{t}</th>)}</tr></thead>
+        <tbody>{valutate.map(({ riga, totale: totaleRiga, valida }, indice) => <tr
+          key={riga.sorgenteId + ':' + riga.indiceVoce} style={{ background: indice % 2 ? '#f8fafc' : '#fff' }}>
+          <td style={cella}><input type="checkbox" aria-label={'Includi riga cumulativa ' + (indice + 1)} checked={riga.inclusa}
+            onChange={e => cambia(indice, { inclusa: e.target.checked })} /></td>
+          <td style={{ ...cella, overflowWrap: 'anywhere' }}>{riga.titoloSorgente}<br /><small>Voce {riga.indiceVoce + 1}</small></td>
+          <td style={cella}><input style={input} aria-label={'Descrizione cumulativa ' + (indice + 1)} value={riga.descrizione}
+            onChange={e => cambia(indice, { descrizione: e.target.value })} /></td>
+          <td style={cella}><input style={input} aria-label={'UM cumulativa ' + (indice + 1)} value={riga.unitaMisura}
+            onChange={e => cambia(indice, { unitaMisura: e.target.value })} /></td>
+          <td style={cella}><input style={input} inputMode="decimal" aria-label={'Quantità cumulativa ' + (indice + 1)} value={riga.quantita}
+            onChange={e => cambia(indice, { quantita: e.target.value })} /></td>
+          <td style={cella}><input style={input} inputMode="decimal" aria-label={'Prezzo cumulativo ' + (indice + 1)} value={riga.prezzoUnitario}
+            onChange={e => cambia(indice, { prezzoUnitario: e.target.value })} /></td>
+          <td style={cella}>{totaleRiga === undefined ? 'Non disponibile' : numero(totaleRiga) + ' €'}</td>
+          <td style={cella}>{riga.inclusa ? valida ? 'OK' : 'Da verificare' : 'Esclusa'}
+            {riga.avevaAnomalieSorgente && <div><small>Anomalie nella sorgente</small></div>}</td>
+          <td style={cella}><button type="button" onClick={() => ripristina(riga)}>Ripristina singola riga</button></td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+    <p>Voci incluse: {incluse.length} / {valore.righe.length}</p>
+    <p>Totale cumulativo: {Number.isFinite(totale) ? numero(totale) + ' €' : 'Non disponibile'}
+      {!pronta && ' (parziale, non definitivo)'}</p>
+    <p role="status">{pronta ? 'Revisione pronta' : 'Revisione da verificare'}</p>
+  </section>
+}
+
 type SnapshotSorgenteVariante =
   | {
       chiave: string
@@ -256,6 +327,11 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
     anomalieMapper: AnomaliaMappingLavorazionePreventivo[]
   } | null>(null)
   const [revisione, setRevisione] = useState<RigaRevisioneVariante[] | null>(null)
+  const [revisioneCumulativa, setRevisioneCumulativa] = useState<RevisioneCumulativa | null>(null)
+  const [caricamentoCumulativa, setCaricamentoCumulativa] = useState(false)
+  const [erroreCumulativa, setErroreCumulativa] = useState('')
+  const richiestaCumulativa = useRef(0)
+  const invioCumulativa = useRef(false)
   const [sorgenti, setSorgenti] = useState<SorgenteVarianteAggiunta[]>([])
   const [chiaveSorgenteAperta, setChiaveSorgenteAperta] = useState<string | null>(null)
   const [messaggioSorgenti, setMessaggioSorgenti] = useState('')
@@ -270,7 +346,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
   const candidate = elencoVarianti.tipo === 'elenco' && elencoVarianti.cantiereId === cantiereId
     ? elencoVarianti.righe.filter(v => v.stato === 'bozza' && v.titolo === titoloBozzaSorgenti) : []
   const elencoPronto = elencoVarianti.tipo === 'elenco' && elencoVarianti.cantiereId === cantiereId
-  const operazioneSorgenti = salvataggioSorgente || caricamentoSorgenti
+  const operazioneSorgenti = salvataggioSorgente || caricamentoSorgenti || caricamentoCumulativa
 
   useEffect(() => {
     sessioneSorgenti.current = {}
@@ -278,7 +354,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
   }, [])
 
   async function caricaSorgentiSalvate(id: string) {
-    if (invioSorgente.current) return
+    if (invioSorgente.current || invioCumulativa.current) return
     const sessione = sessioneSorgenti.current
     const lettura = ++letturaSorgenti.current
     bozzaIdRef.current = id
@@ -346,7 +422,59 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
     } : null
   )
 
+  function annullaRevisioneCumulativa() {
+    richiestaCumulativa.current += 1
+    invioCumulativa.current = false
+    setCaricamentoCumulativa(false)
+    setRevisioneCumulativa(null)
+    setErroreCumulativa('')
+  }
+
+  async function revisionaTutteLeSorgenti() {
+    if (invioCumulativa.current || invioSorgente.current || caricamentoSorgenti ||
+        !sorgentiPronte || !bozzaSorgentiVarianteId || sorgenti.length === 0) return
+    const sessione = sessioneSorgenti.current
+    if (!sessione) return
+    resetFile()
+    setAnteprima(null)
+    richiesta.current += 1
+    setCaricamentoAnteprima(false)
+    const corrente = ++richiestaCumulativa.current
+    invioCumulativa.current = true
+    setCaricamentoCumulativa(true)
+    try {
+      const righe: RigaRevisioneCumulativa[] = []
+      // Ordine sorgenti e ordine voci preservati; nessuna fusione tra sorgenti.
+      for (const sorgente of sorgenti) {
+        const { data, error } = await supabase.rpc('leggi_sorgente_variante', { p_sorgente_id: sorgente.id })
+        if (sessioneSorgenti.current !== sessione || richiestaCumulativa.current !== corrente) return
+        if (error) { setErroreCumulativa(messaggioRpcSorgenti(error)); return }
+        const riga = singolaRigaSorgente(data)
+        const meta = leggiMetadataSorgente(riga, bozzaSorgentiVarianteId)
+        if (meta.id !== sorgente.id) throw new Error('Identità sorgente incoerente')
+        if (meta.snapshotVersion !== 1) { setErroreCumulativa('Versione snapshot non supportata: ' + sorgente.titolo); return }
+        if (!recordSorgente(riga) || !snapshotSorgenteValido(riga.snapshot, meta, cantiereId))
+          throw new Error('Snapshot non valido')
+        const snapshot = riga.snapshot
+        righe.push(...creaRevisioneVariante(snapshot.proposta,
+          snapshot.tipo === 'preventivo_artecna' ? snapshot.anomalieMapper : []).map((voce, indiceVoce) => ({
+            ...voce, sorgenteId: meta.id, indiceVoce, titoloSorgente: meta.titolo,
+          })))
+      }
+      setRevisioneCumulativa({ originali: structuredClone(righe), righe: structuredClone(righe) })
+    } catch {
+      if (sessioneSorgenti.current === sessione && richiestaCumulativa.current === corrente)
+        setErroreCumulativa('Impossibile leggere tutti gli snapshot. Nessuna revisione parziale è stata creata.')
+    } finally {
+      if (sessioneSorgenti.current === sessione && richiestaCumulativa.current === corrente) {
+        invioCumulativa.current = false
+        setCaricamentoCumulativa(false)
+      }
+    }
+  }
+
   function resetFile() {
+    annullaRevisioneCumulativa()
     setChiaveSorgenteAperta(null)
     setMessaggioSorgenti('')
     setRevisione(null)
@@ -452,7 +580,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
   }
 
   async function aggiungiSorgente() {
-    if (invioSorgente.current || caricamentoSorgenti || !elencoPronto || !sorgentiPronte ||
+    if (invioSorgente.current || invioCumulativa.current || caricamentoSorgenti || !elencoPronto || !sorgentiPronte ||
         (!bozzaIdRef.current && candidate.length > 0) ||
         !sorgenteCorrente || sorgenteCorrente.proposta.lavorazioni.length === 0) return
     if (sorgenti.some(s => s.id === chiaveSorgenteAperta || s.snapshot?.chiave === sorgenteCorrente.chiave ||
@@ -496,6 +624,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
       if (!recordSorgente(riga) || salvata.snapshotVersion !== 1 ||
           !snapshotSorgenteValido(riga.snapshot, salvata, cantiereId)) throw new Error('Snapshot non valido')
       const snapshot = riga.snapshot
+      annullaRevisioneCumulativa()
       setSorgenti(precedenti => [...precedenti.filter(s => s.id !== salvata.id), { ...salvata, snapshot }])
       setMessaggioSorgenti('Sorgente salvata nella bozza.')
     } catch {
@@ -510,7 +639,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
 
   async function apriSorgente(id: string) {
     const sorgente = sorgenti.find(s => s.id === id)
-    if (!sorgente || invioSorgente.current || caricamentoSorgenti) return
+    if (!sorgente || invioSorgente.current || invioCumulativa.current || caricamentoSorgenti) return
     const sessione = sessioneSorgenti.current
     const corrente = ++richiesta.current
     resetFile()
@@ -539,7 +668,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
 
   async function rimuoviSorgente(id: string) {
     const sorgente = sorgenti.find(s => s.id === id)
-    if (!sorgente || invioSorgente.current || caricamentoSorgenti) return
+    if (!sorgente || invioSorgente.current || invioCumulativa.current || caricamentoSorgenti) return
     const sessione = sessioneSorgenti.current
     invioSorgente.current = true
     setSalvataggioSorgente(true)
@@ -559,6 +688,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
         setPreventivoId('')
         setMessaggio('')
       }
+      annullaRevisioneCumulativa()
       setSorgenti(precedenti => precedenti.filter(s => s.id !== id))
       setMessaggioSorgenti('Sorgente rimossa.')
     } catch {
@@ -632,6 +762,8 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
       {caricamentoSorgenti && <p role="status">Caricamento sorgenti...</p>}
       {sorgenti.length > 0 && <section aria-label="Sorgenti della variante" style={{ marginTop: 16 }}>
         <h4>Sorgenti della variante</h4>
+        <button type="button" disabled={operazioneSorgenti || !sorgentiPronte}
+          onClick={() => void revisionaTutteLeSorgenti()}>Revisiona tutte le sorgenti</button>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 650, fontSize: 14 }}>
             <thead><tr>{['Tipo', 'Sorgente', 'Voci', 'Totale sorgente', 'Azioni'].map(t =>
@@ -656,6 +788,10 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
           </table>
         </div>
       </section>}
+      {caricamentoCumulativa && <p role="status">Caricamento di tutti gli snapshot...</p>}
+      {erroreCumulativa && <p role="alert">{erroreCumulativa}</p>}
+      {revisioneCumulativa && <RevisioneCumulativaLocale valore={revisioneCumulativa}
+        onChange={setRevisioneCumulativa} onAnnulla={annullaRevisioneCumulativa} />}
       {sorgenteMemorizzata && <p>Sorgente aperta: {sorgenteMemorizzata.titolo}</p>}
       {!percorsoPreventivo && !percorsoFile && <p role="status">Questo percorso non è ancora configurato.</p>}
       {percorsoFile && <>
