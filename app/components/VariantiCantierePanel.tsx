@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { elencaPreventiviSorgenteVariante, caricaLavorazioniPreventivoSorgente, type PreventivoSorgenteCandidato } from '../engines/varianti/repositoryPreventiviSorgente'
 import { adattaPreventivoAVariante } from '../engines/varianti/adattaPreventivoAVariante'
-import type { PropostaVarianteDaPreventivo, PropostaVarianteDaFile, NaturaVariante, AcquisizioneVariante, AnomaliaPropostaVarianteDaFile } from '../engines/varianti/types'
+import type { PropostaVarianteDaPreventivo, PropostaVarianteDaFile, NaturaVariante, AcquisizioneVariante, AnomaliaPropostaVarianteDaFile, SorgenteVariante } from '../engines/varianti/types'
 import type { AnomaliaMappingLavorazionePreventivo } from '../engines/varianti/mappaLavorazioniPreventivo'
 import { estraiVociVarianteDaFile } from '../engines/varianti/estraiVociVarianteDaFile'
 import { adattaFileAVariante } from '../engines/varianti/adattaFileAVariante'
@@ -19,6 +19,112 @@ const etichetteAnomalieFile: Record<AnomaliaPropostaVarianteDaFile['codice'], st
   prezzo_non_valido: 'Prezzo non valido',
   totale_non_valido: 'Totale non valido',
   totale_incoerente: 'Totale incoerente',
+}
+
+type RigaRevisioneVariante = {
+  indiceSorgente: number
+  inclusa: boolean
+  descrizione: string
+  unitaMisura: string
+  quantita: string
+  prezzoUnitario: string
+  sorgente: SorgenteVariante
+  avevaAnomalieSorgente: boolean
+}
+
+function creaRevisioneVariante(
+  proposta: PropostaVarianteDaPreventivo | PropostaVarianteDaFile,
+  anomalieMapper: readonly AnomaliaMappingLavorazionePreventivo[] = [],
+): RigaRevisioneVariante[] {
+  const testoNumero = (valore: number | undefined) =>
+    typeof valore === 'number' && Number.isFinite(valore) ? String(valore) : ''
+  return proposta.lavorazioni.map((voce, indiceSorgente) => ({
+    indiceSorgente,
+    inclusa: true,
+    descrizione: voce.descrizione ?? '',
+    unitaMisura: voce.unitaMisura ?? '',
+    quantita: testoNumero(voce.quantita),
+    prezzoUnitario: testoNumero(voce.prezzoSorgente),
+    sorgente: { ...voce.sorgente },
+    avevaAnomalieSorgente: proposta.anomalie.some(a =>
+      a.indiceVoce === undefined || a.indiceVoce === indiceSorgente) ||
+      anomalieMapper.some(a => a.indiceRiga === indiceSorgente),
+  }))
+}
+
+function numeroRevisioneVariante(valore: string): number | undefined {
+  const testo = valore.trim()
+  if (!/^[+-]?\d+(?:[.,]\d+)?$/.test(testo)) return undefined
+  const numero = Number(testo.replace(',', '.'))
+  return Number.isFinite(numero) ? numero : undefined
+}
+
+function valutaRigaRevisione(riga: RigaRevisioneVariante) {
+  const quantita = numeroRevisioneVariante(riga.quantita)
+  const prezzo = numeroRevisioneVariante(riga.prezzoUnitario)
+  const prodotto = quantita !== undefined && quantita > 0 && prezzo !== undefined && prezzo >= 0
+    ? quantita * prezzo : undefined
+  const totale = prodotto !== undefined && Number.isFinite(prodotto) ? prodotto : undefined
+  return { totale, valida: !!riga.descrizione.trim() && !!riga.unitaMisura.trim() && totale !== undefined }
+}
+
+function RevisioneVarianteLocale({ righe, onChange, onAnnulla, onRipristina }: {
+  righe: readonly RigaRevisioneVariante[]
+  onChange: (righe: RigaRevisioneVariante[]) => void
+  onAnnulla: () => void
+  onRipristina: () => void
+}) {
+  const valutate = righe.map(riga => ({ riga, ...valutaRigaRevisione(riga) }))
+  const incluse = valutate.filter(v => v.riga.inclusa)
+  const totale = incluse.reduce((somma, v) => somma + (v.totale ?? 0), 0)
+  const daVerificare = incluse.some(v => !v.valida) || !Number.isFinite(totale)
+  const importo = (valore: number) => valore.toLocaleString('it-IT', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  })
+  const cella = { padding: '8px 10px', border: '1px solid #dbe3ee', verticalAlign: 'top' as const }
+  const input = { width: '100%', boxSizing: 'border-box' as const, padding: 6 }
+  const cambia = (indice: number, campi: Partial<Pick<RigaRevisioneVariante,
+    'inclusa' | 'descrizione' | 'unitaMisura' | 'quantita' | 'prezzoUnitario'>>) =>
+    onChange(righe.map((riga, i) => i === indice ? { ...riga, ...campi } : riga))
+
+  return <section aria-label="Revisione locale variante" style={{ marginTop: 16 }}>
+    <h4>Revisione locale del Preventivo integrativo</h4>
+    <p>Le modifiche restano locali. La sorgente non viene modificata e nessuna variante viene salvata.</p>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      <button type="button" onClick={onAnnulla}>Annulla revisione</button>
+      <button type="button" onClick={onRipristina}>Ripristina da sorgente</button>
+    </div>
+    <div style={{ overflowX: 'auto', marginTop: 12 }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900, fontSize: 14 }}>
+        <caption style={{ textAlign: 'left', padding: 8 }}>Lavorazioni revisionabili — solo in questa sessione</caption>
+        <thead><tr>{['Includi', 'Descrizione', 'UM', 'Quantità', 'Prezzo unitario', 'Totale', 'Stato'].map(t =>
+          <th key={t} scope="col" style={{ ...cella, textAlign: 'left', background: '#f1f5f9' }}>{t}</th>)}</tr></thead>
+        <tbody>{valutate.map(({ riga, totale: totaleRiga, valida }, indice) => <tr
+          key={riga.indiceSorgente} style={{ background: indice % 2 ? '#f8fafc' : '#fff' }}>
+          <td style={cella}><input type="checkbox" aria-label={'Includi voce ' + (indice + 1)}
+            checked={riga.inclusa} onChange={e => cambia(indice, { inclusa: e.target.checked })} /></td>
+          <td style={{ ...cella, minWidth: 260 }}><input type="text" aria-label={'Descrizione voce ' + (indice + 1)}
+            style={input} value={riga.descrizione} onChange={e => cambia(indice, { descrizione: e.target.value })} /></td>
+          <td style={cella}><input type="text" aria-label={'UM voce ' + (indice + 1)}
+            style={input} value={riga.unitaMisura} onChange={e => cambia(indice, { unitaMisura: e.target.value })} /></td>
+          <td style={cella}><input type="text" inputMode="decimal" aria-label={'Quantità voce ' + (indice + 1)}
+            style={input} value={riga.quantita} onChange={e => cambia(indice, { quantita: e.target.value })} /></td>
+          <td style={cella}><input type="text" inputMode="decimal" aria-label={'Prezzo unitario voce ' + (indice + 1)}
+            style={input} value={riga.prezzoUnitario} onChange={e => cambia(indice, { prezzoUnitario: e.target.value })} /></td>
+          <td style={{ ...cella, whiteSpace: 'nowrap' }}>{totaleRiga === undefined ? 'Non disponibile' : '€ ' + importo(totaleRiga)}</td>
+          <td style={cella}>
+            <div>{riga.inclusa ? (valida ? 'OK' : 'Da verificare') : (valida ? 'Esclusa' : 'Esclusa — Da verificare')}</div>
+            {riga.avevaAnomalieSorgente && <small>Anomalie presenti nella sorgente</small>}
+          </td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+    <p>Voci incluse: {incluse.length}</p>
+    <p>Totale proposta revisionata: {Number.isFinite(totale) ? '€ ' + importo(totale) : 'Non disponibile'}
+      {incluse.length > 0 && daVerificare && ' (parziale, non definitivo)'}</p>
+    <p role="status">{incluse.length === 0 ? 'Nessuna voce inclusa'
+      : daVerificare ? 'Ci sono voci incluse da verificare' : 'Revisione pronta'}</p>
+  </section>
 }
 
 function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
@@ -41,9 +147,11 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
     proposta: PropostaVarianteDaPreventivo
     anomalieMapper: AnomaliaMappingLavorazionePreventivo[]
   } | null>(null)
+  const [revisione, setRevisione] = useState<RigaRevisioneVariante[] | null>(null)
   const richiesta = useRef(0)
 
   function resetFile() {
+    setRevisione(null)
     setFileSelezionato(null)
     setAnalisiFile(false)
     setErroreFile('')
@@ -89,6 +197,7 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
   async function caricaAnteprima() {
     if (!aperto || !percorsoPreventivo || !preventivi.some(p => p.id === preventivoId)) return
     const corrente = ++richiesta.current
+    setRevisione(null)
     setAnteprima(null)
     setMessaggio('')
     setCaricamentoAnteprima(true)
@@ -114,6 +223,7 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
   async function analizzaFile() {
     if (!aperto || !percorsoFile || !fileSelezionato || analisiFile) return
     const corrente = ++richiesta.current
+    setRevisione(null)
     setAnalisiFile(true)
     setErroreFile('')
     setWarningsFile([])
@@ -136,6 +246,14 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
       if (corrente === richiesta.current) setErroreFile('Impossibile analizzare il file.')
     } finally {
       if (corrente === richiesta.current) setAnalisiFile(false)
+    }
+  }
+
+  function revisionaSorgente() {
+    if (percorsoPreventivo && anteprima && anteprima.proposta.lavorazioni.length > 0) {
+      setRevisione(creaRevisioneVariante(anteprima.proposta, anteprima.anomalieMapper))
+    } else if (percorsoFile && propostaFile && propostaFile.lavorazioni.length > 0) {
+      setRevisione(creaRevisioneVariante(propostaFile))
     }
   }
 
@@ -186,7 +304,7 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
         {warningsFile.length > 0 && <div><p>Avvisi lettura file:</p>
           <ul>{warningsFile.map((warning, i) => <li key={i}>{warning}</li>)}</ul>
         </div>}
-        {propostaFile && <>
+        {propostaFile && revisione === null && <>
           <p>Totale sorgente leggibile: {numero(totaleFile)} € (solo totali validi e finiti).</p>
           {propostaFile.anomalie.filter(a => a.indiceVoce === undefined).map((a, i) =>
             <p key={i}>{etichetteAnomalieFile[a.codice]}</p>)}
@@ -209,6 +327,9 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
               })}</tbody>
             </table>
           </div>
+          {propostaFile.lavorazioni.length > 0 && <button type="button" onClick={revisionaSorgente}>
+            Revisiona variante
+          </button>}
         </>}
       </>}
       {percorsoPreventivo && <>
@@ -217,6 +338,7 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
         style={{ display: 'block', width: '100%', padding: 8, margin: '8px 0' }}
         onChange={e => {
           richiesta.current += 1
+          setRevisione(null)
           setPreventivoId(e.target.value)
           setAnteprima(null)
           setMessaggio('')
@@ -234,7 +356,7 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
       <button type="button" disabled={!preventivoId || caricamentoElenco || caricamentoAnteprima}
         onClick={() => void caricaAnteprima()}>{caricamentoAnteprima ? 'Caricamento anteprima...' : 'Carica anteprima'}</button>
       {messaggio && <p role="status">{messaggio}</p>}
-      {anteprima && <>
+      {anteprima && revisione === null && <>
         <p>Totale sorgente leggibile: {numero(totale)} € (solo totali validi e finiti).</p>
         {anteprima.proposta.anomalie.filter(a => a.indiceVoce === undefined).map((a, i) =>
           <p key={i}>Adapter: {a.codice.replaceAll('_', ' ')}</p>)}
@@ -259,8 +381,13 @@ function AnteprimaPreventivoVariante({ cantiereId }: { cantiereId: string }) {
             })}</tbody>
           </table>
         </div>
+        {anteprima.proposta.lavorazioni.length > 0 && <button type="button" onClick={revisionaSorgente}>
+          Revisiona variante
+        </button>}
       </>}
       </>}
+      {revisione !== null && <RevisioneVarianteLocale righe={revisione} onChange={setRevisione}
+        onAnnulla={() => setRevisione(null)} onRipristina={revisionaSorgente} />}
     </section>}
   </div>
 }
