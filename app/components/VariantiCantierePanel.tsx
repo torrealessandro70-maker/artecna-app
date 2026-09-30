@@ -8,6 +8,7 @@ import type { PropostaVarianteDaPreventivo, PropostaVarianteDaFile, NaturaVarian
 import type { AnomaliaMappingLavorazionePreventivo } from '../engines/varianti/mappaLavorazioniPreventivo'
 import { estraiVociVarianteDaFile } from '../engines/varianti/estraiVociVarianteDaFile'
 import { adattaFileAVariante } from '../engines/varianti/adattaFileAVariante'
+import { confermaPreventivoIntegrativo } from '../engines/varianti/confermaPreventivoIntegrativo'
 
 const etichetteAnomalieFile: Record<AnomaliaPropostaVarianteDaFile['codice'], string> = {
   cantiere_id_non_valido: 'Cantiere non valido',
@@ -138,15 +139,22 @@ type RevisioneCumulativa = {
   righe: RigaRevisioneCumulativa[]
 }
 
-function RevisioneCumulativaLocale({ valore, onChange, onAnnulla }: {
+function RevisioneCumulativaLocale({ valore, onChange, onAnnulla, pronta, indiciNonValidi, bloccata, confermaInCorso, confermata, onConferma }: {
   valore: RevisioneCumulativa
   onChange: (valore: RevisioneCumulativa) => void
   onAnnulla: () => void
+  pronta: boolean
+  indiciNonValidi: readonly number[]
+  bloccata: boolean
+  confermaInCorso: boolean
+  confermata: boolean
+  onConferma: () => void
 }) {
-  const valutate = valore.righe.map(riga => ({ riga, ...valutaRigaRevisione(riga) }))
+  const valutate = valore.righe.map((riga, indice) => ({
+    riga, totale: valutaRigaRevisione(riga).totale, valida: !indiciNonValidi.includes(indice),
+  }))
   const incluse = valutate.filter(v => v.riga.inclusa)
   const totale = incluse.reduce((somma, v) => somma + (v.totale ?? 0), 0)
-  const pronta = incluse.length > 0 && incluse.every(v => v.valida) && Number.isFinite(totale)
   const cella = { padding: '8px 10px', border: '1px solid #dbe3ee', verticalAlign: 'top' as const }
   const input = { width: '100%', boxSizing: 'border-box' as const, padding: 6 }
   const numero = (v: number) => v.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })
@@ -162,7 +170,8 @@ function RevisioneCumulativaLocale({ valore, onChange, onAnnulla }: {
   }
   return <section aria-label="Revisione cumulativa multi-sorgente" style={{ marginTop: 16 }}>
     <h4>Revisione cumulativa del Preventivo integrativo</h4>
-    <p>Modifiche solo locali: gli snapshot salvati restano invariati. Nessuna lavorazione economica viene creata.</p>
+    <p>La conferma salva le lavorazioni nella bozza senza proporre o approvare la Variante. Gli snapshot restano invariati.</p>
+    <fieldset disabled={bloccata || confermata} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
       <button type="button" onClick={() => onChange({ ...valore, righe: valore.originali.map(r => structuredClone(r)) })}>Ripristina tutte</button>
       <button type="button" onClick={onAnnulla}>Annulla revisione cumulativa</button>
@@ -191,10 +200,14 @@ function RevisioneCumulativaLocale({ valore, onChange, onAnnulla }: {
         </tr>)}</tbody>
       </table>
     </div>
+    </fieldset>
     <p>Voci incluse: {incluse.length} / {valore.righe.length}</p>
     <p>Totale cumulativo: {Number.isFinite(totale) ? numero(totale) + ' €' : 'Non disponibile'}
       {!pronta && ' (parziale, non definitivo)'}</p>
-    <p role="status">{pronta ? 'Revisione pronta' : 'Revisione da verificare'}</p>
+    <p role="status">{confermata ? 'Lavorazioni salvate nella bozza' : pronta ? 'Revisione pronta' : 'Revisione da verificare'}</p>
+    <button type="button" disabled={!pronta || bloccata || confermata} onClick={onConferma}>
+      {confermaInCorso ? 'Conferma in corso...' : 'Conferma lavorazioni'}
+    </button>
   </section>
 }
 
@@ -330,6 +343,10 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
   const [revisioneCumulativa, setRevisioneCumulativa] = useState<RevisioneCumulativa | null>(null)
   const [caricamentoCumulativa, setCaricamentoCumulativa] = useState(false)
   const [erroreCumulativa, setErroreCumulativa] = useState('')
+  const [confermaInCorso, setConfermaInCorso] = useState(false)
+  const [erroreConferma, setErroreConferma] = useState('')
+  const [esitiConferma, setEsitiConferma] = useState<Record<string, { numero: number; totale: number }>>({})
+  const invioConferma = useRef(false)
   const richiestaCumulativa = useRef(0)
   const invioCumulativa = useRef(false)
   const [sorgenti, setSorgenti] = useState<SorgenteVarianteAggiunta[]>([])
@@ -346,7 +363,10 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
   const candidate = elencoVarianti.tipo === 'elenco' && elencoVarianti.cantiereId === cantiereId
     ? elencoVarianti.righe.filter(v => v.stato === 'bozza' && v.titolo === titoloBozzaSorgenti) : []
   const elencoPronto = elencoVarianti.tipo === 'elenco' && elencoVarianti.cantiereId === cantiereId
-  const operazioneSorgenti = salvataggioSorgente || caricamentoSorgenti || caricamentoCumulativa
+  const operazioneSorgenti = salvataggioSorgente || caricamentoSorgenti || caricamentoCumulativa || confermaInCorso
+  const verificaConferma = revisioneCumulativa && bozzaSorgentiVarianteId
+    ? confermaPreventivoIntegrativo({ varianteId: bozzaSorgentiVarianteId, righe: revisioneCumulativa.righe }) : null
+  const esitoConferma = bozzaSorgentiVarianteId ? esitiConferma[bozzaSorgentiVarianteId] : undefined
 
   useEffect(() => {
     sessioneSorgenti.current = {}
@@ -423,11 +443,77 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
   )
 
   function annullaRevisioneCumulativa() {
+    setErroreConferma('')
+    setConfermaInCorso(false)
+    invioConferma.current = false
     richiestaCumulativa.current += 1
     invioCumulativa.current = false
     setCaricamentoCumulativa(false)
     setRevisioneCumulativa(null)
     setErroreCumulativa('')
+  }
+
+  async function confermaLavorazioni() {
+    if (invioConferma.current || operazioneSorgenti || esitoConferma ||
+        !bozzaSorgentiVarianteId || !revisioneCumulativa) return
+    const risultato = confermaPreventivoIntegrativo({
+      varianteId: bozzaSorgentiVarianteId,
+      righe: revisioneCumulativa.righe.map(r => ({
+        sorgenteId: r.sorgenteId, indiceVoce: r.indiceVoce, inclusa: r.inclusa,
+        descrizione: r.descrizione, unitaMisura: r.unitaMisura,
+        quantita: r.quantita, prezzoUnitario: r.prezzoUnitario,
+      })),
+    })
+    if (risultato.stato === 'errore') {
+      setErroreConferma('La revisione contiene dati non validi. Anomalie: ' + risultato.anomalie.length)
+      return
+    }
+    const sessione = sessioneSorgenti.current
+    if (!sessione) return
+    const corrente = richiestaCumulativa.current
+    const id = risultato.richiesta.varianteId
+    const attuale = () => sessioneSorgenti.current === sessione &&
+      richiestaCumulativa.current === corrente && bozzaIdRef.current === id
+    invioConferma.current = true
+    setConfermaInCorso(true)
+    setErroreConferma('')
+    try {
+      const { data, error } = await supabase.rpc('conferma_preventivo_integrativo', {
+        p_variante_id: id,
+        p_lavorazioni: risultato.richiesta.lavorazioni.map(l => ({
+          sorgenteId: l.sorgenteId, indiceVoce: l.indiceVoce,
+          descrizione: l.descrizione, unitaMisura: l.unitaMisura,
+          quantita: l.quantita, prezzoUnitario: l.prezzoUnitario,
+        })),
+      })
+      if (!attuale()) return
+      if (error) {
+        if (error.code === '23505' && /voce sorgente gi[aà] confermata/i.test(error.message))
+          setErroreConferma('Queste lavorazioni risultano già confermate nella bozza.')
+        else if (error.code === '42501') setErroreConferma('Sessione non valida o cantiere non autorizzato.')
+        else if (error.code === 'P0002') setErroreConferma('Variante non disponibile.')
+        else if (error.code === '22023' && /non in bozza/i.test(error.message))
+          setErroreConferma('La Variante non è più in bozza.')
+        else if (error.code === '22023' && /sorgente non appartenente/i.test(error.message))
+          setErroreConferma('Una sorgente non appartiene alla Variante. Ricarica le sorgenti.')
+        else if (error.code === '22023') setErroreConferma('Dati non validi: verifica le lavorazioni della revisione.')
+        else if (['23505', '40001', '40P01'].includes(error.code))
+          setErroreConferma('Conflitto concorrente: ricarica le lavorazioni prima di riprovare.')
+        else setErroreConferma('Conferma non verificata. Riapri la bozza per controllare le lavorazioni prima di riprovare.')
+        return
+      }
+      const r = Array.isArray(data) && data.length === 1 ? data[0] : null
+      const totale = r && (typeof r.delta_totale === 'number' ||
+        (typeof r.delta_totale === 'string' && r.delta_totale.trim() !== '')) ? Number(r.delta_totale) : NaN
+      if (!r || r.variante_id !== id || !Number.isInteger(r.numero_lavorazioni) ||
+          r.numero_lavorazioni !== risultato.richiesta.lavorazioni.length || !Number.isFinite(totale) || totale <= 0)
+        throw new Error('Risposta non verificabile')
+      setEsitiConferma(precedenti => ({ ...precedenti, [id]: { numero: r.numero_lavorazioni, totale } }))
+    } catch {
+      if (attuale()) setErroreConferma('Conferma non verificata. Riapri la bozza per controllare le lavorazioni prima di riprovare.')
+    } finally {
+      if (attuale()) { invioConferma.current = false; setConfermaInCorso(false) }
+    }
   }
 
   async function revisionaTutteLeSorgenti() {
@@ -715,7 +801,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
     somma + (typeof voce.totale === 'number' && Number.isFinite(voce.totale) && voce.totale >= 0 ? voce.totale : 0), 0)
 
   return <div style={{ margin: '12px 0' }}>
-    <button type="button" onClick={() => {
+    <button type="button" disabled={confermaInCorso} onClick={() => {
       richiesta.current += 1
       resetFile()
       setAperto(!aperto)
@@ -791,7 +877,18 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti }: {
       {caricamentoCumulativa && <p role="status">Caricamento di tutti gli snapshot...</p>}
       {erroreCumulativa && <p role="alert">{erroreCumulativa}</p>}
       {revisioneCumulativa && <RevisioneCumulativaLocale valore={revisioneCumulativa}
-        onChange={setRevisioneCumulativa} onAnnulla={annullaRevisioneCumulativa} />}
+        onChange={setRevisioneCumulativa} onAnnulla={annullaRevisioneCumulativa}
+        pronta={verificaConferma?.stato === 'ok'}
+        indiciNonValidi={verificaConferma?.stato === 'errore'
+          ? verificaConferma.anomalie.flatMap(a => a.indiceRigaInput === undefined ? [] : [a.indiceRigaInput]) : []}
+        bloccata={operazioneSorgenti || !bozzaSorgentiVarianteId}
+        confermaInCorso={confermaInCorso} confermata={!!esitoConferma}
+        onConferma={() => void confermaLavorazioni()} />}
+      {erroreConferma && <p role="alert">{erroreConferma}</p>}
+      {esitoConferma && <p role="status">Lavorazioni salvate nella bozza. Lavorazioni confermate: {esitoConferma.numero}
+        {' — Totale: '}{esitoConferma.totale.toLocaleString('it-IT', {
+          style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true,
+        })}</p>}
       {sorgenteMemorizzata && <p>Sorgente aperta: {sorgenteMemorizzata.titolo}</p>}
       {!percorsoPreventivo && !percorsoFile && <p role="status">Questo percorso non è ancora configurato.</p>}
       {percorsoFile && <>
