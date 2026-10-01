@@ -318,13 +318,86 @@ function messaggioRpcSorgenti(errore: { code?: string }): string {
 
 type VarianteSorgenti = Pick<Variante, 'id' | 'titolo' | 'stato' | 'numero' | 'data_variante' | 'created_at'>
 
-function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorrenti, onVarianteAggiornata }: {
+function portaAlControllo(elemento: HTMLElement | null) {
+  if (!elemento) return
+  elemento.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  const controllo = elemento.matches('button, input, select, textarea') ? elemento :
+    elemento.querySelector<HTMLElement>('button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled])') ?? elemento
+  controllo.focus({ preventScroll: true })
+}
+
+function GuidaPassoSuccessivo({ stato, conteggio = null, modificabile = false, onCrea, onAcquisisci,
+  onContratto, onLavorazioni, onProposta, onApprova }: {
+  stato: string | null
+  conteggio?: number | null
+  modificabile?: boolean
+  onCrea?: () => void
+  onAcquisisci?: () => void
+  onContratto?: () => void
+  onLavorazioni?: () => void
+  onProposta?: () => void
+  onApprova?: () => void
+}) {
+  const terminale = stato === 'rifiutata' || stato === 'annullata'
+  const fase = stato === null ? 1 : stato === 'approvata' ? 6 : stato === 'proposta' ? 5 :
+    stato === 'bozza' && conteggio !== null ? conteggio > 0 ? 3 : 2 : null
+  const azioni: { testo: string; esegui: (() => void) | undefined }[] = []
+  let testo = 'Attendi il caricamento delle lavorazioni per conoscere il passo successivo.'
+  if (stato === null) {
+    testo = 'Crea una nuova Variante per iniziare.'
+    azioni.push({ testo: 'Nuova variante', esegui: onCrea }, { testo: 'Nuova variante da preventivo', esegui: onAcquisisci })
+  } else if (stato === 'bozza' && !modificabile) {
+    testo = 'Questa Variante non consente modifiche. Verifica lo stato con i controlli esistenti.'
+  } else if (stato === 'bozza' && conteggio === 0) {
+    testo = 'Scegli cosa vuoi fare con questa Variante.'
+    azioni.push({ testo: 'Aggiungi nuovi lavori', esegui: onAcquisisci }, { testo: 'Modifica contratto', esegui: onContratto })
+  } else if (stato === 'bozza' && conteggio !== null) {
+    testo = 'Controlla lavorazioni, quantità, prezzi e totale prima di proporre la Variante.'
+    azioni.push({ testo: 'Vai alle lavorazioni', esegui: onLavorazioni }, { testo: 'Proponi variante', esegui: onProposta })
+  } else if (stato === 'proposta') {
+    testo = 'La Variante è stata proposta e non è più modificabile.'
+    azioni.push({ testo: "Vai all'approvazione", esegui: onApprova })
+  } else if (stato === 'approvata') {
+    testo = 'Variante approvata.'
+    azioni.push({ testo: 'Visualizza lavorazioni', esegui: onLavorazioni })
+  } else if (terminale) {
+    testo = stato === 'rifiutata' ? 'Variante rifiutata. Il percorso è concluso.' : 'Variante annullata. Il percorso è concluso.'
+  } else if (stato !== 'bozza') {
+    testo = 'Verifica lo stato della Variante nei controlli esistenti.'
+  }
+  return <aside aria-label="Passo successivo" style={{ marginTop: 12, marginBottom: 16, padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}>
+    <ol aria-label="Percorso Variante" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, listStyle: 'none', padding: 0, margin: '0 0 8px', fontSize: 12 }}>
+      {['Crea', 'Acquisisci', 'Verifica', 'Proponi', 'Approva'].map((nome, indice) => {
+        const passo = indice + 1
+        const statoPasso = fase !== null ? passo < fase ? 'Completato' : passo === fase ? 'Corrente' : 'Da fare' :
+          passo === 1 ? 'Completato' : terminale ? 'Interrotto' : 'Da verificare'
+        return <li key={nome} aria-current={statoPasso === 'Corrente' ? 'step' : undefined}>
+          {passo} {nome} <span>({statoPasso})</span>
+        </li>
+      })}
+    </ol>
+    <h5 style={{ margin: '0 0 6px' }}>Passo successivo</h5>
+    <p style={{ margin: '0 0 8px' }}>{testo}</p>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {azioni.filter(azione => azione.esegui).map((azione, indice) =>
+        <button type="button" key={azione.testo} aria-label={azione.testo} onClick={azione.esegui}
+          style={{ padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 14, lineHeight: 1.4,
+            background: indice === 0 ? '#334155' : '#fff', color: indice === 0 ? '#fff' : '#334155' }}>
+          {azione.testo}
+        </button>)}
+    </div>
+  </aside>
+}
+
+function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorrenti, onVarianteAggiornata, richiestaApertura = 0 }: {
   cantiereId: string
   elencoVarianti: Stato
   variantiCorrenti: readonly VarianteSorgenti[]
   onVarianteAggiornata: (varianteId: string) => void
+  richiestaApertura?: number
 }) {
   const [aperto, setAperto] = useState(false)
+  useEffect(() => { if (richiestaApertura > 0) setAperto(true) }, [richiestaApertura])
   const [natura, setNatura] = useState<NaturaVariante>('preventivo_integrativo')
   const [acquisizione, setAcquisizione] = useState<AcquisizioneVariante>('dati_artecna')
   const percorsoPreventivo = natura === 'preventivo_integrativo' && acquisizione === 'dati_artecna'
@@ -1143,6 +1216,11 @@ const erroriRpc: Record<string, string> = {
 export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: string | null }) {
   const [stato, setStato] = useState<Stato>({ tipo: 'loading' })
   const [formAperto, setFormAperto] = useState(false)
+  const [varianteApertaId, setVarianteApertaId] = useState<string | null>(null)
+  const [richiestaAperturaAnteprima, setRichiestaAperturaAnteprima] = useState(0)
+  const anteprimaRef = useRef<HTMLDivElement | null>(null)
+  const creazioneRef = useRef<HTMLButtonElement | null>(null)
+  const formCreazioneRef = useRef<HTMLFormElement | null>(null)
   const [titolo, setTitolo] = useState('')
   const [descrizione, setDescrizione] = useState('')
   const [dataVariante, setDataVariante] = useState('')
@@ -1161,6 +1239,8 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
     const corrente = {}
     contesto.current = corrente
     invioInCorso.current = false
+    setRichiestaAperturaAnteprima(0)
+    setVarianteApertaId(null)
     setFormAperto(false)
     setTitolo('')
     setDescrizione('')
@@ -1314,9 +1394,19 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
   const elencoContrattuale = useMemo<Stato>(() => stato.tipo === 'elenco'
     ? { ...stato, righe } : stato, [stato, righe])
 
+  useEffect(() => {
+    if (stato.tipo === 'elenco' && stato.cantiereId === cantiereId && varianteApertaId &&
+        !righe.some(variante => variante.id === varianteApertaId)) setVarianteApertaId(null)
+  }, [stato, cantiereId, righe, varianteApertaId])
+
   function aggiornaVariante(varianteId: string) {
     setRefreshLavorazioni(precedenti => ({ ...precedenti, [varianteId]: (precedenti[varianteId] ?? 0) + 1 }))
     setRefresh(valore => valore + 1)
+  }
+
+  function vaiAnteprima() {
+    setRichiestaAperturaAnteprima(valore => valore + 1)
+    portaAlControllo(anteprimaRef.current)
   }
 
   const bozzeNonRilette = stato.tipo === 'elenco' &&
@@ -1325,15 +1415,21 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
   return (
     <section aria-label="Varianti" style={{ marginTop: 16 }}>
       <h3>Varianti</h3>
-      {cantiereId && <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} elencoVarianti={stato} variantiCorrenti={righe} onVarianteAggiornata={aggiornaVariante} />}
+      {stato.tipo === 'elenco' && !varianteApertaId && !righe.some(v => v.stato === 'bozza' || v.stato === 'proposta') &&
+        <GuidaPassoSuccessivo stato={null} onCrea={() => portaAlControllo(formCreazioneRef.current ?? creazioneRef.current)}
+          onAcquisisci={cantiereId ? vaiAnteprima : undefined} />}
+      {cantiereId && <div ref={anteprimaRef} tabIndex={-1}>
+        <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} elencoVarianti={stato} variantiCorrenti={righe}
+          onVarianteAggiornata={aggiornaVariante} richiestaApertura={richiestaAperturaAnteprima} />
+      </div>}
       {!formAperto && (
-        <button type="button" disabled={!cantiereId || salvataggio}
+        <button ref={creazioneRef} type="button" disabled={!cantiereId || salvataggio}
           onClick={() => { setErroreSalvataggio(''); setFormAperto(true) }}>
           Nuova variante
         </button>
       )}
       {formAperto && (
-        <form onSubmit={salvaBozza} style={{ marginTop: 16 }}>
+        <form ref={formCreazioneRef} tabIndex={-1} onSubmit={salvaBozza} style={{ marginTop: 16 }}>
           <fieldset disabled={salvataggio} style={{ display: 'grid', gap: 12, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12 }}>
             <legend>Nuova variante</legend>
             <label>Titolo *<input required value={titolo} onChange={e => setTitolo(e.target.value)}
@@ -1369,13 +1465,19 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
               </h4>
               <p>Stato: {variante.stato}</p>
               {variante.numero !== null && <p>Numero: {variante.numero}</p>}
-              <p style={{ whiteSpace: 'pre-wrap' }}>{variante.descrizione || 'Nessuna descrizione.'}</p>
               <p>Data variante: {variante.data_variante
                 ? variante.data_variante.slice(0, 10).split('-').reverse().join('/')
                 : 'Non indicata'}</p>
-              <p>Importo delta approvato: {variante.importo_delta_approvato === null
+              {(varianteApertaId === variante.id || variante.importo_delta_approvato !== null) && <p>Importo delta approvato: {variante.importo_delta_approvato === null
                 ? 'Non disponibile'
-                : Number(variante.importo_delta_approvato).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</p>
+                : Number(variante.importo_delta_approvato).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</p>}
+              <button type="button" aria-expanded={varianteApertaId === variante.id}
+                aria-controls={`variante-area-${variante.id}`}
+                onClick={() => setVarianteApertaId(aperta => aperta === variante.id ? null : variante.id)}>
+                {varianteApertaId === variante.id ? 'Chiudi variante' : 'Apri variante'}
+              </button>
+              {varianteApertaId === variante.id && <div id={`variante-area-${variante.id}`}>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{variante.descrizione || 'Nessuna descrizione.'}</p>
               {variante.stato === 'approvata' && <>
                 <p>Riferimento approvazione: {variante.riferimento_approvazione || 'Non disponibile'}</p>
                 <p>Data approvazione: {variante.approvata_at && Number.isFinite(Date.parse(variante.approvata_at))
@@ -1388,6 +1490,7 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
               <LavorazioniVariantePanel key={`${cantiereId}:${variante.id}`} varianteId={variante.id}
                 cantiereId={cantiereId} statoVariante={variante.stato}
                 refreshEsterno={refreshLavorazioni[variante.id] ?? 0}
+                onNuoviLavori={cantiereId ? vaiAnteprima : undefined}
                 selettoreContrattuale={variante.stato === 'bozza' && <SelettoreComponentiContrattuali
                   key={`${cantiereId}:${variante.id}:${variante.preventivo_contrattuale_id}`}
                   variante={variante} cantiereId={cantiereId} elencoVarianti={elencoContrattuale} />}
@@ -1396,6 +1499,7 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
                   <ApprovazioneVarianteForm key={'approva:' + cantiereId + ':' + variante.id}
                     variante={variante} cantiereId={cantiereId} lavorazioniLette={lavorazioniLette}
                     onApprovata={esito => confermaApprovazione(variante, esito)} />} />
+              </div>}
             </article>
           ))}
         </div>
@@ -1600,11 +1704,12 @@ const erroriPropostaRpc: Record<string, string> = {
   P2017: 'Conflitto durante la proposta. Riprova.',
 }
 
-function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refreshEsterno = 0, onProposta, renderApprovazione, selettoreContrattuale }: {
+function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refreshEsterno = 0, onNuoviLavori, onProposta, renderApprovazione, selettoreContrattuale }: {
   varianteId: string
   cantiereId?: string | null
   statoVariante: string
   refreshEsterno?: number
+  onNuoviLavori?: () => void
   onProposta: (numero: number) => void
   renderApprovazione?: (lavorazioniLette: readonly LavorazioneVariante[] | null) => ReactNode
   selettoreContrattuale?: ReactNode
@@ -1627,6 +1732,10 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
   const [erroreProposta, setErroreProposta] = useState('')
   const invio = useRef(false)
   const contesto = useRef<object | null>(null)
+  const lavorazioniRef = useRef<HTMLHeadingElement | null>(null)
+  const contrattoRef = useRef<HTMLDivElement | null>(null)
+  const propostaRef = useRef<HTMLButtonElement | null>(null)
+  const approvazioneRef = useRef<HTMLDivElement | null>(null)
   const modificabile = statoVariante === 'bozza' && !bloccata
 
   useEffect(() => {
@@ -1786,11 +1895,19 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
 
   return (
     <section aria-label="Lavorazioni della variante" style={{ marginTop: 20, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
-      <h5>Lavorazioni della variante</h5>
-      {modificabile && selettoreContrattuale}
-      {renderApprovazione?.(lettura === 'elenco' && !nonRilette ? righe : null)}
+      <GuidaPassoSuccessivo stato={statoVariante} modificabile={modificabile}
+        conteggio={lettura === 'elenco' && !nonRilette ? visibili.length : null}
+        onAcquisisci={onNuoviLavori} onContratto={selettoreContrattuale ? () => portaAlControllo(contrattoRef.current) : undefined}
+        onLavorazioni={() => portaAlControllo(lavorazioniRef.current)}
+        onProposta={modificabile && lettura === 'elenco' && righe.length > 0 ? () => portaAlControllo(propostaRef.current) : undefined}
+        onApprova={renderApprovazione ? () => portaAlControllo(approvazioneRef.current) : undefined} />
+      <h5 ref={lavorazioniRef} tabIndex={-1}>Lavorazioni della variante</h5>
+      {modificabile && <div ref={contrattoRef} tabIndex={-1}>{selettoreContrattuale}</div>}
+      {renderApprovazione && <div ref={approvazioneRef} tabIndex={-1}>
+        {renderApprovazione(lettura === 'elenco' && !nonRilette ? righe : null)}
+      </div>}
       {modificabile && lettura === 'elenco' && righe.length > 0 && (
-        <button type="button" disabled={propostaInCorso || salvataggio || !cantiereId} onClick={() => void proponiVariante()}>
+        <button ref={propostaRef} type="button" disabled={propostaInCorso || salvataggio || !cantiereId} onClick={() => void proponiVariante()}>
           {propostaInCorso ? 'Proposta in corso...' : 'Proponi variante'}
         </button>
       )}
