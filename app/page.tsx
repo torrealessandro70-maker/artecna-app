@@ -2656,14 +2656,39 @@ const eliminaMaterialeCantiere = async (id?: string) => {
 }
 
 const eliminaSalLavorazione = async (id: number, cantiereOverride?: string) => {
+  const contesto = contestoEliminazioneSal.current
   const conferma = confirm('Eliminare questa lavorazione SAL?')
 
   if (!conferma) return
+
+  let lettura = supabase.from('sal_lavorazioni')
+    .select('id, cantiere_id, source_lavorazione_id, source_variante_lavorazione_id')
+    .eq('id', id)
+  if (cantiereOverride !== undefined) lettura = lettura.eq('cantiere', cantiereOverride)
+  const { data: riga, error: erroreLettura } = await lettura.maybeSingle()
+  if (contestoEliminazioneSal.current !== contesto) return
+  if (erroreLettura || !riga || String(riga.id) !== String(id) ||
+      riga.source_lavorazione_id === undefined || riga.source_variante_lavorazione_id === undefined) {
+    alert('Impossibile verificare la lavorazione SAL. Eliminazione bloccata.')
+    return
+  }
+  const base = riga.source_lavorazione_id !== null
+  const variante = riga.source_variante_lavorazione_id !== null
+  if (base && variante) {
+    alert('Riga SAL con sorgente incoerente. Eliminazione bloccata.')
+    return
+  }
+  if (base || variante) {
+    alert('Questa lavorazione SAL deriva dal contratto o da una Variante e non può essere eliminata.')
+    return
+  }
 
   let query = supabase
     .from('sal_lavorazioni')
     .delete()
     .eq('id', id)
+    .is('source_lavorazione_id', null)
+    .is('source_variante_lavorazione_id', null)
 
   if (cantiereOverride !== undefined) query = query.eq('cantiere', cantiereOverride)
   const { error } = await query
@@ -4957,6 +4982,12 @@ const [ultimoSopralluogo, setUltimoSopralluogo] =
   const [filtroCantiere, setFiltroCantiere] = useState('')
   const [cantiereScheda, setCantiereScheda] = useState('')
   const [cantiereIdScheda, setCantiereIdScheda] = useState('')
+  const contestoEliminazioneSal = useRef({ salCantiere, cantiereScheda, cantiereIdScheda })
+  if (contestoEliminazioneSal.current.salCantiere !== salCantiere ||
+      contestoEliminazioneSal.current.cantiereScheda !== cantiereScheda ||
+      contestoEliminazioneSal.current.cantiereIdScheda !== cantiereIdScheda) {
+    contestoEliminazioneSal.current = { salCantiere, cantiereScheda, cantiereIdScheda }
+  }
   const cantiereSelezionatoDaId = cantiereIdScheda
     ? cantieri.find((cantiere) => String(cantiere.id) === String(cantiereIdScheda)) ?? null
     : null
