@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { elencaPreventiviSorgenteVariante, caricaLavorazioniPreventivoSorgente, type PreventivoSorgenteCandidato } from '../engines/varianti/repositoryPreventiviSorgente'
 import { adattaPreventivoAVariante } from '../engines/varianti/adattaPreventivoAVariante'
@@ -318,10 +318,11 @@ function messaggioRpcSorgenti(errore: { code?: string }): string {
 
 type VarianteSorgenti = Pick<Variante, 'id' | 'titolo' | 'stato' | 'numero' | 'data_variante' | 'created_at'>
 
-function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorrenti }: {
+function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorrenti, onVarianteAggiornata }: {
   cantiereId: string
   elencoVarianti: Stato
   variantiCorrenti: readonly VarianteSorgenti[]
+  onVarianteAggiornata: (varianteId: string) => void
 }) {
   const [aperto, setAperto] = useState(false)
   const [natura, setNatura] = useState<NaturaVariante>('preventivo_integrativo')
@@ -365,6 +366,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   const letturaSorgenti = useRef(0)
   const [selezioneSorgenti, setSelezioneSorgenti] = useState<VarianteSorgenti | null>(null)
   const bozzaCreataId = useRef<string | null>(null)
+  const [nuovaRaccoltaIntenzionale, setNuovaRaccoltaIntenzionale] = useState(false)
   const elencoPronto = elencoVarianti.tipo === 'elenco' && elencoVarianti.cantiereId === cantiereId
   const candidate = variantiCorrenti.filter(v => v.titolo === titoloBozzaSorgenti &&
     ['bozza', 'proposta', 'approvata', 'rifiutata', 'annullata'].includes(v.stato))
@@ -373,7 +375,8 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     ((!elencoPronto || bozzaCreataId.current === bozzaSorgentiVarianteId) ? selezioneSorgenti : null)
   const varianteSorgentiModificabile = varianteSelezionata?.stato === 'bozza'
   // Prima della prima sorgente resta disponibile la creazione della bozza già esistente.
-  const nuovaRaccolta = elencoPronto && candidate.length === 0 && !bozzaSorgentiVarianteId
+  const nuovaRaccolta = elencoPronto && !bozzaSorgentiVarianteId &&
+    (nuovaRaccoltaIntenzionale || candidate.length === 0)
   const acquisizioneConsentita = varianteSorgentiModificabile || nuovaRaccolta
   const contestoScrittura = useRef({ id: bozzaSorgentiVarianteId, consentita: acquisizioneConsentita })
   contestoScrittura.current = { id: bozzaSorgentiVarianteId, consentita: acquisizioneConsentita }
@@ -398,6 +401,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     if (invioSorgente.current || invioCumulativa.current) return
     const candidata = candidate.find(v => v.id === id) ?? selezioneSorgenti
     if (!candidata || candidata.id !== id) return
+    setNuovaRaccoltaIntenzionale(false)
     setSelezioneSorgenti({ id: candidata.id, titolo: candidata.titolo, stato: candidata.stato,
       numero: candidata.numero, data_variante: candidata.data_variante, created_at: candidata.created_at })
     const sessione = sessioneSorgenti.current
@@ -434,10 +438,10 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   }
 
   useEffect(() => {
-    if (!elencoPronto || bozzaIdRef.current) return
+    if (!elencoPronto || bozzaIdRef.current || nuovaRaccoltaIntenzionale) return
     if (candidate.length === 1) void caricaSorgentiSalvate(candidate[0].id)
     else setSorgentiPronte(candidate.length === 0)
-  }, [elencoVarianti, cantiereId, variantiCorrenti])
+  }, [elencoVarianti, cantiereId, variantiCorrenti, nuovaRaccoltaIntenzionale])
   const richiesta = useRef(0)
 
   useEffect(() => {
@@ -563,6 +567,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
           r.numero_lavorazioni !== risultato.richiesta.lavorazioni.length || !Number.isFinite(totale) || totale <= 0)
         throw new Error('Risposta non verificabile')
       setEsitiConferma(precedenti => ({ ...precedenti, [id]: { numero: r.numero_lavorazioni, totale } }))
+      onVarianteAggiornata(id)
     } catch {
       if (attuale()) setErroreConferma('Conferma non verificata. Riapri la bozza per controllare le lavorazioni prima di riprovare.')
     } finally {
@@ -624,6 +629,27 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     setErroreFile('')
     setWarningsFile([])
     setPropostaFile(null)
+  }
+
+  function avviaNuovaRaccolta() {
+    if (!elencoPronto || operazioneSorgenti || acquisizioneConsentita || !varianteSelezionata) return
+    // Invalida le risposte asincrone della raccolta precedente.
+    sessioneSorgenti.current = {}
+    letturaSorgenti.current += 1
+    resetPercorso()
+    bozzaIdRef.current = null
+    bozzaCreataId.current = null
+    contestoScrittura.current = { id: null, consentita: true }
+    setBozzaSorgentiVarianteId(null)
+    setSelezioneSorgenti(null)
+    setNuovaRaccoltaIntenzionale(true)
+    setSorgenti([])
+    setSorgentiPronte(true)
+    setCaricamentoSorgenti(false)
+    invioSorgente.current = false
+    setSalvataggioSorgente(false)
+    setNatura('preventivo_integrativo')
+    setAcquisizione('dati_artecna')
   }
 
   function resetPercorso() {
@@ -725,7 +751,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   async function aggiungiSorgente() {
     if (!verificaModifica(true)) return
     if (invioSorgente.current || invioCumulativa.current || caricamentoSorgenti || !elencoPronto || !sorgentiPronte ||
-        (!bozzaIdRef.current && candidate.length > 0) ||
+        (!bozzaIdRef.current && candidate.length > 0 && !nuovaRaccolta) ||
         !sorgenteCorrente || sorgenteCorrente.proposta.lavorazioni.length === 0) return
     if (sorgenti.some(s => s.id === chiaveSorgenteAperta || s.snapshot?.chiave === sorgenteCorrente.chiave ||
         (sorgenteCorrente.tipo === 'preventivo_artecna' && s.preventivoId === sorgenteCorrente.preventivoId))) {
@@ -778,6 +804,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
       annullaRevisioneCumulativa()
       setSorgenti(precedenti => [...precedenti.filter(s => s.id !== salvata.id), { ...salvata, snapshot }])
       setMessaggioSorgenti('Sorgente salvata nella bozza.')
+      onVarianteAggiornata(id)
     } catch {
       if (attuale()) {
         setSorgentiPronte(false)
@@ -904,7 +931,9 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
         </select></label>
       </div>
       {!elencoPronto && <p role="status">Attendi il caricamento delle varianti prima di salvare sorgenti.</p>}
-      {candidate.length > 1 && <label>
+      {varianteSelezionata && !acquisizioneConsentita && <button type="button"
+        disabled={!elencoPronto || operazioneSorgenti} onClick={avviaNuovaRaccolta}>Nuova raccolta</button>}
+      {candidate.length > 0 && (candidate.length > 1 || nuovaRaccoltaIntenzionale) && <label>
         Esistono più Varianti di Preventivo integrativo. Seleziona quella da consultare.
         <select value={bozzaSorgentiVarianteId ?? ''} disabled={operazioneSorgenti}
           onChange={e => { if (e.target.value) void caricaSorgentiSalvate(e.target.value) }}>
@@ -1122,6 +1151,7 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
   const [successo, setSuccesso] = useState('')
   const [refresh, setRefresh] = useState(0)
   const [bozzeCreate, setBozzeCreate] = useState<Variante[]>([])
+  const [refreshLavorazioni, setRefreshLavorazioni] = useState<Record<string, number>>({})
   const [proposteConfermate, setProposteConfermate] = useState<Variante[]>([])
   const [approvazioniConfermate, setApprovazioniConfermate] = useState<Variante[]>([])
   const invioInCorso = useRef(false)
@@ -1139,6 +1169,7 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
     setSuccesso('')
     setSalvataggio(false)
     setBozzeCreate([])
+    setRefreshLavorazioni({})
     setProposteConfermate([])
     setApprovazioniConfermate([])
     return () => { contesto.current = null }
@@ -1265,25 +1296,36 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
   }
 
   const righeLette = stato.tipo === 'elenco' ? stato.righe : []
-  const righe = [
-    ...righeLette,
-    ...bozzeCreate.filter(bozza => !righeLette.some(riga => riga.id === bozza.id)),
-    ...proposteConfermate.filter(proposta => !righeLette.some(r => r.id === proposta.id) && !bozzeCreate.some(r => r.id === proposta.id)),
-    ...approvazioniConfermate.filter(approvata => ![...righeLette, ...bozzeCreate, ...proposteConfermate].some(v => v.id === approvata.id)),
-  ].map(variante => variante.stato === 'bozza'
-    ? proposteConfermate.find(p => p.id === variante.id) || variante
-    : variante).map(variante => approvazioniConfermate.find(v => v.id === variante.id) || variante).sort((a, b) => {
-    if (a.numero === null && b.numero !== null) return 1
-    if (a.numero !== null && b.numero === null) return -1
-    return (a.numero ?? 0) - (b.numero ?? 0) || a.id.localeCompare(b.id)
-  })
+  const righe = useMemo(() => {
+    const righeLette = stato.tipo === 'elenco' ? stato.righe : []
+    return [
+      ...righeLette,
+      ...bozzeCreate.filter(bozza => !righeLette.some(riga => riga.id === bozza.id)),
+      ...proposteConfermate.filter(proposta => !righeLette.some(r => r.id === proposta.id) && !bozzeCreate.some(r => r.id === proposta.id)),
+      ...approvazioniConfermate.filter(approvata => ![...righeLette, ...bozzeCreate, ...proposteConfermate].some(v => v.id === approvata.id)),
+    ].map(variante => variante.stato === 'bozza'
+      ? proposteConfermate.find(p => p.id === variante.id) || variante
+      : variante).map(variante => approvazioniConfermate.find(v => v.id === variante.id) || variante).sort((a, b) => {
+      if (a.numero === null && b.numero !== null) return 1
+      if (a.numero !== null && b.numero === null) return -1
+      return (a.numero ?? 0) - (b.numero ?? 0) || a.id.localeCompare(b.id)
+    })
+  }, [stato, bozzeCreate, proposteConfermate, approvazioniConfermate])
+  const elencoContrattuale = useMemo<Stato>(() => stato.tipo === 'elenco'
+    ? { ...stato, righe } : stato, [stato, righe])
+
+  function aggiornaVariante(varianteId: string) {
+    setRefreshLavorazioni(precedenti => ({ ...precedenti, [varianteId]: (precedenti[varianteId] ?? 0) + 1 }))
+    setRefresh(valore => valore + 1)
+  }
+
   const bozzeNonRilette = stato.tipo === 'elenco' &&
     bozzeCreate.some(bozza => !righeLette.some(riga => riga.id === bozza.id))
 
   return (
     <section aria-label="Varianti" style={{ marginTop: 16 }}>
       <h3>Varianti</h3>
-      {cantiereId && <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} elencoVarianti={stato} variantiCorrenti={righe} />}
+      {cantiereId && <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} elencoVarianti={stato} variantiCorrenti={righe} onVarianteAggiornata={aggiornaVariante} />}
       {!formAperto && (
         <button type="button" disabled={!cantiereId || salvataggio}
           onClick={() => { setErroreSalvataggio(''); setFormAperto(true) }}>
@@ -1345,6 +1387,10 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
               </details>
               <LavorazioniVariantePanel key={`${cantiereId}:${variante.id}`} varianteId={variante.id}
                 cantiereId={cantiereId} statoVariante={variante.stato}
+                refreshEsterno={refreshLavorazioni[variante.id] ?? 0}
+                selettoreContrattuale={variante.stato === 'bozza' && <SelettoreComponentiContrattuali
+                  key={`${cantiereId}:${variante.id}:${variante.preventivo_contrattuale_id}`}
+                  variante={variante} cantiereId={cantiereId} elencoVarianti={elencoContrattuale} />}
                 onProposta={numero => confermaProposta(variante, numero)}
                 renderApprovazione={lavorazioniLette => variante.stato === 'proposta' &&
                   <ApprovazioneVarianteForm key={'approva:' + cantiereId + ':' + variante.id}
@@ -1358,6 +1404,157 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
   )
 }
 
+
+type ComponenteContrattualeSelezionabile = {
+  tipo: 'preventivo' | 'variante'
+  id: number
+  descrizione: string
+  unitaMisura: string
+  quantitaOriginaria: number
+  prezzoUnitario: number
+  importoOriginario: number
+  origineLabel: string
+  numeroVariante?: number
+}
+
+function leggiComponenteContrattuale(riga: Record<string, unknown>,
+  tipo: ComponenteContrattualeSelezionabile['tipo'], origineLabel: string,
+  numeroVariante?: number): ComponenteContrattualeSelezionabile {
+  const numero = (valore: unknown) => {
+    if (typeof valore === 'number' && Number.isFinite(valore)) return valore
+    if (typeof valore === 'string') {
+      const risultato = numeroRevisioneVariante(valore)
+      if (risultato !== undefined) return risultato
+    }
+    throw new Error('Dati contrattuali non verificabili.')
+  }
+  const id = numero(riga.id)
+  const quantitaOriginaria = numero(tipo === 'preventivo' ? riga.quantita : riga.quantita_delta)
+  const prezzoUnitario = numero(riga.prezzo_unitario)
+  const importoOriginario = numero(tipo === 'preventivo' ? riga.importo_previsto : riga.delta_contratto)
+  if (!Number.isSafeInteger(id) || id <= 0 || quantitaOriginaria <= 0 || prezzoUnitario < 0 || importoOriginario < 0 ||
+      (tipo === 'variante' && (importoOriginario <= 0 || !Number.isSafeInteger(numeroVariante) || Number(numeroVariante) <= 0)) ||
+      typeof riga.descrizione !== 'string' || !riga.descrizione.trim() ||
+      typeof riga.unita_misura !== 'string' || !riga.unita_misura.trim()) {
+    throw new Error('Dati contrattuali non verificabili.')
+  }
+  return { tipo, id, descrizione: riga.descrizione, unitaMisura: riga.unita_misura,
+    quantitaOriginaria, prezzoUnitario, importoOriginario, origineLabel, numeroVariante }
+}
+
+function SelettoreComponentiContrattuali({ variante, cantiereId, elencoVarianti }: {
+  variante: Variante
+  cantiereId?: string | null
+  elencoVarianti: Stato
+}) {
+  type LetturaComponenti =
+    | { tipo: 'loading' }
+    | { tipo: 'errore'; messaggio: string }
+    | { tipo: 'elenco'; componenti: ComponenteContrattualeSelezionabile[]; contesto: Stato }
+  const [lettura, setLettura] = useState<LetturaComponenti>({ tipo: 'loading' })
+  const [componenteContrattualeSelezionata, setComponenteContrattualeSelezionata] = useState('')
+  const preventivoId = variante.preventivo_contrattuale_id
+
+  useEffect(() => {
+    let attivo = true
+    setLettura({ tipo: 'loading' })
+    setComponenteContrattualeSelezionata('')
+    async function carica() {
+      try {
+        if (elencoVarianti.tipo === 'loading') return
+        if (!cantiereId || !preventivoId || elencoVarianti.tipo !== 'elenco' ||
+            elencoVarianti.cantiereId !== cantiereId) throw new Error('Elenco contrattuale non disponibile.')
+        const { data: cantiere, error: erroreCantiere } = await supabase.from('cantieri')
+          .select('id, preventivo_contrattuale_id').eq('id', cantiereId).maybeSingle()
+        if (!attivo) return
+        if (erroreCantiere || !cantiere || cantiere.id !== cantiereId ||
+            cantiere.preventivo_contrattuale_id !== preventivoId) throw new Error('Contratto corrente non verificabile. Riapri il pannello.')
+        const { data: preventivo, error: errorePreventivo } = await supabase.from('preventivi_cantiere')
+          .select('id, cantiere_id').eq('id', preventivoId).eq('cantiere_id', cantiereId).maybeSingle()
+        if (!attivo) return
+        if (errorePreventivo || !preventivo || preventivo.id !== preventivoId || preventivo.cantiere_id !== cantiereId)
+          throw new Error('Preventivo contrattuale non verificabile.')
+        const base = await caricaLavorazioniPreventivoSorgente(supabase, cantiereId, preventivoId)
+        if (!attivo) return
+        if (base.stato === 'errore') throw new Error('Impossibile leggere le componenti del preventivo contrattuale.')
+        const componenti = base.righe.map(riga => leggiComponenteContrattuale(riga, 'preventivo', 'Preventivo contrattuale'))
+        const approvate = elencoVarianti.righe.filter(v =>
+          v.stato === 'approvata' && v.preventivo_contrattuale_id === preventivoId)
+        if (approvate.some(v => !idSorgenteValido(v.id) || !Number.isSafeInteger(v.numero) || Number(v.numero) <= 0))
+          throw new Error('Dati contrattuali non verificabili.')
+        approvate.sort((a, b) => Number(a.numero) - Number(b.numero) || a.id.localeCompare(b.id))
+        for (const approvata of approvate) {
+          let offset = 0
+          for (;;) {
+            const { data, error } = await supabase
+              .rpc('leggi_lavorazioni_variante', { p_variante_id: approvata.id })
+              .order('numero_riga', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 199)
+            if (!attivo) return
+            if (error || !Array.isArray(data)) throw new Error('Impossibile leggere le componenti delle Varianti approvate.')
+            if (data.length === 0) break
+            for (const riga of data) {
+              if (!recordSorgente(riga)) throw new Error('Dati contrattuali non verificabili.')
+              if (!['nuova', 'aumento'].includes(String(riga.operazione)) ||
+                  !(numeroLavorazione(riga.quantita_delta) > 0) || !(numeroLavorazione(riga.delta_contratto) > 0)) continue
+              if (!recordSorgente(riga) || riga.variante_id !== approvata.id ||
+                  !['nuova', 'aumento'].includes(String(riga.operazione)) ||
+                  !Number.isSafeInteger(riga.numero_riga) || Number(riga.numero_riga) <= 0)
+                throw new Error('Dati contrattuali non verificabili.')
+              componenti.push(leggiComponenteContrattuale(riga, 'variante', `Variante n. ${approvata.numero} approvata`, Number(approvata.numero)))
+            }
+            offset += data.length
+          }
+        }
+        const identita = componenti.map(c => `${c.tipo}:${c.id}`)
+        if (new Set(identita).size !== identita.length) throw new Error('Dati contrattuali non verificabili.')
+        if (attivo) setLettura({ tipo: 'elenco', componenti, contesto: elencoVarianti })
+      } catch (errore) {
+        if (attivo) setLettura({ tipo: 'errore', messaggio: errore instanceof Error
+          ? errore.message : 'Impossibile leggere le componenti contrattuali.' })
+      }
+    }
+    void carica()
+    return () => { attivo = false }
+  }, [cantiereId, preventivoId, variante.id, elencoVarianti])
+
+  if (variante.stato !== 'bozza') return null
+  const componenti = lettura.tipo === 'elenco' && lettura.contesto === elencoVarianti ? lettura.componenti : []
+  const selezionata = componenti.find(c => `${c.tipo}:${c.id}` === componenteContrattualeSelezionata)
+  const numero = (v: number) => v.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 20 })
+  const euro = (v: number) => v.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
+  return <section aria-label="Modifica lavorazione contrattuale" style={{ marginTop: 16, padding: 12, border: '1px solid #e2e8f0' }}>
+    <h5>Modifica lavorazione contrattuale</h5>
+    <p>Seleziona una lavorazione del contratto da modificare.</p>
+    <p><small>Le lavorazioni con descrizioni simili possono avere origini contrattuali diverse. Verifica l'origine prima di selezionare.</small></p>
+    {(lettura.tipo === 'loading' || (lettura.tipo === 'elenco' && lettura.contesto !== elencoVarianti)) &&
+      <p role="status">Caricamento componenti contrattuali...</p>}
+    {lettura.tipo === 'errore' && <p role="alert">{lettura.messaggio}</p>}
+    {lettura.tipo === 'elenco' && lettura.contesto === elencoVarianti && componenti.length === 0 &&
+      <p>Nessuna componente contrattuale disponibile.</p>}
+    {componenti.length > 0 && <label>Componente contrattuale
+      <select value={selezionata ? componenteContrattualeSelezionata : ''}
+        onChange={e => setComponenteContrattualeSelezionata(e.target.value)}
+        style={{ display: 'block', width: '100%', padding: 8 }}>
+        <option value="">Seleziona una lavorazione</option>
+        {componenti.map(c => <option key={`${c.tipo}:${c.id}`} value={`${c.tipo}:${c.id}`} title={c.descrizione}>
+          {c.tipo === 'preventivo' ? '[BASE]' : `[VAR. ${c.numeroVariante}]`} {c.descrizione} — {numero(c.quantitaOriginaria)} {c.unitaMisura}
+        </option>)}
+      </select>
+    </label>}
+    {selezionata && <div>
+      <dl>
+        <dt>Origine</dt><dd>{selezionata.origineLabel}</dd>
+        <dt>Identità</dt><dd>{selezionata.tipo === 'preventivo' ? 'Preventivo' : 'Variante'} #{selezionata.id}</dd>
+        <dt>Descrizione completa</dt><dd style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{selezionata.descrizione}</dd>
+        <dt>UM</dt><dd>{selezionata.unitaMisura}</dd>
+        <dt>Quantità originaria</dt><dd>{numero(selezionata.quantitaOriginaria)}</dd>
+        <dt>Prezzo unitario</dt><dd>{euro(selezionata.prezzoUnitario)}</dd>
+        <dt>Importo originario</dt><dd>{euro(selezionata.importoOriginario)}</dd>
+      </dl>
+      <p><small>Il residuo effettivamente modificabile sarà verificato dal server al momento della correzione.</small></p>
+    </div>}
+  </section>
+}
 
 type LavorazioneVariante = {
   numero_riga: number
@@ -1403,12 +1600,14 @@ const erroriPropostaRpc: Record<string, string> = {
   P2017: 'Conflitto durante la proposta. Riprova.',
 }
 
-function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, onProposta, renderApprovazione }: {
+function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refreshEsterno = 0, onProposta, renderApprovazione, selettoreContrattuale }: {
   varianteId: string
   cantiereId?: string | null
   statoVariante: string
+  refreshEsterno?: number
   onProposta: (numero: number) => void
   renderApprovazione?: (lavorazioniLette: readonly LavorazioneVariante[] | null) => ReactNode
+  selettoreContrattuale?: ReactNode
 }) {
   const [righe, setRighe] = useState<LavorazioneVariante[]>([])
   const [confermate, setConfermate] = useState<LavorazioneVariante[]>([])
@@ -1472,7 +1671,7 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, onPro
     }
     void caricaLavorazioni()
     return () => { attivo = false }
-  }, [varianteId, refresh])
+  }, [varianteId, refresh, refreshEsterno, statoVariante])
 
   function resetForm() {
     setAperto(false)
@@ -1588,6 +1787,7 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, onPro
   return (
     <section aria-label="Lavorazioni della variante" style={{ marginTop: 20, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
       <h5>Lavorazioni della variante</h5>
+      {modificabile && selettoreContrattuale}
       {renderApprovazione?.(lettura === 'elenco' && !nonRilette ? righe : null)}
       {modificabile && lettura === 'elenco' && righe.length > 0 && (
         <button type="button" disabled={propostaInCorso || salvataggio || !cantiereId} onClick={() => void proponiVariante()}>
