@@ -389,12 +389,162 @@ function GuidaPassoSuccessivo({ stato, conteggio = null, modificabile = false, o
   </aside>
 }
 
-type RigaEconomiaLocale = { indice: number; rigaFile?: number; descrizione: string; unitaMisura: string; quantita: string; prezzo: string; totaleSorgente?: number }
-type PropostaEconomiaLocale = { natura: 'lavori_in_economia'; formato: string; righe: RigaEconomiaLocale[]; warnings: string[] }
+type WarningEconomia = { codice: string; campi: string[] }
+type CellaEconomiaExcel = { tipo: string; valore: string | null; formula: string | null; formato: string | null; visualizzato: string | null }
+type SnapshotEconomiaExcel = { version: 2; template: string; date1904: boolean; fogli: Record<string, { riga_intestazioni: number; intestazioni: Record<string, CellaEconomiaExcel>; righe: Record<string, { celle: Record<string, CellaEconomiaExcel>; warnings: WarningEconomia[] }> }> }
+type DettagliEconomiaLocale = {
+  version: 1; sorgente: Record<string, string | number>; operativo: Record<string, string | number | null>;
+  normalizzazione: { regola: string; quantita: { decimali: 2; origine: 'sorgente' | 'rettifica'; motivazione: string | null }; prezzo_unitario: { decimali: 2; origine: 'sorgente' | 'rettifica'; motivazione: string | null } };
+  warnings: { sorgente: WarningEconomia[]; operativo: WarningEconomia[] }
+}
+type RigaEconomiaLocale = { indice: number; rigaFile: number; tipo: 'manodopera' | 'materiale'; inclusa: boolean; descrizione: string; unitaMisura: string; quantita: string; prezzo: string; note: string; totaleSorgente?: number; dettagli: DettagliEconomiaLocale }
+type PropostaEconomiaLocale = { natura: 'lavori_in_economia'; formato: 'excel'; righe: RigaEconomiaLocale[]; warnings: string[]; snapshot: SnapshotEconomiaExcel }
 const numeroEconomiaLocale = (s: string): number | undefined => {
-  if (!/^[+-]?\d+(?:[.,]\d+)?$/.test(s.trim())) return undefined
+  if (!/^[+-]?\d+(?:[.,]\d{1,6})?$/.test(s.trim())) return undefined
   const n = Number(s.trim().replace(',', '.'))
-  return Number.isFinite(n) ? n : undefined
+  const canonico = (v: string) => {
+    const [intero, decimali = ''] = v.replace(/^[+]/, '').replace(',', '.').split('.')
+    const parteIntera = intero.replace(/^(-?)0+(?=\d)/, '$1')
+    const frazione = decimali.replace(/0+$/, '')
+    return (parteIntera === '-0' && !frazione ? '0' : parteIntera) + (frazione ? '.' + frazione : '')
+  }
+  return Number.isFinite(n) && Math.abs(n) < 1e12 && canonico(s.trim()) === canonico(String(n)) ? n : undefined
+}
+
+
+// Arrotondamento decimale esplicito (metà lontano da zero), senza toFixed su float.
+function normalizzaDecimaleEconomia(testo: string | null, decimali = 2): string | undefined {
+  if (testo === null || testo === '') return undefined
+  const m = testo.trim().replace(',', '.').match(/^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/)
+  if (!m) return undefined
+  const potenza = decimali + Number(m[4] ?? 0) - (m[3]?.length ?? 0)
+  if (!Number.isSafeInteger(potenza) || Math.abs(potenza) > 400) return undefined
+  let n = BigInt(m[2] + (m[3] ?? ''))
+  if (potenza >= 0) n *= BigInt(10) ** BigInt(potenza)
+  else {
+    const divisore = BigInt(10) ** BigInt(-potenza)
+    n = n / divisore + (n % divisore * BigInt(2) >= divisore ? BigInt(1) : BigInt(0))
+  }
+  const cifre = n.toString().padStart(decimali + 1, '0')
+  return (m[1] === '-' && n !== BigInt(0) ? '-' : '') + (decimali ? cifre.slice(0, -decimali) + '.' + cifre.slice(-decimali) : cifre)
+}
+function prodottoEconomia(q: string | undefined, p: string | undefined): string | undefined {
+  if (q === undefined || p === undefined) return undefined
+  const a = normalizzaDecimaleEconomia(q), b = normalizzaDecimaleEconomia(p)
+  if (!a || !b) return undefined
+  const n = BigInt(a.replace('.', '')) * BigInt(b.replace('.', ''))
+  return normalizzaDecimaleEconomia(n.toString() + 'e-4')
+}
+const mappaManodoperaEconomia = ['cantiere','codice_variante','data','operaio','qualifica','ora_inizio','ora_fine','pausa_min','ore_dichiarate','tariffa_dichiarata','totale_dichiarato','riferimento','note']
+const mappaMaterialiEconomia = ['cantiere','codice_variante','data','materiale','um','quantita_dichiarata','prezzo_dichiarato','totale_dichiarato','fornitore','documento','riferimento_rapportino','note']
+function warningsOperativiEconomia(r: RigaEconomiaLocale): string[] {
+  const op = r.dettagli.operativo, warnings: string[] = []
+  if (r.tipo === 'manodopera') {
+    if (!op.qualifica) warnings.push('qualifica_mancante')
+    if (!op.operaio) warnings.push('operaio_mancante')
+    if (op.ora_inizio && op.ora_fine && op.pausa_min !== null) {
+      const minuti = (v: string) => Number(v.slice(0,2))*60+Number(v.slice(3))
+      const inizio = minuti(String(op.ora_inizio)), fine = minuti(String(op.ora_fine))
+      const durata = (fine-inizio+1440)%1440
+      const ore = normalizzaDecimaleEconomia(String(Math.max(0,(durata-Number(op.pausa_min))/60)))
+      if (normalizzaDecimaleEconomia(r.quantita) !== ore) warnings.push('ore_discordanti')
+      if (fine < inizio) warnings.push('passaggio_mezzanotte')
+      if (Number(op.pausa_min)>durata || Number(ore)<=0) warnings.push('durata_non_valida')
+    } else warnings.push('orari_o_pausa_mancanti')
+  }
+  if (!op.data) warnings.push('data_mancante')
+  const ref = String(op[r.tipo === 'manodopera' ? 'riferimento' : 'riferimento_rapportino'] ?? '').match(/(\d{2})\/(\d{2})\/(\d{4})/)
+  if (ref && op.data && ref[3]+'-'+ref[2]+'-'+ref[1] !== op.data) warnings.push('riferimento_data_discordante')
+  if (r.totaleSorgente !== undefined && r.prezzo.trim() !== '' && prodottoEconomia(r.quantita,r.prezzo) !== normalizzaDecimaleEconomia(String(r.totaleSorgente))) warnings.push('totale_operativo_diverso_dal_dichiarato')
+  return warnings
+}
+async function leggiTemplateEconomia(file: File): Promise<PropostaEconomiaLocale> {
+  const XLSX = await import('xlsx')
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellFormula: true, cellNF: true })
+  const date1904 = !!workbook.Workbook?.WBProps?.date1904
+  const snapshot: SnapshotEconomiaExcel = { version: 2, template: 'ARTECNA_Template_Import_Varianti_Extra_v2', date1904, fogli: {} }
+  const righe: RigaEconomiaLocale[] = []
+  const definizioni = [
+    { nome: 'Manodopera economia', tipo: 'manodopera' as const, header: 5, campi: mappaManodoperaEconomia, titoli: ['Cantiere','Codice variante','Data','Operaio','Qualifica','Ora inizio','Ora fine','Pausa min','Ore','Tariffa €/h','Totale €','Riferimento','Note'] },
+    { nome: 'Materiali economia', tipo: 'materiale' as const, header: 4, campi: mappaMaterialiEconomia, titoli: ['Cantiere','Codice variante','Data','Materiale','UM','Quantità','Prezzo unitario €','Totale €','Fornitore','Documento','Riferimento rapportino','Note'] },
+  ]
+  const copiaCella = (c: import('xlsx').CellObject | undefined): CellaEconomiaExcel => ({ tipo: c?.t ?? 'z', valore: c?.v === undefined || c.v === null ? null : String(c.v), formula: c?.f ?? null, formato: c?.z === undefined ? null : String(c.z), visualizzato: c?.w ?? (c?.v === undefined ? null : XLSX.utils.format_cell(c)) })
+  for (const d of definizioni) {
+    const sheet = workbook.Sheets[d.nome]
+    if (!sheet?.['!ref']) throw new Error('Foglio ufficiale mancante: ' + d.nome)
+    const colonne = d.campi.map((_, c) => XLSX.utils.encode_col(c))
+    const intestazioni: Record<string, CellaEconomiaExcel> = {}
+    d.titoli.forEach((titolo, c) => {
+      const address = colonne[c] + d.header
+      if (String(sheet[address]?.v ?? '').trim() !== titolo) throw new Error('Intestazione non conforme al template: ' + d.nome + '!' + address)
+      intestazioni[address] = copiaCella(sheet[address])
+    })
+    const foglio = { riga_intestazioni: d.header, intestazioni, righe: {} as SnapshotEconomiaExcel['fogli'][string]['righe'] }
+    snapshot.fogli[d.nome] = foglio
+    const ultima = XLSX.utils.decode_range(sheet['!ref']).e.r + 1
+    for (let r = d.header + 1; r <= ultima; r++) {
+      const celle = Object.fromEntries(colonne.map(c => [c + r, copiaCella(sheet[c + r])]))
+      const warnings: WarningEconomia[] = []
+      foglio.righe[String(r)] = { celle, warnings }
+      const compilata = colonne.some(c => { const cell = sheet[c + r]; return cell && !cell.f && cell.v !== undefined && cell.v !== null && cell.v !== '' })
+      if (!compilata) continue
+      const get = (campo: string) => celle[colonne[d.campi.indexOf(campo)] + r]
+      const valore = (campo: string) => get(campo)?.valore ?? null
+      const testo = (campo: string) => valore(campo)?.trim() || null
+      const numero = (campo: string) => get(campo)?.tipo === 'n' ? normalizzaDecimaleEconomia(valore(campo)) : undefined
+      const warn = (codice: string, ...campi: string[]) => warnings.push({ codice, campi })
+      const dataRaw = valore('data')
+      const dataExcel = dataRaw !== null && get('data').tipo === 'n' ? XLSX.SSF.parse_date_code(Number(dataRaw), { date1904 }) : null
+      const data = dataExcel ? String(dataExcel.y).padStart(4,'0') + '-' + String(dataExcel.m).padStart(2,'0') + '-' + String(dataExcel.d).padStart(2,'0') : null
+      if (!data) warn('data_mancante_o_non_valida','data')
+      const orario = (campo: string) => {
+        const raw = valore(campo)
+        if (raw === null || get(campo).tipo !== 'n' || !Number.isFinite(Number(raw))) return null
+        const minuti = Number(normalizzaDecimaleEconomia(String(((Number(raw) % 1 + 1) % 1) * 1440), 0)) % 1440
+        return String(Math.floor(minuti / 60)).padStart(2,'0') + ':' + String(minuti % 60).padStart(2,'0')
+      }
+      const q = numero(d.tipo === 'manodopera' ? 'ore_dichiarate' : 'quantita_dichiarata') ?? ''
+      const p = numero(d.tipo === 'manodopera' ? 'tariffa_dichiarata' : 'prezzo_dichiarato') ?? ''
+      const totale = numero('totale_dichiarato')
+      const operativo: Record<string, string | number | null> = { cantiere_dichiarato: testo('cantiere'), codice_variante: testo('codice_variante'), data }
+      if (d.tipo === 'manodopera') {
+        Object.assign(operativo, { operaio: testo('operaio'), qualifica: testo('qualifica'), ora_inizio: orario('ora_inizio'), ora_fine: orario('ora_fine'), pausa_min: valore('pausa_min') === null ? null : Number(normalizzaDecimaleEconomia(valore('pausa_min'),0)), riferimento: testo('riferimento') })
+        if (!operativo.qualifica) warn('qualifica_mancante','qualifica')
+        if (!operativo.operaio) warn('operaio_mancante','operaio')
+        if (operativo.ora_inizio && operativo.ora_fine && operativo.pausa_min !== null) {
+          const min = (v: string) => Number(v.slice(0,2))*60 + Number(v.slice(3))
+          const inizio = min(String(operativo.ora_inizio)), fine = min(String(operativo.ora_fine))
+          const durata = (fine-inizio+1440)%1440
+          const ore = normalizzaDecimaleEconomia(String(Math.max(0,(durata-Number(operativo.pausa_min))/60)))
+          if (q !== ore) warn('ore_discordanti','ore_dichiarate')
+          if (fine < inizio) warn('passaggio_mezzanotte','ora_fine')
+          if (Number(operativo.pausa_min)>durata || Number(ore)<=0) warn('durata_non_valida','pausa_min')
+        } else warn('orari_o_pausa_mancanti','ora_inizio','ora_fine','pausa_min')
+      } else {
+        Object.assign(operativo, { fornitore: testo('fornitore'), documento: testo('documento'), riferimento_rapportino: testo('riferimento_rapportino') })
+        if (!testo('materiale')) warn('materiale_mancante','materiale')
+      }
+      const ref = testo(d.tipo === 'manodopera' ? 'riferimento' : 'riferimento_rapportino')?.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+      if (ref && data && ref[3]+'-'+ref[2]+'-'+ref[1] !== data) warn('riferimento_data_discordante','data','riferimento')
+      if (totale !== undefined && q && p && prodottoEconomia(q,p) !== totale) warn('totale_discordante','totale_dichiarato')
+      if (totale === undefined && get('totale_dichiarato').formula) warn('risultato_formula_mancante','totale_dichiarato')
+      for (const campo of d.campi) if (get(campo).tipo === 'e') warn('errore_excel',campo)
+      if (!q || Number(q)<=0) warn('quantita_non_valida',d.tipo === 'manodopera' ? 'ore_dichiarate' : 'quantita_dichiarata')
+      if (p && Number(p)<0) warn('prezzo_non_valido',d.tipo === 'manodopera' ? 'tariffa_dichiarata' : 'prezzo_dichiarato')
+      const dettagli: DettagliEconomiaLocale = {
+        version: 1,
+        sorgente: { foglio_sorgente: d.nome, riga_sorgente: r, ...Object.fromEntries(d.campi.map((campo,c) => [campo,colonne[c]+r])) },
+        operativo,
+        normalizzazione: { regola: 'artecna_template_extra_v2_precisione_v1', quantita: { decimali: 2, origine: 'sorgente', motivazione: null }, prezzo_unitario: { decimali: 2, origine: 'sorgente', motivazione: null } },
+        warnings: { sorgente: structuredClone(warnings), operativo: [] },
+      }
+      righe.push({ indice: 2*(r-1)+(d.tipo === 'materiale' ? 1 : 0), rigaFile: r, tipo: d.tipo, inclusa: true,
+        descrizione: d.tipo === 'manodopera' ? (testo('operaio') ? 'Manodopera — '+testo('operaio') : '') : testo('materiale') ?? '',
+        unitaMisura: d.tipo === 'manodopera' ? 'h' : testo('um') ?? '', quantita: q, prezzo: p, note: valore('note') ?? '',
+        totaleSorgente: totale === undefined ? undefined : Number(totale), dettagli })
+    }
+  }
+  return { natura: 'lavori_in_economia', formato: 'excel', righe, warnings: [], snapshot }
 }
 
 function AreaAcquisizioneFile({ bloccata, onFile }: { bloccata: boolean; onFile: (file: File) => void }) {
@@ -429,70 +579,357 @@ function AreaAcquisizioneFile({ bloccata, onFile }: { bloccata: boolean; onFile:
   </>
 }
 
-function ImportazioneEconomiaLocale() {
+type RaccoltaImportazioneEconomia = { id: string; cantiere_id: string; numero: number; revisione: number; stato: 'bozza' | 'chiusa' }
+function leggiIdentitaImportazioneEconomia(v: unknown, cantiereId: string, id?: string): RaccoltaImportazioneEconomia {
+  if (!recordSorgente(v) || !idSorgenteValido(v.id) || (id !== undefined && v.id !== id) ||
+      v.cantiere_id !== cantiereId || !Number.isSafeInteger(v.numero) || Number(v.numero) <= 0 ||
+      !Number.isSafeInteger(v.revisione) || Number(v.revisione) < 0 || (v.stato !== 'bozza' && v.stato !== 'chiusa'))
+    throw new Error('Risposta Economia non verificabile.')
+  return { id: v.id, cantiere_id: cantiereId, numero: Number(v.numero), revisione: Number(v.revisione), stato: v.stato }
+}
+
+type RaccoltaConsultazioneEconomia = RaccoltaImportazioneEconomia & { titolo: string; data: string; totale: number | null; nonValorizzate: number }
+type RigaConsultazioneEconomia = { id: string; ordine: number; tipo: 'generica' | 'manodopera' | 'materiale'; descrizione: string; um: string; quantita: number; prezzo: number | null; totale: number | null; note: string | null; operativo: Record<string, unknown> }
+type DettaglioConsultazioneEconomia = { raccolta: RaccoltaConsultazioneEconomia; righe: RigaConsultazioneEconomia[] }
+
+function numeroConsultazioneEconomia(v: unknown, nullable = false): number | null {
+  if (nullable && v === null) return null
+  if ((typeof v !== 'number' && typeof v !== 'string') || (typeof v === 'string' && !v.trim()) || !Number.isFinite(Number(v)) || Number(v) < 0)
+    throw new Error('Valore numerico Economia non verificabile.')
+  return Number(v)
+}
+function raccoltaConsultazioneEconomia(v: unknown, cantiereId: string, riepilogo?: Record<string, unknown>): RaccoltaConsultazioneEconomia {
+  const identita = leggiIdentitaImportazioneEconomia(v, cantiereId)
+  if (!recordSorgente(v) || typeof v.titolo !== 'string' || !v.titolo.trim() || typeof v.data !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v.data))
+    throw new Error('Raccolta Economia non verificabile.')
+  const r = riepilogo ?? v
+  const nonValorizzate = numeroConsultazioneEconomia(r.righe_non_valorizzate)
+  if (nonValorizzate === null || !Number.isSafeInteger(nonValorizzate)) throw new Error('Conteggio Economia non verificabile.')
+  return { ...identita, titolo: v.titolo, data: v.data, totale: numeroConsultazioneEconomia(r.totale, true), nonValorizzate }
+}
+function dettaglioConsultazioneEconomia(v: unknown, cantiereId: string, raccoltaId: string): DettaglioConsultazioneEconomia {
+  if (!recordSorgente(v) || !Array.isArray(v.righe)) throw new Error('Dettaglio Economia non verificabile.')
+  const raccolta = raccoltaConsultazioneEconomia(v.raccolta, cantiereId, v)
+  if (raccolta.id !== raccoltaId) throw new Error('Raccolta Economia diversa da quella richiesta.')
+  const ids = new Set<string>(), ordini = new Set<number>()
+  const righe = v.righe.map((r): RigaConsultazioneEconomia => {
+    if (!recordSorgente(r) || !idSorgenteValido(r.id) || r.raccolta_id !== raccoltaId || !Number.isSafeInteger(r.ordine) || Number(r.ordine) <= 0 ||
+        !['generica','manodopera','materiale'].includes(String(r.tipo_riga)) || typeof r.descrizione !== 'string' || !r.descrizione.trim() ||
+        typeof r.unita_misura !== 'string' || !r.unita_misura.trim() || (r.note !== null && typeof r.note !== 'string')) throw new Error('Riga Economia non verificabile.')
+    if (ids.has(r.id) || ordini.has(Number(r.ordine))) throw new Error('Righe Economia duplicate.')
+    ids.add(r.id); ordini.add(Number(r.ordine))
+    let operativo: Record<string, unknown> = {}
+    if (r.tipo_riga !== 'generica') {
+      if (!recordSorgente(r.dettagli_analitici) || r.dettagli_analitici.version !== 1 || !recordSorgente(r.dettagli_analitici.operativo)) throw new Error('Dettagli analitici Economia non verificabili.')
+      operativo = r.dettagli_analitici.operativo
+      const campi = r.tipo_riga === 'manodopera' ? ['data','operaio','qualifica','ora_inizio','ora_fine','riferimento'] : ['data','fornitore','documento','riferimento_rapportino']
+      if (campi.some(c => operativo[c] !== null && typeof operativo[c] !== 'string') || (r.tipo_riga === 'manodopera' && operativo.pausa_min !== null && (typeof operativo.pausa_min !== 'number' || !Number.isSafeInteger(operativo.pausa_min) || operativo.pausa_min < 0))) throw new Error('Dati operativi Economia non verificabili.')
+    }
+    const quantita = numeroConsultazioneEconomia(r.quantita)
+    if (quantita === null || quantita <= 0) throw new Error('Quantità Economia non verificabile.')
+    const prezzo = numeroConsultazioneEconomia(r.prezzo_unitario, true), totale = numeroConsultazioneEconomia(r.totale, true)
+    if ((prezzo === null) !== (totale === null)) throw new Error('Valorizzazione Economia non verificabile.')
+    return { id: r.id, ordine: Number(r.ordine), tipo: r.tipo_riga as RigaConsultazioneEconomia['tipo'], descrizione: r.descrizione, um: r.unita_misura, quantita, prezzo, totale, note: r.note as string | null, operativo }
+  }).sort((a,b) => a.ordine-b.ordine)
+  if (raccolta.nonValorizzate !== righe.filter(r => r.prezzo === null).length) throw new Error('Riepilogo Economia non coerente.')
+  return { raccolta, righe }
+}
+const testoConsultazioneEconomia = (v: unknown) => v === null || v === undefined || v === '' ? 'Non indicato' : String(v)
+const dataConsultazioneEconomia = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : testoConsultazioneEconomia(v)
+const importoConsultazioneEconomia = (v: number | null) => v === null ? 'Non valorizzato' : v.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
+
+function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento }: { cantiereId: string; aggiornamento: number }) {
+  const [elenco, setElenco] = useState<RaccoltaConsultazioneEconomia[]>([])
+  const [caricamentoElenco, setCaricamentoElenco] = useState(true)
+  const [erroreElenco, setErroreElenco] = useState('')
+  const [rilettura, setRilettura] = useState(0)
+  const [apertaId, setApertaId] = useState<string | null>(null)
+  const [dettaglio, setDettaglio] = useState<DettaglioConsultazioneEconomia | null>(null)
+  const [caricamentoDettaglio, setCaricamentoDettaglio] = useState(false)
+  const [erroreDettaglio, setErroreDettaglio] = useState('')
+  const tokenElenco = useRef(0), tokenDettaglio = useRef(0)
+  const cantiereCorrente = useRef(cantiereId)
+  cantiereCorrente.current = cantiereId
+  useEffect(() => {
+    setElenco([]); setApertaId(null); setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(false)
+    tokenDettaglio.current += 1
+    return () => { tokenElenco.current += 1; tokenDettaglio.current += 1 }
+  }, [cantiereId])
+  useEffect(() => {
+    const token = ++tokenElenco.current
+    setCaricamentoElenco(true); setErroreElenco('')
+    async function carica() {
+      try {
+        const { data, error } = await supabase.rpc('leggi_raccolte_economia', { p_cantiere_id: cantiereId })
+        if (token !== tokenElenco.current || cantiereCorrente.current !== cantiereId) return
+        if (error || !Array.isArray(data)) throw new Error('Lettura elenco non disponibile.')
+        const raccolte = data.map(v => raccoltaConsultazioneEconomia(v, cantiereId))
+        if (new Set(raccolte.map(r => r.id)).size !== raccolte.length) throw new Error('Elenco Economia non verificabile.')
+        setElenco(raccolte)
+      } catch {
+        if (token === tokenElenco.current && cantiereCorrente.current === cantiereId) setErroreElenco('Impossibile leggere le raccolte Economia. Riprova la lettura.')
+      } finally {
+        if (token === tokenElenco.current && cantiereCorrente.current === cantiereId) setCaricamentoElenco(false)
+      }
+    }
+    void carica()
+    return () => { tokenElenco.current += 1 }
+  }, [cantiereId, aggiornamento, rilettura])
+  async function apri(id: string) {
+    const token = ++tokenDettaglio.current
+    setApertaId(id); setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(true)
+    try {
+      const { data, error } = await supabase.rpc('leggi_raccolta_economia', { p_raccolta_id: id })
+      if (token !== tokenDettaglio.current || cantiereCorrente.current !== cantiereId) return
+      if (error) throw new Error('Lettura dettaglio non disponibile.')
+      const lettura = dettaglioConsultazioneEconomia(data, cantiereId, id)
+      setDettaglio(lettura)
+      setElenco(e => e.map(r => r.id === id ? lettura.raccolta : r))
+    } catch {
+      if (token === tokenDettaglio.current && cantiereCorrente.current === cantiereId) setErroreDettaglio('Impossibile leggere la raccolta Economia. Riprova la lettura.')
+    } finally {
+      if (token === tokenDettaglio.current && cantiereCorrente.current === cantiereId) setCaricamentoDettaglio(false)
+    }
+  }
+  const riepilogo = (r: RaccoltaConsultazioneEconomia) => <>
+    <h5>Raccolta n. {r.numero} — {r.titolo}</h5>
+    <p>{r.stato === 'bozza' ? 'Bozza' : 'Chiusa'} · {dataConsultazioneEconomia(r.data)} · Revisione {r.revisione}</p>
+    <p>Totale{r.nonValorizzate > 0 ? ' parziale' : ''}: {r.totale === null ? 'Non valorizzato' : importoConsultazioneEconomia(r.totale)} · Righe non valorizzate: {r.nonValorizzate}</p>
+  </>
+  const tabella = (tipo: RigaConsultazioneEconomia['tipo'], titolo: string, colonne: string[], celle: (r: RigaConsultazioneEconomia) => string[]) => {
+    const righe = dettaglio?.righe.filter(r => r.tipo === tipo) ?? []
+    if (tipo === 'generica' && !righe.length) return null
+    return <section aria-label={titolo}><h5>{titolo} — {righe.length} registrazioni</h5>
+      {!righe.length ? <p>Nessuna registrazione.</p> : <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+        <thead><tr>{colonne.map(c => <th scope="col" key={c} style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #cbd5e1' }}>{c}</th>)}</tr></thead>
+        <tbody>{righe.map(r => <tr key={r.id}>{celle(r).map((v,i) => <td key={i} style={{ padding: 8, verticalAlign: 'top', whiteSpace: 'pre-wrap', borderBottom: '1px solid #e2e8f0' }}>{v}</td>)}</tr>)}</tbody>
+      </table></div>}
+    </section>
+  }
+  const numero = (v: number) => v.toLocaleString('it-IT', { maximumFractionDigits: 6 })
+  return <section aria-label="Lavori in economia registrati" style={{ marginTop: 16 }}>
+    <h4>LAVORI IN ECONOMIA REGISTRATI</h4>
+    {apertaId ? <>
+      <button type="button" onClick={() => { tokenDettaglio.current += 1; setApertaId(null); setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(false) }}>Torna all'elenco</button>
+      {caricamentoDettaglio && <p role="status">Caricamento raccolta Economia...</p>}
+      {erroreDettaglio && <div role="alert"><p>{erroreDettaglio}</p><button type="button" onClick={() => void apri(apertaId)}>Riprova</button></div>}
+      {dettaglio && <>
+        {riepilogo(dettaglio.raccolta)}
+        <p>{dettaglio.righe.length} registrazioni · {dettaglio.righe.filter(r => r.tipo === 'manodopera').length} manodopera · {dettaglio.righe.filter(r => r.tipo === 'materiale').length} materiali. Consultazione in sola lettura.</p>
+        {tabella('manodopera','MANODOPERA',['Data','Operaio','Qualifica','Ora inizio','Ora fine','Pausa min','Ore','Tariffa €/h','Totale €','Riferimento','Note'],r => [dataConsultazioneEconomia(r.operativo.data),testoConsultazioneEconomia(r.operativo.operaio),testoConsultazioneEconomia(r.operativo.qualifica),testoConsultazioneEconomia(r.operativo.ora_inizio),testoConsultazioneEconomia(r.operativo.ora_fine),testoConsultazioneEconomia(r.operativo.pausa_min),numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.riferimento),testoConsultazioneEconomia(r.note)])}
+        {tabella('materiale','MATERIALI',['Data','Materiale','UM','Quantità','Prezzo unitario €','Totale €','Fornitore','Documento','Riferimento rapportino','Note'],r => [dataConsultazioneEconomia(r.operativo.data),r.descrizione,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.fornitore),testoConsultazioneEconomia(r.operativo.documento),testoConsultazioneEconomia(r.operativo.riferimento_rapportino),testoConsultazioneEconomia(r.note)])}
+        {tabella('generica','REGISTRAZIONI GENERICHE',['Descrizione','UM','Quantità','Prezzo unitario €','Totale €','Note'],r => [r.descrizione,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.note)])}
+      </>}
+    </> : <>
+      {caricamentoElenco && <p role="status">Caricamento raccolte Economia...</p>}
+      {erroreElenco && <div role="alert"><p>{erroreElenco}</p><button type="button" onClick={() => setRilettura(v => v+1)}>Riprova</button></div>}
+      {!caricamentoElenco && !erroreElenco && (elenco.length === 0 ? <p>Nessuna raccolta Economia registrata per questo cantiere.</p> : <div style={{ display: 'grid', gap: 12 }}>{elenco.map(r => <article key={r.id} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}>
+        {riepilogo(r)}<button type="button" onClick={() => void apri(r.id)}>Apri</button>
+      </article>)}</div>)}
+    </>}
+  </section>
+}
+
+function ImportazioneEconomiaLocale({ cantiereId, onInvio, onSalvata }: { cantiereId: string; onInvio: (inCorso: boolean) => void; onSalvata: () => void }) {
   const [file, setFile] = useState<File | null>(null)
   const [proposta, setProposta] = useState<PropostaEconomiaLocale | null>(null)
+  const originale = useRef<PropostaEconomiaLocale | null>(null)
+  const contesto = useRef<{ raccolta?: RaccoltaImportazioneEconomia; sorgenteId?: string; hash?: string; bloccato: boolean; salvato: boolean }>({ bloccato: false, salvato: false })
+  const [invio, setInvio] = useState(false)
+  const [raccolta, setRaccolta] = useState<RaccoltaImportazioneEconomia | null>(null)
+  const [salvato, setSalvato] = useState(false)
+  const [bloccato, setBloccato] = useState(false)
+  const [riepilogo, setRiepilogo] = useState<{ totale: number | null; nonValorizzate: number; righe: number } | null>(null)
+  const [messaggio, setMessaggio] = useState('')
   const [stato, setStato] = useState<'In attesa' | 'Lettura in corso' | 'Anteprima pronta' | 'Errore'>('In attesa')
   const [errore, setErrore] = useState('')
   const occupato = useRef(false)
   const richiesta = useRef(0)
-  useEffect(() => () => { richiesta.current += 1 }, [])
+  useEffect(() => () => { richiesta.current += 1; onInvio(false) }, [onInvio])
   async function riceviFile(f: File) {
-    if (occupato.current) return
+    if (occupato.current || contesto.current.bloccato || contesto.current.raccolta) return
     occupato.current = true
+    contesto.current = { bloccato: false, salvato: false }
+    originale.current = null
     const token = ++richiesta.current
     setFile(f); setProposta(null); setErrore(''); setStato('Lettura in corso')
     try {
       if (f.size === 0) throw new Error('Il file è vuoto. Seleziona un file con contenuto.')
-      if (!/\.(xls|xlsx|pdf|jpg|jpeg|png|webp)$/i.test(f.name)) throw new Error('Formato non supportato. Usa XLS, XLSX, PDF, JPG, JPEG, PNG o WEBP.')
-      const esito = await estraiVociVarianteDaFile(f)
+      if (!/\.xlsx$/i.test(f.name)) throw new Error('Usa il template ufficiale ARTECNA Extra v2 in formato XLSX.')
+      const estratta = await leggiTemplateEconomia(f)
       if (token !== richiesta.current) return
-      if (esito.stato === 'errore') throw new Error(esito.codice + ': ' + esito.messaggio)
-      if (!esito.voci.length) throw new Error('Nessuna lavorazione riconosciuta nel file.')
-      const testo = (v: unknown) => typeof v === 'string' ? v : ''
-      const numero = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? v : undefined
-      setProposta({ natura: 'lavori_in_economia', formato: esito.formato, warnings: esito.warnings,
-        righe: esito.voci.map((v, indice) => ({ indice, rigaFile: numero(v.rigaFile), descrizione: testo(v.descrizione),
-          unitaMisura: testo(v.unitaMisura), quantita: numero(v.quantita)?.toString() ?? '',
-          prezzo: numero(v.prezzo)?.toString() ?? '', totaleSorgente: numero(v.totale) })) })
+      if (!estratta.righe.length) throw new Error('Nessuna riga compilata nei fogli Manodopera economia e Materiali economia.')
+      originale.current = structuredClone(estratta)
+      setProposta(estratta)
       setStato('Anteprima pronta')
     } catch (e) {
       if (token !== richiesta.current) return
       setErrore(e instanceof Error ? e.message : 'Impossibile leggere il file.'); setStato('Errore')
     } finally { occupato.current = false }
   }
-  const modifica = (indice: number, campo: 'descrizione' | 'unitaMisura' | 'quantita' | 'prezzo', valore: string) =>
-    setProposta(p => p && ({ ...p, righe: p.righe.map(r => r.indice === indice ? { ...r, [campo]: valore } : r) }))
+  async function confermaImportazione() {
+    if (occupato.current || contesto.current.bloccato || contesto.current.salvato || !file || !proposta || !originale.current) return
+    occupato.current = true
+    onInvio(true); setInvio(true); setErrore(''); setMessaggio('')
+    const token = richiesta.current
+    const attivo = () => token === richiesta.current
+    const f = file
+    const confermata = structuredClone(proposta)
+    const snapshot = structuredClone(originale.current.snapshot)
+    const ctx = contesto.current
+    let fase: 'preparazione' | 'creazione' | 'salvataggio' = 'preparazione'
+    const blocca = () => { ctx.bloccato = true; if (attivo()) setBloccato(true) }
+    try {
+      if (!idSorgenteValido(cantiereId) || !confermata.righe.some(r => r.inclusa)) throw new Error('Serve almeno una riga e un cantiere valido.')
+      const righe = confermata.righe.filter(r => r.inclusa).map((r, i) => {
+        const q = numeroEconomiaLocale(r.quantita)
+        const p = r.prezzo.trim() === '' ? null : numeroEconomiaLocale(r.prezzo)
+        if (!r.descrizione.trim() || !r.unitaMisura.trim() || q === undefined || q <= 0 || p === undefined || (p !== null && p < 0) || !/^[+]?\d+(?:[.,]\d{1,2})?$/.test(r.quantita.trim()) || (r.prezzo.trim() !== '' && !/^[+]?\d+(?:[.,]\d{1,2})?$/.test(r.prezzo.trim())))
+          throw new Error(`Voce ${r.indice + 1}: verifica descrizione, UM, quantità positiva e prezzo. Sono ammessi al massimo 2 decimali e valori inferiori a 1.000.000.000.000.`)
+        for (const traccia of Object.values(r.dettagli.normalizzazione).filter((v): v is DettagliEconomiaLocale['normalizzazione']['quantita'] => typeof v === 'object')) {
+          if (traccia.origine === 'rettifica' && !traccia.motivazione?.trim()) throw new Error(`Riga Excel ${r.rigaFile}: indica la motivazione della rettifica economica.`)
+        }
+        return { ordine: i + 1, descrizione: r.descrizione.trim(), unita_misura: r.unitaMisura.trim(), quantita: q,
+          prezzo_unitario: p, note: r.note.trim() || null, origine: 'file', indice_voce_sorgente: r.indice, tipo_riga: r.tipo, dettagli_analitici: r.dettagli }
+      })
+      if (!ctx.hash) {
+        const digest = await crypto.subtle.digest('SHA-256', await f.arrayBuffer())
+        ctx.hash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')
+      }
+      if (!attivo()) return
+      ctx.sorgenteId ??= crypto.randomUUID()
+      if (!ctx.raccolta) {
+        fase = 'creazione'
+        const d = new Date()
+        const dataLocale = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        const { data, error } = await supabase.rpc('crea_raccolta_economia', {
+          p_cantiere_id: cantiereId, p_titolo: `Lavori in economia — ${f.name}`, p_data: dataLocale, p_note: null,
+        })
+        if (error) { blocca(); throw new Error('Creazione non confermata. Verifica le raccolte prima di riprovare: nessuna nuova creazione automatica.') }
+        ctx.raccolta = leggiIdentitaImportazioneEconomia(data, cantiereId)
+        if (ctx.raccolta.stato !== 'bozza') throw new Error('La raccolta restituita non è una bozza.')
+        if (attivo()) setRaccolta(ctx.raccolta)
+      }
+      if (!attivo()) return
+      fase = 'salvataggio'
+      const raccoltaAttesa = ctx.raccolta.revisione
+      const { data, error } = await supabase.rpc('salva_bozza_economia', {
+        p_raccolta_id: ctx.raccolta.id, p_revisione_attesa: ctx.raccolta.revisione,
+        p_payload: {
+          sorgenti_da_aggiungere: [{ id: ctx.sorgenteId, nome_file: f.name, formato: confermata.formato,
+            file_sha256: ctx.hash, snapshot_version: 2, snapshot }],
+          righe_da_creare: righe.map(r => ({ ...r, sorgente_id: ctx.sorgenteId })),
+        },
+      })
+      if (!attivo()) return
+      if (error) {
+        blocca()
+        setErrore(error.code === 'PT409' ? 'Conflitto: Revisione Economia divergente. Nessun reinvio automatico.' : 'Salvataggio non confermato. Verifica della raccolta necessaria; nessun reinvio automatico.')
+        try {
+          const lettura = await supabase.rpc('leggi_raccolta_economia', { p_raccolta_id: ctx.raccolta.id })
+          if (lettura.error || !recordSorgente(lettura.data)) throw new Error('Lettura non disponibile')
+          ctx.raccolta = leggiIdentitaImportazioneEconomia(lettura.data.raccolta, cantiereId, ctx.raccolta.id)
+          if (attivo()) {
+            setRaccolta(ctx.raccolta)
+            const rifiutoCerto = ['22023', '23514', '22003', '22P02'].includes(error.code)
+            if (rifiutoCerto && ctx.raccolta.stato === 'bozza' && ctx.raccolta.revisione === raccoltaAttesa &&
+                Array.isArray(lettura.data.righe) && lettura.data.righe.length === 0 &&
+                Array.isArray(lettura.data.sorgenti) && lettura.data.sorgenti.length === 0) {
+              ctx.bloccato = false; setBloccato(false)
+              setMessaggio('Salvataggio rifiutato senza modifiche. Correggi le righe e conferma nella stessa raccolta.')
+            } else setMessaggio('Stato corrente riletto. Anteprima conservata; importazione bloccata per evitare duplicazioni o sovrascritture.')
+          }
+        } catch { if (attivo()) setMessaggio('Rilettura della raccolta non disponibile. Anteprima conservata.') }
+        return
+      }
+      if (!recordSorgente(data)) throw new Error('Risposta di salvataggio non verificabile.')
+      const precedente = ctx.raccolta.revisione
+      ctx.raccolta = leggiIdentitaImportazioneEconomia(data.raccolta, cantiereId, ctx.raccolta.id)
+      if (ctx.raccolta.stato !== 'bozza' || ctx.raccolta.revisione !== precedente + 1) throw new Error('Revisione di salvataggio non verificabile.')
+      ctx.salvato = true
+      blocca(); setSalvato(true); setRaccolta(ctx.raccolta)
+      onSalvata()
+      const riepiloga = (v: Record<string, unknown>) => {
+        const totale = v.totale === null ? null : Number(v.totale)
+        const nonValorizzate = Number(v.righe_non_valorizzate)
+        if ((v.totale !== null && (v.totale === undefined || !Number.isFinite(totale))) || !Number.isSafeInteger(nonValorizzate) || nonValorizzate < 0)
+          throw new Error('Riepilogo non verificabile')
+        return { totale, nonValorizzate, righe: righe.length }
+      }
+      try {
+        setRiepilogo(riepiloga(data))
+        const lettura = await supabase.rpc('leggi_raccolta_economia', { p_raccolta_id: ctx.raccolta.id })
+        if (lettura.error || !recordSorgente(lettura.data)) throw new Error('Rilettura non disponibile')
+        const v = lettura.data
+        const corrente = leggiIdentitaImportazioneEconomia(v.raccolta, cantiereId, ctx.raccolta.id)
+        if (!Array.isArray(v.sorgenti) || !v.sorgenti.some(s => recordSorgente(s) && s.id === ctx.sorgenteId && s.file_sha256 === ctx.hash) || !Array.isArray(v.righe)) throw new Error('Sorgente non verificabile')
+        const importate = v.righe.filter(r => recordSorgente(r) && r.sorgente_id === ctx.sorgenteId)
+        if (importate.length !== righe.length || !righe.every(r => importate.some(v => recordSorgente(v) && v.origine === 'file' && v.indice_voce_sorgente === r.indice_voce_sorgente && v.ordine === r.ordine && v.descrizione === r.descrizione && v.unita_misura === r.unita_misura && Number(v.quantita) === r.quantita && (r.prezzo_unitario === null ? v.prezzo_unitario === null : Number(v.prezzo_unitario) === r.prezzo_unitario)))) throw new Error('Righe non verificabili')
+        if (attivo()) { ctx.raccolta = corrente; setRaccolta(corrente); setRiepilogo(riepiloga(v)); setMessaggio('Importazione salvata e verificata nella bozza Economia.') }
+      } catch { if (attivo()) setMessaggio('Salvataggio riuscito; verifica della rilettura non disponibile') }
+    } catch (e) {
+      if (fase !== 'preparazione') blocca()
+      if (attivo()) setErrore(e instanceof Error ? e.message : 'Operazione non confermata. Nessun reinvio automatico.')
+    } finally { occupato.current = false; onInvio(false); if (attivo()) setInvio(false) }
+  }
+  const modifica = (indice: number, campo: 'descrizione' | 'unitaMisura' | 'quantita' | 'prezzo' | 'note', valore: string) =>
+    setProposta(p => p && ({ ...p, righe: p.righe.map(r => {
+      if (r.indice !== indice) return r
+      const aggiornata = { ...r, [campo]: valore, dettagli: structuredClone(r.dettagli) }
+      if (campo === 'quantita' || campo === 'prezzo') {
+        aggiornata.dettagli.normalizzazione[campo === 'quantita' ? 'quantita' : 'prezzo_unitario'] = { decimali: 2, origine: 'rettifica', motivazione: null }
+      }
+      return aggiornata
+    }) }))
+  const modificaOperativo = (indice: number, campo: string, valore: string) => setProposta(p => p && ({ ...p, righe: p.righe.map(r => r.indice !== indice ? r : ({ ...r, dettagli: { ...r.dettagli, operativo: { ...r.dettagli.operativo, [campo]: campo === 'pausa_min' ? (valore === '' ? null : Number(valore)) : valore || null } } })) }))
   const inCorso = stato === 'Lettura in corso'
+  const solaLettura = invio || bloccato || salvato
   return <section aria-label="Importazione locale lavori in economia">
-    <AreaAcquisizioneFile bloccata={inCorso} onFile={f => { void riceviFile(f) }} />
+    <AreaAcquisizioneFile bloccata={inCorso || solaLettura || raccolta !== null} onFile={f => { void riceviFile(f) }} />
     <p role="status">{stato}</p>
     {file && <p style={{ overflowWrap: 'anywhere' }}>{file.name} — {proposta?.formato ?? file.name.split('.').pop()?.toLowerCase()} — {file.size.toLocaleString('it-IT')} byte</p>}
     {errore && <p role="alert">{errore}</p>}
-    <p>Anteprima locale: nessun dato viene salvato.</p>
+    <p>{salvato ? 'Anteprima importata, in sola lettura.' : 'Le correzioni restano locali fino alla conferma importazione.'}</p>
+    {raccolta && <p>Raccolta n. {raccolta.numero} — {raccolta.stato} — revisione {raccolta.revisione}</p>}
+    {messaggio && <p role="status">{messaggio}</p>}
+    {riepilogo && <p>Righe importate: {riepilogo.righe}. Totale{riepilogo.nonValorizzate > 0 ? ' parziale' : ''}: {riepilogo.totale === null ? 'Non disponibile' : riepilogo.totale.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}. Righe non valorizzate: {riepilogo.nonValorizzate}.</p>}
     {proposta && <>
       <p>Righe riconosciute: {proposta.righe.length}</p>
       {proposta.warnings.map((w, i) => <p key={i}>{w}</p>)}
-      <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 750 }}>
-        <thead><tr>{['Descrizione', 'UM', 'Quantità', 'Prezzo', 'Totale', 'Verifica / sorgente', 'Azioni'].map(t => <th key={t} scope="col">{t}</th>)}</tr></thead>
-        <tbody>{proposta.righe.map(r => {
-          const q = numeroEconomiaLocale(r.quantita), p = numeroEconomiaLocale(r.prezzo)
-          const totale = q !== undefined && q > 0 && p !== undefined && p >= 0 ? q * p : undefined
-          const anomalie = [!r.descrizione.trim() && 'Descrizione mancante', !r.unitaMisura.trim() && 'UM mancante',
-            (q === undefined || q <= 0) && 'Quantità non valida',
-            r.prezzo.trim() !== '' && (p === undefined || p < 0) && 'Prezzo non valido',
-            totale !== undefined && !Number.isFinite(totale) && 'Totale non valido'].filter(Boolean)
-          return <tr key={r.indice}>
-            <td><textarea aria-label={'Descrizione voce ' + (r.indice + 1)} value={r.descrizione} onChange={e => modifica(r.indice, 'descrizione', e.target.value)} /></td>
-            {(['unitaMisura', 'quantita', 'prezzo'] as const).map(c => <td key={c}><input aria-label={c + ' voce ' + (r.indice + 1)} value={r[c]} inputMode={c === 'unitaMisura' ? 'text' : 'decimal'} onChange={e => modifica(r.indice, c, e.target.value)} /></td>)}
-            <td>{totale !== undefined && Number.isFinite(totale) ? totale.toLocaleString('it-IT') : '—'}</td>
-            <td>Voce sorgente {r.indice + 1}{r.rigaFile !== undefined ? ' — indice riga file ' + r.rigaFile : ''}
-              {r.totaleSorgente !== undefined && <div>Totale sorgente: {r.totaleSorgente.toLocaleString('it-IT')}</div>}
-              {anomalie.map((a, i) => <div key={i}>{a}</div>)}</td>
-            <td><button type="button" onClick={() => setProposta(p => p && ({ ...p, righe: p.righe.filter(v => v.indice !== r.indice) }))}>Rimuovi riga</button></td>
-          </tr>
-        })}</tbody>
-      </table></div>
+      {(['manodopera','materiale'] as const).map(tipo => <section key={tipo} aria-label={tipo === 'manodopera' ? 'Anteprima Manodopera' : 'Anteprima Materiali'}>
+        <h4>{tipo === 'manodopera' ? 'MANODOPERA' : 'MATERIALI'}</h4>
+        <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 1100 }}>
+          <thead><tr>{['Includi','Descrizione / materiale','UM','Ore / quantità','Tariffa / prezzo','Totale','Dati analitici','Sorgente / verifiche'].map(t => <th key={t} scope="col">{t}</th>)}</tr></thead>
+          <tbody>{proposta.righe.filter(r => r.tipo === tipo).map(r => {
+            const q = numeroEconomiaLocale(r.quantita), p = numeroEconomiaLocale(r.prezzo)
+            const totale = prodottoEconomia(r.quantita,r.prezzo)
+            const sorgente = proposta.snapshot.fogli[String(r.dettagli.sorgente.foglio_sorgente)].righe[String(r.rigaFile)]
+            const anomalie = [!r.descrizione.trim() && (tipo === 'materiale' ? 'materiale_mancante: completa il materiale oppure escludi la riga' : 'Descrizione mancante'), !r.unitaMisura.trim() && 'UM mancante', (q === undefined || q <= 0) && 'Quantità non valida', r.prezzo.trim() !== '' && (p === undefined || p < 0) && 'Prezzo non valido'].filter(Boolean)
+            return <tr key={r.indice} style={{ opacity: r.inclusa ? 1 : 0.65 }}>
+              <td><input type="checkbox" disabled={solaLettura} aria-label={'Includi '+tipo+' riga '+r.rigaFile} checked={r.inclusa} onChange={e => setProposta(p => p && ({ ...p, righe: p.righe.map(v => v.indice === r.indice ? { ...v, inclusa: e.target.checked } : v) }))} /></td>
+              <td><textarea disabled={solaLettura} aria-label={'Descrizione '+tipo+' riga '+r.rigaFile} value={r.descrizione} onChange={e => modifica(r.indice,'descrizione',e.target.value)} /></td>
+              {(['unitaMisura','quantita','prezzo'] as const).map(c => <td key={c}><input disabled={solaLettura || (tipo === 'manodopera' && c === 'unitaMisura')} aria-label={c+' '+tipo+' riga '+r.rigaFile} value={r[c]} onChange={e => modifica(r.indice,c,e.target.value)} /></td>)}
+              <td>{totale === undefined || r.prezzo === '' ? 'Non valorizzato' : '€ '+totale}</td>
+              <td>{Object.entries(r.dettagli.operativo).map(([campo,valore]) => <label key={campo} style={{ display: 'block' }}>{campo}<input disabled={solaLettura} type={campo === 'data' ? 'date' : campo.startsWith('ora_') ? 'time' : campo === 'pausa_min' ? 'number' : 'text'} min={campo === 'pausa_min' ? 0 : undefined} step={campo === 'pausa_min' ? 1 : undefined} value={valore ?? ''} onChange={e => modificaOperativo(r.indice,campo,e.target.value)} /></label>)}
+                <label>Note<textarea disabled={solaLettura} value={r.note} onChange={e => modifica(r.indice,'note',e.target.value)} /></label>
+                {(['quantita','prezzo_unitario'] as const).filter(c => r.dettagli.normalizzazione[c].origine === 'rettifica').map(c => <label key={c}>Motivazione rettifica {c}<input disabled={solaLettura} value={r.dettagli.normalizzazione[c].motivazione ?? ''} onChange={e => setProposta(p => p && ({ ...p, righe: p.righe.map(v => v.indice !== r.indice ? v : ({ ...v, dettagli: { ...v.dettagli, normalizzazione: { ...v.dettagli.normalizzazione, [c]: { ...v.dettagli.normalizzazione[c], motivazione: e.target.value || null } } } })) }))} /></label>)}
+              </td>
+              <td><div>{String(r.dettagli.sorgente.foglio_sorgente)} — riga {r.rigaFile} — indice {r.indice}</div>
+                <div>Normalizzazione esplicita a 2 decimali. Valori grezzi e formule conservati nello snapshot.</div>
+                {Object.entries(sorgente.celle).map(([c,v]) => <details key={c}><summary>{c}: {v.visualizzato ?? v.valore ?? 'Vuoto'} — grezzo: {v.valore ?? 'NULL'}</summary><div>Formato: {v.formato ?? 'Non disponibile'}</div>{v.formula && <div>Formula: {v.formula}; risultato memorizzato: {v.valore ?? 'Assente'}</div>}</details>)}
+                {r.dettagli.warnings.sorgente.map((w,i) => <div key={i}>{w.codice}: {w.campi.join(', ')}</div>)}
+                {warningsOperativiEconomia(r).map(w => <div key={w}>Operativo: {w}</div>)}
+                {anomalie.map((a,i) => <div key={'a'+i}>{a}</div>)}
+                {r.prezzo.trim() === '' && <div>prezzo_non_valorizzato: NULL, distinto da zero</div>}
+              </td>
+            </tr>
+          })}</tbody>
+        </table></div>
+      </section>)}
+      <p>Il prezzo può restare vuoto: la riga sarà salvata non valorizzata e la raccolta resterà in bozza.</p>
+      <button type="button" disabled={inCorso || solaLettura || !proposta.righe.some(r => r.inclusa)} onClick={() => void confermaImportazione()}>
+        {invio ? 'Importazione in corso...' : salvato ? 'Importazione salvata' : 'Conferma importazione'}
+      </button>
     </>}
   </section>
 }
@@ -507,6 +944,8 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   const [aperto, setAperto] = useState(false)
   useEffect(() => { if (richiestaApertura > 0) setAperto(true) }, [richiestaApertura])
   const [natura, setNatura] = useState<NaturaVariante>('preventivo_integrativo')
+  const [invioEconomia, setInvioEconomia] = useState(false)
+  const [aggiornamentoEconomia, setAggiornamentoEconomia] = useState(0)
   const [acquisizione, setAcquisizione] = useState<AcquisizioneVariante>('dati_artecna')
   const percorsoPreventivo = natura === 'preventivo_integrativo' && acquisizione === 'dati_artecna'
   const percorsoFile = natura === 'preventivo_integrativo' && acquisizione === 'file'
@@ -1079,7 +1518,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     somma + (typeof voce.totale === 'number' && Number.isFinite(voce.totale) && voce.totale >= 0 ? voce.totale : 0), 0)
 
   return <div style={{ margin: '12px 0' }}>
-    <button type="button" disabled={confermaInCorso} onClick={() => {
+    <button type="button" disabled={confermaInCorso || invioEconomia} onClick={() => {
       richiesta.current += 1
       resetFile()
       setAperto(!aperto)
@@ -1087,7 +1526,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     {aperto && <section aria-label="Origine e acquisizione variante"
       style={{ marginTop: 12, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-        <label>Origine variante<select disabled={operazioneSorgenti || !acquisizioneConsentita} value={natura} style={{ display: 'block', padding: 8 }}
+        <label>Origine variante<select disabled={operazioneSorgenti || !acquisizioneConsentita || invioEconomia} value={natura} style={{ display: 'block', padding: 8 }}
           onChange={e => {
             if (!verificaModifica(true)) return
             if (sorgenti.length > 0) {
@@ -1104,14 +1543,17 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
           <option value="preventivo_integrativo">Preventivo integrativo</option>
           <option value="lavori_in_economia">Lavori in economia</option>
         </select></label>
-        <label>Acquisizione<select disabled={operazioneSorgenti || !acquisizioneConsentita} value={acquisizione} style={{ display: 'block', padding: 8 }}
+        <label>Acquisizione<select disabled={operazioneSorgenti || !acquisizioneConsentita || invioEconomia} value={acquisizione} style={{ display: 'block', padding: 8 }}
           onChange={e => { if (!verificaModifica(true)) return; resetPercorso(); setAcquisizione(e.target.value as AcquisizioneVariante) }}>
           <option value="manuale">Manuale</option>
           <option value="dati_artecna">Da dati ARTECNA</option>
           <option value="file">Importa file</option>
         </select></label>
       </div>
-      {natura === 'lavori_in_economia' && acquisizione === 'file' ? <ImportazioneEconomiaLocale key={cantiereId} /> : <>
+      {natura === 'lavori_in_economia' ? <>
+        <RaccolteEconomiaRegistrate key={'raccolte:' + cantiereId} cantiereId={cantiereId} aggiornamento={aggiornamentoEconomia} />
+        {acquisizione === 'file' && <ImportazioneEconomiaLocale key={cantiereId} cantiereId={cantiereId} onInvio={setInvioEconomia} onSalvata={() => setAggiornamentoEconomia(v => v+1)} />}
+      </> : <>
       {!elencoPronto && <p role="status">Attendi il caricamento delle varianti prima di salvare sorgenti.</p>}
       {varianteSelezionata && !acquisizioneConsentita && <button type="button"
         disabled={!elencoPronto || operazioneSorgenti} onClick={avviaNuovaRaccolta}>Nuova raccolta</button>}
@@ -1562,7 +2004,7 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
       {stato.tipo === 'loading' && <p role="status">Caricamento varianti...</p>}
       {stato.tipo === 'errore' && <p role="alert">{stato.messaggio}</p>}
       {bozzeNonRilette && <p role="status">L'elenco aggiornato non restituisce tutte le bozze appena salvate. Sono mostrate le conferme di questa apertura del pannello; la rilettura non è confermata.</p>}
-      {stato.tipo === 'elenco' && righe.length === 0 && <p>Nessuna variante presente per questo cantiere.</p>}
+      {stato.tipo === 'elenco' && righe.length === 0 && <p>Nessuna variante tradizionale presente per questo cantiere.</p>}
       {righe.length > 0 && (
         <div style={{ display: 'grid', gap: 12 }}>
           {righe.map(variante => (
