@@ -389,6 +389,114 @@ function GuidaPassoSuccessivo({ stato, conteggio = null, modificabile = false, o
   </aside>
 }
 
+type RigaEconomiaLocale = { indice: number; rigaFile?: number; descrizione: string; unitaMisura: string; quantita: string; prezzo: string; totaleSorgente?: number }
+type PropostaEconomiaLocale = { natura: 'lavori_in_economia'; formato: string; righe: RigaEconomiaLocale[]; warnings: string[] }
+const numeroEconomiaLocale = (s: string): number | undefined => {
+  if (!/^[+-]?\d+(?:[.,]\d+)?$/.test(s.trim())) return undefined
+  const n = Number(s.trim().replace(',', '.'))
+  return Number.isFinite(n) ? n : undefined
+}
+
+function AreaAcquisizioneFile({ bloccata, onFile }: { bloccata: boolean; onFile: (file: File) => void }) {
+  const [drag, setDrag] = useState(false)
+  const [zonaFocalizzata, setZonaFocalizzata] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+  const riceviFile = (file: File) => { if (!bloccata) onFile(file) }
+  return <>
+    <div tabIndex={0} aria-label="Area importazione file" aria-busy={bloccata}
+      onClick={e => e.currentTarget.focus()}
+      onFocus={() => setZonaFocalizzata(true)}
+      onBlur={() => setZonaFocalizzata(false)}
+      onDragEnter={e => { e.preventDefault(); if (!bloccata) setDrag(true) }}
+      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = bloccata ? 'none' : 'copy'; if (!bloccata) setDrag(true) }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrag(false) }}
+      onDrop={e => { e.preventDefault(); e.stopPropagation(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) riceviFile(f) }}
+      onPaste={e => {
+        if (e.target instanceof Element && e.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) return
+        const f = e.clipboardData.files[0] ?? Array.from(e.clipboardData.items)
+          .filter(i => i.kind === 'file').map(i => i.getAsFile()).find((f): f is File => f !== null)
+        if (!f) return
+        e.preventDefault(); e.stopPropagation(); riceviFile(f)
+      }}
+      style={{ marginTop: 16, padding: 16, border: drag || zonaFocalizzata ? '2px solid #2563eb' : '2px dashed #94a3b8', borderRadius: 12, background: drag || zonaFocalizzata ? '#eff6ff' : '#f8fafc' }}>
+      <p>Trascina qui un file</p>
+      <p>oppure copia un file e premi Ctrl+V in quest'area</p>
+    </div>
+
+      <button type="button" disabled={bloccata} onClick={() => input.current?.click()}>Seleziona file</button>
+      <input ref={input} type="file" hidden disabled={bloccata} accept=".xls,.xlsx,.pdf,.jpg,.jpeg,.png,.webp"
+        onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) riceviFile(f) }} />
+  </>
+}
+
+function ImportazioneEconomiaLocale() {
+  const [file, setFile] = useState<File | null>(null)
+  const [proposta, setProposta] = useState<PropostaEconomiaLocale | null>(null)
+  const [stato, setStato] = useState<'In attesa' | 'Lettura in corso' | 'Anteprima pronta' | 'Errore'>('In attesa')
+  const [errore, setErrore] = useState('')
+  const occupato = useRef(false)
+  const richiesta = useRef(0)
+  useEffect(() => () => { richiesta.current += 1 }, [])
+  async function riceviFile(f: File) {
+    if (occupato.current) return
+    occupato.current = true
+    const token = ++richiesta.current
+    setFile(f); setProposta(null); setErrore(''); setStato('Lettura in corso')
+    try {
+      if (f.size === 0) throw new Error('Il file è vuoto. Seleziona un file con contenuto.')
+      if (!/\.(xls|xlsx|pdf|jpg|jpeg|png|webp)$/i.test(f.name)) throw new Error('Formato non supportato. Usa XLS, XLSX, PDF, JPG, JPEG, PNG o WEBP.')
+      const esito = await estraiVociVarianteDaFile(f)
+      if (token !== richiesta.current) return
+      if (esito.stato === 'errore') throw new Error(esito.codice + ': ' + esito.messaggio)
+      if (!esito.voci.length) throw new Error('Nessuna lavorazione riconosciuta nel file.')
+      const testo = (v: unknown) => typeof v === 'string' ? v : ''
+      const numero = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? v : undefined
+      setProposta({ natura: 'lavori_in_economia', formato: esito.formato, warnings: esito.warnings,
+        righe: esito.voci.map((v, indice) => ({ indice, rigaFile: numero(v.rigaFile), descrizione: testo(v.descrizione),
+          unitaMisura: testo(v.unitaMisura), quantita: numero(v.quantita)?.toString() ?? '',
+          prezzo: numero(v.prezzo)?.toString() ?? '', totaleSorgente: numero(v.totale) })) })
+      setStato('Anteprima pronta')
+    } catch (e) {
+      if (token !== richiesta.current) return
+      setErrore(e instanceof Error ? e.message : 'Impossibile leggere il file.'); setStato('Errore')
+    } finally { occupato.current = false }
+  }
+  const modifica = (indice: number, campo: 'descrizione' | 'unitaMisura' | 'quantita' | 'prezzo', valore: string) =>
+    setProposta(p => p && ({ ...p, righe: p.righe.map(r => r.indice === indice ? { ...r, [campo]: valore } : r) }))
+  const inCorso = stato === 'Lettura in corso'
+  return <section aria-label="Importazione locale lavori in economia">
+    <AreaAcquisizioneFile bloccata={inCorso} onFile={f => { void riceviFile(f) }} />
+    <p role="status">{stato}</p>
+    {file && <p style={{ overflowWrap: 'anywhere' }}>{file.name} — {proposta?.formato ?? file.name.split('.').pop()?.toLowerCase()} — {file.size.toLocaleString('it-IT')} byte</p>}
+    {errore && <p role="alert">{errore}</p>}
+    <p>Anteprima locale: nessun dato viene salvato.</p>
+    {proposta && <>
+      <p>Righe riconosciute: {proposta.righe.length}</p>
+      {proposta.warnings.map((w, i) => <p key={i}>{w}</p>)}
+      <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', minWidth: 750 }}>
+        <thead><tr>{['Descrizione', 'UM', 'Quantità', 'Prezzo', 'Totale', 'Verifica / sorgente', 'Azioni'].map(t => <th key={t} scope="col">{t}</th>)}</tr></thead>
+        <tbody>{proposta.righe.map(r => {
+          const q = numeroEconomiaLocale(r.quantita), p = numeroEconomiaLocale(r.prezzo)
+          const totale = q !== undefined && q > 0 && p !== undefined && p >= 0 ? q * p : undefined
+          const anomalie = [!r.descrizione.trim() && 'Descrizione mancante', !r.unitaMisura.trim() && 'UM mancante',
+            (q === undefined || q <= 0) && 'Quantità non valida',
+            r.prezzo.trim() !== '' && (p === undefined || p < 0) && 'Prezzo non valido',
+            totale !== undefined && !Number.isFinite(totale) && 'Totale non valido'].filter(Boolean)
+          return <tr key={r.indice}>
+            <td><textarea aria-label={'Descrizione voce ' + (r.indice + 1)} value={r.descrizione} onChange={e => modifica(r.indice, 'descrizione', e.target.value)} /></td>
+            {(['unitaMisura', 'quantita', 'prezzo'] as const).map(c => <td key={c}><input aria-label={c + ' voce ' + (r.indice + 1)} value={r[c]} inputMode={c === 'unitaMisura' ? 'text' : 'decimal'} onChange={e => modifica(r.indice, c, e.target.value)} /></td>)}
+            <td>{totale !== undefined && Number.isFinite(totale) ? totale.toLocaleString('it-IT') : '—'}</td>
+            <td>Voce sorgente {r.indice + 1}{r.rigaFile !== undefined ? ' — indice riga file ' + r.rigaFile : ''}
+              {r.totaleSorgente !== undefined && <div>Totale sorgente: {r.totaleSorgente.toLocaleString('it-IT')}</div>}
+              {anomalie.map((a, i) => <div key={i}>{a}</div>)}</td>
+            <td><button type="button" onClick={() => setProposta(p => p && ({ ...p, righe: p.righe.filter(v => v.indice !== r.indice) }))}>Rimuovi riga</button></td>
+          </tr>
+        })}</tbody>
+      </table></div>
+    </>}
+  </section>
+}
+
 function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorrenti, onVarianteAggiornata, richiestaApertura = 0 }: {
   cantiereId: string
   elencoVarianti: Stato
@@ -1003,6 +1111,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
           <option value="file">Importa file</option>
         </select></label>
       </div>
+      {natura === 'lavori_in_economia' && acquisizione === 'file' ? <ImportazioneEconomiaLocale key={cantiereId} /> : <>
       {!elencoPronto && <p role="status">Attendi il caricamento delle varianti prima di salvare sorgenti.</p>}
       {varianteSelezionata && !acquisizioneConsentita && <button type="button"
         disabled={!elencoPronto || operazioneSorgenti} onClick={avviaNuovaRaccolta}>Nuova raccolta</button>}
@@ -1071,15 +1180,13 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
       {!percorsoPreventivo && !percorsoFile && <p role="status">Questo percorso non è ancora configurato.</p>}
       {percorsoFile && <>
         <p>Il file resta locale. Aggiungi alle sorgenti salva lo snapshot nella bozza, senza lavorazioni economiche.</p>
-        <label>File preventivo<input type="file" disabled={operazioneSorgenti || !acquisizioneConsentita} accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp"
-          style={{ display: 'block', margin: '8px 0', maxWidth: '100%' }}
-          onChange={e => {
+        <AreaAcquisizioneFile bloccata={operazioneSorgenti || !acquisizioneConsentita || analisiFile}
+          onFile={file => {
             if (!verificaModifica(true)) return
             richiesta.current += 1
             resetFile()
-            setFileSelezionato(e.target.files?.[0] ?? null)
-            e.target.value = ''
-          }} /></label>
+            setFileSelezionato(file)
+          }} />
         {fileSelezionato && <p style={{ overflowWrap: 'anywhere' }}>{fileSelezionato.name}</p>}
         <button type="button" disabled={operazioneSorgenti || !acquisizioneConsentita || !fileSelezionato || analisiFile}
           onClick={() => void analizzaFile()}>{analisiFile ? 'Analisi in corso...' : 'Analizza file'}</button>
@@ -1176,6 +1283,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
       {messaggioSorgenti && <p role="status">{messaggioSorgenti}</p>}
       {varianteSorgentiModificabile && revisione !== null && <RevisioneVarianteLocale righe={revisione} onChange={setRevisione}
         onAnnulla={() => setRevisione(null)} onRipristina={revisionaSorgente} />}
+      </>}
     </section>}
   </div>
 }
