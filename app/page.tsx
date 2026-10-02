@@ -100,7 +100,6 @@ import FattureEmessePopupLayer from './components/FattureEmessePopupLayer'
 import RegistroPanel from './components/RegistroPanel'
 import { impostaPreventivoContrattuale } from './utils/preventivoContrattuale'
 import CantieriElencoPanel from './components/CantieriElencoPanel'
-import { eliminaCantiereVuoto } from './utils/eliminazioneCantiere'
 import CantieriSchedaPanel from './components/CantieriSchedaPanel'
 import CantieriAnalisiDocumentoPanel from './components/CantieriAnalisiDocumentoPanel'
 
@@ -4982,6 +4981,25 @@ const [ultimoSopralluogo, setUltimoSopralluogo] =
   const [filtroCantiere, setFiltroCantiere] = useState('')
   const [cantiereScheda, setCantiereScheda] = useState('')
   const [cantiereIdScheda, setCantiereIdScheda] = useState('')
+  const [eliminazioneCantiere, setEliminazioneCantiere] = useState<{ id: string; nome: string; fase: 1 | 2 } | null>(null)
+  const [testoConfermaCantiere, setTestoConfermaCantiere] = useState('')
+  const [eliminazioneCantiereInCorso, setEliminazioneCantiereInCorso] = useState(false)
+  const [erroreEliminazioneCantiere, setErroreEliminazioneCantiere] = useState('')
+  const [esitoEliminazioneCantiere, setEsitoEliminazioneCantiere] = useState('')
+  const invioEliminazioneCantiere = useRef(false)
+  const cantieriEliminatiRef = useRef(new Set<string>())
+  const dialogEliminazioneCantiere = useRef<HTMLDialogElement>(null)
+  const continuaEliminazioneCantiere = useRef<HTMLButtonElement>(null)
+  const inputConfermaCantiere = useRef<HTMLInputElement>(null)
+  const focusPrimaEliminazione = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    const dialog = dialogEliminazioneCantiere.current
+    if (!eliminazioneCantiere || !dialog) return
+    if (!dialog.open) dialog.showModal()
+    if (eliminazioneCantiere.fase === 1) continuaEliminazioneCantiere.current?.focus()
+    else inputConfermaCantiere.current?.focus()
+  }, [eliminazioneCantiere])
   const contestoEliminazioneSal = useRef({ salCantiere, cantiereScheda, cantiereIdScheda })
   if (contestoEliminazioneSal.current.salCantiere !== salCantiere ||
       contestoEliminazioneSal.current.cantiereScheda !== cantiereScheda ||
@@ -5565,18 +5583,20 @@ const preparaPagamentoRapidoOperaio = (
       : 'Acconto operaio'
   )
 }
-  const caricaCantieri = async () => {
+  const caricaCantieri = async (propagaErrore = false) => {
     const { data, error } = await supabase
       .from('cantieri')
       .select('*')
       .order('created_at', { ascending: false })
 
     if (error) {
+      if (propagaErrore) throw error
       alert('Errore caricamento cantieri: ' + error.message)
       return
     }
 
-    setCantieri((data || []) as Cantiere[])
+    // Una lettura iniziata prima della RPC non deve ripristinare una root eliminata.
+    setCantieri(((data || []) as Cantiere[]).filter(c => !cantieriEliminatiRef.current.has(String(c.id))))
   }
 
 const eliminaPagamentoOperaio = async (id?: string) => {
@@ -7358,37 +7378,148 @@ const eliminaPreventivoCantiere = async (id?: string) => {
 
 
 
-  const eliminaCantiere = async (
-    nome: string,
-    idCantiereCancellato: string
-  ) => {
-  try {
-    const eliminato = await eliminaCantiereVuoto(supabase, idCantiereCancellato, nome, () =>
-      confirm(`Eliminare il cantiere vuoto "${nome}"?`)
-    )
-    if (!eliminato) return
-  } catch (error: any) {
-    alert(error.message || 'Verifica del cantiere non riuscita. Eliminazione interrotta.')
-    return
+  const eliminaCantiere = (_nome: string, idCantiere: string) => {
+    if (invioEliminazioneCantiere.current || eliminazioneCantiere) return
+    const cantiere = cantieri.find(c => c.id === idCantiere)
+    if (!cantiere?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cantiere.id) || cantieriEliminatiRef.current.has(cantiere.id)) {
+      alert('Cantiere non identificato da un UUID valido. Ricarica l’elenco.')
+      return
+    }
+    focusPrimaEliminazione.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setTestoConfermaCantiere('')
+    setErroreEliminazioneCantiere('')
+    setEsitoEliminazioneCantiere('')
+    setEliminazioneCantiere({ id: cantiere.id, nome: cantiere.nome, fase: 1 })
   }
 
-  // 5. Pulisce stati locali
-  if (cantiereRapporto === nome) setCantiereRapporto('')
-  if (cantiereFoto === nome) setCantiereFoto('')
-  if (cantiereTimbratura === nome) setCantiereTimbratura('')
-  if (filtroCantiere === nome) setFiltroCantiere('')
-  if (
-    idCantiereCancellato &&
-    String(cantiereIdScheda) === String(idCantiereCancellato)
-  ) {
-    setCantiereIdScheda('')
-    setCantiereScheda('')
+  const chiudiEliminazioneCantiere = () => {
+    if (invioEliminazioneCantiere.current) return
+    dialogEliminazioneCantiere.current?.close()
+    setEliminazioneCantiere(null)
+    setTestoConfermaCantiere('')
+    setErroreEliminazioneCantiere('')
+    focusPrimaEliminazione.current?.focus()
   }
-  if (cantiereGrafico === nome) setCantiereGrafico('')
 
-  await caricaCantieri()
-  alert('Cantiere vuoto eliminato')
-}
+  const eseguiEliminazioneCantiere = async () => {
+    if (invioEliminazioneCantiere.current || !eliminazioneCantiere || eliminazioneCantiere.fase !== 2 || testoConfermaCantiere !== 'ELIMINA') return
+    const { id, nome } = eliminazioneCantiere
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      setErroreEliminazioneCantiere('UUID del cantiere mancante o non valido.')
+      return
+    }
+    invioEliminazioneCantiere.current = true
+    setEliminazioneCantiereInCorso(true)
+    setErroreEliminazioneCantiere('')
+    let eliminazioneConfermata = false
+    try {
+      const { data, error } = await supabase.rpc('elimina_cantiere_definitivamente', { p_cantiere_id: id, p_conferma: 'ELIMINA' })
+      if (error) throw error
+      const risposta = Array.isArray(data) && data.length === 1 ? data[0] : null
+      if (!risposta || risposta.eliminato !== true || risposta.cantiere_id !== id) {
+        throw new Error('Risposta di eliminazione non confermata. Ricarica l’elenco per verificare lo stato del cantiere.')
+      }
+      eliminazioneConfermata = true
+      cantieriEliminatiRef.current.add(id)
+      dialogEliminazioneCantiere.current?.close()
+      setEliminazioneCantiere(null)
+      setTestoConfermaCantiere('')
+      setErroreEliminazioneCantiere('')
+
+      // Solo reset locale DOPO la conferma server: nessuna cancellazione applicativa qui.
+      const resta = (riga: unknown) => !riga || typeof riga !== 'object' || (riga as { cantiere_id?: unknown }).cantiere_id !== id
+      setCantieri(correnti => correnti.filter(c => c.id !== id))
+      setPreventivi(correnti => correnti.filter(resta))
+      setPreventivoLavorazioni(correnti => correnti.filter(resta))
+      setSalLavorazioni(correnti => correnti.filter(resta))
+      setRapportini(correnti => correnti.filter(resta))
+      setFotoCantiere(correnti => correnti.filter(resta))
+      setTimbrature(correnti => correnti.filter(resta))
+      setMaterialiCantiere(correnti => correnti.filter(resta))
+      setAttrezziCantiere(correnti => correnti.filter(resta))
+      setAccontiCantiere(correnti => correnti.filter(resta))
+      setPagamentiFornitori(correnti => correnti.filter(resta))
+      setFattureEmesse(correnti => correnti.filter(resta))
+      setIncassiNonFatturati(correnti => correnti.filter(resta))
+      setRigheFatturaAperta(correnti => correnti.filter(resta))
+      setRigheFatturaDaAssegnare(correnti => correnti.filter(resta))
+      setRigheMaterialiFatture(correnti => correnti.filter(resta))
+      setRigheAttrezzatureFatture(correnti => correnti.filter(resta))
+      setFotoRapportinoAperte(correnti => correnti.filter(resta))
+      setFotoCantiereSelezionate(correnti => correnti.filter(fotoId => !fotoCantiere.some(foto => foto.id === fotoId && !resta(foto))))
+      if (fotoFullscreen && !resta(fotoFullscreen)) setFotoFullscreen(null)
+      if (preventivoInModifica && preventivi.some(p => p.id === preventivoInModifica && !resta(p))) setPreventivoInModifica(null)
+      if (materialeInModifica && materialiCantiere.some(m => m.id === materialeInModifica && !resta(m))) setMaterialeInModifica(null)
+      if (attrezzoInModifica && attrezziCantiere.some(a => a.id === attrezzoInModifica && !resta(a))) setAttrezzoInModifica(null)
+      if (rapportinoInModifica && rapportini.some(r => r.id === rapportinoInModifica && !resta(r))) resetFormRapportino()
+      if (preventivoAiGenerato?.id && preventivi.some(p => p.id === preventivoAiGenerato.id && !resta(p))) setPreventivoAiGenerato(null)
+      if (cantiereRapporto === nome) { resetFormRapportino(); setFotoRapportinoAperte([]); setPopupFotoRapportino(false) }
+      if (cantiereFoto === nome) setCantiereFoto('')
+      if (cantiereTimbratura === nome) setCantiereTimbratura('')
+      if (cantierePresenzaManuale === nome) setCantierePresenzaManuale('')
+      if (cantiereMassivoFattura === nome) setCantiereMassivoFattura('')
+      if (cantiereDaModificare === nome) setCantiereDaModificare('')
+      if (filtroCantiere === nome) setFiltroCantiere('')
+      if (cantiereGrafico === nome) setCantiereGrafico('')
+      if (filtroTimbratureCantiere === nome) setFiltroTimbratureCantiere('')
+      if (filtroFattureCantiere === nome) setFiltroFattureCantiere('')
+      if (salCantiere === nome) { setSalCantiere(''); setSalDescrizione(''); setSalImportoPrevisto(''); setSalPercentuale(''); setSalNote('') }
+      if (salFotoCantiere === nome) setSalFotoCantiere('')
+      if (cantiereRegistroEdit === id) annullaModificaRegistroCantiere()
+      if (cantiereSchedaSelezionato === id) setCantiereSchedaSelezionato(null)
+      if (rapportinoRegistroCantiere === nome) { setRapportinoRegistroEdit(null); setRapportinoRegistroCantiere('') }
+      if (timbraturaRegistroCantiere === nome) { setTimbraturaRegistroEdit(null); setTimbraturaRegistroCantiere('') }
+      if (preventivoRegistroCantiere === nome) { setPreventivoRegistroEdit(null); setPreventivoRegistroCantiere('') }
+      if (preventivoAiGenerato?.cantiere_id === id) setPreventivoAiGenerato(null)
+      if (preventivoGeneratoId && preventivi.some(p => p.id === preventivoGeneratoId && (p as unknown as { cantiere_id?: string }).cantiere_id === id)) setPreventivoGeneratoId(null)
+      if (analisiPreventivoRef.current?.cantiereId === id) analisiPreventivoRef.current = null
+      if (String(contestoEliminazioneSal.current.cantiereIdScheda) === id) {
+        setCantiereIdScheda('')
+        setCantiereScheda('')
+        setPreventivoInModifica(null)
+        setMaterialeInModifica(null)
+        setAttrezzoInModifica(null)
+        setFotoFullscreen(null)
+        setFotoCantiereSelezionate([])
+        setFotoDaCaricare([])
+        setFotoCantiereTemp([])
+        setPopupFotoCantiere(false)
+        setPopupCategoriaFotoCantiere(false)
+        setCameraFotoCantiereAttiva(false)
+        setCameraFotoCantiereFullscreen(false)
+        setCameraCantiereAttiva(false)
+        setCameraCantiereFullscreen(false)
+        setFileAnalisiDocumento(null)
+        setNomeFileAnalisiDocumento('')
+        setTestoEstrattoDocumento('')
+        setVociAnalizzate([])
+        setFilePathAnalisi(null)
+        setFileUrlAnalisi(null)
+        setFileTipoAnalisi(null)
+        setFilePreventivo(null)
+        setFileMateriale(null)
+        setFileAttrezzo(null)
+        setMostraDettaglioMateriali(false)
+        setMostraDettaglioAttrezzi(false)
+        setMostraDettaglioManodopera(false)
+        setPagineAperte(correnti => [...correnti.filter(p => !['cantieri-scheda', 'cantieri-analisi', 'cantieri-economia'].includes(p)), ...(!correnti.includes('cantieri-elenco') ? ['cantieri-elenco'] : [])])
+        setSezioneAttiva('cantieri')
+        setSottoSezioneCantieri('elenco')
+      }
+      await caricaCantieri(true)
+      await Promise.all([caricaEconomia(), caricaSalLavorazioni(), caricaPreventivoLavorazioni(), caricaRapportini(), caricaFotoCantiere(), caricaTimbrature(), caricaAcconti(), caricaPagamentiFornitori(), caricaFattureEmesse(), caricaIncassiNonFatturati(), caricaRigheMaterialiFatture(), caricaRigheAttrezzatureFatture()])
+      setEsitoEliminazioneCantiere('Cantiere eliminato definitivamente. Elenco aggiornato.')
+    } catch (error) {
+      const dettaglio = error && typeof error === 'object' ? error as Record<string, unknown> : {}
+      const message = typeof dettaglio.message === 'string' ? dettaglio.message : 'Eliminazione non verificabile. Ricarica l’elenco prima di riprovare.'
+      console.error('Eliminazione cantiere', { code: dettaglio.code ?? null, message, details: dettaglio.details ?? null, hint: dettaglio.hint ?? null })
+      if (eliminazioneConfermata) setEsitoEliminazioneCantiere('Cantiere eliminato, ma aggiornamento dell’elenco non riuscito: ' + message)
+      else setErroreEliminazioneCantiere('Eliminazione non riuscita: ' + message)
+    } finally {
+      invioEliminazioneCantiere.current = false
+      setEliminazioneCantiereInCorso(false)
+    }
+  }
 
 const salvaRapportino = async () => {
   if (!cantiereRapporto || !data) {
@@ -12547,6 +12678,7 @@ WebkitOverflowScrolling: 'touch',
     sezioneAttiva === 'cantieri' &&
     sottoSezioneCantieri === 'scheda')
 ) && (
+<>
 <CantieriContainer
   timelinePanelProps={{ foto: fotoCantiere, rapportini, preventivi, acconti: accontiCantiere,
     presenze: timbrature, materiali: materialiCantiere, attrezzature: attrezziCantiere, formatMoney }}
@@ -12863,6 +12995,50 @@ strutturaPreventivoEsistente,
   geolocalizzazioneFoto={geolocalizzazioneFoto}
   salvaFotoCantiere={salvaFotoCantiere}
 />
+<details style={{ ...cardStyle, marginTop: 16, border: '1px solid #e2e8f0', borderRadius: 12 }}>
+  <summary style={{ cursor: 'pointer', color: '#475569', fontWeight: 600 }}>Azioni amministrative</summary>
+  <button type="button" style={{ ...buttonSecondary, color: '#b91c1c', border: '1px solid #fecaca', marginTop: 12 }}
+    disabled={eliminazioneCantiereInCorso || !cantiereSelezionatoDaId?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cantiereSelezionatoDaId.id)}
+    onClick={() => { if (cantiereSelezionatoDaId?.id) eliminaCantiere(cantiereSelezionatoDaId.nome, cantiereSelezionatoDaId.id) }}>
+    Elimina cantiere
+  </button>
+</details>
+</>
+)}
+{esitoEliminazioneCantiere && <p role="status" style={{ color: '#334155', padding: 12 }}>{esitoEliminazioneCantiere}</p>}
+{eliminazioneCantiere && (
+  <dialog ref={dialogEliminazioneCantiere} aria-labelledby="titolo-eliminazione-cantiere" aria-describedby="descrizione-eliminazione-cantiere"
+    onCancel={event => { event.preventDefault(); chiudiEliminazioneCantiere() }}
+    style={{ border: '1px solid #cbd5e1', borderRadius: 16, padding: 24, maxWidth: 520, width: 'calc(100% - 32px)', boxSizing: 'border-box', color: '#0f172a' }}>
+    <h2 id="titolo-eliminazione-cantiere" style={{ marginTop: 0 }}>Elimina definitivamente il cantiere?</h2>
+    <p style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{eliminazioneCantiere.nome}</p>
+    {eliminazioneCantiere.fase === 1 ? (
+      <>
+        <p id="descrizione-eliminazione-cantiere">L'operazione è irreversibile. Verranno eliminati il cantiere e tutti i dati collegati, compresi SAL, preventivi, varianti, rapportini, foto e gli altri dati appartenenti al cantiere.</p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+          <button type="button" style={buttonSecondary} disabled={eliminazioneCantiereInCorso} onClick={chiudiEliminazioneCantiere}>Annulla</button>
+          <button type="button" ref={continuaEliminazioneCantiere} style={buttonSecondary} disabled={eliminazioneCantiereInCorso}
+            onClick={() => setEliminazioneCantiere(corrente => corrente ? { ...corrente, fase: 2 } : null)}>Continua</button>
+        </div>
+      </>
+    ) : (
+      <>
+        <p id="descrizione-eliminazione-cantiere">Per confermare, scrivi ELIMINA.</p>
+        <label htmlFor="conferma-eliminazione-cantiere">Conferma eliminazione</label>
+        <input id="conferma-eliminazione-cantiere" ref={inputConfermaCantiere} value={testoConfermaCantiere}
+          onChange={event => setTestoConfermaCantiere(event.target.value)} disabled={eliminazioneCantiereInCorso} autoComplete="off" spellCheck={false}
+          style={{ ...inputStyle, display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 8, marginBottom: 16 }} />
+        {erroreEliminazioneCantiere && <p role="alert" style={{ color: '#b91c1c' }}>{erroreEliminazioneCantiere}</p>}
+        {eliminazioneCantiereInCorso && <p role="status">Eliminazione in corso…</p>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+          <button type="button" style={buttonSecondary} disabled={eliminazioneCantiereInCorso} onClick={chiudiEliminazioneCantiere}>Annulla</button>
+          <button type="button" disabled={eliminazioneCantiereInCorso || testoConfermaCantiere !== 'ELIMINA'}
+            style={{ ...buttonSecondary, background: '#b91c1c', color: '#fff', opacity: eliminazioneCantiereInCorso || testoConfermaCantiere !== 'ELIMINA' ? 0.5 : 1 }}
+            onClick={() => void eseguiEliminazioneCantiere()}>Elimina definitivamente</button>
+        </div>
+      </>
+    )}
+  </dialog>
 )}
  <FotoFullscreenModal
   fotoFullscreen={fotoFullscreen}
