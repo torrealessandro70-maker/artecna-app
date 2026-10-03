@@ -1,129 +1,20 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { COOKIE_SESSIONE_RAPPORTINO, DURATA_SESSIONE_SECONDI, ErroreServizioRapportini,
+  creaSessioneRapportino, verificaOrigineRapportino } from '../../../engines/rapportini/servizioRapportini.server'
 
 export async function POST(req: Request) {
   try {
+    verificaOrigineRapportino(req)
     const body = await req.json()
-    const pin = String(body?.pin || '').trim()
-
-    if (!pin) {
-      return NextResponse.json(
-        { error: 'Inserisci il PIN' },
-        { status: 400 }
-      )
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json(
-        { error: 'Configurazione Supabase non disponibile' },
-        { status: 500 }
-      )
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey)
-
-    const { data: operai, error: erroreOperaio } = await supabase
-      .from('operai')
-      .select('id,nome,stato,accesso_portale')
-      .eq('pin', pin)
-      .limit(2)
-
-    if (erroreOperaio) {
-      console.error(
-        'Errore accesso rapportino - operaio:',
-        erroreOperaio.message
-      )
-
-      return NextResponse.json(
-        { error: 'Accesso non disponibile' },
-        { status: 500 }
-      )
-    }
-
-    if (!operai || operai.length !== 1) {
-      return NextResponse.json(
-        { error: 'PIN non valido' },
-        { status: 401 }
-      )
-    }
-
-    const operaio = operai[0]
-if (!operaio.accesso_portale) {
-  return NextResponse.json(
-    { error: 'Accesso al portale non autorizzato' },
-    { status: 403 }
-  )
-}
-
-    if (operaio.stato === 'sospeso') {
-      return NextResponse.json(
-        { error: 'Operaio non abilitato' },
-        { status: 403 }
-      )
-    }
-
-const { data: operaiAttivi, error: erroreOperaiAttivi } = await supabase
-  .from('operai')
-  .select('id,nome,stato')
-  .neq('stato', 'sospeso')
-  .order('nome')
-
-if (erroreOperaiAttivi) {
-  console.error(
-    'Errore accesso rapportino - elenco operai:',
-    erroreOperaiAttivi.message
-  )
-
-  return NextResponse.json(
-    { error: 'Elenco operai non disponibile' },
-    { status: 500 }
-  )
-}
-
-    const { data: cantieri, error: erroreCantieri } = await supabase
-      .from('cantieri')
-      .select('id,nome,lavori_conclusi')
-      .or('lavori_conclusi.is.null,lavori_conclusi.eq.false')
-      .order('nome')
-
-    if (erroreCantieri) {
-      console.error(
-        'Errore accesso rapportino - cantieri:',
-        erroreCantieri.message
-      )
-
-      return NextResponse.json(
-        { error: 'Cantieri non disponibili' },
-        { status: 500 }
-      )
-    }
-
-   return NextResponse.json({
-  operaio: {
-    id: operaio.id,
-    nome: operaio.nome,
-  },
-
-  operai: (operaiAttivi || []).map((item) => ({
-    id: item.id,
-    nome: item.nome,
-  })),
-
-  cantieri: (cantieri || []).map((cantiere) => ({
-    id: cantiere.id,
-    nome: cantiere.nome,
-  })),
-})
-
+    const { accesso, token } = await creaSessioneRapportino(String(body?.pin || '').trim())
+    // Stessa risposta legacy, sessione aggiunta senza modificare la UI.
+    const response = NextResponse.json(accesso, { headers: { 'Cache-Control': 'no-store' } })
+    response.cookies.set(COOKIE_SESSIONE_RAPPORTINO, token, { httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/api/rapportino',
+      maxAge: DURATA_SESSIONE_SECONDI })
+    return response
   } catch (error) {
-    console.error('Errore accesso portale rapportini:', error)
-
-    return NextResponse.json(
-      { error: 'Richiesta non valida' },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: error instanceof ErroreServizioRapportini ? error.message : 'Richiesta non valida' },
+      { status: error instanceof ErroreServizioRapportini ? error.status : 400, headers: { 'Cache-Control': 'no-store' } })
   }
 }

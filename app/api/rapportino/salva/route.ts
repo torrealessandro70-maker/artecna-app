@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { ErroreServizioRapportini, verificaSessioneRapportino, verificaOrigineRapportino } from '../../../engines/rapportini/servizioRapportini.server'
+// LEGACY temporaneo: non scrive rapportino_prestazioni.
 import { createClient } from '@supabase/supabase-js'
 import { buildPhotoRecordsWithStorage } from '../../../engines/photo-storage/photo-manager'
 type OperaioRapportinoInput = {
@@ -12,13 +14,12 @@ type OperaioRapportinoInput = {
 
 export async function POST(req: Request) {
   try {
+    verificaOrigineRapportino(req)
     const body = await req.json()
 
     const cantiereId = String(body?.cantiereId || '').trim()
 const rapportinoId = String(body?.rapportinoId || '').trim()
-const compilatoDaOperaioId = String(
-  body?.compilatoDaOperaioId || ''
-).trim()
+// compilatoDaOperaioId del browser non è autorevole.
     const data = String(body?.data || '').trim()
     const note = String(body?.note || '').trim()
     const materiali = String(body?.materiali || '').trim()
@@ -43,6 +44,7 @@ const foto = Array.isArray(body?.foto)
       )
     }
 
+    const compilatore = await verificaSessioneRapportino(req, cantiereId)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -81,66 +83,11 @@ const foto = Array.isArray(body?.foto)
     }
 
     const cantiere = cantieri[0]
-let compilatore: { id: string; nome: string } | null = null
-
-if (!compilatoDaOperaioId) {
-  return NextResponse.json(
-    { error: 'Accesso al portale non disponibile' },
-    { status: 403 }
-  )
-}
-
-const { data: operaioCompilatore, error: erroreCompilatore } =
-  await supabase
-    .from('operai')
-    .select('id,nome,stato,accesso_portale')
-    .eq('id', compilatoDaOperaioId)
-    .maybeSingle()
-
-if (erroreCompilatore) {
-  console.error(
-    'Errore verifica compilatore rapportino:',
-    erroreCompilatore.message
-  )
-
-  return NextResponse.json(
-    { error: 'Impossibile verificare il compilatore' },
-    { status: 500 }
-  )
-}
-
-if (!operaioCompilatore) {
-  return NextResponse.json(
-    { error: 'Accesso al portale non autorizzato' },
-    { status: 403 }
-  )
-}
-
-if (!operaioCompilatore.accesso_portale) {
-  return NextResponse.json(
-    { error: 'Accesso al portale non autorizzato' },
-    { status: 403 }
-  )
-}
-
-if (operaioCompilatore.stato === 'sospeso') {
-  return NextResponse.json(
-    { error: 'Operaio non abilitato' },
-    { status: 403 }
-  )
-}
-
-if (!rapportinoId) {
-  compilatore = {
-    id: String(operaioCompilatore.id),
-    nome: String(operaioCompilatore.nome || ''),
-  }
-}
     if (rapportinoId) {
   const { data: rapportinoDaModificare, error: erroreVerifica } =
     await supabase
       .from('rapportini')
-      .select('id,cantiere_id')
+      .select('id,cantiere_id,versione_prestazioni')
       .eq('id', rapportinoId)
       .eq('cantiere_id', cantiere.id)
       .maybeSingle()
@@ -162,6 +109,9 @@ if (!rapportinoId) {
       { error: 'Rapportino da modificare non valido' },
       { status: 404 }
     )
+  }
+  if (rapportinoDaModificare.versione_prestazioni !== 0) {
+    return NextResponse.json({ error: 'Rapportino strutturato: usare il servizio unico' }, { status: 409 })
   }
 } else {
   const { data: rapportiniEsistenti, error: erroreControllo } =
@@ -414,6 +364,8 @@ if (foto.length > 0) {
       },
     })
   } catch (error) {
+    if (error instanceof ErroreServizioRapportini) return NextResponse.json({ error: error.message }, { status: error.status })
+
     console.error('Errore richiesta salvataggio rapportino:', error)
 
     return NextResponse.json(

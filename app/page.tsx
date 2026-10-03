@@ -1,4 +1,5 @@
 'use client'
+import { contabilizzaManodopera } from './engines/economia/contabilitaManodopera'
 
 import type { EsitoArchiviazionePreventivo } from './components/DocumentiCantierePanel'
 
@@ -375,18 +376,11 @@ const calcoloEconomiaCantiere = (nomeCantiere: string) => {
       ? totalePreventiviCaricati
       : parseImporto(cantiere?.preventivo)
 
-  const costoTimbrature = timbrature
-  .filter((t) => t.cantiere === nomeCantiere)
-  .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
-
-const costoRapportini = rapportini
-  .filter((r) => r.cantiere === nomeCantiere)
-  .reduce(
-    (tot, r) => tot + Number(r.costo_manodopera || 0),
-    0
-  )
-
-const costoManodopera = costoTimbrature + costoRapportini
+  const costoManodopera = contabilizzaManodopera({
+    rapportini: rapportini.filter((r) => r.cantiere === nomeCantiere),
+    timbrature: timbrature.filter((t) => t.cantiere === nomeCantiere),
+    calcolaCostoOperativoTimbratura: calcolaCostoTimbratura,
+  }).costoTotaleManodoperaContabile
 
   const costoMateriali = materialiCantiere
     .filter((m) => m.cantiere === nomeCantiere)
@@ -4218,35 +4212,21 @@ const storicoGiornaliero = () => {
   const giorni: Record<string, number> = {}
 
 
-  timbrature.forEach((t) => {
-    if (!t.data) return
-
-    if (dataDa && t.data < dataDa) return
-    if (dataA && t.data > dataA) return
-
-    const costo = calcolaCostoTimbratura(t)
-
-    if (!giorni[t.data]) {
-      giorni[t.data] = 0
-    }
-
-    giorni[t.data] += costo * -1
+  const timbratureNelPeriodo = timbrature.filter(t => t.data &&
+    (!dataDa || t.data >= dataDa) && (!dataA || t.data <= dataA))
+  const rapportiniNelPeriodo = rapportini.filter(r => r.data &&
+    (!dataDa || r.data >= dataDa) && (!dataA || r.data <= dataA))
+  const dateManodopera = new Set([
+    ...timbratureNelPeriodo.map(t => t.data),
+    ...rapportiniNelPeriodo.map(r => r.data),
+  ])
+  dateManodopera.forEach(data => {
+    giorni[data] = -contabilizzaManodopera({
+      rapportini: rapportiniNelPeriodo.filter(r => r.data === data),
+      timbrature: timbratureNelPeriodo.filter(t => t.data === data),
+      calcolaCostoOperativoTimbratura: calcolaCostoTimbratura,
+    }).costoTotaleManodoperaContabile
   })
-
-rapportini.forEach((r) => {
-  if (!r.data) return
-
-  if (dataDa && r.data < dataDa) return
-  if (dataA && r.data > dataA) return
-
-  const costo = Number(r.costo_manodopera || 0)
-
-  if (!giorni[r.data]) {
-    giorni[r.data] = 0
-  }
-
-  giorni[r.data] += costo * -1
-})
 materialiCantiere.forEach((m) => {
   const dataMateriale = m.data_documento || oggi
 
@@ -4303,13 +4283,11 @@ const controlloCostiPro = () => {
   return cantieri.map((c) => {
     const preventivo = Number(c.preventivo || 0)
 
-    const costoTimbrature = timbrature
-      .filter((t) => t.cantiere === c.nome)
-      .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
-
-    const costoRapportini = rapportini
-      .filter((r) => r.cantiere === c.nome)
-      .reduce((tot, r) => tot + Number(r.costo_manodopera || 0), 0)
+    const costoManodopera = contabilizzaManodopera({
+      rapportini: rapportini.filter(r => r.cantiere === c.nome),
+      timbrature: timbrature.filter(t => t.cantiere === c.nome),
+      calcolaCostoOperativoTimbratura: calcolaCostoTimbratura,
+    }).costoTotaleManodoperaContabile
 
     const costoMateriali = materialiCantiere
       .filter((m) => m.cantiere === c.nome)
@@ -4320,7 +4298,7 @@ const controlloCostiPro = () => {
       .reduce((tot, a) => tot + Number(a.totale || 0), 0)
 
     const costoTotale =
-      costoTimbrature + costoRapportini + costoMateriali + costoAttrezzi
+      costoManodopera + costoMateriali + costoAttrezzi
 
     const utile = preventivo - costoTotale
     const margine = preventivo > 0 ? (utile / preventivo) * 100 : 0
@@ -4679,27 +4657,11 @@ const utileRealePerCantiere = () => {
 
     risultati[nomeCantiere] = storicoGiornaliero().map((g) => {
       const costoGiorno =
-        timbrature
-          .filter(
-            (t) =>
-              t.cantiere === nomeCantiere &&
-              t.data === g.data
-          )
-          .reduce(
-            (tot, t) => tot + calcolaCostoTimbratura(t),
-            0
-          ) +
-        rapportini
-          .filter(
-            (r) =>
-              r.cantiere === nomeCantiere &&
-              r.data === g.data
-          )
-          .reduce(
-            (tot, r) =>
-              tot + Number(r.costo_manodopera || 0),
-            0
-          ) +
+        contabilizzaManodopera({
+          rapportini: rapportini.filter(r => r.cantiere === nomeCantiere && r.data === g.data),
+          timbrature: timbrature.filter(t => t.cantiere === nomeCantiere && t.data === g.data),
+          calcolaCostoOperativoTimbratura: calcolaCostoTimbratura,
+        }).costoTotaleManodoperaContabile +
         materialiCantiere
           .filter(
             (m) =>
@@ -10448,7 +10410,7 @@ const totaleVociAnalizzate = vociAnalizzate.reduce((tot, voce) => {
 }, 0)
 
 const calcolaTotaleManodoperaCantiere = (nomeCantiere: string) => {
- const totaleManodoperaTimbrature = timbrature
+ const timbratureContabili = timbrature
   .filter((t) => {
     if (t.cantiere !== nomeCantiere) return false
 
@@ -10462,9 +10424,8 @@ const calcolaTotaleManodoperaCantiere = (nomeCantiere: string) => {
 
     return true
   })
-  .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
 
-const totaleManodoperaRapportini = rapportini
+const rapportiniContabili = rapportini
   .filter((r) => {
     if (r.cantiere !== nomeCantiere) return false
 
@@ -10478,12 +10439,12 @@ const totaleManodoperaRapportini = rapportini
 
     return true
   })
-  .reduce(
-    (tot, r) => tot + Number((r as any).costo_manodopera || 0),
-    0
-  )
 
-return totaleManodoperaTimbrature + totaleManodoperaRapportini
+return contabilizzaManodopera({
+  rapportini: rapportiniContabili,
+  timbrature: timbratureContabili,
+  calcolaCostoOperativoTimbratura: calcolaCostoTimbratura,
+}).costoTotaleManodoperaContabile
 
 }
 
@@ -10523,19 +10484,11 @@ const dashboardCantieri = cantieri.map((c) => {
     .filter((a) => a.cantiere === c.nome)
     .reduce((tot, a) => tot + Number(a.totale || 0), 0)
 
-  const manodoperaTimbrature = timbrature
-    .filter((t) => t.cantiere === c.nome)
-    .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
-
-  const manodoperaRapportini = rapportini
-    .filter((r) => r.cantiere === c.nome)
-    .reduce(
-      (tot, r) => tot + Number((r as any).costo_manodopera || 0),
-      0
-    )
-
-  const manodopera =
-    manodoperaTimbrature + manodoperaRapportini
+  const manodopera = contabilizzaManodopera({
+    rapportini: rapportini.filter(r => r.cantiere === c.nome),
+    timbrature: timbrature.filter(t => t.cantiere === c.nome),
+    calcolaCostoOperativoTimbratura: calcolaCostoTimbratura,
+  }).costoTotaleManodoperaContabile
 
   const costi = materiali + attrezzi + manodopera
   const utile = preventivo - costi
@@ -10617,14 +10570,11 @@ const classificaCantieri = dashboardCantieri
 const storicoUtileCantieri = cantieri.map((c) => {
   const preventivo = Number(c.preventivo || 0)
 
-  const manodoperaGiorno = timbrature
-    .filter(
-      (t) =>
-        t.cantiere === c.nome &&
-        t.data &&
-        t.data <= dataStoricoUtile
-    )
-    .reduce((tot, t) => tot + calcolaCostoTimbratura(t), 0)
+  const manodoperaGiorno = contabilizzaManodopera({
+    rapportini: rapportini.filter(r => r.cantiere === c.nome && !!r.data && r.data <= dataStoricoUtile),
+    timbrature: timbrature.filter(t => t.cantiere === c.nome && !!t.data && t.data <= dataStoricoUtile),
+    calcolaCostoOperativoTimbratura: calcolaCostoTimbratura,
+  }).costoTotaleManodoperaContabile
 
   const utileGiorno = preventivo - manodoperaGiorno
 
