@@ -338,6 +338,10 @@ test('E2E reale isolato: login → cookie → verifica → save/retry → legacy
       } else sql+=` RETURNING ${selected()}`
       try {
         const rows=await asRole('anon',()=>q(sql,params))
+        // PostgREST serializza PostgreSQL date come YYYY-MM-DD, non Date JS.
+        if(table==='rapportini') for(const row of rows) {
+          if(row.data instanceof Date) row.data=row.data.toISOString().slice(0,10)
+        }
         return {error:null,data:single ? rows[0]||null : rows}
       } catch(error) { return {data:null,error:{code:error.code,message:error.message}} }
     }
@@ -404,15 +408,38 @@ test('E2E reale isolato: login → cookie → verifica → save/retry → legacy
     await db.query('UPDATE public.operai SET costo_orario=20 WHERE id=$1',[OP])
     const state=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie},{cantiereId:A,data:'2026-09-21'}))
     assert.equal(state.status,200); assert.equal((await state.json()).rapportino.id,RAP)
-    const legacyBody={cantiereId:A,data:'2026-10-04',note:'Legacy',compilatoDaOperaioId:OP2,
+    const absentRetro=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie},{cantiereId:A,data:'2026-09-30'}))
+    assert.equal(absentRetro.status,200);assert.equal((await absentRetro.json()).presente,false)
+    const otherReports=await q("SELECT to_jsonb(r) v FROM public.rapportini r ORDER BY id")
+    const otherClocks=await q("SELECT to_jsonb(t) v FROM public.timbrature t ORDER BY id")
+    const legacyBody={cantiereId:A,data:'2026-09-30',note:'Legacy',compilatoDaOperaioId:OP2,
       operai:[{id:OP,nome:'Mario',ora_inizio:'07:30',ora_fine:'12:30',ore:5,pausa_minuti:0}],foto:[]}
     const legacySave=h.route('app/api/rapportino/salva/route.ts')
     const created=await legacySave.POST(request({cookie},legacyBody)); assert.equal(created.status,200,JSON.stringify(logs))
     const legacyId=(await created.json()).rapportino.id
+    assert.equal((await q('SELECT data::text d FROM public.rapportini WHERE id=$1',[legacyId]))[0].d,'2026-09-30')
+    assert.deepEqual(await q('SELECT data FROM public.timbrature WHERE rapportino_id=$1',[legacyId]),[{data:'2026-09-30'}])
+    assert.deepEqual(await q('SELECT to_jsonb(r) v FROM public.rapportini r WHERE id<>$1 ORDER BY id',[legacyId]),otherReports)
+    assert.deepEqual(await q('SELECT to_jsonb(t) v FROM public.timbrature t WHERE rapportino_id IS DISTINCT FROM $1 ORDER BY id',[legacyId]),otherClocks)
+    const readRetro=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie},{cantiereId:A,data:'2026-09-30'}))
+    const readRetroBody=await readRetro.json()
+    assert.equal(readRetroBody.presente,true);assert.equal(readRetroBody.rapportino.id,legacyId)
+    for(const date of ['2026-10-01','2026-10-04']) {
+      const independent=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie},{cantiereId:A,data:date}))
+      assert.equal(independent.status,200)
+      const result=await independent.json();assert.equal(result.data,date);assert.equal(result.presente,false)
+    }
     assert.equal((await q('SELECT versione_prestazioni,compilato_da_operaio_id FROM public.rapportini WHERE id=$1',[legacyId]))[0].versione_prestazioni,0)
     assert.equal((await q('SELECT compilato_da_operaio_id FROM public.rapportini WHERE id=$1',[legacyId]))[0].compilato_da_operaio_id,OP)
     const edited=await legacySave.POST(request({cookie},{...legacyBody,rapportinoId:legacyId,note:'Legacy modificato'}))
     assert.equal(edited.status,200)
+    const beforeWrongDate=await q('SELECT to_jsonb(r) v FROM public.rapportini r ORDER BY id')
+    const clocksBeforeWrongDate=await q('SELECT to_jsonb(t) v FROM public.timbrature t ORDER BY id')
+    const wrongDate=await legacySave.POST(request({cookie},{...legacyBody,rapportinoId:legacyId,data:'2026-10-01',note:'Non applicare'}))
+    assert.equal(wrongDate.status,409)
+    assert.equal((await wrongDate.json()).error,'Rapportino non appartenente alla data selezionata')
+    assert.deepEqual(await q('SELECT to_jsonb(r) v FROM public.rapportini r ORDER BY id'),beforeWrongDate)
+    assert.deepEqual(await q('SELECT to_jsonb(t) v FROM public.timbrature t ORDER BY id'),clocksBeforeWrongDate)
     const blocked=await legacySave.POST(request({cookie},{...legacyBody,data:p.data,rapportinoId:committed.rapportino_id}))
     assert.equal(blocked.status,409); assert.deepEqual(await count(),{rapportini:1,prestazioni:1,timbrature:1})
     assert.deepEqual((await q('SELECT to_jsonb(r) v FROM public.rapportini r WHERE id=$1',[RAP]))[0].v,storico)

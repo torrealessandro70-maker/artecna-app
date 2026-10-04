@@ -73,6 +73,7 @@ onSalvaPortale?: () => void | Promise<void>
   setFotoRapportinoAperte: (foto: FotoCantiere[]) => void
   onClose: () => void
   modalitaPortaleOperai?: boolean
+  salvataggioPortaleDisabilitato?: boolean
   onApplicaOperaiRiconosciuti?: (
     proposte: readonly PropostaOperaioRiconosciuto[]
   ) => void
@@ -113,6 +114,7 @@ export default function RapportinoForm({
   setFotoRapportinoAperte,
   onClose,
   modalitaPortaleOperai = false,
+  salvataggioPortaleDisabilitato = false,
   onSalvaPortale,
   onApplicaOperaiRiconosciuti,
   applicazioneOperaiDisabilitata = false,
@@ -296,6 +298,7 @@ export default function RapportinoForm({
         <input
           type="date"
           value={data}
+          disabled={modalitaPortaleOperai && salvataggioPortaleDisabilitato}
           onChange={(event) => setData(event.target.value)}
           style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 6 }}
         />
@@ -637,6 +640,7 @@ export default function RapportinoForm({
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
           type="button"
+          disabled={modalitaPortaleOperai && salvataggioPortaleDisabilitato}
          onClick={() => {
   if (modalitaPortaleOperai && onSalvaPortale) {
     void onSalvaPortale()

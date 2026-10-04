@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import RapportinoForm from '../components/RapportinoForm'
 import RapportinoOperaiEditor from '../components/RapportinoOperaiEditor'
 import type { OperaioRapportinoInput } from '../types'
@@ -43,11 +43,19 @@ const [timbratureRapportino, setTimbratureRapportino] = useState<any[]>([])
     useState<CantiereAccesso | null>(null)
 
   const [statoRapportino, setStatoRapportino] = useState<{
+  cantiereId: string
+  richiesta: number
   data: string
   presente: boolean
   rapportinoId?: string
 } | null>(null)
 const [dataRapportino, setDataRapportino] = useState('')
+  const richiestaStato = useRef(0)
+  const controlloInCorso = useRef(false)
+  const salvataggioInCorso = useRef(false)
+  const [salvataggioAttivo, setSalvataggioAttivo] = useState(false)
+  const [messaggioSalvataggio, setMessaggioSalvataggio] = useState('')
+  const dataLeggibile = (data: string) => data.split('-').reverse().join('/')
   const [errore, setErrore] = useState('')
   const [accessoInCorso, setAccessoInCorso] = useState(false)
   const [statoInCorso, setStatoInCorso] = useState(false)
@@ -130,137 +138,93 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
     }
   }
 
-  const continua = async () => {
-    if (!cantiereId || statoInCorso) return
-
-    setMostraForm(false)
-    setCantiereSelezionato(null)
+  const invalidaRapportino = () => {
+    richiestaStato.current += 1
+    controlloInCorso.current = false
+    setStatoInCorso(false)
     setStatoRapportino(null)
+    setRapportinoEsistente(null)
+    setTimbratureRapportino([])
+    setMostraForm(false)
     setOperaiRapportino([])
-setRapportinoEsistente(null)
-setTimbratureRapportino([])
-setNote('')
-setMateriali('')
-setQuantitaMateriali('')
-setCostoMateriali('')
+    setNote('')
+    setMateriali('')
+    setQuantitaMateriali('')
+    setCostoMateriali('')
+    setFotoRapportino([])
+    setFotoRapportinoAperte([])
+    setMessaggioApplicazioneOperai('')
+  }
 
-    const cantiere = cantieri.find(
-      (item) => item.id === cantiereId
-    )
-
-    if (!cantiere) {
-      setErrore('Cantiere non valido')
-      return
-    }
-
-    setErrore('')
+  const controllaRapportino = async (cantiere: CantiereAccesso, data: string) => {
+    invalidaRapportino()
+    const richiesta = richiestaStato.current
+    controlloInCorso.current = true
     setStatoInCorso(true)
-
+    setErrore('')
     try {
       const risposta = await fetch('/api/rapportino/stato', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-       body: JSON.stringify({
-  cantiereId: cantiere.id,
-  data: dataRapportino || undefined,
-}),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cantiereId: cantiere.id, data: data || undefined }),
       })
-
       const risultato = await risposta.json()
-
+      if (richiesta !== richiestaStato.current) return
       if (!risposta.ok) {
-        setErrore(
-          risultato?.error ||
-            'Impossibile controllare il rapportino'
-        )
+        setErrore(risultato?.error || 'Impossibile controllare il rapportino')
         return
       }
-
+      if (!risultato.data || (data && risultato.data !== data)
+        || (risultato.rapportino && risultato.rapportino.data !== risultato.data)) {
+        setErrore('Data del Rapportino non coerente: ripeti il controllo')
+        return
+      }
+      setDataRapportino(risultato.data)
       setCantiereSelezionato(cantiere)
-
-setStatoRapportino({
-  data: risultato.data,
-  presente: Boolean(risultato.presente),
-  rapportinoId: risultato.rapportino?.id
-    ? String(risultato.rapportino.id)
-    : undefined,
-})
-
-setRapportinoEsistente(risultato.rapportino || null)
-
-setTimbratureRapportino(
-  Array.isArray(risultato.timbrature)
-    ? risultato.timbrature
-    : []
-)
-
-setDataRapportino(risultato.data)
-
+      setStatoRapportino({
+        cantiereId: cantiere.id, richiesta, data: risultato.data,
+        presente: Boolean(risultato.presente),
+        rapportinoId: risultato.rapportino?.id ? String(risultato.rapportino.id) : undefined,
+      })
+      setRapportinoEsistente(risultato.rapportino || null)
+      setTimbratureRapportino(Array.isArray(risultato.timbrature) ? risultato.timbrature : [])
     } catch {
-      setErrore('Connessione non disponibile')
+      if (richiesta === richiestaStato.current) setErrore('Connessione non disponibile')
     } finally {
-      setStatoInCorso(false)
+      if (richiesta === richiestaStato.current) {
+        controlloInCorso.current = false
+        setStatoInCorso(false)
+      }
     }
   }
-const controllaDataRapportino = async (nuovaData: string) => {
-  if (!cantiereSelezionato || !nuovaData) return
 
-  setErrore('')
-  setStatoInCorso(true)
-
-  try {
-    const risposta = await fetch('/api/rapportino/stato', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        cantiereId: cantiereSelezionato.id,
-        data: nuovaData,
-      }),
-    })
-
-    const risultato = await risposta.json()
-
-    if (!risposta.ok) {
-      setErrore(
-        risultato?.error ||
-          'Impossibile controllare il rapportino'
-      )
-      return
-    }
-
-    setDataRapportino(risultato.data)
-
-    setStatoRapportino({
-  data: risultato.data,
-  presente: Boolean(risultato.presente),
-  rapportinoId: risultato.rapportino?.id
-    ? String(risultato.rapportino.id)
-    : undefined,
-})
-
-setRapportinoEsistente(risultato.rapportino || null)
-
-setTimbratureRapportino(
-  Array.isArray(risultato.timbrature)
-    ? risultato.timbrature
-    : []
-)
-
-if (risultato.presente) {
-  setMostraForm(false)
-}
-  } catch {
-    setErrore('Connessione non disponibile')
-  } finally {
-    setStatoInCorso(false)
+  const continua = async () => {
+    if (!cantiereId || salvataggioInCorso.current) return
+    const cantiere = cantieri.find(item => item.id === cantiereId)
+    if (!cantiere) { setErrore('Cantiere non valido'); return }
+    setMessaggioSalvataggio('')
+    setCantiereSelezionato(cantiere)
+    await controllaRapportino(cantiere, dataRapportino)
   }
-}
+
+  const cambiaDataRapportino = (nuovaData: string) => {
+    if (salvataggioInCorso.current) return
+    setDataRapportino(nuovaData)
+    setMessaggioSalvataggio('')
+    setErrore('')
+    invalidaRapportino()
+    const cantiere = cantieri.find(item => item.id === cantiereId)
+    if (cantiere && nuovaData) void controllaRapportino(cantiere, nuovaData)
+  }
 
 const salvaRapportinoPortale = async () => {
+  if (salvataggioInCorso.current || controlloInCorso.current || statoInCorso
+    || !statoRapportino || statoRapportino.data !== dataRapportino
+    || statoRapportino.richiesta !== richiestaStato.current
+    || statoRapportino.cantiereId !== cantiereId
+    || cantiereSelezionato?.id !== cantiereId) {
+    setErrore('Attendi un controllo valido per il cantiere e la data selezionati')
+    return
+  }
 if (!operaio || !cantiereSelezionato || !dataRapportino) {
   setErrore('Operaio, cantiere e data sono obbligatori')
   return
@@ -275,6 +239,12 @@ if (!operaio || !cantiereSelezionato || !dataRapportino) {
   return
 }
 
+ const dataSalvata = dataRapportino
+ const cantiereSalvato = cantiereSelezionato
+ const contestoSalvataggio = richiestaStato.current
+ salvataggioInCorso.current = true
+ setSalvataggioAttivo(true)
+ setMessaggioSalvataggio('')
  setErrore('')
 setStatoInCorso(true)
 
@@ -289,7 +259,7 @@ try {
 rapportinoId: statoRapportino?.rapportinoId || undefined,
 compilatoDaOperaioId: operaio.id,
 compilatoDaNome: operaio.nome,
-        data: dataRapportino,
+        data: dataSalvata,
         note,
         materiali,
         quantitaMateriali,
@@ -324,26 +294,27 @@ try {
   return
 }
 
-    setStatoRapportino({
-      data: dataRapportino,
-      presente: true,
-    })
-setFotoRapportino([])
-setNote('')
-setMateriali('')
-setQuantitaMateriali('')
-setCostoMateriali('')
-setOperaiRapportino([])
-
-    setMostraForm(false)
+    if (contestoSalvataggio !== richiestaStato.current) return
+    if (risultato.rapportino?.data !== dataSalvata) {
+      invalidaRapportino()
+      setErrore('Data salvata non coerente: ripeti il controllo')
+      return
+    }
+    setDataRapportino(dataSalvata)
+    setMessaggioSalvataggio('Rapportino del ' + dataLeggibile(dataSalvata) + ' salvato')
+    await controllaRapportino(cantiereSalvato, dataSalvata)
   } catch {
     setErrore('Connessione non disponibile')
   } finally {
+    salvataggioInCorso.current = false
+    setSalvataggioAttivo(false)
     setStatoInCorso(false)
   }
 }
 
   const esci = () => {
+    invalidaRapportino()
+    setMessaggioSalvataggio('')
     setOperaio(null)
     setCantieri([])
     setOperaiDisponibili([])
@@ -484,7 +455,15 @@ setCostoMateriali('')
               Cantiere
               <select
                 value={cantiereId}
-                onChange={(event) => setCantiereId(event.target.value)}
+                disabled={salvataggioAttivo}
+                onChange={(event) => {
+                  if (salvataggioInCorso.current) return
+                  invalidaRapportino()
+                  setCantiereId(event.target.value)
+                  setCantiereSelezionato(null)
+                  setMessaggioSalvataggio('')
+                  setErrore('')
+                }}
                 style={{
                   display: 'block',
                   width: '100%',
@@ -508,9 +487,16 @@ setCostoMateriali('')
               </select>
             </label>
 
+            <label style={{ fontWeight: 700 }}>
+              Data del Rapportino
+              <input type="date" value={dataRapportino} disabled={salvataggioAttivo}
+                onChange={event => cambiaDataRapportino(event.target.value)}
+                style={{ display: 'block', width: '100%', marginTop: 6, padding: 12, boxSizing: 'border-box' }} />
+            </label>
+            {messaggioSalvataggio && <p role="status">{messaggioSalvataggio}</p>}
            <button
   type="button"
-  disabled={!cantiereId || statoInCorso}
+  disabled={!cantiereId || statoInCorso || salvataggioAttivo}
   onClick={() => void continua()}
   style={{
     minHeight: 48,
@@ -550,8 +536,8 @@ setCostoMateriali('')
       }}
     >
       {statoRapportino.presente
-        ? 'Rapportino di oggi già inviato'
-        : 'Rapportino di oggi non ancora inviato'}
+        ? 'Rapportino del ' + dataLeggibile(statoRapportino.data) + ' già inviato'
+        : 'Rapportino del ' + dataLeggibile(statoRapportino.data) + ' non ancora inviato'}
     </div>
 
     {!statoRapportino.presente && !mostraForm && (
@@ -783,11 +769,7 @@ setOperaiRapportino(operaiRicostruiti)
   cantiereRapporto={cantiereSelezionato.nome}
   setCantiereRapporto={() => {}}
 data={dataRapportino}
-setData={(nuovaData) => {
-  setMessaggioApplicazioneOperai('')
-  setDataRapportino(nuovaData)
-  void controllaDataRapportino(nuovaData)
-}}
+setData={cambiaDataRapportino}
 
   note={note}
   setNote={setNote}
@@ -823,6 +805,7 @@ setData={(nuovaData) => {
   setFotoRapportinoAperte={setFotoRapportinoAperte}
   onClose={() => setMostraForm(false)}
   modalitaPortaleOperai
+  salvataggioPortaleDisabilitato={statoInCorso || salvataggioAttivo}
   onSalvaPortale={salvaRapportinoPortale}
   onApplicaOperaiRiconosciuti={applicaProposteOperaiRiconosciuti}
   applicazioneOperaiDisabilitata={statoInCorso}
@@ -862,6 +845,7 @@ setData={(nuovaData) => {
  )}
             <button
               type="button"
+              disabled={salvataggioAttivo}
               onClick={esci}
               style={{
                 minHeight: 44,

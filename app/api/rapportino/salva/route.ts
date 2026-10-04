@@ -87,7 +87,7 @@ const foto = Array.isArray(body?.foto)
   const { data: rapportinoDaModificare, error: erroreVerifica } =
     await supabase
       .from('rapportini')
-      .select('id,cantiere_id,versione_prestazioni')
+      .select('id,cantiere_id,data,versione_prestazioni')
       .eq('id', rapportinoId)
       .eq('cantiere_id', cantiere.id)
       .maybeSingle()
@@ -112,6 +112,9 @@ const foto = Array.isArray(body?.foto)
   }
   if (rapportinoDaModificare.versione_prestazioni !== 0) {
     return NextResponse.json({ error: 'Rapportino strutturato: usare il servizio unico' }, { status: 409 })
+  }
+  if (rapportinoDaModificare.data !== data) {
+    return NextResponse.json({ error: 'Rapportino non appartenente alla data selezionata' }, { status: 409 })
   }
 } else {
   const { data: rapportiniEsistenti, error: erroreControllo } =
@@ -219,6 +222,7 @@ const costoManodopera = operaiValidi.reduce(
       .update(nuovoRapportino)
       .eq('id', rapportinoId)
       .eq('cantiere_id', cantiere.id)
+      .eq('data', data)
   : supabase
       .from('rapportini')
       .insert([
