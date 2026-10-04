@@ -2,6 +2,12 @@
 
 import { useRef, useState } from 'react'
 import RapportinoForm from '../components/RapportinoForm'
+import RapportinoPrestazioniEditorV1 from '../components/RapportinoPrestazioniEditorV1'
+import { creaBozzaRapportinoV1, ricostruisciBozzaRapportinoV1, type BozzaRapportinoV1 } from '../engines/rapportini/bozzaRapportinoV1'
+import { validaRispostaVariantiBozza, type StatoVariantiBozza } from '../engines/rapportini/variantiBozzaV1'
+import { bozzaV1Salvabile, creaTentativoSalvataggioV1, esitoCreazioneV1Valido,
+  messaggioErroreSalvataggioV1, type TentativoSalvataggioV1 } from '../engines/rapportini/salvataggioBozzaV1'
+import type { EsitoSalvataggioRapportino } from '../engines/rapportini/contrattoServizio'
 import RapportinoOperaiEditor from '../components/RapportinoOperaiEditor'
 import type { OperaioRapportinoInput } from '../types'
 import { preparaOperaiRapportino } from '../utils/rapportinoOperai'
@@ -27,6 +33,42 @@ type CantiereAccesso = {
 }
 
 export default function RapportinoOperaiPage() {
+  const [bozzaV1, setBozzaV1] = useState<BozzaRapportinoV1 | null>(null)
+  const tentativoV1 = useRef<TentativoSalvataggioV1 | null>(null)
+  const [retryV1, setRetryV1] = useState(false)
+  const [conflittoV1, setConflittoV1] = useState(false)
+  const conflittoV1Ref = useRef(false)
+  const [salvatoV1, setSalvatoV1] = useState<EsitoSalvataggioRapportino | null>(null)
+  const [riletturaV1Fallita, setRiletturaV1Fallita] = useState(false)
+  const [variantiBozza, setVariantiBozza] = useState<StatoVariantiBozza>({ cantiere_id: '', stato: 'non_caricate', varianti: [] })
+  const cacheVarianti = useRef<StatoVariantiBozza>({ cantiere_id: '', stato: 'non_caricate', varianti: [] })
+  const richiestaVarianti = useRef(0)
+  const invalidaVarianti = () => {
+    richiestaVarianti.current += 1
+    cacheVarianti.current = { cantiere_id: '', stato: 'non_caricate', varianti: [] }
+    setVariantiBozza(cacheVarianti.current)
+  }
+  const caricaVarianti = async (cantiere: string, riprova = false) => {
+    const cache = cacheVarianti.current
+    if (cache.cantiere_id === cantiere && (cache.stato === 'caricamento' || cache.stato === 'pronte' || (cache.stato === 'errore' && !riprova))) return
+    const richiesta = ++richiestaVarianti.current
+    cacheVarianti.current = { cantiere_id: cantiere, stato: 'caricamento', varianti: [] }
+    setVariantiBozza(cacheVarianti.current)
+    try {
+      const risposta = await fetch('/api/rapportino/varianti', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cantiere_id: cantiere }),
+      })
+      if (!risposta.ok) throw new Error('Caricamento non riuscito')
+      const varianti = validaRispostaVariantiBozza(await risposta.json())
+      if (richiesta !== richiestaVarianti.current) return
+      cacheVarianti.current = { cantiere_id: cantiere, stato: 'pronte', varianti }
+    } catch {
+      if (richiesta !== richiestaVarianti.current) return
+      cacheVarianti.current = { cantiere_id: cantiere, stato: 'errore', varianti: [] }
+    }
+    setVariantiBozza(cacheVarianti.current)
+  }
   const [pin, setPin] = useState('')
   const [operaio, setOperaio] = useState<OperaioAccesso | null>(null)
 const [fotoRapportino, setFotoRapportino] = useState<string[]>([])
@@ -47,7 +89,9 @@ const [timbratureRapportino, setTimbratureRapportino] = useState<any[]>([])
   richiesta: number
   data: string
   presente: boolean
+  versionePrestazioni: null | 0 | 1
   rapportinoId?: string
+  revisione?: number
 } | null>(null)
 const [dataRapportino, setDataRapportino] = useState('')
   const richiestaStato = useRef(0)
@@ -139,6 +183,13 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
   }
 
   const invalidaRapportino = () => {
+    tentativoV1.current = null
+    setRetryV1(false)
+    setConflittoV1(false)
+    conflittoV1Ref.current = false
+    setSalvatoV1(null)
+    setRiletturaV1Fallita(false)
+    setBozzaV1(null)
     richiestaStato.current += 1
     controlloInCorso.current = false
     setStatoInCorso(false)
@@ -178,15 +229,29 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
         setErrore('Data del Rapportino non coerente: ripeti il controllo')
         return
       }
+      const versione = risultato.versione_prestazioni
+      if (!((versione === null && risultato.presente === false && risultato.rapportino === null)
+        || ((versione === 0 || versione === 1) && risultato.presente === true && risultato.rapportino?.id))) {
+        setErrore('Stato del Rapportino non valido: ripeti il controllo')
+        return
+      }
+      if (versione === 1 && (!esitoCreazioneV1Valido(risultato.strutturato, { cantiere_id: cantiere.id, data: risultato.data,
+        rapportino_id: risultato.rapportino.id }) || risultato.strutturato.rapportino_id !== risultato.rapportino.id)) {
+        setErrore('Dettaglio strutturato non valido: ripeti il controllo')
+        return
+      }
+      setSalvatoV1(versione === 1 ? risultato.strutturato : null)
       setDataRapportino(risultato.data)
       setCantiereSelezionato(cantiere)
       setStatoRapportino({
         cantiereId: cantiere.id, richiesta, data: risultato.data,
         presente: Boolean(risultato.presente),
+        versionePrestazioni: versione,
         rapportinoId: risultato.rapportino?.id ? String(risultato.rapportino.id) : undefined,
+        revisione: versione === 1 ? risultato.strutturato.revisione : undefined,
       })
-      setRapportinoEsistente(risultato.rapportino || null)
-      setTimbratureRapportino(Array.isArray(risultato.timbrature) ? risultato.timbrature : [])
+      setRapportinoEsistente(versione === 0 ? risultato.rapportino : null)
+      setTimbratureRapportino(versione === 0 && Array.isArray(risultato.timbrature) ? risultato.timbrature : [])
     } catch {
       if (richiesta === richiestaStato.current) setErrore('Connessione non disponibile')
     } finally {
@@ -197,10 +262,134 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
     }
   }
 
+  const rileggiSalvatoV1 = async (salvato: EsitoSalvataggioRapportino, contesto: number) => {
+    if (contesto !== richiestaStato.current) return
+    controlloInCorso.current = true
+    setStatoInCorso(true)
+    setErrore('')
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30_000)
+    try {
+      const risposta = await fetch('/api/rapportino/stato', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cantiereId: salvato.cantiere_id, data: salvato.data, rapportinoId: salvato.rapportino_id }),
+        signal: controller.signal,
+      })
+      const risultato = await risposta.json()
+      if (contesto !== richiestaStato.current) return
+      if (!risposta.ok || risultato.presente !== true || risultato.versione_prestazioni !== 1
+        || risultato.data !== salvato.data || risultato.rapportino?.id !== salvato.rapportino_id
+        || risultato.rapportino?.data !== salvato.data || !Array.isArray(risultato.timbrature) || risultato.timbrature.length
+        || !esitoCreazioneV1Valido(risultato.strutturato, salvato)
+        || risultato.strutturato.rapportino_id !== salvato.rapportino_id
+        || risultato.strutturato.revisione < salvato.revisione) throw new Error('Rilettura non valida')
+      contesto = ++richiestaStato.current
+      tentativoV1.current = null
+      setRetryV1(false)
+      conflittoV1Ref.current = false
+      setConflittoV1(false)
+      setMostraForm(false)
+      setStatoRapportino({ cantiereId: salvato.cantiere_id, data: salvato.data, richiesta: contesto,
+        presente: true, versionePrestazioni: 1, rapportinoId: salvato.rapportino_id,
+        revisione: risultato.strutturato.revisione })
+      setSalvatoV1(risultato.strutturato)
+      setBozzaV1(ricostruisciBozzaRapportinoV1(risultato.strutturato))
+      setRiletturaV1Fallita(false)
+    } catch {
+      if (contesto !== richiestaStato.current) return
+      setRiletturaV1Fallita(true)
+      setErrore('Rapportino salvato. Impossibile aggiornare la visualizzazione. Ripeti il controllo.')
+    } finally {
+      clearTimeout(timeout)
+      if (contesto === richiestaStato.current) {
+        controlloInCorso.current = false
+        setStatoInCorso(false)
+      }
+    }
+  }
+
+  const salvaBozzaV1 = async (retry = false) => {
+    if (salvataggioInCorso.current || controlloInCorso.current || conflittoV1Ref.current || riletturaV1Fallita
+      || !operaio || !bozzaV1 || !statoRapportino || statoRapportino.versionePrestazioni === 0
+      || (statoRapportino.versionePrestazioni === null ? bozzaV1.rapportino_id !== null || statoRapportino.presente
+        : bozzaV1.rapportino_id !== statoRapportino.rapportinoId || bozzaV1.revisione_attesa !== statoRapportino.revisione)
+      || statoRapportino.richiesta !== richiestaStato.current
+      || statoRapportino.cantiereId !== cantiereId || cantiereSelezionato?.id !== cantiereId
+      || bozzaV1.cantiere_id !== cantiereId || bozzaV1.data !== dataRapportino
+      || statoRapportino.data !== dataRapportino) return
+    let tentativo = tentativoV1.current
+    if (retry) {
+      if (!tentativo || tentativo.cantiere_id !== cantiereId || tentativo.data !== dataRapportino) return
+    } else {
+      if (tentativo || !bozzaV1Salvabile(bozzaV1, cacheVarianti.current)
+        || bozzaV1.prestazioni.nuove.some(p => !operaiDisponibili.some(o => o.id === p.operaio_id))) return
+      tentativo = creaTentativoSalvataggioV1(bozzaV1, cacheVarianti.current, () => crypto.randomUUID())
+      tentativoV1.current = tentativo
+    }
+    const contesto = richiestaStato.current
+    salvataggioInCorso.current = true
+    setSalvataggioAttivo(true)
+    setRetryV1(false)
+    setErrore('')
+    setMessaggioSalvataggio('')
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30_000)
+    try {
+      const risposta = await fetch('/api/rapportino/strutturato', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: tentativo!.corpo, signal: controller.signal,
+      })
+      if (contesto !== richiestaStato.current) return
+      if (!risposta.ok) {
+        // Il writer sanitizza 22023 in HTTP 400: il cambio stato Variante non è distinguibile dagli altri input invalidi.
+        const economiaDaAggiornare = risposta.status === 400 && [...tentativo!.payload.prestazioni.nuove,
+          ...tentativo!.payload.prestazioni.aggiornate].some(p => p.lavoro_in_economia)
+        setErrore(messaggioErroreSalvataggioV1(risposta.status)
+          + (economiaDaAggiornare ? ' Per Economia aggiorna stato e varianti prima di riprovare.' : ''))
+        if (risposta.status === 409 || economiaDaAggiornare) {
+          conflittoV1Ref.current = true
+          setConflittoV1(true)
+          tentativoV1.current = null
+          invalidaVarianti()
+        } else if ([400, 401, 403].includes(risposta.status)) {
+          tentativoV1.current = null
+        } else setRetryV1(true)
+        return
+      }
+      const risultato: unknown = await risposta.json()
+      if (contesto !== richiestaStato.current) return
+      if (!esitoCreazioneV1Valido(risultato, { ...tentativo!, rapportino_id: tentativo!.payload.rapportino_id })
+        || (tentativo!.payload.revisione_attesa !== null && risultato.revisione < tentativo!.payload.revisione_attesa)) throw new Error('Risposta non valida')
+      clearTimeout(timeout)
+      // Il contesto confermato rende obsolete tutte le callback della bozza assente.
+      const contestoSalvato = ++richiestaStato.current
+      tentativoV1.current = null
+      setSalvatoV1(risultato)
+      setBozzaV1(null)
+      setMostraForm(false)
+      setStatoRapportino({ cantiereId: risultato.cantiere_id, data: risultato.data, richiesta: contestoSalvato,
+        presente: true, versionePrestazioni: 1, rapportinoId: risultato.rapportino_id, revisione: risultato.revisione })
+      setMessaggioSalvataggio('Rapportino del ' + dataLeggibile(risultato.data) + ' salvato')
+      await rileggiSalvatoV1(risultato, contestoSalvato)
+    } catch {
+      if (contesto !== richiestaStato.current) return
+      setErrore(messaggioErroreSalvataggioV1(503))
+      setRetryV1(true)
+    } finally {
+      clearTimeout(timeout)
+      salvataggioInCorso.current = false
+      setSalvataggioAttivo(false)
+    }
+  }
+
   const continua = async () => {
     if (!cantiereId || salvataggioInCorso.current) return
     const cantiere = cantieri.find(item => item.id === cantiereId)
     if (!cantiere) { setErrore('Cantiere non valido'); return }
+    if (salvatoV1 && !conflittoV1Ref.current && salvatoV1.cantiere_id === cantiereId && salvatoV1.data === dataRapportino) {
+      if (controlloInCorso.current || statoRapportino?.richiesta !== richiestaStato.current) return
+      await rileggiSalvatoV1(salvatoV1, statoRapportino.richiesta)
+      return
+    }
     setMessaggioSalvataggio('')
     setCantiereSelezionato(cantiere)
     await controllaRapportino(cantiere, dataRapportino)
@@ -217,6 +406,10 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
   }
 
 const salvaRapportinoPortale = async () => {
+  if (statoRapportino?.versionePrestazioni !== 0) {
+    setErrore('Rapportino strutturato presente: modifica mobile non ancora disponibile')
+    return
+  }
   if (salvataggioInCorso.current || controlloInCorso.current || statoInCorso
     || !statoRapportino || statoRapportino.data !== dataRapportino
     || statoRapportino.richiesta !== richiestaStato.current
@@ -313,6 +506,8 @@ try {
 }
 
   const esci = () => {
+    if (salvataggioInCorso.current) return
+    invalidaVarianti()
     invalidaRapportino()
     setMessaggioSalvataggio('')
     setOperaio(null)
@@ -458,6 +653,7 @@ setCostoMateriali('')
                 disabled={salvataggioAttivo}
                 onChange={(event) => {
                   if (salvataggioInCorso.current) return
+                  invalidaVarianti()
                   invalidaRapportino()
                   setCantiereId(event.target.value)
                   setCantiereSelezionato(null)
@@ -494,6 +690,11 @@ setCostoMateriali('')
                 style={{ display: 'block', width: '100%', marginTop: 6, padding: 12, boxSizing: 'border-box' }} />
             </label>
             {messaggioSalvataggio && <p role="status">{messaggioSalvataggio}</p>}
+            {riletturaV1Fallita && salvatoV1 && <button type="button" disabled={statoInCorso || salvataggioAttivo}
+              onClick={() => { if (!controlloInCorso.current && !salvataggioInCorso.current && statoRapportino?.richiesta === richiestaStato.current)
+                void rileggiSalvatoV1(salvatoV1, statoRapportino.richiesta) }}>
+              Ripeti controllo Rapportino
+            </button>}
            <button
   type="button"
   disabled={!cantiereId || statoInCorso || salvataggioAttivo}
@@ -535,7 +736,9 @@ setCostoMateriali('')
           : '#92400e',
       }}
     >
-      {statoRapportino.presente
+      {statoRapportino.versionePrestazioni === 1
+        ? 'Rapportino del ' + dataLeggibile(statoRapportino.data) + ' strutturato presente'
+        : statoRapportino.presente
         ? 'Rapportino del ' + dataLeggibile(statoRapportino.data) + ' già inviato'
         : 'Rapportino del ' + dataLeggibile(statoRapportino.data) + ' non ancora inviato'}
     </div>
@@ -544,8 +747,8 @@ setCostoMateriali('')
       <button
         type="button"
         onClick={() => {
-  setOperaiRapportino([])
-  setMessaggioApplicazioneOperai('')
+  setBozzaV1(corrente => corrente && corrente.cantiere_id === statoRapportino.cantiereId && corrente.data === statoRapportino.data
+    ? corrente : creaBozzaRapportinoV1(statoRapportino.cantiereId, statoRapportino.data))
   setMostraForm(true)
 }}
         style={{
@@ -568,13 +771,28 @@ setCostoMateriali('')
 )}
 
 {statoRapportino &&
+  statoRapportino.versionePrestazioni === 1 && salvatoV1 && !mostraForm && (
+  <button type="button" disabled={statoInCorso || salvataggioAttivo || riletturaV1Fallita}
+    onClick={() => {
+      if (controlloInCorso.current || salvataggioInCorso.current || riletturaV1Fallita
+        || statoRapportino.richiesta !== richiestaStato.current || salvatoV1.rapportino_id !== statoRapportino.rapportinoId) return
+      setBozzaV1(corrente => corrente?.rapportino_id === salvatoV1.rapportino_id && corrente.revisione_attesa === salvatoV1.revisione
+        ? corrente : ricostruisciBozzaRapportinoV1(salvatoV1))
+      setMostraForm(true)
+      void caricaVarianti(statoRapportino.cantiereId)
+    }} style={{ minHeight: 44, padding: 12 }}>
+    Apri / Modifica
+  </button>
+)}
+{statoRapportino &&
   statoRapportino.presente &&
+  statoRapportino.versionePrestazioni === 0 &&
   statoRapportino.rapportinoId &&
   !mostraForm && (
     <button
       type="button"
      onClick={() => {
-  if (!rapportinoEsistente) return
+  if (!rapportinoEsistente || statoRapportino.versionePrestazioni !== 0) return
 
   setNote(String(rapportinoEsistente.note || ''))
   setMateriali(String(rapportinoEsistente.materiali || ''))
@@ -626,9 +844,36 @@ setOperaiRapportino(operaiRicostruiti)
     </button>
   )}
 
+{mostraForm && cantiereSelezionato && statoRapportino && statoRapportino.versionePrestazioni !== 0 && bozzaV1 && (
+  <RapportinoPrestazioniEditorV1 bozza={bozzaV1} operai={operaiDisponibili}
+    disabled={statoInCorso || salvataggioAttivo}
+    salvataggioInCorso={salvataggioAttivo}
+    salvabile={!conflittoV1 && !riletturaV1Fallita && bozzaV1Salvabile(bozzaV1, variantiBozza)
+      && bozzaV1.prestazioni.nuove.every(p => operaiDisponibili.some(o => o.id === p.operaio_id))}
+    retryDisponibile={retryV1}
+    onSalva={() => { void salvaBozzaV1() }}
+    onRetry={() => { void salvaBozzaV1(true) }}
+    varianti={variantiBozza}
+    onRiprovaVarianti={() => {
+      if (!salvataggioInCorso.current && !controlloInCorso.current && richiestaStato.current === statoRapportino.richiesta)
+        void caricaVarianti(statoRapportino.cantiereId, true)
+    }}
+    onChange={nuova => {
+      if (salvataggioInCorso.current || controlloInCorso.current || richiestaStato.current !== statoRapportino.richiesta
+        || nuova.cantiere_id !== statoRapportino.cantiereId || nuova.data !== statoRapportino.data) return
+      tentativoV1.current = null
+      setRetryV1(false)
+      setBozzaV1(nuova)
+      if (!conflittoV1Ref.current && nuova.prestazioni.nuove.some(p => p.lavoro_in_economia)) void caricaVarianti(nuova.cantiere_id)
+    }} onClose={() => { if (!salvataggioInCorso.current) setMostraForm(false) }} />
+)}
+{conflittoV1 && <button type="button" disabled={statoInCorso || salvataggioAttivo}
+  onClick={() => { if (!salvataggioInCorso.current && !controlloInCorso.current) void continua() }}>
+  Aggiorna stato e varianti
+</button>}
 {mostraForm &&
   cantiereSelezionato &&
-  statoRapportino && (
+  statoRapportino && statoRapportino.versionePrestazioni === 0 && (
     <section
       style={{
         display: 'grid',

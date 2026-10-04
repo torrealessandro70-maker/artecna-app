@@ -8,6 +8,7 @@ const invocazioni = {
   verifica_sessione_rapportino: { sql: 'public.verifica_sessione_rapportino($1::text,$2::uuid)', parametri: ['p_sessione', 'p_cantiere_id'] },
   varianti_rapportino_portale: { sql: 'public.varianti_rapportino_portale($1::text,$2::uuid)', parametri: ['p_sessione', 'p_cantiere_id'] },
   salva_rapportino_con_prestazioni: { sql: 'public.salva_rapportino_con_prestazioni($1::jsonb,$2::text)', parametri: ['p_payload', 'p_sessione'] },
+  leggi_rapportino_portale: { sql: 'public.leggi_rapportino_portale($1::text,$2::uuid,$3::date,$4::uuid)', parametri: ['p_sessione', 'p_cantiere_id', 'p_data', 'p_rapportino_id'] },
 } as const
 export type RpcPortaleRapportini = keyof typeof invocazioni
 let pool: Pool | undefined
@@ -86,7 +87,7 @@ export async function rpcPortalePostgres(nome: RpcPortaleRapportini, argomenti: 
   let fase: FaseDiagnostica = 'inizio'
   const avanza = (valore: FaseDiagnostica) => { fase = valore }
   try {
-    const invocazione = invocazioni[nome]
+    const invocazione = Object.prototype.hasOwnProperty.call(invocazioni, nome) ? invocazioni[nome] : undefined
     if (!invocazione) throw new Error('RPC portale non autorizzata')
     const values = invocazione.parametri.map(key => key === 'p_payload' ? JSON.stringify(argomenti[key]) : argomenti[key])
     // Anche la prova pooler è fail-closed: nessun RPC se il LOGIN effettivo o
@@ -109,6 +110,9 @@ export async function rpcPortalePostgres(nome: RpcPortaleRapportini, argomenti: 
       const controlli = c ? ` protocollo_ok=${c.protocollo_ok} host_ok=${c.host_ok} porta_ok=${c.porta_ok} database_ok=${c.database_ok} username_ok=${c.username_ok} password_presente=${c.password_presente} query_ok=${c.query_ok} fragment_ok=${c.fragment_ok}` : ''
       console.error(`[RAPPORTINI_DB_DIAG] fase=${fase} categoria=${categoriaDiagnostica(error, fase)}${controlli}`)
     } catch { /* La diagnostica non deve alterare la risposta. */ }
+    if (nome === 'leggi_rapportino_portale' && error instanceof DatabaseError && error.code === 'PR401') {
+      return { data: null, error: { code: 'PR401', message: 'Sessione portale assente, scaduta o revocata' } }
+    }
     if (error instanceof DatabaseError && error.code &&
       ['42501', 'PR409', 'PR412', '22023', '22P02', '22007', '22008', '23514', '23503', 'PR403'].includes(error.code)) {
       // Messaggi statici: mai detail, hint, query, URL, password o errore driver.

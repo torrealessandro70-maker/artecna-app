@@ -1,119 +1,73 @@
 import { NextResponse } from 'next/server'
-import { ErroreServizioRapportini, verificaSessioneRapportino, verificaOrigineRapportino } from '../../../engines/rapportini/servizioRapportini.server'
-// Lettura LEGACY: nessuna ricostruzione delle prestazioni persistenti.
 import { createClient } from '@supabase/supabase-js'
+import { ErroreServizioRapportini, verificaOrigineRapportino } from '../../../engines/rapportini/servizioRapportini.server'
+import { leggiStatoRapportinoPortale } from '../../../engines/rapportini/servizioLetturaPortale.server'
+import type { StatoRapportinoPortale, TimbraturaStatoLegacy } from '../../../engines/rapportini/contrattoLetturaPortale'
+
+const risposta = (body: StatoRapportinoPortale | { error: string }, status = 200) =>
+  NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
 
 export async function POST(req: Request) {
   try {
     verificaOrigineRapportino(req)
-    const body = await req.json()
-    const cantiereId = String(body?.cantiereId || '').trim()
-const dataRichiesta = String(body?.data || '').trim()
-
-    if (!cantiereId) {
-      return NextResponse.json(
-        { error: 'Cantiere non valido' },
-        { status: 400 }
-      )
+    let body
+    try { body = await req.json() } catch {
+      return risposta({ error: 'Richiesta non valida' }, 400)
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return risposta({ error: 'Richiesta non valida' }, 400)
+    }
+    // Conserva il fallback esistente soltanto quando la data è omessa/vuota.
+    const dataRichiesta = typeof body.data === 'string' ? body.data.trim() : body.data
+    const lettura = await leggiStatoRapportinoPortale(req, {
+      cantiere_id: body.cantiereId,
+      data: dataRichiesta == null || dataRichiesta === '' ? new Date().toISOString().slice(0, 10) : dataRichiesta,
+      rapportino_id: body.rapportinoId,
+    })
+    if (lettura.versione_prestazioni === null) {
+      return risposta({ data: lettura.data, presente: false, versione_prestazioni: null, rapportino: null, timbrature: [] })
+    }
+    if (lettura.versione_prestazioni === 1) {
+      return risposta({
+        data: lettura.data, presente: true, versione_prestazioni: 1,
+        rapportino: { id: lettura.rapportino_id, data: lettura.data },
+        strutturato: lettura.dettaglio, timbrature: [],
+      })
     }
 
-    await verificaSessioneRapportino(req, cantiereId)
+    // Soltanto V0: il riferimento è deciso dalla RPC, mai da una query legacy.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json(
-        { error: 'Configurazione Supabase non disponibile' },
-        { status: 500 }
-      )
-    }
-
+    if (!supabaseUrl || !supabaseKey) return risposta({ error: 'Configurazione Supabase non disponibile' }, 503)
     const supabase = createClient(supabaseUrl, supabaseKey)
-
-    const oggi = new Date().toISOString().slice(0, 10)
-const dataRapportino = dataRichiesta || oggi
-
-    const { data, error } = await supabase
-      .from('rapportini')
-      .select(
-  'id,data,created_at,note,operai,ore,materiali,quantita_materiali,versione_prestazioni'
-)
-      .eq('cantiere_id', cantiereId)
-      .eq('data', dataRapportino)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (error) {
-      console.error(
-        'Errore controllo stato rapportino:',
-        error.message
-      )
-
-      return NextResponse.json(
-        { error: 'Stato rapportino non disponibile' },
-        { status: 500 }
-      )
+    const { data: rapportino, error } = await supabase.from('rapportini')
+      .select('id,cantiere_id,data,created_at,note,operai,ore,materiali,quantita_materiali,versione_prestazioni')
+      .eq('id', lettura.rapportino_id)
+      .eq('cantiere_id', lettura.cantiere_id)
+      .eq('data', lettura.data)
+      .eq('versione_prestazioni', 0)
+      .maybeSingle()
+    if (error) return risposta({ error: 'Stato rapportino non disponibile' }, 503)
+    if (!rapportino || rapportino.id !== lettura.rapportino_id || rapportino.cantiere_id !== lettura.cantiere_id
+      || rapportino.data !== lettura.data || rapportino.versione_prestazioni !== 0) {
+      return risposta({ error: 'UUID o contesto Rapportino incoerente: ripeti il controllo' }, 409)
     }
-
-    const rapportino = data?.[0] || null
-if (rapportino && rapportino.versione_prestazioni !== 0) {
-  return NextResponse.json({ error: 'Rapportino strutturato: usare il servizio unico' }, { status: 409 })
-}
-let timbrature: Array<{
-operaio_id?: string | null
-  operaio_nome: string
-  ora_entrata?: string | null
-  ora_uscita?: string | null
-}> = []
-
-if (rapportino) {
-  const { data: timbratureData, error: erroreTimbrature } =
-  await supabase
-    .from('timbrature')
-    .select('operaio_id,operaio_nome,ora_entrata,ora_uscita')
-    .eq('rapportino_id', rapportino.id)
-    .eq('stato', 'da rapportino')
-
-  if (erroreTimbrature) {
-    console.error(
-      'Errore caricamento timbrature rapportino:',
-      erroreTimbrature.message
-    )
-
-    return NextResponse.json(
-      { error: 'Timbrature rapportino non disponibili' },
-      { status: 500 }
-    )
-  }
-
-  timbrature = timbratureData || []
-}
-
-    return NextResponse.json({
-  data: dataRapportino,
-  presente: Boolean(rapportino),
-  rapportino: rapportino
-    ? {
-        id: rapportino.id,
-        data: rapportino.data,
-        created_at: rapportino.created_at,
-        note: rapportino.note || '',
-        operai: rapportino.operai || '',
-        ore: rapportino.ore || '',
-        materiali: rapportino.materiali || '',
-        quantita_materiali: rapportino.quantita_materiali || '',
-      }
-    : null,
-
-  timbrature,
-})
+    const { data: timbrature, error: erroreTimbrature } = await supabase.from('timbrature')
+      .select('operaio_id,operaio_nome,ora_entrata,ora_uscita')
+      .eq('rapportino_id', lettura.rapportino_id)
+      .eq('stato', 'da rapportino')
+    if (erroreTimbrature) return risposta({ error: 'Timbrature rapportino non disponibili' }, 503)
+    return risposta({
+      data: lettura.data, presente: true, versione_prestazioni: 0,
+      rapportino: {
+        id: rapportino.id, data: rapportino.data, created_at: rapportino.created_at ?? null,
+        note: rapportino.note || '', operai: rapportino.operai || '', ore: rapportino.ore || '',
+        materiali: rapportino.materiali || '', quantita_materiali: rapportino.quantita_materiali || '',
+      },
+      timbrature: (timbrature || []) as TimbraturaStatoLegacy[],
+    })
   } catch (error) {
-    if (error instanceof ErroreServizioRapportini) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error('Errore richiesta stato rapportino:', error)
-
-    return NextResponse.json(
-      { error: 'Richiesta non valida' },
-      { status: 400 }
-    )
+    if (error instanceof ErroreServizioRapportini) return risposta({ error: error.message }, error.status)
+    return risposta({ error: 'Servizio stato Rapportini non disponibile' }, 503)
   }
 }

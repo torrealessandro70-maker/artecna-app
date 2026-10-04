@@ -24,7 +24,8 @@ function harness({rpcTransport,pgTransport,legacyTransport,logSink=console}={}) 
       ? accesso.operaio : name==='varianti_rapportino_portale' ? [] : {rapportino_id:'report'}}
   }}
   const signatures={crea_sessione_rapportino:['p_pin','p_token'],verifica_sessione_rapportino:['p_sessione','p_cantiere_id'],
-    varianti_rapportino_portale:['p_sessione','p_cantiere_id'],salva_rapportino_con_prestazioni:['p_payload','p_sessione']}
+    varianti_rapportino_portale:['p_sessione','p_cantiere_id'],salva_rapportino_con_prestazioni:['p_payload','p_sessione'],
+    leggi_rapportino_portale:['p_sessione','p_cantiere_id','p_data','p_rapportino_id']}
   const adapter=load('app/engines/rapportini/adapterPortalePostgres.server.ts',name=>{
     if(name==='server-only') return {}
     if(name==='./caSupabase.server') return caExports
@@ -61,6 +62,7 @@ function harness({rpcTransport,pgTransport,legacyTransport,logSink=console}={}) 
     return require(name)
   })
   const route=relative=>load(relative,name=>{
+    if(name.includes('servizioLetturaPortale.server')) return letturaService
     if(name.includes('servizioRapportini.server')) return service
     if(name.includes('photo-storage/photo-manager')) return {buildPhotoRecordsWithStorage:()=>{throw Error('Foto non previste dal test')}}
     if(name==='@supabase/supabase-js') return {createClient:()=>{
@@ -69,11 +71,150 @@ function harness({rpcTransport,pgTransport,legacyTransport,logSink=console}={}) 
     }}
     return require(name)
   })
-  return {service,adapter,route,calls,env,accesso}
+  const validator=load('app/engines/rapportini/validaLetturaPortale.ts',()=>{throw Error('Nessun import runtime nel validatore')})
+  const reader=load('app/engines/rapportini/letturaRapportinoPortale.server.ts',name=>{
+    if(name==='server-only') return {}
+    if(name==='./adapterPortalePostgres.server') return adapter
+    if(name==='./servizioRapportini.server') return service
+    if(name==='./validaLetturaPortale') return validator
+    throw Error('Import lettura inatteso')
+  })
+  const letturaService=load('app/engines/rapportini/servizioLetturaPortale.server.ts',name=>{
+    if(name==='server-only') return {}
+    if(name==='./letturaRapportinoPortale.server') return reader
+    if(name==='./servizioRapportini.server') return service
+    if(name==='./validaLetturaPortale') return validator
+    throw Error('Import servizio lettura inatteso')
+  })
+  return {service,adapter,reader,validator,route,calls,env,accesso}
 }
 const token='ab'.repeat(32)
+const contestoLettura={cantiere_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',data:'2026-10-04'}
+const idLettura='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+function rispostaLettura(versione=null) {
+  const envelope={versione_lettura:1,...contestoLettura,presente:versione!==null,
+    versione_prestazioni:versione,rapportino_id:versione===null ? null : idLettura,dettaglio:null}
+  if(versione===1) envelope.dettaglio={versione_contratto:1,rapportino_id:idLettura,revisione:2,
+    ...contestoLettura,documento:{note:'Lavoro',materiali:'',quantita_materiali:''},prestazioni:[
+      {prestazione_id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',chiave_client:'p1',
+        operaio_id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd',operaio_nome:'Mario',
+        ora_inizio:'08:00',ora_fine:'13:00',pausa_minuti:30,lavoro_in_economia:true,
+        variante_id:null,ore:4.5,revisione:1,rimossa_at:null},
+      {prestazione_id:'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',chiave_client:'p2',
+        operaio_id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd',operaio_nome:'Mario',
+        ora_inizio:'14:00',ora_fine:'16:00',pausa_minuti:0,lavoro_in_economia:false,
+        variante_id:null,ore:2,revisione:1,rimossa_at:'2026-10-04T15:00:00+02:00'}]}
+  return envelope
+}
 const request=(headers={},body={})=>new Request('https://app.example/api/rapportino/strutturato',{
   method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(body)
+})
+
+for(const versione of [null,0,1]) test(`lettura server: JSON ${versione===null ? 'assente' : `V${versione}`} e quinta RPC parametrizzata`,async()=>{
+  const data=rispostaLettura(versione)
+  const h=harness({rpcTransport:async()=>({data,error:null})})
+  const req=request({cookie:`artecna_rapportino_sessione=${token}`})
+  const result=await h.reader.leggiRapportinoPortale(req,contestoLettura)
+  assert.deepEqual(result,data)
+  const invocation=h.calls.find(x=>x.name==='leggi_rapportino_portale')
+  assert.deepEqual(JSON.parse(JSON.stringify(invocation.args)),{p_sessione:token,
+    p_cantiere_id:contestoLettura.cantiere_id,p_data:contestoLettura.data,p_rapportino_id:null})
+  assert.equal(invocation.transport,'pg')
+  assert.match(invocation.query.text,/public\.leggi_rapportino_portale\(\$1::text,\$2::uuid,\$3::date,\$4::uuid\)/)
+  assert.match(invocation.query.text,/session_user = 'artecna_rapportini_backend' AND current_user = 'artecna_rapportini_backend'/)
+  assert.equal(invocation.query.name,undefined)
+})
+
+test('lettura adapter: nomi arbitrari e proprietà del prototipo negati prima del pool',async()=>{
+  const h=harness({logSink:{error:()=>{}}})
+  for(const name of ['rpc_non_permessa','constructor','toString','__proto__']) {
+    await assert.rejects(()=>h.adapter.rpcPortalePostgres(name,{}),/Connessione servizio Rapportini non disponibile/)
+  }
+  assert.equal(h.calls.length,0)
+})
+
+for(const [code,status] of [['PR401',401],['42501',403],['PR409',409],['22023',400]]) {
+  test(`lettura server: ${code} → ${status}, diagnostica senza segreti`,async()=>{
+    const logs=[]
+    const secret=`${token} https://secret.invalid password payload SQL SELECT`
+    const h=harness({logSink:{error:(...x)=>logs.push(x)},pgTransport:async()=>{
+      const error=new (require('pg').DatabaseError)(secret,0,'error')
+      Object.assign(error,{code,detail:secret,hint:secret,query:secret})
+      throw error
+    }})
+    await assert.rejects(()=>h.reader.leggiRapportinoPortale(request({cookie:`artecna_rapportino_sessione=${token}`}),contestoLettura),
+      e=>e.status===status && e.code===code && !e.message.includes(secret))
+    assert.deepEqual(logs,[['[RAPPORTINI_DB_DIAG] fase=connessione_avviata categoria=postgres']])
+  })
+}
+
+test('lettura server: trasporto/identità/configurazione → 503 sanitizzato',async()=>{
+  for(const failure of ['transport','identity','config']) {
+    const logs=[]
+    const secret=`${token} password https://secret.invalid payload SQL`
+    const h=harness({logSink:{error:(...x)=>logs.push(x)},pgTransport:async()=>{
+      if(failure==='identity') return {rows:[]}
+      throw new Error(secret)
+    }})
+    if(failure==='config') delete h.env.RAPPORTINI_DATABASE_URL
+    await assert.rejects(()=>h.reader.leggiRapportinoPortale(request({cookie:`artecna_rapportino_sessione=${token}`}),contestoLettura),
+      e=>e.status===503 && e.code==='TRANSPORT' && !e.message.includes(secret))
+    assert(!JSON.stringify(logs).includes(token)); assert(!JSON.stringify(logs).includes('secret.invalid'))
+    assert(!JSON.stringify(logs).includes('password'))
+    assert.equal(logs.length,1)
+    assert(!h.calls.some(x=>x.transport==='postgrest'))
+  }
+})
+
+test('lettura server: sessione/input/origine invalidi non contattano DB',async()=>{
+  const h=harness()
+  const authenticated=request({cookie:`artecna_rapportino_sessione=${token}`})
+  await assert.rejects(()=>h.reader.leggiRapportinoPortale(request(),contestoLettura),e=>e.status===401 && e.code==='PR401')
+  for(const patch of [{cantiere_id:'invalid'},{data:'2026-02-30'},{data:'infinity'},{rapportino_id:'invalid'}]) {
+    await assert.rejects(()=>h.reader.leggiRapportinoPortale(authenticated,{...contestoLettura,...patch}),e=>e.status===400)
+  }
+  await assert.rejects(()=>h.reader.leggiRapportinoPortale(request({origin:'https://external.invalid',
+    cookie:`artecna_rapportino_sessione=${token}`}),contestoLettura),e=>e.status===403)
+  assert.equal(h.calls.length,0)
+})
+
+test('lettura server: UUID atteso validato e inoltrato',async()=>{
+  const h=harness({rpcTransport:async()=>({data:rispostaLettura(1),error:null})})
+  const req=request({cookie:`artecna_rapportino_sessione=${token}`})
+  await h.reader.leggiRapportinoPortale(req,{...contestoLettura,rapportino_id:idLettura.toUpperCase()})
+  assert.equal(h.calls.find(x=>x.name==='leggi_rapportino_portale').args.p_rapportino_id,idLettura.toUpperCase())
+  await assert.rejects(()=>h.reader.leggiRapportinoPortale(req,{...contestoLettura,rapportino_id:contestoLettura.cantiere_id}),
+    e=>e.status===503 && e.code==='RISPOSTA')
+})
+
+test('lettura server: discriminanti, contesto, righe e campi extra incoerenti rifiutati',async()=>{
+  const mutations=[
+    x=>{x.versione_lettura=2},x=>{x.presente=false},x=>{x.versione_prestazioni=2},
+    x=>{x.versione_prestazioni=0},x=>{x.rapportino_id=null},x=>{x.data='2026-10-03'},
+    x=>{x.cantiere_id=idLettura},x=>{x.dettaglio.rapportino_id=contestoLettura.cantiere_id},
+    x=>{x.dettaglio.cantiere_id=idLettura},x=>{x.dettaglio.data='2026-10-03'},
+    x=>{x.dettaglio.revisione=-1},x=>{x.dettaglio.documento.note=null},
+    x=>{x.dettaglio.prestazioni[0].prestazione_id=null},x=>{x.dettaglio.prestazioni[0].ore='4.5'},
+    x=>{x.dettaglio.prestazioni[0].ora_fine='07:00'},x=>{x.dettaglio.prestazioni[0].pausa_minuti=0.5},
+    x=>{x.dettaglio.prestazioni[1].chiave_client='p1'},
+    x=>{x.dettaglio.prestazioni[1].prestazione_id=x.dettaglio.prestazioni[0].prestazione_id},
+    x=>{x.dettaglio.prestazioni[1].variante_id=idLettura},
+    x=>{x.dettaglio.prestazioni[1].rimossa_at='invalid'},
+    x=>{x.costo_manodopera=100},x=>{x.dettaglio.created_at='secret'},
+    x=>{x.dettaglio.prestazioni[0].costo_orario_interno_storico=20},
+    x=>{x.dettaglio.prestazioni[0].stato_economia='economia_gia_inserita'},
+    x=>{x.dettaglio.prestazioni[0].tariffa_cliente=30},
+  ]
+  for(const mutate of mutations) {
+    const data=rispostaLettura(1); mutate(data)
+    const h=harness({rpcTransport:async()=>({data,error:null})})
+    await assert.rejects(()=>h.reader.leggiRapportinoPortale(request({cookie:`artecna_rapportino_sessione=${token}`}),contestoLettura),
+      e=>e.status===503 && e.code==='RISPOSTA')
+  }
+  for(const data of [null,[],{...rispostaLettura(),presente:true},{...rispostaLettura(0),dettaglio:{}},
+    {...rispostaLettura(),token:'secret'}]) {
+    assert.equal(harness().validator.letturaPortaleValida(data,contestoLettura),false)
+  }
 })
 
 test('server: sessione assente blocca prima di contattare Supabase',async()=>{
@@ -111,10 +252,126 @@ test('accesso HTTP: risposta legacy compatibile e token solo nel cookie HttpOnly
   assert(!JSON.stringify(h.accesso).includes(login.args.p_token))
   assert.equal(response.headers.get('cache-control'),'no-store')
 })
+test('/stato: assente e V1 non interrogano tabelle legacy; no-store',async()=>{
+  for(const versione of [null,1]) {
+    const data=rispostaLettura(versione)
+    if(versione===1) data.dettaglio.prestazioni.push({...data.dettaglio.prestazioni[0],
+      prestazione_id:'ffffffff-ffff-4fff-8fff-ffffffffffff',chiave_client:'p3',variante_id:idLettura})
+    const h=harness({rpcTransport:async(name)=>{assert.equal(name,'leggi_rapportino_portale');return{data,error:null}}})
+    const response=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie:`artecna_rapportino_sessione=${token}`},
+      {cantiereId:contestoLettura.cantiere_id,data:contestoLettura.data}))
+    assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store')
+    const body=await response.json()
+    assert.equal(body.versione_prestazioni,versione);assert.deepEqual(body.timbrature,[])
+    assert.equal(h.calls.filter(x=>x.name==='leggi_rapportino_portale').length,1)
+    assert(!h.calls.some(x=>x.transport==='postgrest'))
+    if(versione===1) {
+      assert.deepEqual(body.strutturato,data.dettaglio)
+      assert.deepEqual(body.rapportino,{id:idLettura,data:contestoLettura.data})
+    } else assert.equal(body.rapportino,null)
+  }
+})
+
+function legacyStatoMock({row,clocks=[],error=null,clockError=null,fail=null}) {
+  const queries=[]
+  return {queries,from(table){
+    const query={table,filters:[]};queries.push(query)
+    const execute=async()=>{
+      if(fail) throw new Error(fail)
+      return table==='rapportini'?{data:row,error}:{data:clocks,error:clockError}
+    }
+    const builder={select(columns){query.columns=columns;return builder},eq(key,value){query.filters.push([key,value]);return builder},
+      maybeSingle:execute,then(resolve,reject){return execute().then(resolve,reject)}}
+    return builder
+  }}
+}
+
+test('/stato: V0 usa esattamente UUID RPC, cantiere, data; campi e timbrature legacy conservati',async()=>{
+  const data=rispostaLettura(0)
+  const row={id:idLettura,cantiere_id:contestoLettura.cantiere_id,data:contestoLettura.data,versione_prestazioni:0,
+    created_at:'2026-10-04T10:00:00Z',note:'Legacy',operai:'Mario',ore:'5',materiali:'Cemento',quantita_materiali:'3'}
+  const clocks=[{operaio_id:'worker',operaio_nome:'Mario',ora_entrata:'08:00',ora_uscita:'13:00'}]
+  const legacy=legacyStatoMock({row,clocks})
+  const h=harness({rpcTransport:async()=>({data,error:null}),legacyTransport:legacy})
+  const response=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie:`artecna_rapportino_sessione=${token}`},
+    {cantiereId:contestoLettura.cantiere_id,data:contestoLettura.data,rapportinoId:idLettura}))
+  assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store')
+  const body=await response.json()
+  const {cantiere_id,versione_prestazioni,...expected}=row
+  assert.deepEqual(body,{data:contestoLettura.data,presente:true,versione_prestazioni:0,rapportino:expected,timbrature:clocks})
+  assert.deepEqual(legacy.queries[0].filters,[['id',idLettura],['cantiere_id',contestoLettura.cantiere_id],
+    ['data',contestoLettura.data],['versione_prestazioni',0]])
+  assert.deepEqual(legacy.queries[1].filters,[['rapportino_id',idLettura],['stato','da rapportino']])
+})
+
+test('/stato: incoerenza V0 dopo RPC → 409 senza selezionare un altro UUID',async()=>{
+  for(const row of [null,{id:idLettura,cantiere_id:contestoLettura.cantiere_id,data:'2026-09-30',versione_prestazioni:0},
+    {id:contestoLettura.cantiere_id,cantiere_id:contestoLettura.cantiere_id,data:contestoLettura.data,versione_prestazioni:0},
+    {id:idLettura,cantiere_id:contestoLettura.cantiere_id,data:contestoLettura.data,versione_prestazioni:1}]) {
+    const legacy=legacyStatoMock({row})
+    const h=harness({rpcTransport:async()=>({data:rispostaLettura(0),error:null}),legacyTransport:legacy})
+    const response=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie:`artecna_rapportino_sessione=${token}`},
+      {cantiereId:contestoLettura.cantiere_id,data:contestoLettura.data}))
+    assert.equal(response.status,409);assert.equal(response.headers.get('cache-control'),'no-store')
+    assert.equal(legacy.queries.length,1)
+  }
+})
+
+for(const [code,status] of [['PR401',401],['42501',403],['PR409',409],['22023',400]]) {
+  test(`/stato: ${code} → ${status}, no-store e messaggio sanitizzato`,async()=>{
+    const logs=[],secret=`${token} https://secret.invalid password payload SQL SELECT`
+    const h=harness({rpcTransport:async()=>({data:null,error:{code,message:secret}}),logSink:{error:(...x)=>logs.push(x)}})
+    const response=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie:`artecna_rapportino_sessione=${token}`},
+      {cantiereId:contestoLettura.cantiere_id,data:contestoLettura.data,rapportinoId:idLettura}))
+    assert.equal(response.status,status);assert.equal(response.headers.get('cache-control'),'no-store')
+    assert(!JSON.stringify(await response.json()).includes(secret));assert(!JSON.stringify(logs).includes(token))
+  })
+}
+
+test('/stato: 503 trasporto/JSON invalido/legacy, nessun log grezzo',async()=>{
+  const secret=`${token} https://secret.invalid password payload SQL SELECT`
+  const row={id:idLettura,cantiere_id:contestoLettura.cantiere_id,data:contestoLettura.data,versione_prestazioni:0}
+  for(const options of [
+    {rpcTransport:async()=>{throw new Error(secret)}},
+    {rpcTransport:async()=>({data:{...rispostaLettura(1),presente:false},error:null})},
+    {rpcTransport:async()=>({data:rispostaLettura(0),error:null}),legacyTransport:legacyStatoMock({row,error:{message:secret}})},
+    {rpcTransport:async()=>({data:rispostaLettura(0),error:null}),legacyTransport:legacyStatoMock({row,clockError:{message:secret}})},
+    {rpcTransport:async()=>({data:rispostaLettura(0),error:null}),legacyTransport:legacyStatoMock({row,fail:secret})},
+  ]) {
+    const logs=[],h=harness({...options,logSink:{error:(...x)=>logs.push(x)}})
+    const response=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie:`artecna_rapportino_sessione=${token}`},
+      {cantiereId:contestoLettura.cantiere_id,data:contestoLettura.data}))
+    assert.equal(response.status,503);assert.equal(response.headers.get('cache-control'),'no-store')
+    assert(!JSON.stringify(await response.json()).includes(secret));assert(!JSON.stringify(logs).includes('secret.invalid'))
+  }
+})
+
+test('/stato: input/sessione/body invalidi no-store; fallback data esistente e data esplicita preservati',async()=>{
+  const h=harness({rpcTransport:async(name,args)=>({data:{...rispostaLettura(),data:args.p_data},error:null})})
+  const route=h.route('app/api/rapportino/stato/route.ts')
+  const cookie=`artecna_rapportino_sessione=${token}`
+  const missing=await route.POST(request({}, {cantiereId:contestoLettura.cantiere_id,data:contestoLettura.data}))
+  assert.equal(missing.status,401);assert.equal(missing.headers.get('cache-control'),'no-store')
+  for(const body of [null,[],{cantiereId:'invalid',data:'2026-09-30'},
+    {cantiereId:contestoLettura.cantiere_id,data:'2026-02-30'}]) {
+    const res=await route.POST(request({cookie},body));assert.equal(res.status,400);assert.equal(res.headers.get('cache-control'),'no-store')
+  }
+  const malformed=await route.POST(new Request('https://app.example/api/rapportino/stato',{method:'POST',body:'{',headers:{cookie}}))
+  assert.equal(malformed.status,400);assert.equal(malformed.headers.get('cache-control'),'no-store')
+  for(const data of [undefined,'',' 2026-09-30 ']) {
+    const before=new Date().toISOString().slice(0,10)
+    const res=await route.POST(request({cookie},{cantiereId:contestoLettura.cantiere_id,data}))
+    assert.equal(res.status,200)
+    const actual=(await res.json()).data
+    if(data?.trim()) assert.equal(actual,'2026-09-30')
+    else assert([before,new Date().toISOString().slice(0,10)].includes(actual))
+  }
+})
+
 test('legacy stato/salva richiedono sessione e non usano ID compilatore browser',async()=>{
   const h=harness()
   for(const routeName of ['stato','salva']) {
-    const response=await h.route(`app/api/rapportino/${routeName}/route.ts`).POST(request({}, {cantiereId:'site',data:'2026-10-03',compilatoDaOperaioId:'forged'}))
+    const response=await h.route(`app/api/rapportino/${routeName}/route.ts`).POST(request({}, {cantiereId:contestoLettura.cantiere_id,data:'2026-10-03',compilatoDaOperaioId:'forged'}))
     assert.equal(response.status,401)
   }
   assert.equal(h.calls.length,0)
@@ -212,7 +469,7 @@ test('errore trasporto con dettagli sensibili non raggiunge risposta o log legac
   const h=harness({rpcTransport:async()=>{throw {message:'transport failed',headers:{Authorization:'Bearer test_server'}}},
     logSink:{error:(...args)=>logs.push(args)}})
   const response=await h.route('app/api/rapportino/stato/route.ts').POST(request(
-    {cookie:`artecna_rapportino_sessione=${token}`},{cantiereId:'site'}))
+    {cookie:`artecna_rapportino_sessione=${token}`},{cantiereId:contestoLettura.cantiere_id}))
   assert.deepEqual(logs, [['[RAPPORTINI_DB_DIAG] fase=connessione_avviata categoria=sconosciuto']])
   assert.equal(response.status,503)
   assert(!JSON.stringify(await response.json()).includes('test_server'))
@@ -362,6 +619,7 @@ test('E2E reale isolato: login → cookie → verifica → save/retry → legacy
     const storica=(await q('SELECT to_jsonb(t) v FROM public.timbrature t WHERE id=$1',[OP]))[0].v
     await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20261003_rapportino_servizio_step3.sql'),'utf8'))
     await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20261003_rapportino_backend_pooler.sql'),'utf8'))
+    await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20261004_rapportino_lettura_portale.sql'),'utf8'))
     const h=harness({pgTransport,legacyTransport,logSink:{error:(...x)=>logs.push(x),log:(...x)=>logs.push(x)}})
     const accesso=await h.route('app/api/rapportino/accesso/route.ts').POST(request({origin:'https://app.example'},{pin:'1234'}))
     assert.equal(accesso.status,200)
@@ -408,6 +666,24 @@ test('E2E reale isolato: login → cookie → verifica → save/retry → legacy
     await db.query('UPDATE public.operai SET costo_orario=20 WHERE id=$1',[OP])
     const state=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie},{cantiereId:A,data:'2026-09-21'}))
     assert.equal(state.status,200); assert.equal((await state.json()).rapportino.id,RAP)
+    // Duplicato storico V0: la RPC sceglie il più recente e /stato legge solo quell'UUID.
+    const duplicateId=randomUUID()
+    await q('INSERT INTO public.rapportini(id,cantiere_id,data,created_at,note) VALUES($1,$2,$3,$4,$5)',
+      [duplicateId,A,'2026-09-21','2099-01-01','Duplicato V0 più recente'])
+    const duplicateState=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie},{cantiereId:A,data:'2026-09-21'}))
+    assert.equal(duplicateState.status,200)
+    const selectedDuplicate=await duplicateState.json()
+    assert.equal(selectedDuplicate.rapportino.id,duplicateId)
+    assert.equal(selectedDuplicate.rapportino.note,'Duplicato V0 più recente')
+    assert.deepEqual(selectedDuplicate.timbrature,[])
+    await q('DELETE FROM public.rapportini WHERE id=$1',[duplicateId])
+    const structuredState=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie},
+      {cantiereId:A,data:p.data,rapportinoId:committed.rapportino_id}))
+    assert.equal(structuredState.status,200)
+    const structuredBody=await structuredState.json()
+    assert.equal(structuredBody.versione_prestazioni,1)
+    assert.deepEqual(structuredBody.strutturato,committed)
+    assert.deepEqual(structuredBody.timbrature,[])
     const absentRetro=await h.route('app/api/rapportino/stato/route.ts').POST(request({cookie},{cantiereId:A,data:'2026-09-30'}))
     assert.equal(absentRetro.status,200);assert.equal((await absentRetro.json()).presente,false)
     const otherReports=await q("SELECT to_jsonb(r) v FROM public.rapportini r ORDER BY id")
