@@ -204,7 +204,7 @@ test('pg: errori SQL e idle/trasporto non divulgano URL/password/token nei log',
   const message=JSON.stringify(await result.json())
   assert(!/test_password|postgresql|token-secret/.test(message))
   h.calls.find(x=>x.poolEvent==='error').handler(new Error('test_password'))
-  assert.equal(logs.length,0)
+  assert.deepEqual(logs, [['[RAPPORTINI_DB_DIAG] fase=connessione_avviata categoria=postgres']])
 })
 
 test('errore trasporto con dettagli sensibili non raggiunge risposta o log legacy',async()=>{
@@ -213,12 +213,48 @@ test('errore trasporto con dettagli sensibili non raggiunge risposta o log legac
     logSink:{error:(...args)=>logs.push(args)}})
   const response=await h.route('app/api/rapportino/stato/route.ts').POST(request(
     {cookie:`artecna_rapportino_sessione=${token}`},{cantiereId:'site'}))
-  assert.equal(logs.length,0)
+  assert.deepEqual(logs, [['[RAPPORTINI_DB_DIAG] fase=connessione_avviata categoria=sconosciuto']])
   assert.equal(response.status,503)
   assert(!JSON.stringify(await response.json()).includes('test_server'))
 })
 
 // Socket pg simulato, ma adapter, handler, token Node e SQL PostgreSQL reali.
+test('diagnostico temporaneo: categorie/fasi statiche, una riga, HTTP invariato e nessun segreto',async()=>{
+  const {DatabaseError}=require('pg')
+  const cases=[
+    {env:null,fase:'inizio',categoria:'configurazione'},
+    {env:'secret-invalid-url',fase:'env_presente',categoria:'configurazione'},
+    {env:'postgresql://artecna_rapportini_backend.ref:bad%ZZ@example.pooler.supabase.com:6543/postgres',fase:'url_parsata',categoria:'configurazione'},
+    {env:'postgresql://postgres.ref:test_password@example.pooler.supabase.com:6543/postgres',fase:'credenziali_decodificate',categoria:'configurazione'},
+    {code:'ERR_TLS_CERT_ALTNAME_INVALID',categoria:'tls'},
+    {code:'28P01',sql:true,categoria:'autenticazione'},
+    {identity:true,categoria:'identita'},
+    {code:'ETIMEDOUT',categoria:'timeout'},
+    {code:'57014',sql:true,categoria:'timeout'},
+    {code:'22023',sql:true,categoria:'postgres',status:400},
+    {code:'UNKNOWN_SECRET_CODE',categoria:'sconosciuto'},
+  ]
+  for(const c of cases) {
+    const logs=[]
+    const secret='test_password URL-secret PIN-secret token-secret cookie-secret payload-secret'
+    const h=harness({logSink:{error:(...args)=>logs.push(args)},pgTransport:async()=>{
+      if(c.identity) return {rows:[]}
+      const e=c.sql ? new DatabaseError(secret,0,'error') : new Error(secret)
+      e.code=c.code;throw e
+    }})
+    if('env' in c) {if(c.env===null) delete h.env.RAPPORTINI_DATABASE_URL;else h.env.RAPPORTINI_DATABASE_URL=c.env}
+    const response=await h.route('app/api/rapportino/accesso/route.ts').POST(request({}, {pin:'PIN-secret'}))
+    assert.equal(response.status,c.status||503)
+    assert.deepEqual(await response.json(),{error:c.status===400 ? 'Dati Rapportino non validi' : 'Servizio Rapportini non disponibile'})
+    assert.deepEqual(logs,[[`[RAPPORTINI_DB_DIAG] fase=${c.fase||'connessione_avviata'} categoria=${c.categoria}`]])
+    assert(!/secret|test_password|postgresql|example\.pooler|CERTIFICATE/.test(JSON.stringify(logs)))
+  }
+  const logs=[]
+  const h=harness({logSink:{error:(...args)=>logs.push(args)},pgTransport:async()=>{throw new Error('payload-secret')}})
+  await assert.rejects(()=>h.service.salvaRapportinoConPrestazioni(request({cookie:`artecna_rapportino_sessione=${token}`}),{note:'payload-secret'}),e=>e.status===503)
+  assert.deepEqual(logs,[['[RAPPORTINI_DB_DIAG] fase=connessione_avviata categoria=sconosciuto']])
+})
+
 // Il cambio ruolo riproduce le ACL; non simula la crittografia JWT di PostgREST.
 test('E2E reale isolato: login → cookie → verifica → save/retry → legacy',async()=>{
   const {PGlite}=require('@electric-sql/pglite')
@@ -344,6 +380,10 @@ test('E2E reale isolato: login → cookie → verifica → save/retry → legacy
     assert.deepEqual((await q('SELECT to_jsonb(t) v FROM public.timbrature t WHERE id=$1',[OP]))[0].v,storica)
     assert(!JSON.stringify(loginBody).includes('test_server'))
     assert(!JSON.stringify(committed).includes('test_server'))
-    assert(!JSON.stringify(logs).includes('test_server')); assert.equal(logs.length,0)
+    assert(!JSON.stringify(logs).includes('test_server'))
+    assert.deepEqual(logs,[
+      ['[RAPPORTINI_DB_DIAG] fase=connessione_avviata categoria=postgres'],
+      ['[RAPPORTINI_DB_DIAG] fase=connessione_avviata categoria=postgres'],
+    ])
   } finally { await db.close() }
 })

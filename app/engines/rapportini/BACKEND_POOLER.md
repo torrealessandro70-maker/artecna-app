@@ -101,6 +101,15 @@ di sviluppo. Pool per istanza, non globale al deploy: dimensionare concorrenza
 e limiti Supavisor prima di aumentare traffico. Nessuna nuova variante Edge.
 
 URL/password/token/query/errori driver non vengono loggati o restituiti.
+Diagnostico temporaneo nell'adapter: una sola riga per RPC fallita,
+`[RAPPORTINI_DB_DIAG] fase=<fase statica> categoria=<categoria statica>`.
+Fase locale per chiamata; nessun log di successo o dato runtime. La categoria
+usa solo fase, tipi e codici errore, mai message/stack. `connessione_avviata`
+indica la chiamata query, non il completamento del handshake; identità e RPC
+sono verificate dalla medesima query. Timeout pg privi di codice restano
+sconosciuto: non si ispeziona il messaggio. HTTP/TLS/ACL invariati.
+Rimuovere dopo la diagnosi: helper/tipi diagnostici, aggiornamenti avanza e
+riga nel catch, mantenendo il controllo identità e il mapping HTTP esistenti.
 503 per trasporto; messaggi SQL statici, conservando errore costo orario NULL
 e codici conflitto. Cookie HttpOnly/Secure/Strict e digest SHA256 invariati.
 

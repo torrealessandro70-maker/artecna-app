@@ -12,14 +12,38 @@ const invocazioni = {
 export type RpcPortaleRapportini = keyof typeof invocazioni
 let pool: Pool | undefined
 
-function poolPortale(): Pool {
-  if (pool) return pool
+// Diagnostico temporaneo: soltanto fasi/categorie statiche, mai dati runtime.
+type FaseDiagnostica = 'inizio' | 'env_presente' | 'url_parsata' | 'credenziali_decodificate'
+  | 'url_validata' | 'pool_creato' | 'pool_registrato' | 'connessione_avviata'
+  | 'identita_verificata' | 'rpc_completata'
+class ErroreIdentitaDiagnostica extends Error {}
+function categoriaDiagnostica(error: unknown, fase: FaseDiagnostica) {
+  if (error instanceof ErroreIdentitaDiagnostica) return 'identita'
+  if (fase !== 'connessione_avviata' && fase !== 'identita_verificata' && fase !== 'rpc_completata') return 'configurazione'
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+  if (typeof code === 'string') {
+    if (code.startsWith('ERR_TLS_') || code.startsWith('ERR_SSL_') ||
+      ['CERT_HAS_EXPIRED', 'CERT_NOT_YET_VALID', 'DEPTH_ZERO_SELF_SIGNED_CERT',
+        'SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+        'CERT_SIGNATURE_FAILURE'].includes(code)) return 'tls'
+    if (code.startsWith('28')) return 'autenticazione'
+    if (['ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ERR_SOCKET_CONNECTION_TIMEOUT', '57014', '55P03'].includes(code)) return 'timeout'
+  }
+  if (error instanceof DatabaseError) return 'postgres'
+  return 'sconosciuto'
+}
+
+function poolPortale(avanza: (fase: FaseDiagnostica) => void): Pool {
+  if (pool) { avanza('pool_registrato'); return pool }
   const valore = process.env.RAPPORTINI_DATABASE_URL
   if (!valore) throw new Error('Configurazione PostgreSQL Rapportini assente')
+  avanza('env_presente')
   // Non passare la URL al driver: i parametri sslmode potrebbero sovrascrivere
   // la verifica TLS esplicita. Nessuna opzione o credenziale PG globale usata.
   const url = new URL(valore)
+  avanza('url_parsata')
   const user = decodeURIComponent(url.username), password = decodeURIComponent(url.password)
+  avanza('credenziali_decodificate')
   if (!['postgres:', 'postgresql:'].includes(url.protocol)
     || !url.hostname.endsWith('.pooler.supabase.com') || url.port !== '6543'
     || url.pathname !== '/postgres' || !/^artecna_rapportini_backend\.[a-z0-9]+$/.test(user)
@@ -27,32 +51,45 @@ function poolPortale(): Pool {
     || (url.searchParams.has('sslmode') && !['require', 'verify-full'].includes(url.searchParams.get('sslmode')!))) {
     throw new Error('Configurazione Transaction Pooler Rapportini non valida')
   }
+  avanza('url_validata')
   const nuovo = new Pool({ host: url.hostname, port: Number(url.port), database: 'postgres', user, password,
     ssl: { ca: CA_SUPABASE, rejectUnauthorized: true }, max: 3, idleTimeoutMillis: 5000,
     connectionTimeoutMillis: 10000, query_timeout: 25000, allowExitOnIdle: true,
     application_name: 'artecna-rapportini-portale' })
+  avanza('pool_creato')
   // pg richiede un listener per gli errori dei client inattivi. Nessun errore
   // grezzo viene loggato; quelli delle richieste sono gestiti sotto.
   nuovo.on('error', () => {})
   attachDatabasePool(nuovo)
+  avanza('pool_registrato')
   pool = nuovo
   return pool
 }
 
 export async function rpcPortalePostgres(nome: RpcPortaleRapportini, argomenti: Record<string, unknown>) {
-  const invocazione = invocazioni[nome]
-  if (!invocazione) throw new Error('RPC portale non autorizzata')
-  const values = invocazione.parametri.map(key => key === 'p_payload' ? JSON.stringify(argomenti[key]) : argomenti[key])
+  let fase: FaseDiagnostica = 'inizio'
+  const avanza = (valore: FaseDiagnostica) => { fase = valore }
   try {
+    const invocazione = invocazioni[nome]
+    if (!invocazione) throw new Error('RPC portale non autorizzata')
+    const values = invocazione.parametri.map(key => key === 'p_payload' ? JSON.stringify(argomenti[key]) : argomenti[key])
     // Anche la prova pooler è fail-closed: nessun RPC se il LOGIN effettivo o
     // il ruolo corrente differiscono dal backend dedicato. Nessun SET ROLE.
-    const risultato = await poolPortale().query({
+    const connessioni = poolPortale(avanza)
+    avanza('connessione_avviata')
+    const risultato = await connessioni.query({
       text: `SELECT ${invocazione.sql} AS result WHERE session_user = 'artecna_rapportini_backend' AND current_user = 'artecna_rapportini_backend'`,
       values,
     })
-    if (risultato.rows.length !== 1) throw new Error('Identità connessione Rapportini non valida')
-    return { data: risultato.rows[0].result, error: null }
+    if (risultato.rows.length !== 1) throw new ErroreIdentitaDiagnostica('Identità connessione Rapportini non valida')
+    avanza('identita_verificata')
+    const data = risultato.rows[0].result
+    avanza('rpc_completata')
+    return { data, error: null }
   } catch (error) {
+    try {
+      console.error(`[RAPPORTINI_DB_DIAG] fase=${fase} categoria=${categoriaDiagnostica(error, fase)}`)
+    } catch { /* La diagnostica non deve alterare la risposta. */ }
     if (error instanceof DatabaseError && error.code &&
       ['42501', 'PR409', 'PR412', '22023', '22P02', '22007', '22008', '23514', '23503', 'PR403'].includes(error.code)) {
       // Messaggi statici: mai detail, hint, query, URL, password o errore driver.
