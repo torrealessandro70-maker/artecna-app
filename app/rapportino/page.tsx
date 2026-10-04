@@ -854,6 +854,11 @@ setOperaiRapportino(operaiRicostruiti)
     onSalva={() => { void salvaBozzaV1() }}
     onRetry={() => { void salvaBozzaV1(true) }}
     varianti={variantiBozza}
+    onRichiediVarianti={() => {
+      if (!conflittoV1Ref.current && !salvataggioInCorso.current && !controlloInCorso.current
+        && richiestaStato.current === statoRapportino.richiesta)
+        void caricaVarianti(statoRapportino.cantiereId)
+    }}
     onRiprovaVarianti={() => {
       if (!salvataggioInCorso.current && !controlloInCorso.current && richiestaStato.current === statoRapportino.richiesta)
         void caricaVarianti(statoRapportino.cantiereId, true)

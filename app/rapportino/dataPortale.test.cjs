@@ -409,3 +409,15 @@ test('V1 callback precedente invalidata al cambio data/cantiere; nessuna ricostr
   h.date('2026-10-01');await flush();old.onChange(old.bozza);old.onSalva();assert.equal(writesV1(h).length,0)
   h.site(OTHERV1);old.onSalva();assert(!h.all().some(n=>n.type==='RapportinoPrestazioniEditorV1'))
 })
+
+test('Squadra: richiesta Varianti riusa cache portale e callback obsoleta non carica altro contesto',async()=>{
+ const h=harness((url,body)=>url.endsWith('/accesso')?loginReply():url.endsWith('/varianti')?reply({varianti:variantRows}):reply(absent(body.data)))
+ await h.login();await openDraft(h);const old=editorV1(h)
+ old.onRichiediVarianti();old.onRichiediVarianti();await flush()
+ assert.equal(h.calls.filter(c=>c.url.endsWith('/varianti')).length,1)
+ editorV1(h).onRichiediVarianti();await flush();assert.equal(h.calls.filter(c=>c.url.endsWith('/varianti')).length,1)
+ h.site(OTHERV1);old.onRichiediVarianti();await flush();assert.equal(h.calls.filter(c=>c.url.endsWith('/varianti')).length,1)
+ await openDraft(h);editorV1(h).onRichiediVarianti();await flush()
+ assert.equal(h.calls.filter(c=>c.url.endsWith('/varianti')).length,2)
+ assert.deepEqual(h.calls.filter(c=>c.url.endsWith('/varianti'))[1].body,{cantiere_id:OTHERV1})
+})

@@ -1,6 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
+import RapportinoSquadraV1 from './RapportinoSquadraV1'
 import {
   aggiungiPrestazioneBozza, modificaPrestazioneBozza, rimuoviPrestazioneBozza,
   oreAnteprimaPrestazione, validaPrestazioneBozza,
@@ -20,6 +21,7 @@ type Props = {
   onClose: () => void
   varianti: StatoVariantiBozza
   onRiprovaVarianti: () => void
+  onRichiediVarianti?: () => void
   salvabile?: boolean
   salvataggioInCorso?: boolean
   retryDisponibile?: boolean
@@ -27,7 +29,7 @@ type Props = {
   onRetry?: () => void
   disabled?: boolean
 }
-export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange, onClose, varianti, onRiprovaVarianti, salvabile = false, salvataggioInCorso = false, retryDisponibile = false, onSalva, onRetry, disabled = false }: Props) {
+export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange, onClose, varianti, onRiprovaVarianti, onRichiediVarianti, salvabile = false, salvataggioInCorso = false, retryDisponibile = false, onSalva, onRetry, disabled = false }: Props) {
   const modifica = (chiave: string, value: Parameters<typeof modificaPrestazioneBozza>[2]) => {
     if (!disabled) onChange(modificaPrestazioneBozza(bozza, chiave, value, () => crypto.randomUUID()))
   }
@@ -40,6 +42,9 @@ export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange,
     <button type="button" disabled={disabled} style={button} onClick={() => {
       if (!disabled) onChange(aggiungiPrestazioneBozza(bozza, crypto.randomUUID()))
     }}>+ Aggiungi prestazione</button>
+    <RapportinoSquadraV1 key={`${bozza.cantiere_id}/${bozza.data}/${bozza.rapportino_id}/${bozza.revisione_attesa}`}
+      bozza={bozza} operai={operai} varianti={varianti} disabled={disabled} onChange={onChange}
+      onRichiediVarianti={onRichiediVarianti} onRiprovaVarianti={onRiprovaVarianti} />
     {prestazioniAttiveBozza(bozza).map((p, index) => {
       const originale = originalePrestazioneBozza(bozza, p)
       const errori = validaPrestazioneBozza(p, varianti.stato === 'pronte' && varianti.cantiere_id === bozza.cantiere_id ? varianti.varianti : [], originale)
