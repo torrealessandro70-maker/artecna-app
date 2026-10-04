@@ -246,7 +246,9 @@ test('diagnostico temporaneo: categorie/fasi statiche, una riga, HTTP invariato 
     const response=await h.route('app/api/rapportino/accesso/route.ts').POST(request({}, {pin:'PIN-secret'}))
     assert.equal(response.status,c.status||503)
     assert.deepEqual(await response.json(),{error:c.status===400 ? 'Dati Rapportino non validi' : 'Servizio Rapportini non disponibile'})
-    assert.deepEqual(logs,[[`[RAPPORTINI_DB_DIAG] fase=${c.fase||'connessione_avviata'} categoria=${c.categoria}`]])
+    const flags=c.fase==='credenziali_decodificate'
+      ? ' protocollo_ok=true host_ok=true porta_ok=true database_ok=true username_ok=false password_presente=true query_ok=true fragment_ok=true' : ''
+    assert.deepEqual(logs,[[`[RAPPORTINI_DB_DIAG] fase=${c.fase||'connessione_avviata'} categoria=${c.categoria}${flags}`]])
     assert(!/secret|test_password|postgresql|example\.pooler|CERTIFICATE/.test(JSON.stringify(logs)))
   }
   const logs=[]
@@ -256,6 +258,43 @@ test('diagnostico temporaneo: categorie/fasi statiche, una riga, HTTP invariato 
 })
 
 // Il cambio ruolo riproduce le ACL; non simula la crittografia JWT di PostgREST.
+test('diagnostico URL: ogni predicato invariato, soli booleani statici e HTTP identico',async()=>{
+  const base='postgresql://artecna_rapportini_backend.testref:test_password@example.pooler.supabase.com:6543/postgres'
+  const keys=['protocollo_ok','host_ok','porta_ok','database_ok','username_ok','password_presente','query_ok','fragment_ok']
+  const cases=[
+    [base.replace('postgresql:','https:'),'protocollo_ok'],
+    [base.replace('example.pooler.supabase.com','secret.invalid'),'host_ok'],
+    [base.replace(':6543',':5432'),'porta_ok'],
+    [base.replace('/postgres','/secret-db'),'database_ok'],
+    [base.replace('artecna_rapportini_backend.testref','secret-user'),'username_ok'],
+    [base.replace('test_password',''),'password_presente'],
+    [base+'?secret-param=secret-value','query_ok'],
+    [base+'?sslmode=disable','query_ok'],
+    [base+'#secret-fragment','fragment_ok'],
+  ]
+  // Ogni predicato vero è verificato anche lasciando fallire un altro controllo.
+  for(const [url,failed] of cases) {
+    const logs=[]
+    const h=harness({logSink:{error:(...args)=>logs.push(args)}})
+    h.env.RAPPORTINI_DATABASE_URL=url
+    const response=await h.route('app/api/rapportino/accesso/route.ts').POST(request({}, {pin:'secret-pin'}))
+    assert.equal(response.status,503)
+    assert.deepEqual(await response.json(),{error:'Servizio Rapportini non disponibile'})
+    assert.equal(h.calls.length,0)
+    const flags=keys.map(key=>`${key}=${key!==failed}`).join(' ')
+    assert.deepEqual(logs,[[`[RAPPORTINI_DB_DIAG] fase=credenziali_decodificate categoria=configurazione ${flags}`]])
+    assert(!/secret|test_password|postgresql|supabase\.com|6543|5432/.test(JSON.stringify(logs)))
+  }
+  for(const url of [base,base+'?sslmode=require',base+'?sslmode=verify-full']) {
+    const logs=[]
+    const h=harness({logSink:{error:(...args)=>logs.push(args)}})
+    h.env.RAPPORTINI_DATABASE_URL=url
+    const response=await h.route('app/api/rapportino/accesso/route.ts').POST(request({}, {pin:'secret-pin'}))
+    assert.equal(response.status,200); assert.deepEqual(await response.json(),h.accesso)
+    assert.equal(logs.length,0)
+  }
+})
+
 test('E2E reale isolato: login → cookie → verifica → save/retry → legacy',async()=>{
   const {PGlite}=require('@electric-sql/pglite')
   const {createHash,randomUUID}=require('node:crypto')

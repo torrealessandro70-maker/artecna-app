@@ -17,6 +17,12 @@ type FaseDiagnostica = 'inizio' | 'env_presente' | 'url_parsata' | 'credenziali_
   | 'url_validata' | 'pool_creato' | 'pool_registrato' | 'connessione_avviata'
   | 'identita_verificata' | 'rpc_completata'
 class ErroreIdentitaDiagnostica extends Error {}
+class ErroreValidazioneUrlDiagnostica extends Error {
+  constructor(readonly controlli: {
+    protocollo_ok: boolean; host_ok: boolean; porta_ok: boolean; database_ok: boolean
+    username_ok: boolean; password_presente: boolean; query_ok: boolean; fragment_ok: boolean
+  }) { super('Configurazione Transaction Pooler Rapportini non valida') }
+}
 function categoriaDiagnostica(error: unknown, fase: FaseDiagnostica) {
   if (error instanceof ErroreIdentitaDiagnostica) return 'identita'
   if (fase !== 'connessione_avviata' && fase !== 'identita_verificata' && fase !== 'rpc_completata') return 'configurazione'
@@ -49,7 +55,17 @@ function poolPortale(avanza: (fase: FaseDiagnostica) => void): Pool {
     || url.pathname !== '/postgres' || !/^artecna_rapportini_backend\.[a-z0-9]+$/.test(user)
     || !password || url.hash || [...url.searchParams.keys()].some(key => key !== 'sslmode')
     || (url.searchParams.has('sslmode') && !['require', 'verify-full'].includes(url.searchParams.get('sslmode')!))) {
-    throw new Error('Configurazione Transaction Pooler Rapportini non valida')
+    // Solo booleani: stessi predicati della guardia invariata, nessun valore URL.
+    throw new ErroreValidazioneUrlDiagnostica({
+      protocollo_ok: ['postgres:', 'postgresql:'].includes(url.protocol),
+      host_ok: url.hostname.endsWith('.pooler.supabase.com'),
+      porta_ok: url.port === '6543', database_ok: url.pathname === '/postgres',
+      username_ok: /^artecna_rapportini_backend\.[a-z0-9]+$/.test(user),
+      password_presente: !!password,
+      query_ok: ![...url.searchParams.keys()].some(key => key !== 'sslmode')
+        && !(url.searchParams.has('sslmode') && !['require', 'verify-full'].includes(url.searchParams.get('sslmode')!)),
+      fragment_ok: !url.hash,
+    })
   }
   avanza('url_validata')
   const nuovo = new Pool({ host: url.hostname, port: Number(url.port), database: 'postgres', user, password,
@@ -88,7 +104,10 @@ export async function rpcPortalePostgres(nome: RpcPortaleRapportini, argomenti: 
     return { data, error: null }
   } catch (error) {
     try {
-      console.error(`[RAPPORTINI_DB_DIAG] fase=${fase} categoria=${categoriaDiagnostica(error, fase)}`)
+      // Questo errore viene creato solo dalla guardia in credenziali_decodificate.
+      const c = error instanceof ErroreValidazioneUrlDiagnostica ? error.controlli : undefined
+      const controlli = c ? ` protocollo_ok=${c.protocollo_ok} host_ok=${c.host_ok} porta_ok=${c.porta_ok} database_ok=${c.database_ok} username_ok=${c.username_ok} password_presente=${c.password_presente} query_ok=${c.query_ok} fragment_ok=${c.fragment_ok}` : ''
+      console.error(`[RAPPORTINI_DB_DIAG] fase=${fase} categoria=${categoriaDiagnostica(error, fase)}${controlli}`)
     } catch { /* La diagnostica non deve alterare la risposta. */ }
     if (error instanceof DatabaseError && error.code &&
       ['42501', 'PR409', 'PR412', '22023', '22P02', '22007', '22008', '23514', '23503', 'PR403'].includes(error.code)) {

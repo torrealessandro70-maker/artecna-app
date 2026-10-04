@@ -104,8 +104,12 @@ URL/password/token/query/errori driver non vengono loggati o restituiti.
 Diagnostico temporaneo nell'adapter: una sola riga per RPC fallita,
 `[RAPPORTINI_DB_DIAG] fase=<fase statica> categoria=<categoria statica>`.
 Fase locale per chiamata; nessun log di successo o dato runtime. La categoria
-usa solo fase, tipi e codici errore, mai message/stack. `connessione_avviata`
-indica la chiamata query, non il completamento del handshake; identità e RPC
+usa solo fase, tipi e codici errore, mai message/stack.
+Solo per URL rifiutata in credenziali_decodificate, la stessa riga aggiunge
+protocollo_ok, host_ok, porta_ok, database_ok, username_ok, password_presente,
+query_ok, fragment_ok: soli booleani degli stessi predicati della guardia.
+Nessun valore URL o log aggiuntivo per URL valida.
+`connessione_avviata` indica la chiamata query, non il completamento del handshake; identità e RPC
 sono verificate dalla medesima query. Timeout pg privi di codice restano
 sconosciuto: non si ispeziona il messaggio. HTTP/TLS/ACL invariati.
 Rimuovere dopo la diagnosi: helper/tipi diagnostici, aggiornamenti avanza e
