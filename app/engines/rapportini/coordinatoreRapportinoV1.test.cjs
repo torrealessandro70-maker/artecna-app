@@ -42,3 +42,16 @@ test('U1: confine condiviso senza endpoint/accesso/V0; unico editor esistente',(
  assert(page.includes('useCoordinatoreRapportinoV1'));assert(page.includes("fetch('/api/rapportino/accesso'"));assert(page.includes("fetch('/api/rapportino/salva'"))
  assert.doesNotMatch(page,/creaTentativoSalvataggioV1|const salvaBozzaV1|const rileggiSalvatoV1|const caricaVarianti/)
 })
+test('M1: dettatura attraverso editor reale modifica solo note e invalida intento congelato',async()=>{
+ const bodies=[];const h=harness({caricaVarianti:async()=>new Response('[]'),salvaStrutturato:async corpo=>{bodies.push(JSON.parse(corpo));throw Error('Risposta persa')},leggiStato:async()=>stato()})
+ h.render().apriNuovoV1();let b=h.bozza.aggiungiPrestazioneBozza(h.render().bozzaV1,'prima');b=h.bozza.modificaPrestazioneBozza(b,'prima',{operaio_id:W,ora_inizio:'07:00',ora_fine:'12:00'})
+ h.render().editorProps.onChange({...b,documento:dettagli.documento});h.render().editorProps.onSalva();await flush();assert(h.render().editorProps.retryDisponibile)
+ const exports={},jsx=(type,props)=>({type,props})
+ vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../../components/RapportinoPrestazioniEditorV1.tsx'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,require:n=>n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n.includes('bozzaRapportinoV1')?h.bozza:n.includes('DettaturaNoteV1')?{default:'DettaturaNoteV1'}:{default:'Squadra',etichettaVarianteBozza:()=>''}})
+ const before=plain(h.render().bozzaV1),tree=exports.default(h.render().editorProps)
+ const find=n=>Array.isArray(n)?n.flatMap(find):n?.props?[n,...find(n.props.children)]:[]
+ find(tree).find(n=>n.type==='DettaturaNoteV1').props.onTesto('Lavori Dettati')
+ const after=plain(h.render().bozzaV1);assert.equal(after.documento.note,'Lavori Dettati');assert.deepEqual(after.prestazioni,before.prestazioni);assert.equal(after.documento.materiali,before.documento.materiali);assert.equal(after.documento.quantita_materiali,before.documento.quantita_materiali)
+ assert.equal(h.render().editorProps.retryDisponibile,false);h.render().editorProps.onSalva();await flush()
+ assert.equal(h.uuid(),2);assert.notEqual(bodies[0].richiesta_id,bodies[1].richiesta_id);assert.equal(bodies[1].documento.note,'Lavori Dettati')
+})

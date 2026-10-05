@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react'
 import RapportinoSquadraV1 from './RapportinoSquadraV1'
+import DettaturaNoteV1 from './DettaturaNoteV1'
 import {
   aggiungiPrestazioneBozza, modificaPrestazioneBozza, rimuoviPrestazioneBozza,
   oreAnteprimaPrestazione, validaPrestazioneBozza,
@@ -111,6 +112,8 @@ export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange,
     {prestazioniAttiveBozza(bozza).length === 0 && <p>{bozza.rapportino_id ? 'Nessuna prestazione attiva.' : 'Aggiungi almeno una prestazione per compilare la bozza.'}</p>}
     <label>Lavori eseguiti / Note<textarea disabled={disabled} rows={4} style={input} value={bozza.documento.note}
       onChange={e => documento('note', e.target.value)} /></label>
+    <DettaturaNoteV1 testo={bozza.documento.note} onTesto={testo => documento('note', testo)} disabled={disabled}
+      contesto={`${bozza.cantiere_id}/${bozza.data}/${bozza.rapportino_id}/${bozza.revisione_attesa}`} />
     <label>Materiali<textarea disabled={disabled} rows={2} style={input} value={bozza.documento.materiali}
       onChange={e => documento('materiali', e.target.value)} /></label>
     <label>Quantità materiali<input disabled={disabled} style={input} value={bozza.documento.quantita_materiali}
