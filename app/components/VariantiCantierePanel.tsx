@@ -9,6 +9,7 @@ import type { AnomaliaMappingLavorazionePreventivo } from '../engines/varianti/m
 import { estraiVociVarianteDaFile } from '../engines/varianti/estraiVociVarianteDaFile'
 import { adattaFileAVariante } from '../engines/varianti/adattaFileAVariante'
 import { confermaPreventivoIntegrativo } from '../engines/varianti/confermaPreventivoIntegrativo'
+import UsaRaccoltaEconomiaInVariante from './UsaRaccoltaEconomiaInVariante'
 
 const etichetteAnomalieFile: Record<AnomaliaPropostaVarianteDaFile['codice'], string> = {
   cantiere_id_non_valido: 'Cantiere non valido',
@@ -638,7 +639,10 @@ const testoConsultazioneEconomia = (v: unknown) => v === null || v === undefined
 const dataConsultazioneEconomia = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : testoConsultazioneEconomia(v)
 const importoConsultazioneEconomia = (v: number | null) => v === null ? 'Non valorizzato' : v.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 
-function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento }: { cantiereId: string; aggiornamento: number }) {
+function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elencoPronto, onApriVariante }: {
+  cantiereId: string; aggiornamento: number; varianti: readonly string[]; elencoPronto: boolean
+  onApriVariante: (id: string) => void
+}) {
   const [elenco, setElenco] = useState<RaccoltaConsultazioneEconomia[]>([])
   const [caricamentoElenco, setCaricamentoElenco] = useState(true)
   const [erroreElenco, setErroreElenco] = useState('')
@@ -675,9 +679,9 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento }: { cantiereId:
     void carica()
     return () => { tokenElenco.current += 1 }
   }, [cantiereId, aggiornamento, rilettura])
-  async function apri(id: string) {
+  async function apri(id: string, conservaDettaglio = false) {
     const token = ++tokenDettaglio.current
-    setApertaId(id); setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(true)
+    setApertaId(id); if (!conservaDettaglio) setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(true)
     try {
       const { data, error } = await supabase.rpc('leggi_raccolta_economia', { p_raccolta_id: id })
       if (token !== tokenDettaglio.current || cantiereCorrente.current !== cantiereId) return
@@ -715,6 +719,9 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento }: { cantiereId:
       {erroreDettaglio && <div role="alert"><p>{erroreDettaglio}</p><button type="button" onClick={() => void apri(apertaId)}>Riprova</button></div>}
       {dettaglio && <>
         {riepilogo(dettaglio.raccolta)}
+        <UsaRaccoltaEconomiaInVariante key={dettaglio.raccolta.id} raccolta={dettaglio.raccolta}
+          varianti={varianti} elencoPronto={elencoPronto} onApri={onApriVariante}
+          onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} />
         <p>{dettaglio.righe.length} registrazioni · {dettaglio.righe.filter(r => r.tipo === 'manodopera').length} manodopera · {dettaglio.righe.filter(r => r.tipo === 'materiale').length} materiali. Consultazione in sola lettura.</p>
         {tabella('manodopera','MANODOPERA',['Data','Operaio','Qualifica','Ora inizio','Ora fine','Pausa min','Ore','Tariffa €/h','Totale €','Riferimento','Note'],r => [dataConsultazioneEconomia(r.operativo.data),testoConsultazioneEconomia(r.operativo.operaio),testoConsultazioneEconomia(r.operativo.qualifica),testoConsultazioneEconomia(r.operativo.ora_inizio),testoConsultazioneEconomia(r.operativo.ora_fine),testoConsultazioneEconomia(r.operativo.pausa_min),numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.riferimento),testoConsultazioneEconomia(r.note)])}
         {tabella('materiale','MATERIALI',['Data','Materiale','UM','Quantità','Prezzo unitario €','Totale €','Fornitore','Documento','Riferimento rapportino','Note'],r => [dataConsultazioneEconomia(r.operativo.data),r.descrizione,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.fornitore),testoConsultazioneEconomia(r.operativo.documento),testoConsultazioneEconomia(r.operativo.riferimento_rapportino),testoConsultazioneEconomia(r.note)])}
@@ -934,11 +941,12 @@ function ImportazioneEconomiaLocale({ cantiereId, onInvio, onSalvata }: { cantie
   </section>
 }
 
-function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorrenti, onVarianteAggiornata, richiestaApertura = 0 }: {
+function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorrenti, onVarianteAggiornata, onApriVarianteEconomia, richiestaApertura = 0 }: {
   cantiereId: string
   elencoVarianti: Stato
   variantiCorrenti: readonly VarianteSorgenti[]
   onVarianteAggiornata: (varianteId: string) => void
+  onApriVarianteEconomia: (varianteId: string) => void
   richiestaApertura?: number
 }) {
   const [aperto, setAperto] = useState(false)
@@ -1551,7 +1559,8 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
         </select></label>
       </div>
       {natura === 'lavori_in_economia' ? <>
-        <RaccolteEconomiaRegistrate key={'raccolte:' + cantiereId} cantiereId={cantiereId} aggiornamento={aggiornamentoEconomia} />
+        <RaccolteEconomiaRegistrate key={'raccolte:' + cantiereId} cantiereId={cantiereId} aggiornamento={aggiornamentoEconomia}
+          varianti={variantiCorrenti.map(v => v.id)} elencoPronto={elencoPronto} onApriVariante={onApriVarianteEconomia} />
         {acquisizione === 'file' && <ImportazioneEconomiaLocale key={cantiereId} cantiereId={cantiereId} onInvio={setInvioEconomia} onSalvata={() => setAggiornamentoEconomia(v => v+1)} />}
       </> : <>
       {!elencoPronto && <p role="status">Attendi il caricamento delle varianti prima di salvare sorgenti.</p>}
@@ -1767,6 +1776,7 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
   const [stato, setStato] = useState<Stato>({ tipo: 'loading' })
   const [formAperto, setFormAperto] = useState(false)
   const [varianteApertaId, setVarianteApertaId] = useState<string | null>(null)
+  const aperturaEconomia = useRef<string | null>(null)
   const [richiestaAperturaAnteprima, setRichiestaAperturaAnteprima] = useState(0)
   const anteprimaRef = useRef<HTMLDivElement | null>(null)
   const creazioneRef = useRef<HTMLButtonElement | null>(null)
@@ -1791,6 +1801,7 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
     invioInCorso.current = false
     setRichiestaAperturaAnteprima(0)
     setVarianteApertaId(null)
+    aperturaEconomia.current = null
     setFormAperto(false)
     setTitolo('')
     setDescrizione('')
@@ -1833,7 +1844,13 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
           righe.push(...data)
           if (data.length < pagina) break
         }
-        if (attivo) setStato({ tipo: 'elenco', righe, cantiereId: cantiereId! })
+        if (attivo) {
+          setStato({ tipo: 'elenco', righe, cantiereId: cantiereId! })
+          if (aperturaEconomia.current && righe.some(v => v.id === aperturaEconomia.current)) {
+            setVarianteApertaId(aperturaEconomia.current)
+            aperturaEconomia.current = null
+          }
+        }
       } catch {
         if (attivo) setStato({ tipo: 'errore', messaggio: 'Errore di aggiornamento elenco. Le bozze già confermate restano salvate. Riapri la tab per riprovare la lettura.' })
       }
@@ -1953,6 +1970,10 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
     setRefreshLavorazioni(precedenti => ({ ...precedenti, [varianteId]: (precedenti[varianteId] ?? 0) + 1 }))
     setRefresh(valore => valore + 1)
   }
+  function apriVarianteEconomia(varianteId: string) {
+    aperturaEconomia.current = varianteId
+    aggiornaVariante(varianteId)
+  }
 
   function vaiAnteprima() {
     setRichiestaAperturaAnteprima(valore => valore + 1)
@@ -1970,7 +1991,8 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
           onAcquisisci={cantiereId ? vaiAnteprima : undefined} />}
       {cantiereId && <div ref={anteprimaRef} tabIndex={-1}>
         <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} elencoVarianti={stato} variantiCorrenti={righe}
-          onVarianteAggiornata={aggiornaVariante} richiestaApertura={richiestaAperturaAnteprima} />
+          onVarianteAggiornata={aggiornaVariante} richiestaApertura={richiestaAperturaAnteprima}
+          onApriVarianteEconomia={apriVarianteEconomia} />
       </div>}
       {!formAperto && (
         <button ref={creazioneRef} type="button" disabled={!cantiereId || salvataggio}
