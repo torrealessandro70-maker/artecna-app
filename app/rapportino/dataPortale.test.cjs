@@ -16,8 +16,9 @@ function harness(transport,timers={setTimeout,clearTimeout}) {
   const jsx=(type,props)=>({type,props})
   const exports={}
   const source=fs.readFileSync(__dirname+'/page.tsx','utf8')
-  vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,
-    {exports,console,AbortController,setTimeout:timers.setTimeout,clearTimeout:timers.clearTimeout,crypto:{randomUUID:()=> '99999999-9999-4999-8999-'+String(++uuidCount).padStart(12,'0')},fetch:async(url,options)=>{const body=JSON.parse(options.body);calls.push({url,body,corpo:options.body});return transport(url,body,options)},require:name=>{
+  const sandbox = {exports,console,AbortController,setTimeout:timers.setTimeout,clearTimeout:timers.clearTimeout,crypto:{randomUUID:()=> '99999999-9999-4999-8999-'+String(++uuidCount).padStart(12,'0')},fetch:async(url,options)=>{const body=JSON.parse(options.body);calls.push({url,body,corpo:options.body});return transport(url,body,options)},require:name=>{
+      if(name.includes('useCoordinatoreRapportinoV1'))return loadModule(__dirname+'/../engines/rapportini/useCoordinatoreRapportinoV1.ts')
+      if(name.includes('trasportoMobileRapportinoV1'))return loadModule(__dirname+'/trasportoMobileRapportinoV1.ts')
       if(name==='react')return react
       if(name==='react/jsx-runtime')return{jsx,jsxs:jsx}
       if(name.includes('RapportinoPrestazioniEditorV1'))return{default:'RapportinoPrestazioniEditorV1'}
@@ -28,7 +29,13 @@ function harness(transport,timers={setTimeout,clearTimeout}) {
       if(name.includes('RapportinoOperaiEditor'))return{default:'RapportinoOperaiEditor'}
       if(name.includes('rapportinoOperai'))return{preparaOperaiRapportino:x=>x.map(row=>({...row,ore:5}))}
       return{}
-    }})
+    }}
+  function loadModule(file) {
+    const context={...sandbox,exports:{}}
+    vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,context)
+    return context.exports
+  }
+  vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,sandbox)
   function nodes(node,result=[]) {
     if(Array.isArray(node))node.forEach(x=>nodes(x,result))
     else if(node&&typeof node==='object'&&node.props){result.push(node);nodes(node.props.children,result)}
