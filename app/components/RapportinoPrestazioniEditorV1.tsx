@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import RapportinoSquadraV1 from './RapportinoSquadraV1'
 import DettaturaNoteV1 from './DettaturaNoteV1'
 import RapportinoMaterialiEditorV1 from './RapportinoMaterialiEditorV1'
@@ -30,8 +30,9 @@ type Props = {
   onSalva?: () => void
   onRetry?: () => void
   disabled?: boolean
+  diagnosticaMateriali?: ReactNode
 }
-export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange, onClose, varianti, onRiprovaVarianti, onRichiediVarianti, salvabile = false, salvataggioInCorso = false, retryDisponibile = false, onSalva, onRetry, disabled = false }: Props) {
+export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange, onClose, varianti, onRiprovaVarianti, onRichiediVarianti, salvabile = false, salvataggioInCorso = false, retryDisponibile = false, onSalva, onRetry, disabled = false, diagnosticaMateriali }: Props) {
   const modifica = (chiave: string, value: Parameters<typeof modificaPrestazioneBozza>[2]) => {
     if (!disabled) onChange(modificaPrestazioneBozza(bozza, chiave, value, () => crypto.randomUUID()))
   }
@@ -122,6 +123,7 @@ export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange,
     <label>Quantità materiali<input disabled={disabled} style={input} value={bozza.documento.quantita_materiali}
       onChange={e => documento('quantita_materiali', e.target.value)} /></label>
     </>}
+    {diagnosticaMateriali}
     {salvataggioInCorso && <p role="status">Salvataggio in corso...</p>}
     {retryDisponibile && <div>
       <p>Il retry invia lo stesso contenuto. Modificando la bozza inizierai un nuovo intento di salvataggio.</p>
