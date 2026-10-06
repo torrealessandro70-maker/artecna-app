@@ -7,6 +7,32 @@ const row=(more={})=>({materiale_id:M,chiave_client:K,descrizione:'Cemento',unit
 const details=(versione=1)=>({versione_contratto:2,rapportino_id:R,cantiere_id:A,data:D,revisione:4,documento:{note:'Lavori'},prestazioni:[],versione_materiali:versione,materiali:versione?[row(),row({materiale_id:W,chiave_client:A,rimossa_at:'2026-10-06T12:00:00Z'})]:[],riepilogo_materiali:{totale_materiali_valorizzati:versione?'31.00':'0.00',numero_materiali_da_valorizzare:0,valorizzazione_completa:true},documento_legacy_materiali:{materiali:'Storico',quantita_materiali:'Due sacchi'}})
 const vars={cantiere_id:A,stato:'non_caricate',varianti:[]}
 const draft=()=>mat.ricostruisciBozzaRapportinoV2(details())
+
+for (const [raw, expected] of [['Collante ', 'Collante'], [' Collante', 'Collante'],
+  ['  Collante rapido  ', 'Collante rapido'], [' Collante  rapido ', 'Collante  rapido']]) {
+  test('M2.6E trim dominio descrizione ' + JSON.stringify(raw), () => {
+    const b=mat.modificaMaterialeBozza(draft(),K,{descrizione:raw,unita_misura:' sacco ',quantita:'2,5',costo_unitario:null,note:' nota '})
+    const before=JSON.stringify(b)
+    assert.equal(mat.erroriMaterialeBozza(b.materialiStrutturati.righe[0]).length,0)
+    assert.equal(save.bozzaV1Salvabile(b,vars),true)
+    const r=mat.deltaMaterialiBozza(b).aggiornate[0]
+    assert.equal(r.descrizione,expected);assert.equal(r.unita_misura,'sacco')
+    assert.equal(r.quantita,'2.500000');assert.equal(r.costo_unitario,null);assert.equal(r.note,' nota ')
+    assert.equal(save.creaTentativoSalvataggioV1(b,vars,()=>A).payload.materiali.aggiornate[0].descrizione,expected)
+    assert.equal(JSON.stringify(b),before)
+  })
+}
+for (const patch of [{descrizione:'   '},{unita_misura:'   '},{descrizione:' '+ 'x'.repeat(2001)+' '},{unita_misura:' '+ 'x'.repeat(51)+' '}]) {
+  test('M2.6E obbligatorietà e limiti dopo trim '+Object.keys(patch)[0]+' '+Object.values(patch)[0].length,()=>{
+    const b=mat.modificaMaterialeBozza(draft(),K,patch)
+    assert(mat.erroriMaterialeBozza(b.materialiStrutturati.righe[0]).length>0)
+    assert.equal(save.bozzaV1Salvabile(b,vars),false);assert.throws(()=>mat.deltaMaterialiBozza(b))
+  })
+}
+test('M2.6E solo spazi esterni su persistente non genera aggiornamenti',()=>{
+  const b=mat.modificaMaterialeBozza(draft(),K,{descrizione:' Cemento ',unita_misura:' kg '})
+  assert.deepEqual(plain(mat.deltaMaterialiBozza(b)),{nuove:[],aggiornate:[],rimosse:[]})
+})
 test('M2.5 ricostruzione: baseline immutabile comprende tombstone, attivi editabili e legacy separato',()=>{const b=draft();assert.equal(b.materialiStrutturati.baseline.length,2);assert.equal(b.materialiStrutturati.righe.length,1);assert(Object.isFrozen(b.materialiStrutturati.baseline[0]));assert.deepEqual(plain(b.materialiStrutturati.documento_legacy_materiali),details().documento_legacy_materiali);assert.equal(mat.modificaMaterialeBozza(b,A,{descrizione:'No'}),b);assert.equal(mat.rimuoviMaterialeBozza(b,A),b);assert.deepEqual(plain(mat.deltaMaterialiBozza(b)),{nuove:[],aggiornate:[],rimosse:[]})})
 test('M2.5 storico: apertura non adotta; adozione esplicita preserva testi e non converte',()=>{const b=mat.ricostruisciBozzaRapportinoV2(details(0));assert.equal(b.materialiStrutturati.versione_materiali,0);assert.throws(()=>mat.aggiungiMaterialeBozza(b,()=>K));assert.equal(save.creaTentativoSalvataggioV1(b,vars,()=>K).payload.versione_contratto,1);const a=mat.adottaMaterialiStrutturati(b);assert.equal(a.materialiStrutturati.versione_materiali,1);assert.equal(a.materialiStrutturati.righe.length,0);assert.deepEqual(plain(a.documento),plain(b.documento));assert.deepEqual(plain(a.materialiStrutturati.documento_legacy_materiali),plain(b.materialiStrutturati.documento_legacy_materiali));assert.equal(save.creaTentativoSalvataggioV1(a,vars,()=>K).payload.versione_contratto,2)})
 test('M2.5 nuove: UUID generato una volta, modifica stabile, stesso nome ammesso, rimozione prima save senza tombstone',()=>{let calls=0,b=mat.aggiungiMaterialeBozza(draft(),()=>{calls++;return R});b=mat.modificaMaterialeBozza(b,R,{descrizione:'Cemento',unita_misura:'kg',quantita:'2',costo_unitario:'0'});assert.equal(calls,1);assert.equal(mat.deltaMaterialiBozza(b).nuove[0].chiave_client,R);assert.equal(mat.deltaMaterialiBozza(b).nuove[0].costo_unitario,'0.000000');b=mat.rimuoviMaterialeBozza(b,R);assert.deepEqual(plain(mat.deltaMaterialiBozza(b)),{nuove:[],aggiornate:[],rimosse:[]});assert.throws(()=>mat.aggiungiMaterialeBozza(b,()=>A))})
@@ -25,6 +51,19 @@ const flush=()=>new Promise(r=>setImmediate(r))
 const read=d=>new Response(JSON.stringify({versione_lettura:2,presente:true,versione_prestazioni:1,rapportino_id:d.rapportino_id,cantiere_id:d.cantiere_id,data:d.data,dettaglio:d}))
 function setup(h){h.render().apriNuovoV1();let b=h.bozza.aggiungiPrestazioneBozza(h.render().bozzaV1,'prima');b=h.bozza.modificaPrestazioneBozza(b,'prima',{operaio_id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',ora_inizio:'07:00',ora_fine:'12:00'});b=mat.aggiungiMaterialeBozza(b,()=>K);b=mat.modificaMaterialeBozza(b,K,{descrizione:'Cemento',unita_misura:'kg',quantita:'2,5',costo_unitario:'12,40'});h.render().editorProps.onChange(b)}
 const authoritative=()=>({...details(),cantiere_id:A,data:'2026-09-30',rapportino_id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd',materiali:[row()],prestazioni:[]})
+
+test('M2.6E Mobile: spazi accidentali salvabili, payload normalizzato e retry identico',async()=>{
+  const calls=[],h=harness({caricaVarianti:async()=>new Response('[]'),salvaStrutturato:async b=>{calls.push(b);throw Error('Persa')},leggiStatoV2:async()=>read(authoritative())})
+  setup(h)
+  h.render().editorProps.onChange(mat.modificaMaterialeBozza(h.render().bozzaV1,K,{descrizione:' Collante ',unita_misura:' sacco ',quantita:'2',costo_unitario:null}))
+  const before=JSON.stringify(h.render().bozzaV1)
+  assert.equal(h.render().editorProps.salvabile,true)
+  h.render().editorProps.onSalva();await flush()
+  const r=JSON.parse(calls[0]).materiali.nuove[0]
+  assert.equal(r.descrizione,'Collante');assert.equal(r.unita_misura,'sacco');assert.equal(r.quantita,'2.000000');assert.equal(r.costo_unitario,null)
+  assert.equal(JSON.stringify(h.render().bozzaV1),before)
+  h.render().editorProps.onRetry();await flush();assert.equal(calls[0],calls[1]);assert.equal(h.uuid(),1)
+})
 test('M2.5 coordinatore: successo contratto2, riletturaV2, nuova baseline/delta vuoto, riapertura',async()=>{const calls=[],d=authoritative(),{documento_legacy_materiali,...result}=d;const h=harness({caricaVarianti:async()=>new Response('[]'),salvaStrutturato:async body=>{calls.push(JSON.parse(body));return new Response(JSON.stringify(result))},leggiStato:async()=>{throw Error('V1 non deve essere chiamato')},leggiStatoV2:async input=>{calls.push(plain(input));return read(d)}});setup(h);h.render().editorProps.onSalva();await flush();assert.equal(calls[0].versione_contratto,2);assert.equal(calls.length,2);assert.equal(h.render().riletturaV1Fallita,false);assert.deepEqual(plain(mat.deltaMaterialiBozza(h.render().bozzaV1)),{nuove:[],aggiornate:[],rimosse:[]});h.render().apriModificaV1();assert.equal(h.render().bozzaV1.materialiStrutturati.righe.length,1)})
 test('M2.5 coordinatore: retry identico e modifica materiale invalida intento, nuovo richiesta_id',async()=>{const calls=[],h=harness({caricaVarianti:async()=>new Response('[]'),salvaStrutturato:async b=>{calls.push(b);throw Error('Persa')},leggiStato:async()=>{throw Error('V1')},leggiStatoV2:async()=>read(authoritative())});setup(h);h.render().editorProps.onSalva();await flush();h.render().editorProps.onRetry();await flush();assert.equal(calls[0],calls[1]);assert.equal(h.uuid(),1);h.render().editorProps.onChange(mat.modificaMaterialeBozza(h.render().bozzaV1,K,{quantita:'3'}));assert.equal(h.render().editorProps.retryDisponibile,false);h.render().editorProps.onSalva();await flush();assert.equal(h.uuid(),2);assert.notEqual(calls[0],calls[2])})
 test('M2.5 coordinatore: successo+rilettura fallita non risalva; ripeti controllo autorevole',async()=>{let saves=0,fail=true;const d=authoritative(),{documento_legacy_materiali,...result}=d,h=harness({caricaVarianti:async()=>new Response('[]'),salvaStrutturato:async()=>{saves++;return new Response(JSON.stringify(result))},leggiStatoV2:async()=>{if(fail)throw Error('Trasporto');return read(d)}});setup(h);h.render().editorProps.onSalva();await flush();assert(h.render().riletturaV1Fallita);assert(h.messaggio().includes('salvato'));assert.equal(h.render().bozzaV1,null);fail=false;await h.render().rileggiSalvatoV1(h.render().salvatoV1,h.ctx.richiestaStato.current);assert.equal(saves,1);assert.equal(h.render().riletturaV1Fallita,false)})

@@ -3,7 +3,6 @@
 import { useRef, useState } from 'react'
 import RapportinoForm from '../components/RapportinoForm'
 import RapportinoPrestazioniEditorV1 from '../components/RapportinoPrestazioniEditorV1'
-import DiagnosticaMaterialiMobile from './DiagnosticaMaterialiMobile'
 import { esitoCreazioneV1Valido } from '../engines/rapportini/salvataggioBozzaV1'
 import { useCoordinatoreRapportinoV1, type StatoContestoRapportino } from '../engines/rapportini/useCoordinatoreRapportinoV1'
 import { trasportoMobileRapportinoV1, trasportoMobileRapportinoConMateriali } from './trasportoMobileRapportinoV1'
@@ -693,9 +692,7 @@ setOperaiRapportino(operaiRicostruiti)
   )}
 
 {mostraForm && cantiereSelezionato && statoRapportino && statoRapportino.versionePrestazioni !== 0 && bozzaV1 && (
-  <RapportinoPrestazioniEditorV1 {...editorProps!} diagnosticaMateriali={
-    editorProps && <DiagnosticaMaterialiMobile {...editorProps} conflitto={conflittoV1} riletturaFallita={riletturaV1Fallita} />
-  } />
+  <RapportinoPrestazioniEditorV1 {...editorProps!} />
 )}
 {conflittoV1 && <button type="button" disabled={statoInCorso || salvataggioAttivo}
   onClick={() => { if (!salvataggioInCorso.current && !controlloInCorso.current) void continua() }}>
