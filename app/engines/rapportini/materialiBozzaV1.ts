@@ -93,12 +93,25 @@ export function rimuoviMaterialeBozza(b: BozzaRapportinoV1, chiave: string): Boz
   return { ...b, materialiStrutturati: { ...s, righe: s.righe.filter(r => r.chiave_client !== chiave) } }
 }
 function canonica(r: MaterialeBozzaV1): MaterialeBozzaV1 {
+  if (erroriMaterialeBozza(r).length) throw new Error('Materiale non valido')
   if (!uuid(r.chiave_client) || (r.materiale_id !== null && !uuid(r.materiale_id))
     || r.descrizione !== r.descrizione.trim() || Array.from(r.descrizione).length < 1 || Array.from(r.descrizione).length > 2000
     || r.unita_misura !== r.unita_misura.trim() || Array.from(r.unita_misura).length < 1 || Array.from(r.unita_misura).length > 50
     || Array.from(r.note).length > 20000) throw new Error('Materiale non valido')
   return { materiale_id: r.materiale_id, chiave_client: r.chiave_client, descrizione: r.descrizione,
     unita_misura: r.unita_misura, quantita: decimaleMateriale(r.quantita, true), costo_unitario: costoMateriale(r.costo_unitario), note: r.note }
+}
+/** Messaggi UX; il builder mantiene anche i controlli di identità e baseline. */
+export function erroriMaterialeBozza(r: MaterialeBozzaV1): readonly string[] {
+  const errors: string[] = []
+  if (!r.descrizione.trim()) errors.push('Inserisci la descrizione.')
+  else if (r.descrizione !== r.descrizione.trim() || r.descrizione.length > 2000) errors.push('Verifica la descrizione (massimo 2000 caratteri).')
+  if (!r.unita_misura.trim()) errors.push('Inserisci l’unità di misura.')
+  else if (r.unita_misura !== r.unita_misura.trim() || r.unita_misura.length > 50) errors.push('Verifica l’unità di misura (massimo 50 caratteri).')
+  try { decimaleMateriale(r.quantita, true) } catch { errors.push('Inserisci una quantità positiva, con massimo 6 decimali.') }
+  try { costoMateriale(r.costo_unitario) } catch { errors.push('Inserisci un costo non negativo, con massimo 6 decimali.') }
+  if (r.note.length > 20000) errors.push('Nota troppo lunga (massimo 20000 caratteri).')
+  return errors
 }
 export function deltaMaterialiBozza(b: BozzaRapportinoV1) {
   const s = sezione(b), nuove: MaterialeBozzaV1[] = [], aggiornate: MaterialeBozzaV1[] = []

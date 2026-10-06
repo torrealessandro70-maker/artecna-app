@@ -3,6 +3,7 @@
 import type { CSSProperties } from 'react'
 import RapportinoSquadraV1 from './RapportinoSquadraV1'
 import DettaturaNoteV1 from './DettaturaNoteV1'
+import RapportinoMaterialiEditorV1 from './RapportinoMaterialiEditorV1'
 import {
   aggiungiPrestazioneBozza, modificaPrestazioneBozza, rimuoviPrestazioneBozza,
   oreAnteprimaPrestazione, validaPrestazioneBozza,
@@ -114,10 +115,13 @@ export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange,
       onChange={e => documento('note', e.target.value)} /></label>
     <DettaturaNoteV1 testo={bozza.documento.note} onTesto={testo => documento('note', testo)} disabled={disabled}
       contesto={`${bozza.cantiere_id}/${bozza.data}/${bozza.rapportino_id}/${bozza.revisione_attesa}`} />
+    {bozza.materialiStrutturati ? <RapportinoMaterialiEditorV1 key={`${bozza.cantiere_id}/${bozza.data}/${bozza.revisione_attesa}`}
+      bozza={bozza} onChange={onChange} disabled={disabled} /> : <>
     <label>Materiali<textarea disabled={disabled} rows={2} style={input} value={bozza.documento.materiali}
       onChange={e => documento('materiali', e.target.value)} /></label>
     <label>Quantità materiali<input disabled={disabled} style={input} value={bozza.documento.quantita_materiali}
       onChange={e => documento('quantita_materiali', e.target.value)} /></label>
+    </>}
     {salvataggioInCorso && <p role="status">Salvataggio in corso...</p>}
     {retryDisponibile && <div>
       <p>Il retry invia lo stesso contenuto. Modificando la bozza inizierai un nuovo intento di salvataggio.</p>

@@ -16,7 +16,10 @@ function harness(transport,timers={setTimeout,clearTimeout}) {
   const jsx=(type,props)=>({type,props})
   const exports={}
   const source=fs.readFileSync(__dirname+'/page.tsx','utf8')
-  const sandbox = {exports,console,AbortController,setTimeout:timers.setTimeout,clearTimeout:timers.clearTimeout,crypto:{randomUUID:()=> '99999999-9999-4999-8999-'+String(++uuidCount).padStart(12,'0')},fetch:async(url,options)=>{const body=JSON.parse(options.body);calls.push({url,body,corpo:options.body});return transport(url,body,options)},require:name=>{
+  const legacyCache=new Map();
+  const toV2=d=>({...d,versione_contratto:2,documento:{note:d.documento.note},versione_materiali:1,materiali:[],riepilogo_materiali:{totale_materiali_valorizzati:'0.00',numero_materiali_da_valorizzare:0,valorizzazione_completa:true}});
+  const sandbox = {exports,console,AbortController,setTimeout:timers.setTimeout,clearTimeout:timers.clearTimeout,crypto:{randomUUID:()=> '99999999-9999-4999-8999-'+String(++uuidCount).padStart(12,'0')},fetch:async(url,options)=>{const body=JSON.parse(options.body);calls.push({url,body,corpo:options.body});if(url.endsWith('/salva'))legacyCache.clear();let response = body.rapportinoId && legacyCache.has(body.rapportinoId) && body.versione_lettura === undefined ? reply({...legacyCache.get(body.rapportinoId),rapportino:{...legacyCache.get(body.rapportinoId).rapportino,id:REPORTV1}}) : await transport(url,body,options); if (!response.ok) return response;const data=await response.json();if(body.versione_lettura===2 && data.versione_lettura===undefined){const base={versione_lettura:2,cantiere_id:body.cantiereId,data:data.data,presente:data.presente,versione_prestazioni:data.versione_prestazioni,rapportino_id:data.rapportino?.id||null,dettaglio:null};if(data.versione_prestazioni===0){legacyCache.set(REPORTV1,data);base.rapportino_id=REPORTV1;}if(data.versione_prestazioni===1){base.dettaglio={...toV2(data.strutturato),versione_materiali:0,documento_legacy_materiali:{materiali:data.strutturato.documento.materiali||'',quantita_materiali:data.strutturato.documento.quantita_materiali||''}};}return reply(base);}if(body.versione_contratto===2 && data.versione_contratto===1)return reply(toV2(data));return reply(data);},require:name=>{
+      if(name.startsWith('../engines/rapportini/'))return loadModule(require('node:path').resolve(__dirname,name)+'.ts');
       if(name.includes('useCoordinatoreRapportinoV1'))return loadModule(__dirname+'/../engines/rapportini/useCoordinatoreRapportinoV1.ts')
       if(name.includes('trasportoMobileRapportinoV1'))return loadModule(__dirname+'/trasportoMobileRapportinoV1.ts')
       if(name==='react')return react
@@ -31,7 +34,7 @@ function harness(transport,timers={setTimeout,clearTimeout}) {
       return{}
     }}
   function loadModule(file) {
-    const context={...sandbox,exports:{}}
+    const context={...sandbox,exports:{},require:name=>name.startsWith('.')?loadModule(require('node:path').resolve(require('node:path').dirname(file),name)+'.ts'):sandbox.require(name)}
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,context)
     return context.exports
   }
@@ -53,6 +56,28 @@ function harness(transport,timers={setTimeout,clearTimeout}) {
 }
 const loginReply=()=>reply({operaio:{id:'worker',nome:'Mario'},operai:[{id:'worker',nome:'Mario'}],cantieri:[{id:SITEV1,nome:'TESTA ANTONINO'},{id:OTHERV1,nome:'ALTRO'}]})
 
+const materialeV2=(patch={})=>({materiale_id:'77777777-7777-4777-8777-777777777777',chiave_client:'88888888-8888-4888-8888-888888888888',descrizione:'Cemento',unita_misura:'kg',quantita:'2.500000',costo_unitario:null,costo_totale:null,note:'',revisione:1,rimossa_at:null,...patch})
+const statoMaterialiV2=(data,versione=1)=>({versione_lettura:2,cantiere_id:SITEV1,data,presente:true,versione_prestazioni:1,rapportino_id:REPORTV1,dettaglio:{versione_contratto:2,rapportino_id:REPORTV1,revisione:7,cantiere_id:SITEV1,data,documento:{note:'Lavori'},prestazioni:[],versione_materiali:versione,materiali:versione?[materialeV2(),materialeV2({materiale_id:'66666666-6666-4666-8666-666666666666',chiave_client:'55555555-5555-4555-8555-555555555555',rimossa_at:'2026-10-06T12:00:00Z'})]:[],riepilogo_materiali:{totale_materiali_valorizzati:'0.00',numero_materiali_da_valorizzare:versione?1:0,valorizzazione_completa:!versione},documento_legacy_materiali:{materiali:'Mattoni precedenti',quantita_materiali:'10'}}})
+test('M2.6 Mobile reale: lettura V2, baseline materiali/tombstone, cambio data conserva il contesto selezionato',async()=>{
+ const h=harness((url,body)=>url.endsWith('/accesso')?loginV1():url.endsWith('/varianti')?reply({varianti:variantRows}):reply(statoMaterialiV2(body.data)))
+ await openExistingV1(h);assert.equal(editorV1(h).bozza.materialiStrutturati.righe.length,1);assert.equal(editorV1(h).bozza.materialiStrutturati.baseline.length,2)
+ h.date('2026-10-01');await flush();assert.equal(h.stato().data,'2026-10-01');h.click('Apri / Modifica');await flush();assert.equal(editorV1(h).bozza.data,'2026-10-01')
+ assert(h.calls.filter(c=>c.url.endsWith('/stato')).every(c=>c.body.versione_lettura===2));assert(!h.calls.some(c=>c.url.endsWith('/salva')))
+})
+test('M2.6 Mobile: modifica materiale invalida intento, doppio submit/retry invariati, writer2 e rilettura autorevole',async()=>{
+ const cache=new Map(),load=file=>{file=require('node:path').resolve(__dirname,file);if(cache.has(file))return cache.get(file);const e={};cache.set(file,e);new Function('exports','require',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(e,n=>load(require('node:path').resolve(require('node:path').dirname(file),n)+'.ts'));return e},m=load('../engines/rapportini/materialiBozzaV1.ts')
+ let state=statoMaterialiV2('2026-09-30'),attempt=0
+ const h=harness((url,body)=>{if(url.endsWith('/accesso'))return loginV1();if(url.endsWith('/varianti'))return reply({varianti:variantRows});if(!url.endsWith('/strutturato'))return reply(state);if(++attempt<3)return reply({},503);state={...state,dettaglio:{...state.dettaglio,revisione:8,materiali:state.dettaglio.materiali.map(r=>r.rimossa_at?r:{...r,...body.materiali.aggiornate[0],revisione:2})}};const {documento_legacy_materiali,...result}=state.dettaglio;return reply(result)})
+ await openExistingV1(h);editorV1(h).onChange(m.modificaMaterialeBozza(editorV1(h).bozza,'88888888-8888-4888-8888-888888888888',{quantita:'3,5'}));editorV1(h).onSalva();editorV1(h).onSalva();await flush();assert.equal(writesV1(h).length,1);editorV1(h).onRetry();await flush();assert.equal(writesV1(h)[0].corpo,writesV1(h)[1].corpo)
+ editorV1(h).onChange(m.modificaMaterialeBozza(editorV1(h).bozza,'88888888-8888-4888-8888-888888888888',{quantita:'4'}));editorV1(h).onSalva();await flush();assert.notEqual(writesV1(h)[1].body.richiesta_id,writesV1(h)[2].body.richiesta_id);const p=writesV1(h)[2].body;assert.equal(p.versione_contratto,2);assert.deepEqual(p.documento,{note:'Lavori'});assert.equal(p.materiali.aggiornate[0].quantita,'4.000000');assert.equal(p.materiali.aggiornate[0].costo_unitario,null)
+ h.click('Apri / Modifica');await flush();assert.equal(editorV1(h).bozza.revisione_attesa,8);assert.equal(editorV1(h).bozza.materialiStrutturati.righe[0].quantita,'4.000000');assert.deepEqual(JSON.parse(JSON.stringify(m.deltaMaterialiBozza(editorV1(h).bozza))),{nuove:[],aggiornate:[],rimosse:[]})
+})
+test('M2.6 V0: dettaglio legacy usa esclusivamente UUID e data scelti dalla lettura V2',async()=>{
+ const raw={versione_lettura:2,cantiere_id:SITEV1,data:'2026-09-30',presente:true,versione_prestazioni:0,rapportino_id:REPORTV1,dettaglio:null}
+ const h=harness((url,body)=>url.endsWith('/accesso')?loginReply():body.versione_lettura===2?reply(raw):reply({...present(body.data),rapportino:{...present(body.data).rapportino,id:REPORTV1}}))
+ await h.login();h.date('2026-09-30');await flush();const reads=h.calls.filter(c=>c.url.endsWith('/stato'));assert.equal(reads.length,2);assert.equal(reads[0].body.versione_lettura,2);assert.deepEqual(reads[1].body,{cantiereId:SITEV1,data:'2026-09-30',rapportinoId:REPORTV1});h.click('Apri / Modifica rapportino');assert.equal(h.form().rapportinoInModifica,REPORTV1)
+})
+
 test('V1 riconosciuto: nessun form o apertura legacy; V0 torna modificabile al cambio data',async()=>{
   const h=harness((url,body)=>url.endsWith('/accesso')?loginReply():reply(
     body.data==='2026-09-30'?structured(body.data):body.data==='2026-10-01'?present(body.data):absent(body.data)))
@@ -62,7 +87,7 @@ test('V1 riconosciuto: nessun form o apertura legacy; V0 torna modificabile al c
   assert(!h.text().includes('Apri / Modifica rapportino'));assert(!h.text().includes('Compila rapportino'))
   assert(!h.calls.some(x=>x.url.endsWith('/salva')))
   h.date('2026-10-01');await flush();h.click('Apri / Modifica rapportino')
-  assert.equal(h.form().rapportinoInModifica,'report-2026-10-01')
+  assert.equal(h.form().rapportinoInModifica,REPORTV1)
   assert.equal(h.form().note,'Lavori')
   h.date('2026-10-04');await flush()
   assert(h.text().includes('Rapportino del 04/10/2026 non ancora inviato'))
@@ -86,7 +111,7 @@ test('risposta V1 obsoleta ignorata dopo risposta V0 più recente',async()=>{
   pending[1].resolve(reply(present('2026-10-01')));await flush()
   pending[0].resolve(reply(structured('2026-09-30')));await flush()
   assert(h.text().includes('Rapportino del 01/10/2026 già inviato'))
-  h.click('Apri / Modifica rapportino');assert.equal(h.form().rapportinoInModifica,'report-2026-10-01')
+  h.click('Apri / Modifica rapportino');assert.equal(h.form().rapportinoInModifica,REPORTV1)
 })
 
 test('versione non supportata e data incoerente non abilitano form legacy',async()=>{
@@ -116,7 +141,7 @@ test('A–E/B/C/J: data retroattiva, save e rilettura UUID; date indipendenti e 
   assert.equal(h.calls.at(-1).url,'/api/rapportino/stato');assert.equal(h.calls.at(-1).body.data,'2026-09-30')
   assert(h.text().includes('Rapportino del 30/09/2026 salvato'))
   assert(h.text().includes('Rapportino del 30/09/2026 già inviato'))
-  h.click('Apri / Modifica rapportino');assert.equal(h.form().rapportinoInModifica,'report-2026-09-30')
+  h.click('Apri / Modifica rapportino');assert.equal(h.form().rapportinoInModifica,REPORTV1)
   assert.equal(h.form().note,'Lavori')
   assert.equal(h.find(x=>x.type==='RapportinoOperaiEditor').props.value[0].id,'worker')
   h.date('2026-10-01');assert(!h.text().includes('già inviato'));await flush()
@@ -257,9 +282,9 @@ test('V1 crea con payload esatto, stesso operaio/modi diversi, risultato autorev
   editorV1(h).onSalva();await flush()
   assert.equal(writesV1(h).length,1);assert.equal(h.uuidCalls(),1)
   const body=writesV1(h)[0].body
-  assert.deepEqual(body,{versione_contratto:1,richiesta_id:body.richiesta_id,rapportino_id:null,revisione_attesa:null,cantiere_id:SITEV1,data:'2026-09-30',documento:{note:'Lavori',materiali:'Cemento',quantita_materiali:'5'},prestazioni:{nuove:[rowV1('one'),rowV1('two',true)],aggiornate:[],rimosse:[]}})
+  assert.deepEqual(body,{versione_contratto:2,richiesta_id:body.richiesta_id,rapportino_id:null,revisione_attesa:null,cantiere_id:SITEV1,data:'2026-09-30',documento:{note:'Lavori'},materiali:{nuove:[],aggiornate:[],rimosse:[]},prestazioni:{nuove:[rowV1('one'),rowV1('two',true)],aggiornate:[],rimosse:[]}})
   assert.equal(h.calls.filter(c=>c.url.endsWith('/varianti')).length,loads)
-  assert.deepEqual(h.calls.at(-1).body,{cantiereId:SITEV1,data:'2026-09-30',rapportinoId:REPORTV1})
+  assert.deepEqual(h.calls.at(-1).body,{cantiereId:SITEV1,data:'2026-09-30',rapportinoId:REPORTV1,versione_lettura:2})
   assert(h.text().includes('Rapportino del 30/09/2026 salvato'));assert(h.text().includes('strutturato presente'))
   assert(!h.all().some(x=>x.type==='RapportinoForm'||x.type==='RapportinoPrestazioniEditorV1'))
   assert(!h.calls.some(c=>c.url.endsWith('/salva')))

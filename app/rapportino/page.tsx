@@ -5,7 +5,9 @@ import RapportinoForm from '../components/RapportinoForm'
 import RapportinoPrestazioniEditorV1 from '../components/RapportinoPrestazioniEditorV1'
 import { esitoCreazioneV1Valido } from '../engines/rapportini/salvataggioBozzaV1'
 import { useCoordinatoreRapportinoV1, type StatoContestoRapportino } from '../engines/rapportini/useCoordinatoreRapportinoV1'
-import { trasportoMobileRapportinoV1 } from './trasportoMobileRapportinoV1'
+import { trasportoMobileRapportinoV1, trasportoMobileRapportinoConMateriali } from './trasportoMobileRapportinoV1'
+import { letturaMaterialiValida } from '../engines/rapportini/validaLetturaMateriali'
+import { vistaPrestazioniV1 } from '../engines/rapportini/materialiBozzaV1'
 import RapportinoOperaiEditor from '../components/RapportinoOperaiEditor'
 import type { OperaioRapportinoInput } from '../types'
 import { preparaOperaiRapportino } from '../utils/rapportinoOperai'
@@ -72,12 +74,12 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
 
 
   const { bozzaV1, conflittoV1, conflittoV1Ref, salvatoV1, setSalvatoV1, riletturaV1Fallita,
-    invalidaV1, invalidaVarianti, rileggiSalvatoV1, apriNuovoV1, apriModificaV1, editorProps } = useCoordinatoreRapportinoV1({
+    invalidaV1, invalidaVarianti, rileggiSalvatoV1, apriNuovoV1, apriModificaV1, editorProps, riceviLetturaV2 } = useCoordinatoreRapportinoV1({
       autorizzato: !!operaio, cantiereId, cantiereSelezionatoId: cantiereSelezionato?.id, dataRapportino,
       operaiDisponibili, statoRapportino, richiestaStato, controlloInCorso, salvataggioInCorso,
       statoInCorso, salvataggioAttivo, setStatoRapportino, setStatoInCorso, setSalvataggioAttivo,
       setMostraForm, setErrore, setMessaggioSalvataggio,
-    }, trasportoMobileRapportinoV1)
+    }, trasportoMobileRapportinoConMateriali, { materiali: true })
 
   const applicaProposteOperaiRiconosciuti = (
     proposte: readonly PropostaOperaioRiconosciuto[]
@@ -170,13 +172,35 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
     setStatoInCorso(true)
     setErrore('')
     try {
-      const risposta = await trasportoMobileRapportinoV1.leggiStato({ cantiere_id: cantiere.id, data: data || undefined })
-      const risultato = await risposta.json()
+      let risposta = await trasportoMobileRapportinoConMateriali.leggiStatoV2!({ cantiere_id: cantiere.id, data: data || undefined })
+      let risultato = await risposta.json()
       if (richiesta !== richiestaStato.current) return
       if (!risposta.ok) {
         setErrore(risultato?.error || 'Impossibile controllare il rapportino')
         return
       }
+      if (!letturaMaterialiValida(risultato, { cantiere_id: cantiere.id, data: data || risultato?.data })) {
+        setErrore('Stato del Rapportino non valido: ripeti il controllo')
+        return
+      }
+      if (risultato.versione_prestazioni === 0) {
+        // Il selettore autorevole V2 decide l’UUID; V0 continua a leggere il dettaglio legacy.
+        const idV0 = risultato.rapportino_id, dataV0 = risultato.data
+        risposta = await trasportoMobileRapportinoV1.leggiStato({ cantiere_id: cantiere.id, data: dataV0, rapportino_id: idV0 })
+        risultato = await risposta.json()
+        if (richiesta !== richiestaStato.current) return
+        if (!risposta.ok) { setErrore(risultato?.error || 'Impossibile controllare il rapportino'); return }
+        if (risultato.versione_prestazioni !== 0 || risultato.rapportino?.id !== idV0 || risultato.data !== dataV0) {
+          setErrore('Stato del Rapportino non valido: ripeti il controllo'); return
+        }
+      } else if (risultato.versione_prestazioni === 1) {
+        if (!riceviLetturaV2(risultato, richiesta, { cantiere_id: cantiere.id, data: risultato.data })) {
+          setErrore('Dettaglio strutturato non valido: ripeti il controllo'); return
+        }
+        const d = risultato.dettaglio
+        risultato = { presente: true, versione_prestazioni: 1, data: d.data,
+          rapportino: { id: d.rapportino_id, data: d.data }, timbrature: [], strutturato: vistaPrestazioniV1(d) }
+      } else risultato = { presente: false, versione_prestazioni: null, data: risultato.data, rapportino: null, timbrature: [] }
       if (!risultato.data || (data && risultato.data !== data)
         || (risultato.rapportino && risultato.rapportino.data !== risultato.data)) {
         setErrore('Data del Rapportino non coerente: ripeti il controllo')

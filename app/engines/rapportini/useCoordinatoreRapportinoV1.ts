@@ -252,9 +252,11 @@ export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: Trasp
     },
     onClose: () => { if (!salvataggioInCorso.current) setMostraForm(false) },
   } : null
-  const riceviLetturaV2 = (value: unknown, richiesta: number) => {
-    if (!materialiAbilitati || statoRapportino?.versionePrestazioni === 0 || tentativoV1.current || richiesta !== richiestaStato.current || salvataggioInCorso.current
-      || !letturaMaterialiValida(value, { cantiere_id: cantiereId, data: dataRapportino }) || value.versione_prestazioni !== 1) return false
+  const riceviLetturaV2 = (value: unknown, richiesta: number,
+    selezione = { cantiere_id: cantiereId, data: dataRapportino }) => {
+    if (!materialiAbilitati || tentativoV1.current || richiesta !== richiestaStato.current || salvataggioInCorso.current
+      || selezione.cantiere_id !== cantiereId
+      || !letturaMaterialiValida(value, selezione) || value.versione_prestazioni !== 1) return false
     dettaglioV2.current = value.dettaglio
     conflittoV1Ref.current = false
     setConflittoV1(false)
