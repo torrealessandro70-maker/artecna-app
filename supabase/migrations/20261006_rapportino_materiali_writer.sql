@@ -168,6 +168,33 @@ DO $defaults$ DECLARE x record; BEGIN
  IF NOT EXISTS(SELECT 1 FROM pg_proc WHERE oid='public.salva_rapportino_con_prestazioni(jsonb,text)'::regprocedure
  AND proargnames=ARRAY['p_payload','p_sessione']::text[] AND pronargdefaults=1 AND pg_get_expr(proargdefaults,0)='NULL::text') THEN RAISE EXCEPTION 'Firma/default writer divergenti'; END IF;
 END; $defaults$;
+-- Installer PostgreSQL >=16: il grant provider resta intatto. Nessun flag runtime.
+CREATE TEMP TABLE m23_membership ON COMMIT DROP AS
+ SELECT to_jsonb(m) metadata FROM pg_auth_members m;
+CREATE TEMP TABLE m23_installer ON COMMIT DROP AS
+ SELECT r.rolsuper superuser,n.nspacl schema_acl,
+   pg_has_role('postgres','artecna_rapportini_rpc','USAGE') uso_rpc,
+   pg_has_role('postgres','artecna_rapportini_rpc','SET') set_rpc
+ FROM pg_roles r CROSS JOIN pg_namespace n
+ WHERE r.rolname='postgres' AND n.nspname='artecna_rapportini';
+DO $installer_preflight$
+BEGIN
+ IF current_setting('server_version_num')::integer<160000
+ OR NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname='artecna_rapportini' AND nspowner='postgres'::regrole)
+ OR NOT has_schema_privilege('artecna_rapportini_rpc','artecna_rapportini','USAGE')
+ OR has_schema_privilege('artecna_rapportini_rpc','artecna_rapportini','CREATE') THEN
+ RAISE EXCEPTION 'Baseline installer/schema divergente'; END IF;
+ IF NOT (SELECT superuser FROM m23_installer) THEN
+   IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='postgres' AND rolcreaterole)
+   OR pg_has_role('postgres','artecna_rapportini_rpc','USAGE')
+   OR pg_has_role('postgres','artecna_rapportini_rpc','SET')
+   OR (SELECT count(*) FROM pg_auth_members WHERE roleid='artecna_rapportini_rpc'::regrole AND member='postgres'::regrole)<>1
+   OR NOT EXISTS(SELECT 1 FROM pg_auth_members WHERE roleid='artecna_rapportini_rpc'::regrole AND member='postgres'::regrole
+     AND grantor<>'postgres'::regrole AND admin_option AND NOT inherit_option AND NOT set_option) THEN
+   RAISE EXCEPTION 'Membership installer divergente'; END IF;
+ END IF;
+END;
+$installer_preflight$;
 CREATE FUNCTION artecna_rapportini.salva_contratto_uno(p_payload jsonb,p_sessione text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO pg_catalog,pg_temp AS $fn$
 DECLARE
   a record; r public.rapportini%rowtype; rid uuid; req uuid; c uuid; giorno date;
@@ -467,7 +494,40 @@ BEGIN
  RETURN changed;
 END;
 $fn$;
+-- Solo autorizzazioni DDL temporanee, nella stessa transazione della migration.
+DO $installer_prepare$
+BEGIN
+ IF NOT (SELECT superuser FROM m23_installer) THEN
+   GRANT artecna_rapportini_rpc TO postgres WITH INHERIT FALSE GRANTED BY postgres;
+   GRANT artecna_rapportini_rpc TO postgres WITH SET TRUE GRANTED BY postgres;
+ END IF;
+ GRANT CREATE ON SCHEMA artecna_rapportini TO artecna_rapportini_rpc;
+END;
+$installer_prepare$;
 ALTER FUNCTION artecna_rapportini.applica_materiali_contratto_due(uuid,jsonb) OWNER TO artecna_rapportini_rpc;
+REVOKE CREATE ON SCHEMA artecna_rapportini FROM artecna_rapportini_rpc;
+-- Top-level, mai dentro SECURITY DEFINER. Nessuna ereditarietà temporanea.
+SET LOCAL ROLE artecna_rapportini_rpc;
+DO $materiali_acl$
+DECLARE g record;
+BEGIN
+ REVOKE ALL ON FUNCTION artecna_rapportini.applica_materiali_contratto_due(uuid,jsonb) FROM PUBLIC;
+ FOR g IN SELECT DISTINCT a.grantee FROM pg_proc p CROSS JOIN LATERAL aclexplode(p.proacl) a
+   WHERE p.oid='artecna_rapportini.applica_materiali_contratto_due(uuid,jsonb)'::regprocedure
+   AND a.grantee<>0 AND a.grantee<>p.proowner LOOP
+   EXECUTE format('REVOKE ALL ON FUNCTION artecna_rapportini.applica_materiali_contratto_due(uuid,jsonb) FROM %I',pg_get_userbyid(g.grantee));
+ END LOOP;
+END;
+$materiali_acl$;
+GRANT EXECUTE ON FUNCTION artecna_rapportini.applica_materiali_contratto_due(uuid,jsonb) TO postgres;
+SET LOCAL ROLE postgres;
+DO $installer_restore$
+BEGIN
+ IF NOT (SELECT superuser FROM m23_installer) THEN
+   REVOKE artecna_rapportini_rpc FROM postgres GRANTED BY postgres RESTRICT;
+ END IF;
+END;
+$installer_restore$;
 GRANT SELECT,INSERT,UPDATE ON public.rapportino_materiali TO artecna_rapportini_rpc;
 GRANT SELECT(versione_materiali),UPDATE(versione_materiali) ON public.rapportini TO artecna_rapportini_rpc;
 CREATE POLICY rapportino_materiali_dominio ON public.rapportino_materiali FOR ALL TO artecna_rapportini_rpc USING(true) WITH CHECK(true);
@@ -612,23 +672,20 @@ BEGIN
  RETURN artecna_rapportini.salva_contratto_uno(p_payload,p_sessione);
 END;
 $fn$;
--- Nessun EXECUTE diretto per browser/backend, nessuna membership nuova.
+-- Nessun EXECUTE diretto per browser/backend, nessuna membership permanente nuova.
 DO $acl$
 DECLARE f record; a record;
 BEGIN
  FOR f IN SELECT * FROM pg_proc WHERE oid IN (
  'artecna_rapportini.salva_contratto_uno(jsonb,text)'::regprocedure,
  'artecna_rapportini.salva_contratto_due(jsonb,text)'::regprocedure,
- 'artecna_rapportini.applica_prestazioni_contratto_due(jsonb)'::regprocedure,
- 'artecna_rapportini.applica_materiali_contratto_due(uuid,jsonb)'::regprocedure) LOOP
+ 'artecna_rapportini.applica_prestazioni_contratto_due(jsonb)'::regprocedure) LOOP
  EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC',f.oid::regprocedure);
  FOR a IN SELECT DISTINCT grantee FROM aclexplode(f.proacl) WHERE grantee<>0 AND grantee<>f.proowner LOOP
  EXECUTE format('REVOKE ALL ON FUNCTION %s FROM %I',f.oid::regprocedure,pg_get_userbyid(a.grantee)); END LOOP;
  END LOOP;
 END;
 $acl$;
--- postgres, owner degli orchestratori, è l'unico chiamante dell'helper interno.
-GRANT EXECUTE ON FUNCTION artecna_rapportini.applica_materiali_contratto_due(uuid,jsonb) TO postgres;
 DO $postcheck$
 DECLARE x record; p record;
 BEGIN
@@ -682,4 +739,23 @@ BEGIN
  END LOOP;
 END;
 $postcheck$;
+DO $installer_postcheck$
+BEGIN
+ IF current_user<>'postgres' OR session_user<>'postgres'
+ OR EXISTS((SELECT metadata FROM m23_membership EXCEPT SELECT to_jsonb(m) FROM pg_auth_members m)
+   UNION ALL (SELECT to_jsonb(m) FROM pg_auth_members m EXCEPT SELECT metadata FROM m23_membership))
+ OR (SELECT nspacl FROM pg_namespace WHERE nspname='artecna_rapportini') IS DISTINCT FROM (SELECT schema_acl FROM m23_installer)
+ OR NOT has_schema_privilege('artecna_rapportini_rpc','artecna_rapportini','USAGE')
+ OR has_schema_privilege('artecna_rapportini_rpc','artecna_rapportini','CREATE')
+ OR pg_has_role('postgres','artecna_rapportini_rpc','USAGE') IS DISTINCT FROM (SELECT uso_rpc FROM m23_installer)
+ OR pg_has_role('postgres','artecna_rapportini_rpc','SET') IS DISTINCT FROM (SELECT set_rpc FROM m23_installer) THEN
+ RAISE EXCEPTION 'Autorizzazioni temporanee installer non ripristinate'; END IF;
+ IF NOT (SELECT superuser FROM m23_installer) AND (
+   pg_has_role('postgres','artecna_rapportini_rpc','SET')
+   OR NOT EXISTS(SELECT 1 FROM pg_auth_members WHERE roleid='artecna_rapportini_rpc'::regrole AND member='postgres'::regrole
+     AND admin_option AND NOT inherit_option AND NOT set_option)
+   OR EXISTS(SELECT 1 FROM pg_auth_members WHERE roleid='artecna_rapportini_rpc'::regrole AND member='postgres'::regrole AND grantor='postgres'::regrole)
+ ) THEN RAISE EXCEPTION 'Membership installer finale divergente'; END IF;
+END;
+$installer_postcheck$;
 COMMIT;
