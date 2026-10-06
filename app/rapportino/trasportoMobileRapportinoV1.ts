@@ -15,3 +15,13 @@ export const trasportoMobileRapportinoV1: TrasportoRapportinoV1 = {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo, signal,
   }),
 }
+
+/** Disponibile per M2.5; il coordinatore/editor operativo continua a usare leggiStato V1. */
+export function leggiStatoMobileV2(contesto: Parameters<TrasportoRapportinoV1['leggiStato']>[0], signal?: AbortSignal) {
+  return fetch('/api/rapportino/stato', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cantiereId: contesto.cantiere_id, data: contesto.data || undefined,
+      rapportinoId: contesto.rapportino_id, versione_lettura: 2 }),
+    ...(signal ? { signal } : {}),
+  })
+}

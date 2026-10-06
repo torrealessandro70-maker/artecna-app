@@ -3,6 +3,7 @@ import { leggiRapportinoPortale } from './letturaRapportinoPortale.server'
 import { ErroreServizioRapportini } from './servizioRapportini.server'
 import { contestoLetturaPortaleValido, type ContestoLetturaRapportinoPortale } from './validaLetturaPortale'
 import type { LetturaRapportinoPortale } from './contrattoLetturaPortale'
+import type { StatoRapportinoV2 } from './contrattoMaterialiRapportino'
 
 /** Input applicativo non ancora validato. L'identità deriva soltanto dalla Request. */
 export type InputLetturaPortale = Readonly<{
@@ -30,6 +31,13 @@ function normalizzaContesto(input: unknown): ContestoLetturaRapportinoPortale {
     throw new ErroreServizioRapportini('Contesto lettura Rapportino non valido', 400, '22023')
   }
   return contesto
+}
+
+/** Opt-in separato: il percorso operativo V1 conserva dipendenze e comportamento. */
+export async function leggiStatoRapportinoPortaleV2(req: Request, input: InputLetturaPortale): Promise<StatoRapportinoV2> {
+  const contesto = normalizzaContesto(input)
+  const { leggiMaterialiPortale } = await import('./letturaMaterialiPortale.server')
+  return leggiMaterialiPortale(req, contesto)
 }
 
 /** Una sola lettura autorevole; V0 resta un riferimento, senza lettura legacy.

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { ErroreServizioRapportini, verificaOrigineRapportino } from '../../../engines/rapportini/servizioRapportini.server'
-import { leggiStatoRapportinoPortale } from '../../../engines/rapportini/servizioLetturaPortale.server'
+import { leggiStatoRapportinoPortale, leggiStatoRapportinoPortaleV2 } from '../../../engines/rapportini/servizioLetturaPortale.server'
+import type { StatoRapportinoV2 } from '../../../engines/rapportini/contrattoMaterialiRapportino'
 import type { StatoRapportinoPortale, TimbraturaStatoLegacy } from '../../../engines/rapportini/contrattoLetturaPortale'
 
-const risposta = (body: StatoRapportinoPortale | { error: string }, status = 200) =>
+const risposta = (body: StatoRapportinoPortale | StatoRapportinoV2 | { error: string }, status = 200) =>
   NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
 
 export async function POST(req: Request) {
@@ -19,6 +20,14 @@ export async function POST(req: Request) {
     }
     // Conserva il fallback esistente soltanto quando la data è omessa/vuota.
     const dataRichiesta = typeof body.data === 'string' ? body.data.trim() : body.data
+    if (Object.prototype.hasOwnProperty.call(body, 'versione_lettura')) {
+      if (body.versione_lettura !== 2) return risposta({ error: 'Versione lettura non supportata' }, 400)
+      return risposta(await leggiStatoRapportinoPortaleV2(req, {
+        cantiere_id: body.cantiereId,
+        data: dataRichiesta == null || dataRichiesta === '' ? new Date().toISOString().slice(0, 10) : dataRichiesta,
+        rapportino_id: body.rapportinoId,
+      }))
+    }
     const lettura = await leggiStatoRapportinoPortale(req, {
       cantiere_id: body.cantiereId,
       data: dataRichiesta == null || dataRichiesta === '' ? new Date().toISOString().slice(0, 10) : dataRichiesta,
