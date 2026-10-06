@@ -25,3 +25,8 @@ export function leggiStatoMobileV2(contesto: Parameters<TrasportoRapportinoV1['l
     ...(signal ? { signal } : {}),
   })
 }
+
+/** Opt-in per il futuro editor M2.6; non montato dal Mobile operativo. */
+export const trasportoMobileRapportinoConMateriali: TrasportoRapportinoV1 = {
+  ...trasportoMobileRapportinoV1, leggiStatoV2: leggiStatoMobileV2,
+}

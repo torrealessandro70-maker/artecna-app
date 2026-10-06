@@ -2,11 +2,13 @@ import type { NuovaPrestazioneRapportino, PrestazioneRapportinoAggiornata } from
 import { calcolaOreNetteTimbratura } from '../../utils/rapportinoOperai'
 
 import type { VarianteRapportinoPortale, EsitoSalvataggioRapportino } from './contrattoServizio'
+import type { SezioneMaterialiBozza } from './materialiBozzaV1'
 
 export type PrestazioneBozzaV1 = NuovaPrestazioneRapportino | PrestazioneRapportinoAggiornata
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export type DocumentoBozzaV1 = { note: string; materiali: string; quantita_materiali: string }
 export type BozzaRapportinoV1 = {
+  materialiStrutturati?: SezioneMaterialiBozza
   versione_contratto: 1
   rapportino_id: string | null
   revisione_attesa: number | null

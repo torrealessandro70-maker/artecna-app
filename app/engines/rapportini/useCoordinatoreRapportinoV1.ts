@@ -8,6 +8,10 @@ import { bozzaV1Salvabile, creaTentativoSalvataggioV1, esitoCreazioneV1Valido,
   messaggioErroreSalvataggioV1, type TentativoSalvataggioV1 } from './salvataggioBozzaV1'
 import type { EsitoSalvataggioRapportino } from './contrattoServizio'
 import type { TrasportoRapportinoV1 } from './trasportoRapportinoV1'
+import { creaBozzaRapportinoV2, ricostruisciBozzaRapportinoV2, vistaPrestazioniV1 } from './materialiBozzaV1'
+import { letturaMaterialiValida } from './validaLetturaMateriali'
+import { esitoCreazioneV2Valido } from './salvataggioBozzaV1'
+import type { DettaglioRapportinoV2 } from './contrattoMaterialiRapportino'
 
 export type StatoContestoRapportino = {
   cantiereId: string; richiesta: number; data: string; presente: boolean
@@ -26,7 +30,9 @@ type Contesto = {
 }
 
 /** Orchestrazione V1; identità, selettori esterni e compatibilità V0 appartengono al wrapper. */
-export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: TrasportoRapportinoV1) {
+export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: TrasportoRapportinoV1, opzioni: { materiali?: boolean } = {}) {
+  const materialiAbilitati = opzioni.materiali === true
+  const dettaglioV2 = useRef<DettaglioRapportinoV2 | null>(null)
   const { autorizzato, cantiereId, cantiereSelezionatoId, dataRapportino, operaiDisponibili,
     statoRapportino, richiestaStato, controlloInCorso, salvataggioInCorso, statoInCorso, salvataggioAttivo,
     setStatoRapportino, setStatoInCorso, setSalvataggioAttivo, setMostraForm, setErrore, setMessaggioSalvataggio } = contesto
@@ -72,9 +78,18 @@ export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: Trasp
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30_000)
     try {
-      const risposta = await trasporto.leggiStato({ cantiere_id: salvato.cantiere_id, data: salvato.data, rapportino_id: salvato.rapportino_id }, controller.signal)
-      const risultato = await risposta.json()
+      const input = { cantiere_id: salvato.cantiere_id, data: salvato.data, rapportino_id: salvato.rapportino_id }
+      if (materialiAbilitati && !trasporto.leggiStatoV2) throw new Error('Lettura materiali non disponibile')
+      const risposta = await (materialiAbilitati ? trasporto.leggiStatoV2! : trasporto.leggiStato)(input, controller.signal)
+      let risultato = await risposta.json()
       if (contesto !== richiestaStato.current) return
+      let lettoV2: DettaglioRapportinoV2 | null = null
+      if (materialiAbilitati) {
+        if (!letturaMaterialiValida(risultato, input) || risultato.versione_prestazioni !== 1) throw new Error('Rilettura non valida')
+        lettoV2 = risultato.dettaglio
+        risultato = { presente: true, versione_prestazioni: 1, data: lettoV2.data,
+          rapportino: { id: lettoV2.rapportino_id, data: lettoV2.data }, timbrature: [], strutturato: vistaPrestazioniV1(lettoV2) }
+      }
       if (!risposta.ok || risultato.presente !== true || risultato.versione_prestazioni !== 1
         || risultato.data !== salvato.data || risultato.rapportino?.id !== salvato.rapportino_id
         || risultato.rapportino?.data !== salvato.data || !Array.isArray(risultato.timbrature) || risultato.timbrature.length
@@ -91,7 +106,8 @@ export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: Trasp
         presente: true, versionePrestazioni: 1, rapportinoId: salvato.rapportino_id,
         revisione: risultato.strutturato.revisione })
       setSalvatoV1(risultato.strutturato)
-      setBozzaV1(ricostruisciBozzaRapportinoV1(risultato.strutturato))
+      dettaglioV2.current = lettoV2
+      setBozzaV1(lettoV2 ? ricostruisciBozzaRapportinoV2(lettoV2) : ricostruisciBozzaRapportinoV1(risultato.strutturato))
       setRiletturaV1Fallita(false)
     } catch {
       if (contesto !== richiestaStato.current) return
@@ -107,6 +123,8 @@ export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: Trasp
   }
 
   const salvaBozzaV1 = async (retry = false) => {
+    if (materialiAbilitati && !trasporto.leggiStatoV2) return
+    if (bozzaV1?.materialiStrutturati?.versione_materiali === 1 && !materialiAbilitati) return
     if (salvataggioInCorso.current || controlloInCorso.current || conflittoV1Ref.current || riletturaV1Fallita
       || !autorizzato || !bozzaV1 || !statoRapportino || statoRapportino.versionePrestazioni === 0
       || (statoRapportino.versionePrestazioni === null ? bozzaV1.rapportino_id !== null || statoRapportino.presente
@@ -151,8 +169,14 @@ export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: Trasp
         } else setRetryV1(true)
         return
       }
-      const risultato: unknown = await risposta.json()
+      const ricevuto: unknown = await risposta.json()
       if (contesto !== richiestaStato.current) return
+      let risultato: unknown = ricevuto
+      if (tentativo!.payload.versione_contratto === 2) {
+        if (!esitoCreazioneV2Valido(ricevuto, { ...tentativo!, rapportino_id: tentativo!.payload.rapportino_id })) throw new Error('Risposta non valida')
+        risultato = vistaPrestazioniV1({ ...ricevuto, documento_legacy_materiali:
+          bozzaV1.materialiStrutturati!.documento_legacy_materiali })
+      }
       if (!esitoCreazioneV1Valido(risultato, { ...tentativo!, rapportino_id: tentativo!.payload.rapportino_id })
         || (tentativo!.payload.revisione_attesa !== null && risultato.revisione < tentativo!.payload.revisione_attesa)) throw new Error('Risposta non valida')
       clearTimeout(timeout)
@@ -178,6 +202,7 @@ export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: Trasp
   }
 
   const invalidaV1 = () => {
+    dettaglioV2.current = null
     tentativoV1.current = null
     setRetryV1(false)
     setConflittoV1(false)
@@ -189,7 +214,7 @@ export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: Trasp
   const apriNuovoV1 = () => {
     if (!statoRapportino) return
     setBozzaV1(corrente => corrente && corrente.cantiere_id === statoRapportino.cantiereId && corrente.data === statoRapportino.data
-      ? corrente : creaBozzaRapportinoV1(statoRapportino.cantiereId, statoRapportino.data))
+      ? corrente : (materialiAbilitati ? creaBozzaRapportinoV2 : creaBozzaRapportinoV1)(statoRapportino.cantiereId, statoRapportino.data))
     setMostraForm(true)
   }
   const apriModificaV1 = () => {
@@ -197,7 +222,7 @@ export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: Trasp
     if (controlloInCorso.current || salvataggioInCorso.current || riletturaV1Fallita
       || statoRapportino.richiesta !== richiestaStato.current || salvatoV1.rapportino_id !== statoRapportino.rapportinoId) return
     setBozzaV1(corrente => corrente?.rapportino_id === salvatoV1.rapportino_id && corrente.revisione_attesa === salvatoV1.revisione
-      ? corrente : ricostruisciBozzaRapportinoV1(salvatoV1))
+      ? corrente : dettaglioV2.current ? ricostruisciBozzaRapportinoV2(dettaglioV2.current) : ricostruisciBozzaRapportinoV1(salvatoV1))
     setMostraForm(true)
     void caricaVarianti(statoRapportino.cantiereId)
   }
@@ -217,6 +242,7 @@ export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: Trasp
         void caricaVarianti(statoRapportino.cantiereId, true)
     },
     onChange: nuova => {
+      if (nuova.materialiStrutturati && !materialiAbilitati) return
       if (salvataggioInCorso.current || controlloInCorso.current || richiestaStato.current !== statoRapportino.richiesta
         || nuova.cantiere_id !== statoRapportino.cantiereId || nuova.data !== statoRapportino.data) return
       tentativoV1.current = null
@@ -226,6 +252,19 @@ export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: Trasp
     },
     onClose: () => { if (!salvataggioInCorso.current) setMostraForm(false) },
   } : null
-  return { bozzaV1, conflittoV1, conflittoV1Ref, salvatoV1, setSalvatoV1, riletturaV1Fallita,
+  const riceviLetturaV2 = (value: unknown, richiesta: number) => {
+    if (!materialiAbilitati || statoRapportino?.versionePrestazioni === 0 || tentativoV1.current || richiesta !== richiestaStato.current || salvataggioInCorso.current
+      || !letturaMaterialiValida(value, { cantiere_id: cantiereId, data: dataRapportino }) || value.versione_prestazioni !== 1) return false
+    dettaglioV2.current = value.dettaglio
+    conflittoV1Ref.current = false
+    setConflittoV1(false)
+    setRiletturaV1Fallita(false)
+    setStatoRapportino({ cantiereId: value.cantiere_id, data: value.data, richiesta,
+      presente: true, versionePrestazioni: 1, rapportinoId: value.rapportino_id, revisione: value.dettaglio.revisione })
+    setSalvatoV1(vistaPrestazioniV1(value.dettaglio))
+    setBozzaV1(ricostruisciBozzaRapportinoV2(value.dettaglio))
+    return true
+  }
+  return { bozzaV1, conflittoV1, conflittoV1Ref, salvatoV1, setSalvatoV1, riletturaV1Fallita, riceviLetturaV2,
     invalidaV1, invalidaVarianti, rileggiSalvatoV1, apriNuovoV1, apriModificaV1, editorProps }
 }

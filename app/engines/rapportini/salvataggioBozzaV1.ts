@@ -2,17 +2,28 @@ import { validaPrestazioneBozza, prestazioniAttiveBozza, originalePrestazioneBoz
 import type { StatoVariantiBozza } from './variantiBozzaV1'
 import type { RichiestaSalvataggioRapportino, EsitoSalvataggioRapportino } from './contrattoServizio'
 import { contestoLetturaPortaleValido, letturaPortaleValida } from './validaLetturaPortale'
+import { deltaMaterialiBozza } from './materialiBozzaV1'
+import { letturaMaterialiValida } from './validaLetturaMateriali'
+import type { EsitoRapportinoContrattoDue } from './contrattoMaterialiRapportino'
+
+export type RichiestaSalvataggioRapportinoV2 = Omit<RichiestaSalvataggioRapportino, 'versione_contratto' | 'documento'> & {
+  versione_contratto: 2; documento: Readonly<{ note: string }>
+  materiali: { readonly [K in keyof ReturnType<typeof deltaMaterialiBozza>]: Readonly<ReturnType<typeof deltaMaterialiBozza>[K]> }
+}
 
 export type TentativoSalvataggioV1 = Readonly<{
   richiesta_id: string
   cantiere_id: string
   data: string
-  payload: RichiestaSalvataggioRapportino
+  payload: RichiestaSalvataggioRapportino | RichiestaSalvataggioRapportinoV2
   corpo: string
 }>
 const uuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
 
 export function bozzaV1Salvabile(bozza: BozzaRapportinoV1, varianti: StatoVariantiBozza): boolean {
+  if (bozza.materialiStrutturati?.versione_materiali === 1) {
+    try { deltaMaterialiBozza(bozza) } catch { return false }
+  }
   const persistente = bozza.rapportino_id !== null
   if (!contestoLetturaPortaleValido(bozza) || bozza.versione_contratto !== 1
     || !(['note', 'materiali', 'quantita_materiali'] as const).every(k => typeof bozza.documento[k] === 'string'
@@ -72,7 +83,23 @@ export function creaTentativoSalvataggioV1(bozza: BozzaRapportinoV1, varianti: S
         return !originale || !prestazioniUguali(p, originale)
       }).map(riga)), rimosse: Object.freeze([...bozza.prestazioni.rimosse]) }),
   }) as RichiestaSalvataggioRapportino
+  if (bozza.materialiStrutturati?.versione_materiali === 1) {
+    const delta = deltaMaterialiBozza(bozza)
+    const materiali = Object.freeze({ nuove: Object.freeze(delta.nuove.map(r => Object.freeze(r))),
+      aggiornate: Object.freeze(delta.aggiornate.map(r => Object.freeze(r))), rimosse: Object.freeze(delta.rimosse) })
+    const v2 = Object.freeze({ ...payload, versione_contratto: 2 as const,
+      documento: Object.freeze({ note: bozza.documento.note }), materiali })
+    return Object.freeze({ richiesta_id, cantiere_id: bozza.cantiere_id, data: bozza.data, payload: v2, corpo: JSON.stringify(v2) })
+  }
   return Object.freeze({ richiesta_id, cantiere_id: bozza.cantiere_id, data: bozza.data, payload, corpo: JSON.stringify(payload) })
+}
+
+export function esitoCreazioneV2Valido(value: unknown, contesto: { cantiere_id: string; data: string; rapportino_id?: string | null }): value is EsitoRapportinoContrattoDue {
+  const d = value as EsitoRapportinoContrattoDue | null
+  if (!d || d.versione_materiali !== 1 || Object.keys(d).length !== 10) return false
+  return letturaMaterialiValida({ versione_lettura: 2, presente: true, versione_prestazioni: 1,
+    rapportino_id: d.rapportino_id, cantiere_id: d.cantiere_id, data: d.data,
+    dettaglio: { ...d, documento_legacy_materiali: { materiali: '', quantita_materiali: '' } } }, contesto)
 }
 
 export function esitoCreazioneV1Valido(value: unknown, contesto: { cantiere_id: string; data: string; rapportino_id?: string | null }): value is EsitoSalvataggioRapportino {
