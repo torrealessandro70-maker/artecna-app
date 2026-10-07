@@ -27,11 +27,40 @@ GRANT SELECT,DELETE ON public.foto_cantiere TO artecna_cantieri_delete_rpc;
 GRANT UPDATE(cantiere_id) ON public.foto_cantiere TO artecna_cantieri_delete_rpc;`
 async function port(){const s=net.createServer();await new Promise((r,j)=>{s.once('error',j);s.listen(0,'127.0.0.1',r)});const p=s.address().port;await new Promise(r=>s.close(r));return p}
 test('F3C3: baseline Production, capability, guardie e compatibilità su PostgreSQL 17.6',async t=>{
- const bin=process.env.F3C3_PG_BIN||path.join(os.tmpdir(),'artecna-postgres17-minimal-runtime/pgsql/bin')
+ const candidates=[process.env.F3C3_PG_BIN,
+  path.join(os.tmpdir(),'artecna-postgres17-minimal-runtime/pgsql/bin'),
+  ...(process.platform==='win32'?[path.join(os.homedir(),'AppData','Local','Temp','artecna-postgres17-minimal-runtime','pgsql','bin')]:[])
+ ].filter(Boolean)
+ const failures=[]
+ const bin=[...new Set(candidates)].find(candidate=>{
+  try{
+   for(const name of ['postgres','initdb','pg_ctl']){
+    const executable=path.join(candidate,name+(process.platform==='win32'?'.exe':''))
+    if(!fs.statSync(executable).isFile())throw Error(name+': eseguibile assente')
+    const version=execFileSync(executable,['--version'],{encoding:'utf8',windowsHide:true,timeout:10000})
+    if(!/\b17\.6\b/.test(version))throw Error(name+': richiesta versione 17.6, ricevuta '+version.trim())
+   }
+   return true
+  }catch(error){failures.push(candidate+': '+error.message);return false}
+ })
+ if(!bin)throw Error('Runtime PostgreSQL 17.6 non disponibile. Percorsi verificati:\n'+failures.join('\n'))
+ t.diagnostic('Runtime PostgreSQL 17.6: '+bin)
  const exe=n=>path.join(bin,n+(process.platform==='win32'?'.exe':''))
  assert.match(execFileSync(exe('postgres'),['--version'],{encoding:'utf8',windowsHide:true}),/17\.6/)
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'artecna-f3c3-')),data=path.join(root,'data'),p=await port()
- const ctl=(n,args)=>execFileSync(exe(n),args,{stdio:'ignore',windowsHide:true,timeout:60000})
+ const clusterParent=process.platform==='win32'?path.join(os.homedir(),'AppData','Local','Temp'):os.tmpdir()
+ const root=fs.mkdtempSync(path.join(clusterParent,'artecna-f3c3-')),data=path.join(root,'data'),p=await port()
+ const ctl=(n,args)=>{
+  // pg_ctl conserva stream chiusi: il server Windows può ereditare le pipe.
+  if(n!=='initdb')return execFileSync(exe(n),args,{stdio:'ignore',windowsHide:true,timeout:60000})
+  try{
+   const stdout=execFileSync(exe(n),args,{stdio:['ignore','pipe','pipe'],encoding:'utf8',windowsHide:true,timeout:60000})
+   t.diagnostic('initdb exit code: 0\nstdout:\n'+stdout)
+   return stdout
+  }catch(error){
+   t.diagnostic('initdb exit code: '+error.status+'\nstdout:\n'+(error.stdout||'')+'\nstderr:\n'+(error.stderr||''))
+   throw error
+  }
+ }
  let started=false,supervisor,serial=0
  const connect=async(user,database='postgres')=>{const c=new Client({host:'127.0.0.1',port:p,user,database,connectionTimeoutMillis:5000});await c.connect();return c}
  const q=async(c,s,args=[])=>(await c.query(s,args)).rows
@@ -223,7 +252,7 @@ test('F3C3: baseline Production, capability, guardie e compatibilità su Postgre
   }))
  }finally{
   if(supervisor)await supervisor.end();if(started)ctl('pg_ctl',['-D',data,'-m','fast','-w','stop'])
-  const resolved=path.resolve(root);if(!resolved.startsWith(path.resolve(os.tmpdir())+path.sep)||!path.basename(resolved).startsWith('artecna-f3c3-'))throw Error('Cleanup fuori scope')
+  const resolved=path.resolve(root);if(path.dirname(resolved)!==path.resolve(clusterParent)||!path.basename(resolved).startsWith('artecna-f3c3-'))throw Error('Cleanup fuori scope')
   fs.rmSync(resolved,{recursive:true,force:true,maxRetries:10,retryDelay:200})
  }
 })
