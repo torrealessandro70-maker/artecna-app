@@ -97,6 +97,8 @@ export default function PopupFotoRapportinoAperte({
 
                 <button
                   onClick={() => onEliminaFotoRapportino(foto)}
+                  disabled={foto.allegato_v1_id !== null}
+                  title={foto.allegato_v1_id !== null ? 'Foto gestita dal protocollo Allegati' : 'Elimina foto legacy'}
                   style={{
                     ...buttonSecondary,
                     marginTop: 10,
@@ -105,7 +107,7 @@ export default function PopupFotoRapportinoAperte({
                     width: '100%',
                   }}
                 >
-                  🗑 Elimina foto
+                  {foto.allegato_v1_id != null ? 'Gestita dal protocollo Allegati' : '🗑 Elimina foto'}
                 </button>
               </div>
             </div>

@@ -5601,7 +5601,7 @@ const caricaFotoCantiere = async () => {
   const { data, error } = await supabase
     .from('foto_cantiere')
   .select(
-  'id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria,file_url,file_path,thumbnail_url,storage_provider,sync_status,rapportino_id'
+  'id,cantiere_id,allegato_v1_id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria,file_url,file_path,thumbnail_url,storage_provider,sync_status,rapportino_id'
 )
     .order('created_at', { ascending: false })
     .limit(80)
@@ -7118,128 +7118,48 @@ if (!cantiereSelezionato?.id) {
   }
 
   const salvaModificaCantiere = async () => {
-    if (!cantiereDaModificare || !nuovoNomeCantiere.trim()) {
-      alert('Seleziona un cantiere e scrivi il nuovo nome')
-      return
-    }
-
+    const matches = cantieri.filter(c => c.nome === cantiereDaModificare && c.id)
     const nuovoNome = nuovoNomeCantiere.trim()
-
-    if (cantiereDaModificare === nuovoNome) {
-      alert('Il nuovo nome è uguale a quello attuale')
+    if (matches.length !== 1 || !nuovoNome || nuovoNome === cantiereDaModificare) {
+      alert('Seleziona un cantiere identificato da UUID e un nuovo nome valido')
       return
     }
-
-    const { error: errorCantieri } = await supabase
-      .from('cantieri')
-      .update({ nome: nuovoNome })
-      .eq('nome', cantiereDaModificare)
-
-    if (errorCantieri) {
-      alert('Errore modifica cantiere: ' + errorCantieri.message)
-      return
-    }
-
-    const { error: errorRapportini } = await supabase
-      .from('rapportini')
-      .update({ cantiere: nuovoNome })
-      .eq('cantiere', cantiereDaModificare)
-
-    if (errorRapportini) {
-      alert('Errore aggiornamento rapportini: ' + errorRapportini.message)
-      return
-    }
-
-    const { error: errorFoto } = await supabase
-      .from('foto_cantiere')
-      .update({ cantiere: nuovoNome })
-      .eq('cantiere', cantiereDaModificare)
-
-    if (errorFoto) {
-      alert('Errore aggiornamento foto: ' + errorFoto.message)
-      return
-    }
-
-    const { error: errorTimbrature } = await supabase
-      .from('timbrature')
-      .update({ cantiere: nuovoNome })
-      .eq('cantiere', cantiereDaModificare)
-
-    if (errorTimbrature) {
-      alert('Errore aggiornamento timbrature: ' + errorTimbrature.message)
-      return
-    }
-
-    const { error: errorPreventivi } = await supabase
-      .from('preventivi_cantiere')
-      .update({ cantiere: nuovoNome })
-      .eq('cantiere', cantiereDaModificare)
-
-    if (errorPreventivi) {
-      alert('Errore aggiornamento preventivi: ' + errorPreventivi.message)
-      return
-    }
-
-    const { error: errorMateriali } = await supabase
-      .from('materiali_cantiere')
-      .update({ cantiere: nuovoNome })
-      .eq('cantiere', cantiereDaModificare)
-
-    if (errorMateriali) {
-      alert('Errore aggiornamento materiali: ' + errorMateriali.message)
-      return
-    }
-
-    const { error: errorAttrezzi } = await supabase
-      .from('attrezzi_cantiere')
-      .update({ cantiere: nuovoNome })
-      .eq('cantiere', cantiereDaModificare)
-
-    if (errorAttrezzi) {
-      alert('Errore aggiornamento attrezzi: ' + errorAttrezzi.message)
-      return
-    }
-
+    const { error } = await supabase.rpc('rinomina_cantiere_legacy_senza_allegati', {
+      p_cantiere_id: matches[0].id,
+      p_nome_atteso: cantiereDaModificare,
+      p_nuovo_nome: nuovoNome,
+      p_modalita: 'legacy',
+      p_dati: {},
+    })
+    if (error) { alert(error.message); return }
     if (cantiereRapporto === cantiereDaModificare) setCantiereRapporto(nuovoNome)
     if (cantiereFoto === cantiereDaModificare) setCantiereFoto(nuovoNome)
     if (cantiereTimbratura === cantiereDaModificare) setCantiereTimbratura(nuovoNome)
     if (filtroCantiere === cantiereDaModificare) setFiltroCantiere(nuovoNome)
     if (cantiereScheda === cantiereDaModificare) setCantiereScheda(nuovoNome)
-
     setCantiereDaModificare('')
     setNuovoNomeCantiere('')
-
     await caricaCantieri()
     await caricaRapportini()
     await caricaFotoCantiere()
     await caricaTimbrature()
     await caricaEconomia()
     await caricaAcconti()
-
     alert('Cantiere modificato correttamente')
   }
 
 
 const modificaNomeCantiereScheda = async () => {
   if (!cantiereSelezionatoDaId?.id) return
-
   const { id, nome } = cantiereSelezionatoDaId
   const nuovoNome = prompt('Modifica nome cantiere', nome || '')?.trim()
   if (!nuovoNome || nuovoNome === nome) return
-
-  const { error } = await supabase
-    .from('cantieri')
-    .update({ nome: nuovoNome })
-    .eq('id', id)
-
-  if (error) {
-    alert('Errore modifica cantiere: ' + error.message)
-    return
-  }
-
-  if (String(cantiereIdScheda) === String(id)) {
-    setCantiereScheda(nuovoNome)
-  }
+  const { error } = await supabase.rpc('rinomina_cantiere_legacy_senza_allegati', {
+    p_cantiere_id: id, p_nome_atteso: nome, p_nuovo_nome: nuovoNome,
+    p_modalita: 'scheda', p_dati: {},
+  })
+  if (error) { alert(error.message); return }
+  if (String(cantiereIdScheda) === String(id)) setCantiereScheda(nuovoNome)
   await caricaCantieri()
 }
 
@@ -7263,31 +7183,21 @@ const annullaModificaRegistroCantiere = () => {
 
 const salvaModificaRegistroCantiere = async (id?: string) => {
   if (!id) return
-
+  const c = cantieri.find(c => c.id === id)
+  if (!c) { alert('Ricarica il cantiere prima di modificarlo'); return }
   const nuovoNome = cantiereRegistroNome.trim()
-
-  const preventivo = parseImporto(cantiereRegistroPreventivo)
-
-  const { error } = await supabase
-    .from('cantieri')
-    .update({
-      nome: nuovoNome,
-      preventivo,
+  const { error } = await supabase.rpc('rinomina_cantiere_legacy_senza_allegati', {
+    p_cantiere_id: id, p_nome_atteso: c.nome, p_nuovo_nome: nuovoNome,
+    p_modalita: 'registro',
+    p_dati: {
+      preventivo: parseImporto(cantiereRegistroPreventivo),
       data_inizio_lavori: cantiereRegistroInizio || null,
       data_fine_lavori: cantiereRegistroFine || null,
       lavori_conclusi: cantiereRegistroConcluso,
-    })
-    .eq('id', id)
-
-  if (error) {
-    alert('Errore modifica cantiere: ' + error.message)
-    return
-  }
-
-  if (String(cantiereIdScheda) === String(id)) {
-    setCantiereScheda(nuovoNome)
-  }
-
+    },
+  })
+  if (error) { alert(error.message); return }
+  if (String(cantiereIdScheda) === String(id)) setCantiereScheda(nuovoNome)
   annullaModificaRegistroCantiere()
   await caricaCantieri()
   await caricaEconomia()
@@ -8246,6 +8156,10 @@ fotoGiaInserite.add(chiaveFoto)
 
 const eliminaFotoCantiere = async (id?: string) => {
   if (!id) return
+  if (fotoCantiere.find(f => f.id === id)?.allegato_v1_id !== null) {
+    alert('Foto gestita dal protocollo Allegati o non verificata. Nessuna foto eliminata.')
+    return
+  }
 
   const conferma = confirm(
     'Eliminare questa foto?'
@@ -8279,6 +8193,10 @@ const eliminaFotoCantiere = async (id?: string) => {
 }
 
 const eliminaFotoRapportino = async (foto: any) => {
+  if (foto?.allegato_v1_id !== null) {
+    alert('Foto gestita dal protocollo Allegati o non verificata. Nessuna foto eliminata.')
+    return
+  }
   if (!foto?.id) {
     alert('Errore eliminazione foto: record foto non valido')
     return
@@ -8330,28 +8248,11 @@ const eliminaFotoRapportino = async (foto: any) => {
 
 
   const eliminaRapportino = async (id?: string) => {
-    if (!id) return
-
-    const conferma = confirm('Vuoi eliminare questo rapportino?')
-    if (!conferma) return
-
-    const { error: erroreFoto } = await supabase
-      .from('foto_cantiere')
-      .update({ rapportino_id: null })
-      .eq('rapportino_id', id)
-
-    if (erroreFoto) {
-      alert('Errore scollegamento foto rapportino: ' + erroreFoto.message)
-      return
-    }
-
-    const { error } = await supabase.from('rapportini').delete().eq('id', id)
-
-    if (error) {
-      alert('Errore eliminazione rapportino: ' + error.message)
-      return
-    }
-
+    if (!id || !confirm('Vuoi eliminare questo rapportino?')) return
+    const { error } = await supabase.rpc('elimina_rapportino_legacy_senza_allegati', {
+      p_rapportino_id: id,
+    })
+    if (error) { alert(error.message); return }
     await caricaRapportini()
     await caricaFotoCantiere()
     alert('Rapportino eliminato')
@@ -8391,6 +8292,10 @@ const eliminaFotoRapportino = async (foto: any) => {
   }
 
 const aggiornaCategoriaFotoSelezionate = async () => {
+  if (fotoCantiereSelezionate.some(id => fotoCantiere.find(f => f.id === id)?.allegato_v1_id !== null)) {
+    alert('La selezione contiene foto Rapportino V1 o non verificate. Nessuna categoria modificata.')
+    return
+  }
   if (fotoCantiereSelezionate.length === 0) {
     alert('Seleziona almeno una foto')
     return

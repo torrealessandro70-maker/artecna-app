@@ -45,6 +45,11 @@ export default function FotoCantiereGallery({
     )
     const totale = fotoDaEliminare.length
 
+    if (fotoCantiereSelezionate.some(id => !fotoDaEliminare.some(f => f.id === id)) || fotoDaEliminare.some(f => f.allegato_v1_id !== null)) {
+      alert('La selezione contiene foto gestite dal protocollo Allegati o non verificate. Nessuna foto eliminata.')
+      return
+    }
+
     if (totale === 0) {
       setFotoCantiereSelezionate([])
       return
@@ -118,6 +123,8 @@ export default function FotoCantiereGallery({
 
           <button
             onClick={eliminaFotoSelezionate}
+            disabled={fotoCantiereSelezionate.some(id => fotoCantiere.find(f => f.id === id)?.allegato_v1_id !== null)}
+            title="Le foto Rapportino V1 sono gestite dal protocollo Allegati; le selezioni miste non possono essere eliminate."
             style={{
               ...buttonSecondary,
               backgroundColor: '#dc2626',
@@ -244,8 +251,13 @@ export default function FotoCantiereGallery({
                 </label>
 
                 <select
+                  disabled={foto.allegato_v1_id !== null}
                   value={foto.categoria || 'prima'}
                   onChange={async (e) => {
+                    if (foto.allegato_v1_id !== null) {
+                      alert('Foto Rapportino V1: categoria strutturale non modificabile.')
+                      return
+                    }
                     const nuovaCategoria = e.target.value
 
                     if (!foto.id) {
@@ -272,6 +284,11 @@ export default function FotoCantiereGallery({
                       .eq('id', foto.id)
 
                     if (error) {
+                      setFotoCantiere((prev) =>
+                        prev.map((f) =>
+                          f.id === foto.id ? { ...f, categoria: foto.categoria } : f
+                        )
+                      )
                       alert(
                         'Errore aggiornamento categoria foto: ' +
                           error.message
@@ -300,6 +317,7 @@ export default function FotoCantiereGallery({
               </div>
 
               <button
+                disabled={foto.allegato_v1_id !== null}
                 onClick={() => eliminaFotoCantiere(foto.id)}
                 style={{
                   ...buttonSecondary,
@@ -310,8 +328,9 @@ export default function FotoCantiereGallery({
                   ...(contestuale ? { minHeight: 44 } : {}),
                 }}
               >
-                🗑 Elimina
+                {foto.allegato_v1_id != null ? 'Gestita dal protocollo Allegati' : '🗑 Elimina'}
               </button>
+              {foto.allegato_v1_id != null && <p>Foto Rapportino V1 — categoria non modificabile.</p>}
             </div>
           </div>
           )

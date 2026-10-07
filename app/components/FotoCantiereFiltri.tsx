@@ -1,8 +1,10 @@
 'use client'
 
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
+import type { FotoCantiere } from '../types'
 
 type Props = {
+  fotoCantiere?: FotoCantiere[]
   filtroFotoCantiere: string
   setFiltroFotoCantiere: (v: string) => void
 
@@ -19,6 +21,7 @@ type Props = {
 }
 
 export default function FotoCantiereFiltri({
+  fotoCantiere = [],
   filtroFotoCantiere,
   setFiltroFotoCantiere,
 
@@ -115,6 +118,8 @@ export default function FotoCantiereFiltri({
         </select>
 
         <button
+          disabled={fotoCantiereSelezionate.some(id => fotoCantiere.find(f => f.id === id)?.allegato_v1_id !== null)}
+          title="La categoria delle foto Rapportino V1 non è modificabile; una selezione mista non viene applicata."
           onClick={aggiornaCategoriaFotoSelezionate}
           style={buttonPrimary}
         >

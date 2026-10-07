@@ -502,6 +502,7 @@ export default function CantieriSchedaPanel(props: any) {
                 </div>
 
                 <FotoCantiereFiltri
+                  fotoCantiere={p.fotoCantiere}
                   filtroFotoCantiere={p.filtroFotoCantiere}
                   setFiltroFotoCantiere={p.setFiltroFotoCantiere}
                   fotoCantiereSelezionate={fotoSelezionateDelCantiere}

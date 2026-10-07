@@ -67,6 +67,7 @@ export default function FotoCantiereFascicoloPanel(props: Props) {
       />
 
       <FotoCantiereFiltri
+        fotoCantiere={p.fotoCantiere}
         filtroFotoCantiere={p.filtroFotoCantiere}
         setFiltroFotoCantiere={p.setFiltroFotoCantiere}
         fotoCantiereSelezionate={p.fotoCantiereSelezionate}

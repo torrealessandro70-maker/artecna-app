@@ -1,0 +1,886 @@
+{
+  "source": "F3A Production READ ONLY PostgreSQL 17.6; F3C1/F3C2 Storage GREEN",
+  "tables": {
+    "public.foto_cantiere": {
+      "owner": "postgres",
+      "rls": false,
+      "force_rls": false,
+      "acl": "{postgres=arwdDxtm/postgres,anon=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres,artecna_cantieri_delete_rpc=rd/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "position": 1,
+          "not_null": true,
+          "default": "uuid_generate_v4()",
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "cantiere",
+          "type": "text",
+          "position": 2,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "nota",
+          "type": "text",
+          "position": 3,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "immagine_base64",
+          "type": "text",
+          "position": 4,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "position": 5,
+          "not_null": false,
+          "default": "now()",
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "data_foto",
+          "type": "text",
+          "position": 6,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "geolocalizzazione",
+          "type": "text",
+          "position": 7,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "categoria",
+          "type": "text",
+          "position": 8,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "file_url",
+          "type": "text",
+          "position": 9,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "file_path",
+          "type": "text",
+          "position": 10,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "thumbnail_url",
+          "type": "text",
+          "position": 11,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "storage_provider",
+          "type": "text",
+          "position": 12,
+          "not_null": false,
+          "default": "'cloud'::text",
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "sync_status",
+          "type": "text",
+          "position": 13,
+          "not_null": false,
+          "default": "'not_required'::text",
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "rapportino_id",
+          "type": "text",
+          "position": 14,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "sopralluogo_id",
+          "type": "text",
+          "position": 15,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "cantiere_id",
+          "type": "uuid",
+          "position": 16,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": "{artecna_cantieri_delete_rpc=w/postgres}"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "foto_cantiere_cantiere_id_fkey",
+          "type": "f",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "FOREIGN KEY (cantiere_id) REFERENCES cantieri(id)"
+        },
+        {
+          "name": "foto_cantiere_pkey",
+          "type": "p",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "foto_cantiere_pkey",
+          "valid": true,
+          "ready": true,
+          "unique": true,
+          "primary": true,
+          "definition": "CREATE UNIQUE INDEX foto_cantiere_pkey ON public.foto_cantiere USING btree (id)"
+        }
+      ],
+      "triggers": [
+        {
+          "function": "RI_FKey_noaction_upd",
+          "constraint": "allegati_foto_cantiere_id_fkey",
+          "enabled": "O",
+          "internal": true,
+          "deferrable": false,
+          "deferred": false
+        },
+        {
+          "function": "RI_FKey_restrict_del",
+          "constraint": "allegati_foto_cantiere_id_fkey",
+          "enabled": "O",
+          "internal": true,
+          "deferrable": false,
+          "deferred": false
+        },
+        {
+          "function": "RI_FKey_check_ins",
+          "constraint": "foto_cantiere_cantiere_id_fkey",
+          "enabled": "O",
+          "internal": true,
+          "deferrable": false,
+          "deferred": false
+        },
+        {
+          "function": "RI_FKey_check_upd",
+          "constraint": "foto_cantiere_cantiere_id_fkey",
+          "enabled": "O",
+          "internal": true,
+          "deferrable": false,
+          "deferred": false
+        }
+      ]
+    },
+    "artecna_rapportini.allegati": {
+      "owner": "postgres",
+      "rls": false,
+      "force_rls": false,
+      "acl": "{postgres=arwdDxtm/postgres}",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "position": 1,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "rapportino_id",
+          "type": "uuid",
+          "position": 2,
+          "not_null": true,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "cantiere_id",
+          "type": "uuid",
+          "position": 3,
+          "not_null": true,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "chiave_client_allegato",
+          "type": "uuid",
+          "position": 4,
+          "not_null": true,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "sha256",
+          "type": "bytea",
+          "position": 5,
+          "not_null": true,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "bucket",
+          "type": "text",
+          "position": 6,
+          "not_null": true,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "file_path",
+          "type": "text",
+          "position": 7,
+          "not_null": true,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "mime_type",
+          "type": "text",
+          "position": 8,
+          "not_null": true,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "byte_size",
+          "type": "bigint",
+          "position": 9,
+          "not_null": true,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "stato",
+          "type": "text",
+          "position": 10,
+          "not_null": true,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "foto_cantiere_id",
+          "type": "uuid",
+          "position": 11,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "position": 12,
+          "not_null": true,
+          "default": "statement_timestamp()",
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "finalized_at",
+          "type": "timestamp with time zone",
+          "position": 13,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "position": 14,
+          "not_null": true,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "removed_at",
+          "type": "timestamp with time zone",
+          "position": 15,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "lease_id",
+          "type": "uuid",
+          "position": 16,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        },
+        {
+          "name": "lease_until",
+          "type": "timestamp with time zone",
+          "position": 17,
+          "not_null": false,
+          "default": null,
+          "identity": "",
+          "generated": "",
+          "acl": null
+        }
+      ],
+      "constraints": [
+        {
+          "name": "allegati_bucket",
+          "type": "c",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (bucket = 'rapportini-v1'::text)"
+        },
+        {
+          "name": "allegati_cancellato_post_cleanup",
+          "type": "c",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (stato <> 'cancellato'::text OR removed_at IS NOT NULL AND foto_cantiere_id IS NULL AND lease_id IS NULL AND lease_until IS NULL)"
+        },
+        {
+          "name": "allegati_cantiere_id_fkey",
+          "type": "f",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "FOREIGN KEY (cantiere_id) REFERENCES cantieri(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "allegati_coerenza",
+          "type": "c",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (stato = 'prenotato'::text AND finalized_at IS NULL AND removed_at IS NULL AND foto_cantiere_id IS NULL OR stato = 'finalizzato'::text AND finalized_at IS NOT NULL AND removed_at IS NULL AND foto_cantiere_id IS NOT NULL OR stato = 'scaduto'::text AND finalized_at IS NULL AND removed_at IS NULL AND foto_cantiere_id IS NULL OR (stato = ANY (ARRAY['cancellazione_pending'::text, 'cancellato'::text])) AND removed_at IS NOT NULL)"
+        },
+        {
+          "name": "allegati_dimensione",
+          "type": "c",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (byte_size >= 1 AND byte_size <= 4000000)"
+        },
+        {
+          "name": "allegati_foto",
+          "type": "u",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "UNIQUE (foto_cantiere_id)"
+        },
+        {
+          "name": "allegati_foto_cantiere_id_fkey",
+          "type": "f",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "FOREIGN KEY (foto_cantiere_id) REFERENCES foto_cantiere(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "allegati_identita",
+          "type": "u",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "UNIQUE (rapportino_id, chiave_client_allegato)"
+        },
+        {
+          "name": "allegati_lease",
+          "type": "c",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (lease_id IS NULL AND lease_until IS NULL OR lease_id IS NOT NULL AND lease_until IS NOT NULL AND (stato = ANY (ARRAY['prenotato'::text, 'cancellazione_pending'::text])))"
+        },
+        {
+          "name": "allegati_mime",
+          "type": "c",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (mime_type = ANY (ARRAY['image/jpeg'::text, 'image/png'::text, 'image/webp'::text]))"
+        },
+        {
+          "name": "allegati_oggetto",
+          "type": "u",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "UNIQUE (bucket, file_path)"
+        },
+        {
+          "name": "allegati_path",
+          "type": "c",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (btrim(file_path) <> ''::text AND file_path !~~ '/%'::text AND strpos(file_path, '..'::text) = 0 AND file_path ~~ 'rapportini/%'::text AND length(file_path) > 11)"
+        },
+        {
+          "name": "allegati_pkey",
+          "type": "p",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "allegati_rapportino_id_fkey",
+          "type": "f",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "FOREIGN KEY (rapportino_id) REFERENCES rapportini(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "allegati_sha",
+          "type": "c",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (octet_length(sha256) = 32)"
+        },
+        {
+          "name": "allegati_stato",
+          "type": "c",
+          "valid": true,
+          "deferrable": false,
+          "deferred": false,
+          "definition": "CHECK (stato = ANY (ARRAY['prenotato'::text, 'finalizzato'::text, 'cancellazione_pending'::text, 'cancellato'::text, 'scaduto'::text]))"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "allegati_cantiere",
+          "valid": true,
+          "ready": true,
+          "unique": false,
+          "primary": false,
+          "definition": "CREATE INDEX allegati_cantiere ON artecna_rapportini.allegati USING btree (cantiere_id)"
+        },
+        {
+          "name": "allegati_foto",
+          "valid": true,
+          "ready": true,
+          "unique": true,
+          "primary": false,
+          "definition": "CREATE UNIQUE INDEX allegati_foto ON artecna_rapportini.allegati USING btree (foto_cantiere_id)"
+        },
+        {
+          "name": "allegati_identita",
+          "valid": true,
+          "ready": true,
+          "unique": true,
+          "primary": false,
+          "definition": "CREATE UNIQUE INDEX allegati_identita ON artecna_rapportini.allegati USING btree (rapportino_id, chiave_client_allegato)"
+        },
+        {
+          "name": "allegati_oggetto",
+          "valid": true,
+          "ready": true,
+          "unique": true,
+          "primary": false,
+          "definition": "CREATE UNIQUE INDEX allegati_oggetto ON artecna_rapportini.allegati USING btree (bucket, file_path)"
+        },
+        {
+          "name": "allegati_pkey",
+          "valid": true,
+          "ready": true,
+          "unique": true,
+          "primary": true,
+          "definition": "CREATE UNIQUE INDEX allegati_pkey ON artecna_rapportini.allegati USING btree (id)"
+        },
+        {
+          "name": "allegati_scadenza",
+          "valid": true,
+          "ready": true,
+          "unique": false,
+          "primary": false,
+          "definition": "CREATE INDEX allegati_scadenza ON artecna_rapportini.allegati USING btree (expires_at) WHERE (stato = 'prenotato'::text)"
+        }
+      ],
+      "triggers": [
+        {
+          "function": "RI_FKey_check_ins",
+          "constraint": "allegati_cantiere_id_fkey",
+          "enabled": "O",
+          "internal": true,
+          "deferrable": false,
+          "deferred": false
+        },
+        {
+          "function": "RI_FKey_check_upd",
+          "constraint": "allegati_cantiere_id_fkey",
+          "enabled": "O",
+          "internal": true,
+          "deferrable": false,
+          "deferred": false
+        },
+        {
+          "function": "RI_FKey_check_ins",
+          "constraint": "allegati_foto_cantiere_id_fkey",
+          "enabled": "O",
+          "internal": true,
+          "deferrable": false,
+          "deferred": false
+        },
+        {
+          "function": "RI_FKey_check_upd",
+          "constraint": "allegati_foto_cantiere_id_fkey",
+          "enabled": "O",
+          "internal": true,
+          "deferrable": false,
+          "deferred": false
+        },
+        {
+          "function": "RI_FKey_check_ins",
+          "constraint": "allegati_rapportino_id_fkey",
+          "enabled": "O",
+          "internal": true,
+          "deferrable": false,
+          "deferred": false
+        },
+        {
+          "function": "RI_FKey_check_upd",
+          "constraint": "allegati_rapportino_id_fkey",
+          "enabled": "O",
+          "internal": true,
+          "deferrable": false,
+          "deferred": false
+        }
+      ]
+    }
+  },
+  "functions": [
+    {
+      "signature": "artecna_rapportini.accesso_allegato_finalizzato(uuid,uuid,uuid,date)",
+      "metadata": {
+        "nome": "accesso_allegato_finalizzato",
+        "owner": "postgres",
+        "setof": false,
+        "schema": "artecna_rapportini",
+        "strict": false,
+        "presente": true,
+        "risultato": "jsonb",
+        "linguaggio": "plpgsql",
+        "volatility": "s",
+        "acl_espansa": [
+          {
+            "grantee": "postgres",
+            "grantor": "postgres",
+            "grantable": false,
+            "privilegio": "EXECUTE"
+          }
+        ],
+        "byte_prosrc": 2614,
+        "acl_catalogo": "{postgres=X/postgres}",
+        "contiene_crlf": true,
+        "configurazione": [
+          "search_path=pg_catalog, pg_temp"
+        ],
+        "firma_catalogo": "artecna_rapportini.accesso_allegato_finalizzato(uuid,uuid,uuid,date)",
+        "numero_default": 0,
+        "security_definer": true,
+        "sha256_prosrc_lf": "5b18982a90d493080fed1b496330b80b48f7ff3853f51e93928f12b2b3ed0d02",
+        "execute_effettivo": [
+          {
+            "ruolo": "anon",
+            "execute": false,
+            "presente": true,
+            "schema_usage": false
+          },
+          {
+            "ruolo": "artecna_rapportini_backend",
+            "execute": false,
+            "presente": true,
+            "schema_usage": false
+          },
+          {
+            "ruolo": "artecna_rapportini_rpc",
+            "execute": false,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "authenticated",
+            "execute": false,
+            "presente": true,
+            "schema_usage": false
+          },
+          {
+            "ruolo": "postgres",
+            "execute": true,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "service_role",
+            "execute": false,
+            "presente": true,
+            "schema_usage": false
+          }
+        ],
+        "argomenti_identita": "p_id uuid, p_rapportino uuid, p_cantiere uuid, p_data date",
+        "contiene_cr_isolati": false,
+        "espressioni_default": null,
+        "argomenti_con_default": "p_id uuid, p_rapportino uuid, p_cantiere uuid, p_data date"
+      },
+      "definition": "CREATE OR REPLACE FUNCTION artecna_rapportini.accesso_allegato_finalizzato(p_id uuid, p_rapportino uuid, p_cantiere uuid, p_data date)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'pg_temp'\nAS $function$\nDECLARE a record; f record; v_ext text; v_path text;\nBEGIN\n  SELECT id,rapportino_id,cantiere_id,chiave_client_allegato,stato,bucket,file_path,mime_type,byte_size,\n    finalized_at,foto_cantiere_id,removed_at,lease_id,lease_until INTO a FROM artecna_rapportini.allegati WHERE id=p_id;\n  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Allegato non disponibile'; END IF;\n  IF a.rapportino_id IS DISTINCT FROM p_rapportino OR a.cantiere_id IS DISTINCT FROM p_cantiere THEN\n    RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Contesto allegato non valido';\n  END IF;\n  IF a.stato IN ('prenotato','scaduto','cancellazione_pending','cancellato') THEN\n    RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Allegato non disponibile';\n  END IF;\n  IF a.stato IS DISTINCT FROM 'finalizzato' OR a.finalized_at IS NULL OR a.foto_cantiere_id IS NULL\n    OR a.removed_at IS NOT NULL OR a.lease_id IS NOT NULL OR a.lease_until IS NOT NULL\n    OR a.chiave_client_allegato IS NULL OR a.byte_size IS NULL OR a.byte_size NOT BETWEEN 1 AND 4000000 THEN\n    RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n  END IF;\n  v_ext:=CASE a.mime_type WHEN 'image/jpeg' THEN 'jpg' WHEN 'image/png' THEN 'png' WHEN 'image/webp' THEN 'webp' END;\n  v_path:='rapportini/'||p_cantiere::text||'/'||p_rapportino::text||'/'||a.chiave_client_allegato::text||'.'||v_ext;\n  IF v_ext IS NULL OR a.bucket IS DISTINCT FROM 'rapportini-v1' OR a.file_path IS DISTINCT FROM v_path THEN\n    RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Oggetto allegato non valido';\n  END IF;\n  SELECT cantiere_id,rapportino_id,categoria,data_foto,file_url,file_path,immagine_base64,thumbnail_url,\n    storage_provider,sync_status INTO f FROM public.foto_cantiere WHERE id=a.foto_cantiere_id;\n  IF NOT FOUND OR f.cantiere_id IS DISTINCT FROM p_cantiere OR f.rapportino_id IS DISTINCT FROM p_rapportino::text\n    OR f.categoria IS DISTINCT FROM 'rapportino' OR f.data_foto::text IS DISTINCT FROM p_data::text\n    OR f.file_url IS NOT NULL OR f.file_path IS NOT NULL OR f.immagine_base64 IS DISTINCT FROM ''\n    OR f.thumbnail_url IS NOT NULL OR f.storage_provider IS DISTINCT FROM 'cloud' OR f.sync_status IS DISTINCT FROM 'not_required' THEN\n    RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Proiezione allegato non valida';\n  END IF;\n  -- Solo server: non è il DTO browser AutorizzazioneAccessoAllegato (URL futuro).\n  RETURN pg_catalog.jsonb_build_object('versione_contratto',1,'allegato_id',a.id,'bucket',a.bucket,\n    'file_path',a.file_path,'mime_type',a.mime_type,'byte_size',a.byte_size);\nEND;\n$function$\n"
+    },
+    {
+      "signature": "public.cancella_allegato_rapportino_portale(text,uuid)",
+      "metadata": {
+        "nome": "cancella_allegato_rapportino_portale",
+        "owner": "postgres",
+        "setof": false,
+        "schema": "public",
+        "strict": false,
+        "presente": true,
+        "risultato": "jsonb",
+        "linguaggio": "plpgsql",
+        "volatility": "v",
+        "acl_espansa": [
+          {
+            "grantee": "postgres",
+            "grantor": "postgres",
+            "grantable": false,
+            "privilegio": "EXECUTE"
+          },
+          {
+            "grantee": "artecna_rapportini_backend",
+            "grantor": "postgres",
+            "grantable": false,
+            "privilegio": "EXECUTE"
+          }
+        ],
+        "byte_prosrc": 6147,
+        "acl_catalogo": "{postgres=X/postgres,artecna_rapportini_backend=X/postgres}",
+        "contiene_crlf": true,
+        "configurazione": [
+          "search_path=pg_catalog, pg_temp"
+        ],
+        "firma_catalogo": "cancella_allegato_rapportino_portale(text,uuid)",
+        "numero_default": 0,
+        "security_definer": true,
+        "sha256_prosrc_lf": "e42cf72a822d8e066b08db13ade38107d1d06ae3e9d8cad4547e60c596a7f68a",
+        "execute_effettivo": [
+          {
+            "ruolo": "anon",
+            "execute": false,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "artecna_rapportini_backend",
+            "execute": true,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "artecna_rapportini_rpc",
+            "execute": false,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "authenticated",
+            "execute": false,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "postgres",
+            "execute": true,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "service_role",
+            "execute": false,
+            "presente": true,
+            "schema_usage": true
+          }
+        ],
+        "argomenti_identita": "p_sessione text, p_allegato_id uuid",
+        "contiene_cr_isolati": false,
+        "espressioni_default": null,
+        "argomenti_con_default": "p_sessione text, p_allegato_id uuid"
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.cancella_allegato_rapportino_portale(p_sessione text, p_allegato_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'pg_temp'\nAS $function$\nDECLARE\n  v_now timestamptz := pg_catalog.statement_timestamp();\n  v_accesso boolean; v_stato text; target record; r record; v_nome text;\n  a artecna_rapportini.allegati%ROWTYPE; f public.foto_cantiere%ROWTYPE;\n  v_ext text; v_path text;\nBEGIN\n  IF session_user<>'artecna_rapportini_backend' THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Accesso Rapportini non consentito';\n  END IF;\n  IF p_sessione IS NULL OR p_sessione !~ '^[0-9a-f]{64}$' THEN\n    RAISE EXCEPTION USING ERRCODE='PR401',MESSAGE='Sessione portale non valida';\n  END IF;\n  SELECT o.accesso_portale,o.stato INTO v_accesso,v_stato FROM artecna_rapportini.sessioni_portale s\n    JOIN public.operai o ON o.id=s.operaio_id WHERE s.token_sha256=pg_catalog.sha256(pg_catalog.convert_to(p_sessione,'UTF8'))\n    AND s.revocata_at IS NULL AND s.scade_at>v_now FOR SHARE OF s,o;\n  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='PR401',MESSAGE='Sessione portale assente, scaduta o revocata'; END IF;\n  IF v_accesso IS DISTINCT FROM true OR v_stato='sospeso' THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Accesso Rapportini non consentito';\n  END IF;\n  IF p_allegato_id IS NULL THEN\n    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='Richiesta allegato non valida';\n  END IF;\n  -- Prima lettura solo per localizzare il contesto, nessuna decisione sullo stato.\n  SELECT rapportino_id,cantiere_id INTO target FROM artecna_rapportini.allegati WHERE id=p_allegato_id;\n  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Contesto allegato incoerente'; END IF;\n  SELECT nome INTO v_nome FROM public.cantieri WHERE id=target.cantiere_id\n    AND lavori_conclusi IS DISTINCT FROM true FOR SHARE;\n  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Cantiere non consentito'; END IF;\n  -- Ordine globale RPC allegati: Rapportino -> Allegato -> foto_cantiere.\n  SELECT id,cantiere_id,data,versione_prestazioni INTO r FROM public.rapportini WHERE id=target.rapportino_id FOR UPDATE;\n  IF NOT FOUND OR r.cantiere_id IS DISTINCT FROM target.cantiere_id OR r.data IS NULL THEN\n    RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Contesto allegato incoerente';\n  END IF;\n  IF r.versione_prestazioni IS DISTINCT FROM 1 THEN\n    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='Versione Rapportino non supportata';\n  END IF;\n  SELECT * INTO a FROM artecna_rapportini.allegati WHERE id=p_allegato_id FOR UPDATE;\n  IF NOT FOUND OR a.rapportino_id IS DISTINCT FROM r.id OR a.cantiere_id IS DISTINCT FROM r.cantiere_id THEN\n    RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Contesto allegato incoerente';\n  END IF;\n  IF (a.lease_id IS NULL) <> (a.lease_until IS NULL) THEN\n    RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n  END IF;\n  IF a.stato='prenotato' THEN\n    IF a.finalized_at IS NOT NULL OR a.foto_cantiere_id IS NOT NULL OR a.removed_at IS NOT NULL THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n    END IF;\n  ELSIF a.stato='scaduto' THEN\n    IF a.finalized_at IS NOT NULL OR a.foto_cantiere_id IS NOT NULL OR a.removed_at IS NOT NULL\n      OR a.lease_id IS NOT NULL OR a.lease_until IS NOT NULL THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n    END IF;\n  ELSIF a.stato='finalizzato' THEN\n    IF a.finalized_at IS NULL OR a.foto_cantiere_id IS NULL OR a.removed_at IS NOT NULL\n      OR a.lease_id IS NOT NULL OR a.lease_until IS NOT NULL THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n    END IF;\n  ELSIF a.stato='cancellazione_pending' THEN\n    -- Provenienza 3D: coppia NULL oppure coppia presente; nessuna lease cleanup in 3D.\n    IF a.removed_at IS NULL OR a.lease_id IS NOT NULL OR a.lease_until IS NOT NULL\n      OR (a.finalized_at IS NULL) <> (a.foto_cantiere_id IS NULL) THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n    END IF;\n  ELSIF a.stato='cancellato' THEN\n    -- Tombstone post-cleanup: finalized_at è storia; nessuna proiezione residua.\n    IF a.removed_at IS NULL OR a.lease_id IS NOT NULL OR a.lease_until IS NOT NULL\n      OR a.foto_cantiere_id IS NOT NULL THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n    END IF;\n  ELSE\n    RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n  END IF;\n  v_ext:=CASE a.mime_type WHEN 'image/jpeg' THEN 'jpg' WHEN 'image/png' THEN 'png' WHEN 'image/webp' THEN 'webp' END;\n  v_path:='rapportini/'||r.cantiere_id::text||'/'||r.id::text||'/'||a.chiave_client_allegato::text||'.'||v_ext;\n  IF v_ext IS NULL OR a.bucket IS DISTINCT FROM 'rapportini-v1' OR a.file_path IS DISTINCT FROM v_path THEN\n    RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Oggetto allegato non valido';\n  END IF;\n  IF a.foto_cantiere_id IS NOT NULL THEN\n    -- Ultimo lock nell'ordine globale, solo lettura della proiezione conservata.\n    SELECT * INTO f FROM public.foto_cantiere WHERE id=a.foto_cantiere_id FOR SHARE;\n    IF NOT FOUND OR f.cantiere_id IS DISTINCT FROM r.cantiere_id OR f.rapportino_id IS DISTINCT FROM r.id::text\n      OR f.cantiere IS DISTINCT FROM v_nome OR f.categoria IS DISTINCT FROM 'rapportino'\n      OR f.data_foto::text IS DISTINCT FROM r.data::text OR f.nota IS DISTINCT FROM ''\n      OR f.file_url IS NOT NULL OR f.file_path IS NOT NULL OR f.immagine_base64 IS DISTINCT FROM ''\n      OR f.thumbnail_url IS NOT NULL OR f.storage_provider IS DISTINCT FROM 'cloud'\n      OR f.sync_status IS DISTINCT FROM 'not_required' THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Proiezione allegato non valida';\n    END IF;\n  END IF;\n  IF a.stato IN ('prenotato','scaduto','finalizzato') THEN\n    UPDATE artecna_rapportini.allegati SET stato='cancellazione_pending',removed_at=v_now,\n      lease_id=NULL,lease_until=NULL WHERE id=a.id RETURNING * INTO a;\n  END IF;\n  RETURN pg_catalog.jsonb_build_object('versione_contratto',1,'esito','successo','allegato_id',a.id,\n    'stato',a.stato,'foto_cantiere_id',a.foto_cantiere_id,'removed_at',a.removed_at);\nEND;\n$function$\n"
+    },
+    {
+      "signature": "public.finalizza_allegato_rapportino_portale(text,uuid,uuid)",
+      "metadata": {
+        "nome": "finalizza_allegato_rapportino_portale",
+        "owner": "postgres",
+        "setof": false,
+        "schema": "public",
+        "strict": false,
+        "presente": true,
+        "risultato": "jsonb",
+        "linguaggio": "plpgsql",
+        "volatility": "v",
+        "acl_espansa": [
+          {
+            "grantee": "postgres",
+            "grantor": "postgres",
+            "grantable": false,
+            "privilegio": "EXECUTE"
+          },
+          {
+            "grantee": "artecna_rapportini_backend",
+            "grantor": "postgres",
+            "grantable": false,
+            "privilegio": "EXECUTE"
+          }
+        ],
+        "byte_prosrc": 6352,
+        "acl_catalogo": "{postgres=X/postgres,artecna_rapportini_backend=X/postgres}",
+        "contiene_crlf": true,
+        "configurazione": [
+          "search_path=pg_catalog, pg_temp"
+        ],
+        "firma_catalogo": "finalizza_allegato_rapportino_portale(text,uuid,uuid)",
+        "numero_default": 0,
+        "security_definer": true,
+        "sha256_prosrc_lf": "d74ede6c91552f15ff3c5f0d2fbc4c1cd7ff953a19c44dce4b45a52e2b84fdd8",
+        "execute_effettivo": [
+          {
+            "ruolo": "anon",
+            "execute": false,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "artecna_rapportini_backend",
+            "execute": true,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "artecna_rapportini_rpc",
+            "execute": false,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "authenticated",
+            "execute": false,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "postgres",
+            "execute": true,
+            "presente": true,
+            "schema_usage": true
+          },
+          {
+            "ruolo": "service_role",
+            "execute": false,
+            "presente": true,
+            "schema_usage": true
+          }
+        ],
+        "argomenti_identita": "p_sessione text, p_allegato_id uuid, p_lease_id uuid",
+        "contiene_cr_isolati": false,
+        "espressioni_default": null,
+        "argomenti_con_default": "p_sessione text, p_allegato_id uuid, p_lease_id uuid"
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.finalizza_allegato_rapportino_portale(p_sessione text, p_allegato_id uuid, p_lease_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'pg_temp'\nAS $function$\nDECLARE\n  v_now timestamptz := pg_catalog.statement_timestamp();\n  v_accesso boolean; v_stato text; target record; r record; v_nome text;\n  a artecna_rapportini.allegati%ROWTYPE; f public.foto_cantiere%ROWTYPE;\n  v_foto uuid; v_esito text := 'successo';\nBEGIN\n  IF session_user<>'artecna_rapportini_backend' THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Accesso Rapportini non consentito';\n  END IF;\n  IF p_sessione IS NULL OR p_sessione !~ '^[0-9a-f]{64}$' THEN\n    RAISE EXCEPTION USING ERRCODE='PR401',MESSAGE='Sessione portale non valida';\n  END IF;\n  SELECT o.accesso_portale,o.stato INTO v_accesso,v_stato FROM artecna_rapportini.sessioni_portale s\n    JOIN public.operai o ON o.id=s.operaio_id WHERE s.token_sha256=pg_catalog.sha256(pg_catalog.convert_to(p_sessione,'UTF8'))\n    AND s.revocata_at IS NULL AND s.scade_at>v_now FOR SHARE OF s,o;\n  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='PR401',MESSAGE='Sessione portale assente, scaduta o revocata'; END IF;\n  IF v_accesso IS DISTINCT FROM true OR v_stato='sospeso' THEN\n    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Accesso Rapportini non consentito';\n  END IF;\n  IF p_allegato_id IS NULL OR p_lease_id IS NULL THEN\n    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='Richiesta allegato non valida';\n  END IF;\n  -- Prima lettura solo per localizzare il contesto, nessuna decisione sullo stato.\n  SELECT rapportino_id,cantiere_id INTO target FROM artecna_rapportini.allegati WHERE id=p_allegato_id;\n  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Contesto allegato incoerente'; END IF;\n  SELECT nome INTO v_nome FROM public.cantieri WHERE id=target.cantiere_id\n    AND lavori_conclusi IS DISTINCT FROM true FOR SHARE;\n  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Cantiere non consentito'; END IF;\n  -- Ordine globale RPC allegati: Rapportino -> Allegato -> foto_cantiere.\n  SELECT id,cantiere_id,data,versione_prestazioni INTO r FROM public.rapportini WHERE id=target.rapportino_id FOR UPDATE;\n  IF NOT FOUND OR r.cantiere_id IS DISTINCT FROM target.cantiere_id OR r.data IS NULL THEN\n    RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Contesto allegato incoerente';\n  END IF;\n  IF r.versione_prestazioni IS DISTINCT FROM 1 THEN\n    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='Versione Rapportino non supportata';\n  END IF;\n  SELECT * INTO a FROM artecna_rapportini.allegati WHERE id=p_allegato_id FOR UPDATE;\n  IF NOT FOUND OR a.rapportino_id IS DISTINCT FROM r.id OR a.cantiere_id IS DISTINCT FROM r.cantiere_id THEN\n    RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Contesto allegato incoerente';\n  END IF;\n  IF (a.lease_id IS NULL) <> (a.lease_until IS NULL) THEN\n    RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n  END IF;\n  IF a.stato='prenotato' THEN\n    IF a.finalized_at IS NOT NULL OR a.removed_at IS NOT NULL OR a.foto_cantiere_id IS NOT NULL THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n    END IF;\n    IF a.expires_at<=v_now THEN\n      UPDATE artecna_rapportini.allegati SET stato='scaduto',lease_id=NULL,lease_until=NULL\n        WHERE id=a.id RETURNING * INTO a;\n      v_esito:='scaduto_persistito_con_conflitto';\n    ELSE\n      IF a.lease_id IS DISTINCT FROM p_lease_id OR a.lease_until IS NULL OR a.lease_until<=v_now THEN\n        RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Tentativo allegato non valido';\n      END IF;\n      v_foto:=pg_catalog.gen_random_uuid();\n      INSERT INTO public.foto_cantiere(id,cantiere_id,cantiere,rapportino_id,categoria,data_foto,nota,\n        file_url,file_path,immagine_base64,thumbnail_url,storage_provider,sync_status)\n      VALUES(v_foto,r.cantiere_id,v_nome,r.id::text,'rapportino',r.data,'',NULL,NULL,'',NULL,'cloud','not_required');\n      UPDATE artecna_rapportini.allegati SET stato='finalizzato',foto_cantiere_id=v_foto,finalized_at=v_now,\n        lease_id=NULL,lease_until=NULL WHERE id=a.id RETURNING * INTO a;\n    END IF;\n  ELSIF a.stato='finalizzato' THEN\n    IF a.finalized_at IS NULL OR a.removed_at IS NOT NULL OR a.foto_cantiere_id IS NULL\n      OR a.lease_id IS NOT NULL OR a.lease_until IS NOT NULL THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n    END IF;\n    -- Solo verifica: mai ricreare o riparare una proiezione mancante/incoerente.\n    SELECT * INTO f FROM public.foto_cantiere WHERE id=a.foto_cantiere_id FOR SHARE;\n    IF NOT FOUND OR f.cantiere_id IS DISTINCT FROM r.cantiere_id OR f.rapportino_id IS DISTINCT FROM r.id::text\n      OR f.cantiere IS DISTINCT FROM v_nome OR f.categoria IS DISTINCT FROM 'rapportino'\n      OR f.data_foto::text IS DISTINCT FROM r.data::text OR f.nota IS DISTINCT FROM ''\n      OR f.file_url IS NOT NULL OR f.file_path IS NOT NULL OR f.immagine_base64 IS DISTINCT FROM ''\n      OR f.thumbnail_url IS NOT NULL OR f.storage_provider IS DISTINCT FROM 'cloud'\n      OR f.sync_status IS DISTINCT FROM 'not_required' THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Proiezione allegato non valida';\n    END IF;\n  ELSIF a.stato='scaduto' THEN\n    IF a.finalized_at IS NOT NULL OR a.removed_at IS NOT NULL OR a.foto_cantiere_id IS NOT NULL\n      OR a.lease_id IS NOT NULL OR a.lease_until IS NOT NULL THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n    END IF;\n    RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Allegato non riutilizzabile';\n  ELSIF a.stato='cancellazione_pending' THEN\n    IF a.removed_at IS NULL THEN RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido'; END IF;\n    RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Allegato non riutilizzabile';\n  ELSIF a.stato='cancellato' THEN\n    IF a.removed_at IS NULL OR a.lease_id IS NOT NULL OR a.lease_until IS NOT NULL THEN\n      RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n    END IF;\n    RAISE EXCEPTION USING ERRCODE='PR409',MESSAGE='Allegato non riutilizzabile';\n  ELSE\n    RAISE EXCEPTION USING ERRCODE='XX001',MESSAGE='Stato allegato non valido';\n  END IF;\n  RETURN pg_catalog.jsonb_build_object('versione_contratto',1,'esito',v_esito,'allegato_id',a.id,\n    'stato',a.stato,'foto_cantiere_id',a.foto_cantiere_id,'finalized_at',a.finalized_at);\nEND;\n$function$\n"
+    }
+  ],
+  "postHashes": {
+    "public.finalizza_allegato_rapportino_portale(text,uuid,uuid)": "fbd491fe3adb0d7ac680ed8364fba041dafdf4b96bade7760b827fafb46c58c1",
+    "artecna_rapportini.accesso_allegato_finalizzato(uuid,uuid,uuid,date)": "627df2345e6e7e3c5e11bf8eb4f908cfdaaecdcc1c36b98869cab653b3c94b1b"
+  }
+}

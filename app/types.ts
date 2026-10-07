@@ -30,6 +30,8 @@ export type Rapportino = {
 
 export type FotoCantiere = {
   id?: string
+  cantiere_id?: string
+  allegato_v1_id?: string | null
   cantiere: string
   nota: string
   immagine_base64: string
