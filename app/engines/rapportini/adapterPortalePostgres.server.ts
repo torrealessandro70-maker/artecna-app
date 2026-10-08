@@ -4,6 +4,8 @@ import { attachDatabasePool } from '@vercel/functions'
 import { CA_SUPABASE } from './caSupabase.server'
 
 const invocazioni = {
+  prenota_allegato_rapportino_portale: { sql: 'public.prenota_allegato_rapportino_portale($1::text,$2::uuid,$3::uuid,$4::date,$5::uuid,$6::text,$7::text,$8::bigint)', parametri: ['p_sessione', 'p_rapportino_id', 'p_cantiere_id', 'p_data', 'p_chiave_client_allegato', 'p_sha256', 'p_mime_type', 'p_byte_size'] },
+  finalizza_allegato_rapportino_portale: { sql: 'public.finalizza_allegato_rapportino_portale($1::text,$2::uuid,$3::uuid)', parametri: ['p_sessione', 'p_allegato_id', 'p_lease_id'] },
   crea_sessione_rapportino: { sql: 'public.crea_sessione_rapportino($1::text,$2::text)', parametri: ['p_pin', 'p_token'] },
   verifica_sessione_rapportino: { sql: 'public.verifica_sessione_rapportino($1::text,$2::uuid)', parametri: ['p_sessione', 'p_cantiere_id'] },
   varianti_rapportino_portale: { sql: 'public.varianti_rapportino_portale($1::text,$2::uuid)', parametri: ['p_sessione', 'p_cantiere_id'] },
@@ -125,4 +127,16 @@ export async function rpcPortalePostgres(nome: RpcPortaleRapportini, argomenti: 
     }
     throw new Error('Connessione servizio Rapportini non disponibile')
   }
+}
+
+/** Solo server: utente attestato da Auth.getUser, mai ricavato dal payload HTTP.
+ * Stessa identita/TLS del pool esistente; nessun grant o cambio di ruolo. */
+export async function risolviFotoDesktopPostgres(allegato: string, utenteVerificato: string): Promise<unknown> {
+  const connessioni = poolPortale(() => {})
+  const result = await connessioni.query({
+    text: "SELECT artecna_foto_desktop.risolvi($1::uuid,$2::uuid) AS result WHERE session_user='artecna_rapportini_backend' AND current_user='artecna_rapportini_backend'",
+    values: [allegato, utenteVerificato],
+  })
+  if (result.rows.length !== 1) throw new Error('Identita backend Foto non valida')
+  return result.rows[0].result
 }

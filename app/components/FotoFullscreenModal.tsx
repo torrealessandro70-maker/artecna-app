@@ -1,4 +1,5 @@
 'use client'
+import FotoPrivataDesktopV1 from './FotoPrivataDesktopV1'
 
 type Props = {
   fotoFullscreen: any
@@ -26,7 +27,10 @@ export default function FotoFullscreenModal({
         cursor: 'zoom-out',
       }}
     >
-      <img
+      {fotoFullscreen.allegato_v1_id != null ? (
+        <FotoPrivataDesktopV1 allegato={fotoFullscreen.allegato_v1_id} rapportino={fotoFullscreen.rapportino_id} foto={fotoFullscreen.id}
+          style={{ maxWidth: '95vw', maxHeight: '95vh', borderRadius: 12 }} />
+      ) : <img
         src={
   (fotoFullscreen as any).file_url ||
   (fotoFullscreen as any).url ||
@@ -38,7 +42,7 @@ export default function FotoFullscreenModal({
           maxHeight: '95%',
           borderRadius: 12,
         }}
-      />
+      />}
     </div>
   )
 }

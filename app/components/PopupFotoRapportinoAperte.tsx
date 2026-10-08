@@ -1,6 +1,7 @@
 'use client'
 
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
+import FotoPrivataDesktopV1 from './FotoPrivataDesktopV1'
 
 type Props = {
   fotoRapportinoAperte: any[]
@@ -73,7 +74,10 @@ export default function PopupFotoRapportinoAperte({
                 overflow: 'hidden',
               }}
             >
-              <img
+              {foto.allegato_v1_id != null ? (
+                <FotoPrivataDesktopV1 allegato={foto.allegato_v1_id} rapportino={foto.rapportino_id} foto={foto.id}
+                  style={{ width: '100%', height: 220, objectFit: 'contain' }} />
+              ) : <img
                 src={foto.immagine_base64}
                 alt="Foto rapportino"
                 style={{
@@ -81,7 +85,7 @@ export default function PopupFotoRapportinoAperte({
                   height: 220,
                   objectFit: 'cover',
                 }}
-              />
+              />}
 
               <div style={{ padding: 10 }}>
                 <div

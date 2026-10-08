@@ -2,6 +2,8 @@
 
 import { useRef, useState } from 'react'
 import RapportinoForm from '../components/RapportinoForm'
+import FotoRapportinoMobileV1 from '../components/FotoRapportinoMobileV1'
+import { validaUUIDAllegato, validaDataAllegato } from '../engines/rapportini/contrattoAllegati'
 import RapportinoPrestazioniEditorV1 from '../components/RapportinoPrestazioniEditorV1'
 import { esitoCreazioneV1Valido } from '../engines/rapportini/salvataggioBozzaV1'
 import { useCoordinatoreRapportinoV1, type StatoContestoRapportino } from '../engines/rapportini/useCoordinatoreRapportinoV1'
@@ -698,6 +700,14 @@ setOperaiRapportino(operaiRicostruiti)
   onClick={() => { if (!salvataggioInCorso.current && !controlloInCorso.current) void continua() }}>
   Aggiorna stato e varianti
 </button>}
+{operaio && statoRapportino && statoRapportino.cantiereId === cantiereId && statoRapportino.data === dataRapportino
+  && (statoRapportino.versionePrestazioni === 1 || bozzaV1) && (
+  <FotoRapportinoMobileV1 key={operaio.id} operaioId={operaio.id}
+    contesto={{ cantiere_id: validaUUIDAllegato(statoRapportino.cantiereId), data: validaDataAllegato(statoRapportino.data),
+      rapportino_id: statoRapportino.versionePrestazioni === 1 && statoRapportino.rapportinoId
+        ? validaUUIDAllegato(statoRapportino.rapportinoId) : null }}
+    disabled={statoInCorso || salvataggioAttivo || conflittoV1 || riletturaV1Fallita} />
+)}
 {mostraForm &&
   cantiereSelezionato &&
   statoRapportino && statoRapportino.versionePrestazioni === 0 && (

@@ -2,6 +2,7 @@
 
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 import type { FotoCantiere } from '../types'
+import FotoPrivataDesktopV1 from './FotoPrivataDesktopV1'
 
 type Props = {
   contestuale?: boolean
@@ -214,7 +215,10 @@ export default function FotoCantiereGallery({
               Seleziona
             </label>
 
-            {srcFoto ? (
+            {foto.allegato_v1_id != null ? (
+              <FotoPrivataDesktopV1 allegato={foto.allegato_v1_id} rapportino={(foto as any).rapportino_id} foto={foto.id}
+                onClick={() => setFotoFullscreen(foto)} style={{ width: '100%', height: 180, objectFit: 'contain', cursor: 'pointer' }} />
+            ) : srcFoto ? (
             <img
               src={srcFoto}
               alt="Foto cantiere"
