@@ -1,5 +1,6 @@
 import type { AnteprimaFattura } from './engines/fatture/import-documenti'
 'use client'
+import QuadernoProgettiPanel from './components/QuadernoProgettiPanel'
 import { preservaPerimetroMiglioraTesto, messaggioPerimetro } from './utils/perimetroMiglioraTesto'
 import { chiaveAnalisiVoce } from './components/AnalisiPrezzoVoce'
 import { contabilizzaManodopera } from './engines/economia/contabilitaManodopera'
@@ -751,6 +752,11 @@ const [pagineAperte, setPagineAperte] = useState<string[]>(() => {
   }
   return ['home']
 })
+useEffect(() => {
+  const apriFileQuaderno = (event: Event) => { window.setTimeout(() => { if (!event.defaultPrevented) { setSezioneAttiva('quaderno'); setMenuAperto(null) } }, 0) }
+  window.addEventListener('artecna-quaderno-file', apriFileQuaderno)
+  return () => window.removeEventListener('artecna-quaderno-file', apriFileQuaderno)
+}, [])
 useEffect(() => {
   localStorage.setItem('artecna_pagine_aperte', JSON.stringify(pagineAperte))
 }, [pagineAperte])
@@ -11793,15 +11799,20 @@ textarea:not(.impostazioni-input) {
   📚 Registro
 </button>
 
-<button
+<button onClick={() => setMenuAperto(menuAperto === 'strumenti' ? null : 'strumenti')}
+ aria-expanded={menuAperto === 'strumenti'} style={menuButtonStyle(sezioneAttiva === 'quaderno' || sezioneAttiva === 'prezzari')}>🧰 Strumenti ▾</button>
+{menuAperto === 'strumenti' && <button onClick={() => { setSezioneAttiva('quaderno'); setMenuAperto(null) }}
+ style={{ ...menuButtonStyle(sezioneAttiva === 'quaderno'), paddingLeft: 28 }}>📓 Quaderno</button>}
+
+{menuAperto === 'strumenti' && <button
   onClick={() => {
     setSezioneAttiva('prezzari')
     setMenuAperto(null)
   }}
-  style={menuButtonStyle(sezioneAttiva === 'prezzari')}
+  style={{ ...menuButtonStyle(sezioneAttiva === 'prezzari'), paddingLeft: 28 }}
 >
   💰 Prezzari
-</button>
+</button>}
 
     <button
       onClick={() => {
@@ -13093,6 +13104,9 @@ onDocumentAction={gestisciAzioneDocumento}
   />
 )}
 
+<div hidden={sezioneAttiva !== 'quaderno'}>
+ <QuadernoProgettiPanel supabase={supabase} attivo={sezioneAttiva === 'quaderno'} buttonPrimary={buttonPrimary} buttonSecondary={buttonSecondary} />
+</div>
 {/* ================= SOPRALLUOGHI ================= */}
 {sezioneAttiva === 'sopralluoghi' && (
   <SopralluoghiContainer

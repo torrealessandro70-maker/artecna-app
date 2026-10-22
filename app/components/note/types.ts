@@ -86,6 +86,7 @@ export type OggettoGraficoQuaderno = {
   layerId?: QuadernoLayerId
 }
 export type PaginaQuadernoNota = {
+  cadOrigin?: { x: number; y: number }
   id: string
   titolo: string
 

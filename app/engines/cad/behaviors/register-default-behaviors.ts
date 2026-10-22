@@ -1,4 +1,5 @@
-﻿import { registerBehavior } from './registry'
+﻿import { circleBehavior, polylineBehavior } from './dxf-primitives.behavior'
+import { registerBehavior } from './registry'
 
 import { textBehavior } from './text.behavior'
 import { lineBehavior } from './line.behavior'
@@ -16,6 +17,8 @@ export const registerDefaultBehaviors = (): void => {
     return
   }
 
+  registerBehavior(circleBehavior)
+  registerBehavior(polylineBehavior)
   registerBehavior(textBehavior)
   registerBehavior(lineBehavior)
 registerBehavior(freehandBehavior)

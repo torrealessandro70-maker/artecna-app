@@ -34,6 +34,22 @@ export default function CadEntityRenderer({
 }: Props) {
 
 switch (entity.type) {
+  case "circle":
+    if (!entity.visible) return null
+    return <g onPointerDown={onPointerDown} onDoubleClick={onDoubleClick}>
+      <circle cx={entity.center.x} cy={entity.center.y} r={entity.radius}
+        fill={entity.fill?.color || 'none'} fillOpacity={entity.fill?.opacity}
+        stroke={selected ? '#2563eb' : entity.stroke.color} strokeWidth={entity.stroke.width}
+        strokeOpacity={entity.stroke.opacity} vectorEffect="non-scaling-stroke" />
+    </g>
+  case "polyline": {
+    if (!entity.visible) return null
+    const points = entity.points.map(p => p.x + ',' + p.y).join(' ')
+    const props = { points, fill: entity.closed ? entity.fill?.color || 'none' : 'none', stroke: selected ? '#2563eb' : entity.stroke.color, strokeWidth: entity.stroke.width, strokeOpacity: entity.stroke.opacity }
+    return <g onPointerDown={onPointerDown} onDoubleClick={onDoubleClick}>
+      {entity.closed ? <polygon {...props} vectorEffect="non-scaling-stroke" /> : <polyline {...props} vectorEffect="non-scaling-stroke" />}
+    </g>
+  }
   case "text":
     return <TextRenderer entity={entity} selected={selected} onPointerDown={onPointerDown} onDoubleClick={onDoubleClick} resizeHandlers={textResizeHandlers} />
 

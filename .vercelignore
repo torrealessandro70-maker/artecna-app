@@ -1,1 +1,11 @@
-**/*.test.cjs
+# Upload only application sources; keep tests and migration history in Git.
+**/*.test.*
+**/*.spec.*
+/audit-locali/
+/docs/
+/supabase/
+/AGENTS.md
+/CLAUDE.md
+/.env*
+/app/engines/rapportini/fixtureStep3.cjs
+/README.md

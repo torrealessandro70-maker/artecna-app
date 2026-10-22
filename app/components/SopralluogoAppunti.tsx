@@ -15,7 +15,12 @@ import {
 import { flushSync } from "react-dom";
 import { ArrowUpRight, CornerDownRight, Eraser } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { apriArteCna, esportaArteCna, scaricaFile, uriBinaria, type QuadernoFile } from '../engines/quaderno/fileNativo';
+import { esportaDxf, importaDxf, type UnitaDxf } from '../engines/quaderno/dxf';
+import AllegatoQuadernoPrivato from './AllegatoQuadernoPrivato';
+import { riferimentoFileQuaderno, leggiImmaginePrivata, ripristinaSorgentiPrivate, risolviSorgentiPrivate } from '../engines/quaderno/storagePrivato';
 import NotaDisegno from "./note/NotaDisegno";
+import { destinazioneQuaderno, percorsoQuaderno, paginePerSalvataggio, erroreQuaderno } from '../engines/quaderno/persistenza';
 import CadEntityRenderer from "../engines/cad/render/CadEntityRenderer";
 import { intersectsCadMarquee } from "../engines/cad/selection/marquee";
 import { DEFAULT_TEXT_BOX_WIDTH, getCadTextLayout } from "../engines/cad/geometry/text-layout";
@@ -219,7 +224,11 @@ type QuadernoHistorySnapshot = {
 type Props = {
   mostraAppuntiSopralluogo: boolean;
   setMostraAppuntiSopralluogo: (v: boolean) => void;
-  sopralluogoAperto: SopralluogoNota;
+  sopralluogoAperto?: SopralluogoNota;
+  progettoQuadernoId?: string;
+  importazioneFile?: QuadernoFile;
+  onProgettoSalvato?: () => void;
+  onStatoProgettoChange?: (dirty: boolean, saving: boolean, fileBusy?: boolean) => void;
   supabase: SupabaseClient;
   buttonPrimary: CSSProperties;
   buttonSecondary: CSSProperties;
@@ -236,7 +245,11 @@ onChiudiFascicolo?: () => void;
 export default function SopralluogoAppunti({
   mostraAppuntiSopralluogo,
   setMostraAppuntiSopralluogo,
-  sopralluogoAperto,
+  sopralluogoAperto = {},
+  progettoQuadernoId,
+  importazioneFile,
+  onProgettoSalvato,
+  onStatoProgettoChange,
   supabase,
   buttonPrimary,
   buttonSecondary,
@@ -248,6 +261,17 @@ onChiudiFascicolo,
 
 }: Props) {
 
+const contestoQuaderno = { tipo: progettoQuadernoId ? 'progetto' as const : 'sopralluogo' as const, id: progettoQuadernoId || sopralluogoAperto.id || '' };
+const destinazione = destinazioneQuaderno(contestoQuaderno);
+const sorgentiPrivateRef = useRef(new Map<string, string>());
+const risorseImportateRef = useRef(importazioneFile?.risorse || []);
+const risorseSalvateRef = useRef(new Map<string, { path: string; metadata: boolean }>());
+const progettoCreatoRef = useRef(!importazioneFile);
+const fileOccupatoRef = useRef(false);
+const [fileOccupato, setFileOccupato] = useState(false);
+const documentoId = contestoQuaderno.id;
+const salvataggioInCorsoRef = useRef(false);
+const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 const quadernoContainerRef = useRef<HTMLDivElement | null>(null);
 
 const [
@@ -812,6 +836,13 @@ setLayerAttivoId(nuovoLayer.id)
   const [redoStack, setRedoStack] = useState<SegnoNota[][]>([]);
 
 const [quadernoDirty, setQuadernoDirty] = useState(false);
+useEffect(() => { onStatoProgettoChange?.(quadernoDirty, salvataggioInCorso, fileOccupato) }, [quadernoDirty, salvataggioInCorso, fileOccupato, onStatoProgettoChange]);
+useEffect(() => {
+  if (!progettoQuadernoId || !quadernoDirty) return;
+  const avvisa = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' };
+  window.addEventListener('beforeunload', avvisa);
+  return () => window.removeEventListener('beforeunload', avvisa);
+}, [progettoQuadernoId, quadernoDirty]);
 
 const oggettiGraficiLiveRef =
   useRef<OggettoGraficoQuaderno[]>([]);
@@ -5801,13 +5832,14 @@ useEffect(() => {
   }, [testo]);
 
   useEffect(() => {
-    if (!notaVisibile || !sopralluogoAperto.id) return;
+    if (!notaVisibile || !documentoId) return;
 
     let attivo = true;
 
     const caricaNota = async () => {
       setPronto(false);
       setNotaId(null);
+      firmaPersistitaRef.current = null;
       setStato("Caricamento nota…");
 
       // Reset immediato del Quaderno quando cambia sopralluogo
@@ -5840,28 +5872,34 @@ useEffect(() => {
       setUndoStack([]);
       setRedoStack([]);
 
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) {
+      const { data: userData } = importazioneFile ? { data: { user: null } } : await supabase.auth.getUser();
+      if (!userData.user && !importazioneFile) {
         setStato("Accedi per utilizzare le note");
         return;
       }
 
-      const { data, error } = await supabase
-        .from("note_sopralluogo")
+      const { data, error } = importazioneFile ? { data: { ...structuredClone(importazioneFile.documento), id: documentoId }, error: null } : await supabase
+        .from(destinazione.tabella)
         .select("*")
-        .eq("sopralluogo_id", sopralluogoAperto.id)
-        .eq("user_id", userData.user.id)
+        .eq(destinazione.chiave, documentoId)
+        .eq("user_id", userData.user?.id || "")
         .maybeSingle();
 
       if (!attivo) return;
       if (error) {
         setStato(
-          "Sistema Note non configurato: applicare la migrazione Supabase",
+          erroreQuaderno(error),
         );
         return;
       }
 
+      if (progettoQuadernoId && !data) {
+        setStato('Progetto non trovato o non accessibile');
+        return;
+      }
       if (data) {
+        if (progettoQuadernoId) data.disegni = await risolviSorgentiPrivate(data.disegni, supabase, sorgentiPrivateRef.current);
+        if (!attivo) return;
         setNotaId(data.id);
         setTitolo(data.titolo || "");
         setTesto(data.testo || "");
@@ -6048,12 +6086,14 @@ setScaleCalibration(null);
 
         setAnalisiAi(data.analisi_ai || null);
 
-        const { data: file } = await supabase
-          .from("note_allegati")
+        const { data: file, error: erroreAllegati } = importazioneFile ? { data: importazioneFile.risorse.filter(r => r.tipo).map(r => ({ id: crypto.randomUUID(), nome_file: r.nome, tipo: r.tipo!, mime_type: r.mime, storage_path: 'file:' + r.id, url: r.uri })), error: null } : await supabase
+          .from(destinazione.allegati)
           .select("*")
           .eq("nota_id", data.id)
           .order("created_at", { ascending: true });
 
+        if (!attivo) return;
+        if (erroreAllegati) { setStato(erroreQuaderno(erroreAllegati)); return; }
         setAllegati(file || []);
       } else {
         setTitolo(
@@ -6072,17 +6112,26 @@ setWorkspaceCadEntities([])
         setAnalisiAi(null);
       }
 
+      setQuadernoDirty(!!importazioneFile);
       setPronto(true);
-      setStato("Nota pronta");
+      setStato(importazioneFile ? "File aperto come nuovo progetto: non ancora salvato nell’archivio" : "Nota pronta");
     };
 
-    void caricaNota();
+    void caricaNota().catch((error) => {
+      if (!attivo) return;
+      setPronto(false);
+      setStato('Errore caricamento: ' + erroreQuaderno(error as Error));
+    });
     return () => {
       attivo = false;
     };
   }, [
     notaVisibile,
-    sopralluogoAperto.id,
+    documentoId,
+    destinazione.tabella,
+    destinazione.allegati,
+    destinazione.chiave,
+    progettoQuadernoId,
     sopralluogoAperto.cliente,
     sopralluogoAperto.tipo_lavoro,
     supabase,
@@ -6090,107 +6139,87 @@ setWorkspaceCadEntities([])
 
   ]);
 
-   const salvaNota = async (mostraConferma = true) => {
-    if (!sopralluogoAperto.id) return null;
-
-    const { data: userData } = await supabase.auth.getUser();
-
-    if (!userData.user) {
-      setStato("Accedi per salvare la nota");
-      return null;
+  const preparaContenuto = () => ripristinaSorgentiPrivate({
+    titolo: titolo.trim(), testo, checklist, analisi_ai: analisiAi,
+    disegni: paginePerSalvataggio(pagineQuaderno, paginaCorrenteIndex,
+      { disegni, sfondoDisegno, zoomSfondo, oggettiGrafici, layers, backgroundTransform, scaleCalibration, pageLayout },
+      { workspaceCadEntities, workspacePosterImages, workspaceColumns: colonneWorkspace }),
+  }, sorgentiPrivateRef.current);
+  const firmaPersistitaRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!progettoQuadernoId || !pronto) return;
+    const firma = JSON.stringify(preparaContenuto());
+    if (firmaPersistitaRef.current === null) {
+      firmaPersistitaRef.current = importazioneFile ? "__NUOVO_DA_FILE__" : firma;
+      setQuadernoDirty(!!importazioneFile);
+    } else {
+      setQuadernoDirty(firma !== firmaPersistitaRef.current);
     }
+  }, [progettoQuadernoId, pronto, titolo, testo, checklist, analisiAi, pagineQuaderno, paginaCorrenteIndex,
+    disegni, sfondoDisegno, zoomSfondo, oggettiGrafici, layers, backgroundTransform, scaleCalibration, pageLayout,
+    workspaceCadEntities, workspacePosterImages, colonneWorkspace]);
+  const contenutoCorrenteRef = useRef(preparaContenuto);
+  contenutoCorrenteRef.current = preparaContenuto;
 
-    const pagineAggiornate =
-  pagineQuaderno.map((pagina, index) => {
-    const paginaAggiornata =
-      index === paginaCorrenteIndex
-        ? {
-            ...pagina,
-            disegni,
-            sfondoDisegno,
-            zoomSfondo,
-            oggettiGrafici,
-            layers,
-            backgroundTransform,
-            scaleCalibration,
+  const salvaNota = async (mostraConferma = true) => {
+    if (!documentoId || !pronto || salvataggioInCorsoRef.current) return null;
+    salvataggioInCorsoRef.current = true;
+    setSalvataggioInCorso(true);
+    const contenuto = structuredClone(preparaContenuto());
+    const firma = JSON.stringify(contenuto);
+    setStato('Salvataggio…');
+    try {
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!userData.user) throw new Error('Accedi per salvare il Quaderno');
+      const { data, error } = await supabase.from(destinazione.tabella)
+        .upsert({ ...(risorseImportateRef.current.length ? { titolo: contenuto.titolo } : contenuto), [destinazione.chiave]: documentoId, user_id: userData.user.id, updated_at: new Date().toISOString() },
+          { onConflict: destinazione.conflitto }).select('id').single();
+      if (error) throw error;
+      progettoCreatoRef.current = true;
+      if (risorseImportateRef.current.length) {
+        for (const r of risorseImportateRef.current) {
+          let saved = risorseSalvateRef.current.get(r.id);
+          if (!saved) {
+            const path = percorsoQuaderno(contestoQuaderno, userData.user.id) + '/importati/' + crypto.randomUUID();
+            const upload = await supabase.storage.from(destinazione.bucket).upload(path, new Blob([new Uint8Array(r.bytes)], { type: r.mime }));
+            if (upload.error) throw upload.error;
+            saved = { path, metadata: false }; risorseSalvateRef.current.set(r.id, saved);
           }
-        : {
-            ...pagina,
+          if (!r.tipo) sorgentiPrivateRef.current.set(r.uri, riferimentoFileQuaderno(saved.path));
+          if (r.tipo && !saved.metadata) {
+            const result = await supabase.from(destinazione.allegati).insert({ id: crypto.randomUUID(), nota_id: documentoId, user_id: userData.user.id, nome_file: r.nome, tipo: r.tipo, mime_type: r.mime, storage_bucket: destinazione.bucket, storage_path: saved.path, url: null });
+            if (result.error) throw result.error;
+            saved.metadata = true;
           }
-
-   if (index === 0) {
-  return {
-    ...paginaAggiornata,
-    workspaceCadEntities,
-    workspacePosterImages,
-    workspaceColumns: colonneWorkspace,
-  }
-}
-
-    return paginaAggiornata
-  })
-
-    setStato("Salvataggio…");
-
-const payloadDebug = {
-  sopralluogo_id: sopralluogoAperto.id,
-  user_id: userData.user.id,
-  titolo: titolo.trim(),
-  testo,
-  checklist,
-  disegni: pagineAggiornate,
-  analisi_ai: analisiAi,
-  updated_at: new Date().toISOString(),
-};
-
-const dimensionePayloadMb =
-  new Blob([JSON.stringify(payloadDebug)]).size /
-  1024 /
-  1024;
-
-console.warn(
-  "DIMENSIONE SALVATAGGIO NOTA:",
-  dimensionePayloadMb.toFixed(2),
-  "MB",
-);
-
-    const { data, error } = await supabase
-      .from("note_sopralluogo")
-      .upsert(
-        {
-          sopralluogo_id: sopralluogoAperto.id,
-          user_id: userData.user.id,
-          titolo: titolo.trim(),
-          testo,
-          checklist,
-          disegni: pagineAggiornate,
-          analisi_ai: analisiAi,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,sopralluogo_id" },
-      )
-      .select("id")
-      .single();
-
-    if (error) {
-      setStato(`Errore salvataggio: ${error.message}`);
+        }
+        const finale = await supabase.from(destinazione.tabella).upsert({ ...ripristinaSorgentiPrivate(contenuto, sorgentiPrivateRef.current), [destinazione.chiave]: documentoId, user_id: userData.user.id, updated_at: new Date().toISOString() }, { onConflict: destinazione.conflitto });
+        if (finale.error) throw finale.error;
+        const records = await supabase.from(destinazione.allegati).select('*').eq('nota_id', documentoId);
+        if (records.error) throw records.error;
+        setAllegati(records.data || []);
+        risorseImportateRef.current = [];
+      }
+      setNotaId(data.id);
+      firmaPersistitaRef.current = JSON.stringify(ripristinaSorgentiPrivate(contenuto, sorgentiPrivateRef.current));
+      const altreModifiche = JSON.stringify(contenutoCorrenteRef.current()) !== JSON.stringify(ripristinaSorgentiPrivate(contenuto, sorgentiPrivateRef.current));
+      setQuadernoDirty(altreModifiche);
+      setStato(altreModifiche ? 'Salvato; restano modifiche pendenti' : progettoQuadernoId ? 'Progetto salvato' : mostraConferma ? 'Nota salvata' : 'Salvata automaticamente');
+      if (progettoQuadernoId) onProgettoSalvato?.();
+      return data.id as string;
+    } catch (error) {
+      setQuadernoDirty(true);
+      setStato('Errore salvataggio: ' + erroreQuaderno(error as Error));
       return null;
+    } finally {
+      salvataggioInCorsoRef.current = false;
+      setSalvataggioInCorso(false);
     }
-
-    setNotaId(data.id);
-setQuadernoDirty(false);
-
-    setStato(
-      mostraConferma
-        ? "Nota salvata"
-        : "Salvata automaticamente",
-    );
-
-    return data.id as string;
   };
 
   useEffect(() => {
   if (
+  progettoQuadernoId ||
   !pronto ||
   !quadernoDirty ||
   trasformazioneOggettoAttiva
@@ -6199,7 +6228,6 @@ setQuadernoDirty(false);
 }
 
     const timer = window.setTimeout(() => {
-  setQuadernoDirty(false);
   void salvaNota(false);
 }, 900);
 
@@ -6221,11 +6249,88 @@ setQuadernoDirty(false);
   trasformazioneOggettoAttiva,
 ]);
 
+
+  async function fileAzione(azione: () => Promise<void>) {
+    if (fileOccupatoRef.current || salvataggioInCorsoRef.current) return;
+    fileOccupatoRef.current = true; setFileOccupato(true);
+    try { await azione(); } catch (error) { setStato('File: ' + erroreQuaderno(error as Error)); }
+    finally { fileOccupatoRef.current = false; setFileOccupato(false); }
+  }
+  async function recuperaContenutoFile(uri: string): Promise<Blob> {
+    const locale = risorseImportateRef.current.find(r => r.uri === uri || 'file:' + r.id === uri);
+    if (locale) return new Blob([new Uint8Array(locale.bytes)], { type: locale.mime });
+    if (uri.startsWith('quaderno-storage:')) {
+      const result = await supabase.storage.from(destinazione.bucket).download(decodeURIComponent(uri.slice('quaderno-storage:'.length)));
+      if (result.error) throw result.error; return result.data;
+    }
+    if (uri.startsWith('storage:')) {
+      const result = await supabase.storage.from(destinazione.bucket).download(uri.slice(8));
+      if (result.error) throw result.error; return result.data;
+    }
+    const response = await fetch(uri); if (!response.ok) throw Error('Contenuto non recuperabile'); return response.blob();
+  }
+  const salvaSuFile = () => fileAzione(async () => {
+    const documento = structuredClone(preparaContenuto());
+    const files = allegati.map(a => ({ ...a, uri: a.storage_path.startsWith('file:') ? a.storage_path : progettoQuadernoId ? 'storage:' + a.storage_path : a.url }));
+    const bytes = await esportaArteCna(documento, files, recuperaContenutoFile);
+    scaricaFile(bytes, (titolo || 'Quaderno') + '.artecna', 'application/zip');
+    setStato('File completo scaricato. Questo non salva le modifiche nell’archivio Supabase.');
+  });
+  const apriDaFile = (file?: File) => { if (!file) return; void fileAzione(async () => {
+    if (file.size > 150 * 1024 * 1024) throw Error('File oltre 150 MB');
+    const quaderno = await apriArteCna(new Uint8Array(await file.arrayBuffer()));
+    if (!progettoQuadernoId && quadernoDirty && !window.confirm('Aprire il file come nuovo lavoro? Le modifiche non salvate del lavoro attuale saranno abbandonate.')) return;
+    window.dispatchEvent(new CustomEvent('artecna-quaderno-file', { detail: quaderno, cancelable: true }));
+  }); };
+  const esportaCad = () => fileAzione(async () => {
+    const snapshot = preparaContenuto();
+    const pagina = snapshot.disegni[paginaCorrenteIndex];
+    const result = esportaDxf(pagina, snapshot.disegni[0]?.workspaceCadEntities);
+    if (result.warnings.length && !window.confirm('DXF della pagina attiva. Conversioni/esclusioni:\n' + result.warnings.join('\n') + '\nContinuare? Il file ARTECNA conserva il progetto completo.')) return;
+    scaricaFile(new TextEncoder().encode(result.text), (titolo || 'Pagina') + '.dxf', 'application/dxf');
+    setStato('DXF pagina attiva esportato. ' + result.warnings.join('; '));
+  });
+  const importaCad = (file?: File) => { if (!file) return; void fileAzione(async () => {
+    if (file.size > 8 * 1024 * 1024) throw Error('DXF oltre 8 MB');
+    const text = await file.text(); let result = importaDxf(text);
+    if ('richiedeUnita' in result) {
+      const unit = window.prompt('Unità DXF non determinabili. Specificare mm, cm oppure m (Annulla lascia intatta la bozza):');
+      if (unit === null) return; if (!['mm', 'cm', 'm'].includes(unit.trim())) throw Error('Unità non valida');
+      result = importaDxf(text, unit.trim() as UnitaDxf);
+    }
+    if ('richiedeUnita' in result) throw Error('Unità mancanti');
+    if (result.warnings.length && !window.confirm('Importazione su NUOVA pagina.\n' + result.warnings.join('\n') + '\nContinuare?')) return;
+    const pages = preparaContenuto().disegni;
+    if (pages.length >= 100) throw Error('Massimo 100 pagine');
+    // Aggiornamento unico dopo parsing e conferma; conserva la pagina attiva nel suo snapshot.
+    const page = { ...result.pagina, titolo: 'DXF — ' + file.name, pageLayout: createQuadernoPageLayout(), workspaceX: 0, workspaceY: Math.max(...pages.map(p => (p.workspaceY || 0) + (p.pageLayout?.height || pageLayout.height))) + 40 };
+    setPagineQuaderno([...pages, page]); setPaginaCorrenteIndex(pages.length);
+    setDisegni([]); setSfondoDisegno(null); setOggettiGrafici([]); setLayers(page.layers || []);
+    setScaleCalibration(page.scaleCalibration || null); setPageLayout(page.pageLayout);
+    setLayerAttivoId(page.layers?.[0]?.id || "drawing"); setZoomSfondo(1); setOggettoGraficoSelezionatoId(null); setPinSelezionatoId(null); setSfondoSelezionato(false);
+    setUndoStack([]); setRedoStack([]); setQuadernoDirty(true);
+    setStato('DXF importato su nuova pagina. ' + result.warnings.join('; '));
+  }); };
+
   const salvaFile = async (files: File[], tipo: AllegatoNota["tipo"]) => {
     if (files.length === 0) return [];
+    if (importazioneFile && !progettoCreatoRef.current) {
+      try {
+        const nuovi: AllegatoNota[] = [];
+        const nuoveRisorse: QuadernoFile["risorse"] = [];
+        for (const file of files) {
+          if (file.size > 32 * 1024 * 1024) throw Error('Allegato oltre 32 MB');
+          const bytes = new Uint8Array(await file.arrayBuffer()), uri = await uriBinaria(bytes, file.type || 'application/octet-stream'), id = crypto.randomUUID();
+          nuoveRisorse.push({ id, nome: file.name, mime: file.type || 'application/octet-stream', tipo, bytes, uri });
+          nuovi.push({ id: crypto.randomUUID(), nome_file: file.name, tipo, mime_type: file.type, storage_path: 'file:' + id, url: uri });
+        }
+        risorseImportateRef.current.push(...nuoveRisorse);
+        setAllegati(c => [...c, ...nuovi]); setQuadernoDirty(true); setStato('Allegati nella bozza locale: usa Salva per l’archivio o Salva su file'); return files;
+      } catch (error) { setStato(erroreQuaderno(error as Error)); return []; }
+    }
 
     const id = notaId || (await salvaNota(false));
-    if (!id || !sopralluogoAperto.id) return [];
+    if (!id || !documentoId) return [];
 
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return [];
@@ -6239,10 +6344,10 @@ setQuadernoDirty(false);
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-zA-Z0-9._-]/g, "_");
-      const path = `utenti/${userData.user.id}/sopralluoghi/${sopralluogoAperto.id}/note/${Date.now()}_${crypto.randomUUID()}_${nomePulito}`;
+      const path = `${percorsoQuaderno(contestoQuaderno, userData.user.id)}/note/${Date.now()}_${crypto.randomUUID()}_${nomePulito}`;
 
       const { error: uploadError } = await supabase.storage
-        .from("preventivi")
+        .from(destinazione.bucket)
         .upload(path, file);
 
       if (uploadError) {
@@ -6250,12 +6355,10 @@ setQuadernoDirty(false);
         continue;
       }
 
-      const { data: urlData } = supabase.storage
-        .from("preventivi")
-        .getPublicUrl(path);
+      const urlData = progettoQuadernoId ? null : supabase.storage.from(destinazione.bucket).getPublicUrl(path).data;
 
       const { data: allegato, error } = await supabase
-        .from("note_allegati")
+        .from(destinazione.allegati)
         .insert({
           nota_id: id,
           user_id: userData.user.id,
@@ -6263,7 +6366,8 @@ setQuadernoDirty(false);
           tipo,
           mime_type: file.type || null,
           storage_path: path,
-          url: urlData.publicUrl,
+          url: progettoQuadernoId ? null : urlData?.publicUrl,
+          ...(progettoQuadernoId ? { storage_bucket: destinazione.bucket } : {}),
         })
         .select("*")
         .single();
@@ -6272,7 +6376,7 @@ setQuadernoDirty(false);
         setAllegati((correnti) => [...correnti, allegato]);
         fileSalvati.push(file);
       } else {
-        await supabase.storage.from("preventivi").remove([path]);
+        await supabase.storage.from(destinazione.bucket).remove([path]);
         setStato(
           `Errore salvataggio allegato: ${error?.message || "operazione non riuscita"}`,
         );
@@ -6325,9 +6429,14 @@ setQuadernoDirty(false);
     void salvaFile(files, "allegato");
   };
   const eliminaAllegato = async (allegato: AllegatoNota) => {
-    await supabase.storage.from("preventivi").remove([allegato.storage_path]);
+    if (allegato.storage_path.startsWith('file:')) {
+      risorseImportateRef.current = risorseImportateRef.current.filter(r => 'file:' + r.id !== allegato.storage_path);
+      setAllegati(c => c.filter(a => a.id !== allegato.id)); setQuadernoDirty(true); return;
+    }
+    const { error: storageError } = await supabase.storage.from(destinazione.bucket).remove([allegato.storage_path]);
+    if (storageError) { setStato(erroreQuaderno(storageError)); return; }
     const { error } = await supabase
-      .from("note_allegati")
+      .from(destinazione.allegati)
       .delete()
       .eq("id", allegato.id);
 
@@ -6442,6 +6551,7 @@ setQuadernoDirty(false);
     setStato(risultato.message);
   };
   const analizzaNota = async () => {
+    if (progettoQuadernoId) { setStato('Analisi del sopralluogo disponibile soltanto nel fascicolo'); return; }
     setStato("L’AI osserva la nota…");
     osservaNotaConDecisionEngine();
 
@@ -6656,6 +6766,7 @@ return (
       {notaVisibile && (
   <div
     ref={quadernoContainerRef}
+    onChangeCapture={() => { if (pronto && !progettoQuadernoId) setQuadernoDirty(true); }}
     style={{
       position: quadernoEspanso
         ? "fixed"
@@ -6755,15 +6866,20 @@ return (
             <button
               type="button"
               onClick={() => void salvaNota()}
+              disabled={!pronto || salvataggioInCorso || fileOccupato}
               style={buttonPrimary}
             >
-              Salva ora
+              {progettoQuadernoId ? 'Salva' : 'Salva ora'}
             </button>
+            <button type="button" style={buttonSecondary} disabled={!pronto || fileOccupato || salvataggioInCorso} onClick={() => void salvaSuFile()}>Salva su file</button>
+            <label style={buttonSecondary}>Apri da file<input aria-label="Apri da file" type="file" accept=".artecna" disabled={fileOccupato || salvataggioInCorso} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; apriDaFile(f); }} /></label>
+            <button type="button" style={buttonSecondary} disabled={!pronto || fileOccupato || salvataggioInCorso} onClick={() => void esportaCad()}>Esporta CAD (.dxf) — pagina attiva</button>
+            <label style={buttonSecondary}>Importa CAD (.dxf) — nuova pagina<input aria-label="Importa CAD (.dxf)" type="file" accept=".dxf" disabled={!pronto || fileOccupato || salvataggioInCorso} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; importaCad(f); }} /></label>
             <button type="button" onClick={stampaNota} style={buttonSecondary}>
               🖨️ Stampa nota
             </button>
             <span style={{ fontSize: 13, color: "#64748b" }}>
-{stato}
+{stato}{quadernoDirty ? ' · Modifiche pendenti' : ''}
 </span>
   </div>
 <div
@@ -6903,14 +7019,14 @@ return (
   const file = event.target.files?.[0];
   event.target.value = "";
 
-  if (!file || !sopralluogoAperto.id) return;
+  if (!file || !documentoId || !pronto) return;
 
   setStato("Caricamento immagine…");
 
-  const { data: userData } =
-    await supabase.auth.getUser();
+  const immagineLocale = !!importazioneFile && !progettoCreatoRef.current;
+  const { data: userData } = immagineLocale ? { data: { user: null } } : await supabase.auth.getUser();
 
-  if (!userData.user) {
+  if (!userData.user && !immagineLocale) {
     setStato("Accedi per caricare l'immagine");
     return;
   }
@@ -6943,20 +7059,27 @@ const dimensioniNaturali =
     immagine.src = urlLocale
   })
 
+  let sorgenteImmagine: string;
+  if (immagineLocale) {
+    try {
+      if (!file.size || file.size > 32 * 1024 * 1024) throw Error('Immagine vuota o oltre 32 MB');
+      const bytes = new Uint8Array(await file.arrayBuffer()); sorgenteImmagine = await uriBinaria(bytes, file.type);
+      risorseImportateRef.current.push({ id: crypto.randomUUID(), nome: file.name, mime: file.type, bytes, uri: sorgenteImmagine });
+    } catch (error) { setStato(erroreQuaderno(error as Error)); return; }
+  } else {
   const nomePulito = file.name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9._-]/g, "_");
 
   const storagePath =
-    `utenti/${userData.user.id}` +
-    `/sopralluoghi/${sopralluogoAperto.id}` +
+    percorsoQuaderno(contestoQuaderno, userData.user!.id) +
     `/quaderno/${Date.now()}_` +
     `${crypto.randomUUID()}_${nomePulito}`;
 
   const { error: uploadError } =
     await supabase.storage
-      .from("preventivi")
+      .from(destinazione.bucket)
       .upload(storagePath, file, {
         contentType: file.type || undefined,
         upsert: false,
@@ -6969,16 +7092,19 @@ const dimensioniNaturali =
     return;
   }
 
-  const { data: urlData } =
-    supabase.storage
-      .from("preventivi")
-      .getPublicUrl(storagePath);
+  const urlData = progettoQuadernoId ? null : supabase.storage.from(destinazione.bucket).getPublicUrl(storagePath).data;
+  try {
+    sorgenteImmagine = progettoQuadernoId ? await leggiImmaginePrivata(supabase, storagePath) : urlData!.publicUrl;
+    if (progettoQuadernoId) sorgentiPrivateRef.current.set(sorgenteImmagine, riferimentoFileQuaderno(storagePath));
+  } catch (error) { setStato(erroreQuaderno(error as Error)); return; }
 
+
+  }
  const nuovoOggetto: OggettoGraficoQuaderno = {
   id: crypto.randomUUID(),
   layerId: layerAttivoId,
   tipo: "immagine",
-  sorgente: urlData.publicUrl,
+  sorgente: sorgenteImmagine,
 
   larghezzaNaturale:
     dimensioniNaturali?.width,
@@ -14974,6 +15100,7 @@ minWidth: 280,
                       background: "#fff",
                     }}
                   >
+                    {allegato.storage_path.startsWith('file:') ? <a href={allegato.url} download={allegato.nome_file}>Scarica {allegato.nome_file}</a> : progettoQuadernoId ? <AllegatoQuadernoPrivato allegato={allegato} supabase={supabase} /> : <>
                     {isAllegatoImmagine(allegato) && (
                       <a
                         href={allegato.url}
@@ -15011,6 +15138,7 @@ minWidth: 280,
                     >
                       {allegato.nome_file}
                     </a>
+                    </>}
                     <button
                       type="button"
                       onClick={() => void eliminaAllegato(allegato)}
