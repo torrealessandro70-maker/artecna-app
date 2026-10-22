@@ -47,11 +47,11 @@ export default function RapportinoSquadraV1({ bozza, operai, varianti, onChange,
         if (!disabled) { cambia({ lavoro_in_economia: true, variante_id: null }); onRichiediVarianti?.() }
       }} /> Economia</label>
       {squadra.lavoro_in_economia && <>
-        <label>Variante<select style={input} value={squadra.variante_id || ''} onChange={e => {
+        <label>Variante collegata (opzionale)<select style={input} value={squadra.variante_id || ''} onChange={e => {
           cambia({ variante_id: elenco.some(v => v.id === e.target.value && v.selezionabile) ? e.target.value : null })
-        }}><option value="">Seleziona variante</option>
+        }}><option value="">Variante collegata (opzionale)</option>
           {elenco.filter(v => v.selezionabile).map(v => <option key={v.id} value={v.id}>{etichettaVarianteBozza(v)}</option>)}
-        </select></label>
+        </select></label><p>Usala solo se queste ore riguardano una variante già esistente.</p>
         {varianti.stato === 'caricamento' && <p role="status">Caricamento varianti…</p>}
         {varianti.stato === 'errore' && <><p role="alert">Varianti non disponibili</p>
           <button type="button" style={button} onClick={() => { if (!disabled) onRiprovaVarianti() }}>Riprova varianti</button></>}

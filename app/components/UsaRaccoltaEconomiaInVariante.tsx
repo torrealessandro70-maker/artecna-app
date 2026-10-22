@@ -16,9 +16,10 @@ const rpc: RpcPonteEconomia = async (nome, parametri) => {
   }
 }
 
-export default function UsaRaccoltaEconomiaInVariante({ raccolta, varianti, elencoPronto, onRileggi, onApri }: {
+export default function UsaRaccoltaEconomiaInVariante({ raccolta, varianti, elencoPronto, onRileggi, onApri, operativo = false, totale, bloccato = false, statiVarianti = [] }: {
   raccolta: RaccoltaPonteEconomia; varianti: readonly string[]; elencoPronto: boolean
-  onRileggi: () => Promise<void>; onApri: (id: string) => void
+  onRileggi: () => Promise<void>; onApri: (id: string) => void; operativo?: boolean; totale?: number | null; bloccato?: boolean
+  statiVarianti?: readonly { id: string; titolo: string | null; stato: string }[]
 }) {
   const [collegata, setCollegata] = useState<string | null>(null)
   const [verifica, setVerifica] = useState(true)
@@ -43,7 +44,7 @@ export default function UsaRaccoltaEconomiaInVariante({ raccolta, varianti, elen
   }, [raccolta.id, identitaVarianti, elencoPronto, rilettura])
 
   async function usa() {
-    if (occupato.current || verifica || erroreLettura || collegata || esito || !raccoltaPonteValida(raccolta)) return
+    if (bloccato || occupato.current || verifica || erroreLettura || collegata || esito || !raccoltaPonteValida(raccolta)) return
     occupato.current = true
     if (!window.confirm(`Creare una Variante dai lavori in economia della Raccolta n. ${raccolta.numero}?\n\nLa Raccolta verrà congelata e chiusa se necessario. Verrà creata una nuova Variante in bozza e le registrazioni diventeranno lavorazioni della Variante.`)) {
       occupato.current = false; return
@@ -72,14 +73,16 @@ export default function UsaRaccoltaEconomiaInVariante({ raccolta, varianti, elen
     }
   }
   const id = esito?.variante_id ?? collegata
+  const collegamento = statiVarianti.find(v => v.id === id)
   return <section aria-label="Usa raccolta in Variante">
-    {esito && <p role="status">{esito.riutilizzata ? 'Variante già creata. È stata riaperta.' : 'Variante creata dai lavori in economia.'}
+    {esito && <p role="status">{esito.riutilizzata ? 'Variante già creata. È stata riaperta.' : operativo ? 'Bozza creata dai lavori in economia. Verifica le lavorazioni e conferma la proposta.' : 'Variante creata dai lavori in economia.'}
       {' '}{esito.numero_variante === null ? 'Variante' : `Variante n. ${esito.numero_variante}`} · {esito.stato_variante} · {esito.numero_lavorazioni} lavorazioni · {esito.totale.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</p>}
     {errore && <p role="alert">{errore}</p>}
-    {id ? <button type="button" disabled={invio} onClick={() => onApri(id)}>Apri variante</button> : <>
+    {operativo && id && <p>{collegamento?.titolo || 'Proposta collegata'} · Stato: {collegamento?.stato || esito?.stato_variante || 'da rileggere'}</p>}
+    {id ? <button type="button" disabled={invio || bloccato} onClick={() => onApri(id)}>{operativo ? 'Apri proposta' : 'Apri variante'}</button> : <>
       {verifica && <p role="status">Verifica collegamento Variante...</p>}
       {erroreLettura && <div role="alert">{erroreLettura}<button type="button" onClick={() => setRilettura(v => v + 1)}>Riprova collegamento</button></div>}
-      {!verifica && !erroreLettura && raccoltaPonteValida(raccolta) && <button type="button" disabled={invio} onClick={() => void usa()}>{invio ? 'Creazione Variante...' : 'Usa in Variante'}</button>}
+      {!verifica && !erroreLettura && raccoltaPonteValida(raccolta) && <button type="button" disabled={invio || bloccato} onClick={() => void usa()}>{invio ? 'Creazione Variante...' : operativo ? `Crea proposta${totale == null ? '' : ' da ' + totale.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}` : 'Usa in Variante'}</button>}
     </>}
   </section>
 }

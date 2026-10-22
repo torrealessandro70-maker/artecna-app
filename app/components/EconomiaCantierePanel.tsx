@@ -6,8 +6,12 @@ import FiltroPeriodoEconomia from './FiltroPeriodoEconomia'
 import RiepilogoCostiEconomiaPanel from './RiepilogoCostiEconomiaPanel'
 import SalDettagliatoPanel from './SalDettagliatoPanel'
 import AccontiEconomiaPanel from './AccontiEconomiaPanel'
+import VariantiCantierePanel from './VariantiCantierePanel'
+import ScomposizioneContrattuale from './ScomposizioneContrattuale'
+import ManodoperaEconomiaDettaglio from './ManodoperaEconomiaDettaglio'
+import { leggiScomposizioneVarianti, leggiCostoQuoteFattura, leggiMaterialiDaContabilizzare, aggiungiCostoQuote, type ScomposizioneVarianti, type MaterialiOperativi } from '../engines/economia/riepilogoEconomico'
 
-type EconomiaSezione = 'riepilogo' | 'costi' | 'sal'
+type EconomiaSezione = 'riepilogo' | 'costi' | 'sal' | 'rapportini'
 type Riepilogo = {
   preventivoCantiere: number
   totaleManodoperaCantiere: number
@@ -35,6 +39,7 @@ type Props = {
 
 export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props) {
   const [economiaSezione, setEconomiaSezione] = useState<EconomiaSezione>('riepilogo')
+  const [aggiornamentoKpi, setAggiornamentoKpi] = useState(0)
   const preventivoId = p.contrattoBase?.preventivoId
   const importoBase = p.contrattoBase?.importo
   const supabase = p.sal.supabase
@@ -44,7 +49,21 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     importoBase: number
     supabase: typeof supabase
     delta: number | null
+    scomposizione: ScomposizioneVarianti | null
+    materialiOperativi?: MaterialiOperativi | null
   } | null>(null)
+  const da = p.periodo.economiaDataDa, a = p.periodo.economiaDataA
+  const [quoteFattura, setQuoteFattura] = useState<{ cantiereId: string; da: string; a: string; client: typeof supabase; costo: number | null } | null>(null)
+
+  useEffect(() => {
+    let obsoleta = false
+    setQuoteFattura(null)
+    void leggiCostoQuoteFattura(supabase, cantiere.id, da, a).then(
+      costo => { if (!obsoleta) setQuoteFattura({ cantiereId: cantiere.id, da, a, client: supabase, costo }) },
+      () => { if (!obsoleta) setQuoteFattura({ cantiereId: cantiere.id, da, a, client: supabase, costo: null }) },
+    )
+    return () => { obsoleta = true }
+  }, [supabase, cantiere.id, da, a, aggiornamentoKpi, economiaSezione])
 
   useEffect(() => {
     let obsoleta = false
@@ -52,31 +71,26 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     if (!preventivoId || importoBase === undefined || !Number.isFinite(importoBase)) return
     const carica = async () => {
       let delta: number | null = null
+      let scomposizione: ScomposizioneVarianti | null = null
+      let materialiOperativi: MaterialiOperativi | null = null
       try {
-        const { data, error } = await supabase.rpc(
-          'leggi_varianti_cantiere', { p_cantiere_id: cantiere.id },
-        )
-        if (error || !Array.isArray(data)) throw new Error('Varianti non disponibili')
-        delta = data
-          .filter(v => v.stato === 'approvata' && v.preventivo_contrattuale_id === preventivoId)
-          .reduce((tot, v) => {
-            const importo = Number(v.importo_delta_approvato)
-            if (v.importo_delta_approvato == null || !Number.isFinite(importo)) {
-              throw new Error('Importo variante non disponibile')
-            }
-            return tot + importo
-          }, 0)
-        if (!Number.isFinite(delta)) delta = null
+        scomposizione = await leggiScomposizioneVarianti(supabase, cantiere.id, preventivoId)
+        scomposizione = { ...scomposizione, cantiereNome: cantiere.nome }
+        delta = scomposizione.totale
       } catch {
         delta = null
       }
+      if (scomposizione) {
+        try { materialiOperativi = await leggiMaterialiDaContabilizzare(supabase, cantiere.id, scomposizione) }
+        catch { /* Elenco operativo indisponibile: nessun impatto sul valore contrattuale. */ }
+      }
       if (!obsoleta) {
-        setVarianti({ cantiereId: cantiere.id, preventivoId, importoBase, supabase, delta })
+        setVarianti({ cantiereId: cantiere.id, preventivoId, importoBase, supabase, delta, scomposizione, materialiOperativi })
       }
     }
     void carica()
     return () => { obsoleta = true }
-  }, [cantiere.id, preventivoId, importoBase, supabase])
+  }, [cantiere.id, cantiere.nome, preventivoId, importoBase, supabase, aggiornamentoKpi])
 
   const contrattoValido = Boolean(preventivoId) && importoBase !== undefined && Number.isFinite(importoBase)
   const variantiCorrenti = varianti?.cantiereId === cantiere.id
@@ -92,8 +106,12 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
   const deltaVariantiApprovate = contrattoValido ? variantiCorrenti?.delta ?? null : null
   const contrattoAggiornato = deltaVariantiApprovate !== null && importoBase !== undefined
     ? importoBase + deltaVariantiApprovate : null
+  const costoFattura = quoteFattura?.cantiereId === cantiere.id && quoteFattura.da === da && quoteFattura.a === a && quoteFattura.client === supabase ? quoteFattura.costo : null
+  const costiIntegrati = costoFattura === null ? null : aggiungiCostoQuote(p.riepilogo.totaleMaterialiEconomia, p.riepilogo.totaleCostiCantiere, costoFattura)
+  const costoMateriali = costiIntegrati?.materiali ?? null
+  const costiTotali = costiIntegrati?.costi ?? null
   const utileAggiornato = contrattoAggiornato !== null
-    ? contrattoAggiornato - p.riepilogo.totaleCostiCantiere : null
+    && costiTotali !== null ? contrattoAggiornato - costiTotali : null
   const margineAggiornato = contrattoAggiornato !== null && utileAggiornato !== null
     ? contrattoAggiornato !== 0 ? (utileAggiornato / contrattoAggiornato) * 100 : 0
     : null
@@ -108,7 +126,9 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     ? contrattoAggiornato - accontiCumulativi : null
   const kpiContrattuali: [string, number | null][] = [
     ['Contratto base', contrattoAggiornato !== null ? importoBase! : null],
-    ['Varianti approvate', deltaVariantiApprovate],
+    ['Varianti ordinarie approvate', variantiCorrenti?.scomposizione?.ordinarie ?? null],
+    ['Manodopera Economia approvata', variantiCorrenti?.scomposizione?.manodopera ?? null],
+    ['Materiali Economia approvati', variantiCorrenti?.scomposizione?.materiali ?? null],
     ['Contratto aggiornato', contrattoAggiornato],
     ['SAL maturato', salMaturato],
     ['Acconti ricevuti', accontiCumulativi],
@@ -119,51 +139,65 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     setter(visibile)
     if (visibile) setEconomiaSezione('costi')
   }
-  const kpi: [string, number][] = [
-    ['Costi totali', p.riepilogo.totaleCostiCantiere],
+  const kpi: [string, number | null][] = [
+    ['Costi totali', costiTotali],
     ['Manodopera', p.riepilogo.totaleManodoperaCantiere],
-    ['Materiali', p.riepilogo.totaleMaterialiEconomia],
+    ['Materiali', costoMateriali],
     ['Attrezzature', p.riepilogo.totaleAttrezziEconomia],
   ]
   return (
     <section aria-label="Economia del cantiere" style={{ padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', minWidth: 0 }}>
       <h3 style={{ margin: '0 0 16px', fontSize: 22 }}>Economia del cantiere</h3>
       <nav aria-label="Sezioni economia" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, marginBottom: 20, borderBottom: '1px solid #e2e8f0' }}>
-        {([['riepilogo', 'Riepilogo'], ['costi', 'Costi'], ['sal', 'SAL e acconti']] as const).map(([sezione, label]) => (
+        {([['riepilogo', 'Riepilogo'], ['costi', 'Costi'], ['sal', 'SAL e acconti'], ['rapportini', 'Rapportini']] as const).map(([sezione, label]) => (
           <button key={sezione} type="button" aria-pressed={economiaSezione === sezione} onClick={() => setEconomiaSezione(sezione)}
             style={{ minHeight: 44, padding: '10px 16px', borderRadius: 8, whiteSpace: 'nowrap', cursor: 'pointer', border: '1px solid #cbd5e1', background: economiaSezione === sezione ? '#0f172a' : '#fff', color: economiaSezione === sezione ? '#fff' : '#334155' }}>
             {label}
           </button>
         ))}
       </nav>
+      {economiaSezione === 'rapportini' && <VariantiCantierePanel
+        key={cantiere.id} cantiereId={cantiere.id} economiaRapportini
+        onApprovazione={() => setAggiornamentoKpi(v => v + 1)}
+        stampaContesto={{ nome: cantiere.nome, contrattoBase: importoBase ?? null, preventivoId: preventivoId ?? null }} />}
       {economiaSezione === 'riepilogo' && <section aria-label="Riepilogo economico">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 20 }}>
+          <h4 style={{ gridColumn: '1 / -1', margin: '0' }}>Contratto</h4>
           {kpiContrattuali.map(([label, value]) => <article key={label} style={{ padding: 14, border: '1px solid #e2e8f0', borderRadius: 10 }}>
             <div style={{ fontSize: 13, color: '#64748b' }}>{label}</div>
             {value === null
               ? <span role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</span>
               : <strong style={{ fontSize: 20 }}>{label === 'Varianti approvate' && value > 0 ? '+' : ''}{p.riepilogo.formatMoney(value)}</strong>}
           </article>)}
+          <h4 style={{ gridColumn: '1 / -1', margin: '0' }}>Costi aziendali</h4>
           {kpi.map(([label, value]) => <article key={label} style={{ padding: 14, border: '1px solid #e2e8f0', borderRadius: 10 }}>
             <div style={{ fontSize: 13, color: '#64748b' }}>{label}</div>
-            <strong style={{ fontSize: 20 }}>{p.riepilogo.formatMoney(Number(value || 0))}</strong>
+            {value === null ? <span role="status">Costi fattura non disponibili</span> : <strong style={{ fontSize: 20 }}>{p.riepilogo.formatMoney(value)}</strong>}
           </article>)}
+          <h4 style={{ gridColumn: '1 / -1', margin: '0' }}>Redditività</h4>
           <article style={{ padding: 14, border: '1px solid #e2e8f0', borderRadius: 10 }}>
             <div style={{ fontSize: 13, color: '#64748b' }}>Utile</div>
             {utileAggiornato === null
-              ? <span role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</span>
+              ? <span role={erroreContratto ? 'alert' : 'status'}>{costiTotali === null ? 'Costi fattura non disponibili' : statoContratto}</span>
               : <strong style={{ fontSize: 20 }}>{p.riepilogo.formatMoney(utileAggiornato)}</strong>}
           </article>
           <article style={{ padding: 14, border: '1px solid #e2e8f0', borderRadius: 10 }}>
             <div style={{ fontSize: 13, color: '#64748b' }}>Margine</div>
             {margineAggiornato === null
-              ? <span role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</span>
+              ? <span role={erroreContratto ? 'alert' : 'status'}>{costiTotali === null ? 'Costi fattura non disponibili' : statoContratto}</span>
               : <strong style={{ fontSize: 20 }}>{margineAggiornato.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</strong>}
           </article>
         </div>
+        <section aria-label="Aggiornamenti contrattuali"><h4>Aggiornamenti contrattuali approvati</h4>
+          <ScomposizioneContrattuale valori={variantiCorrenti?.scomposizione ?? null} operativi={variantiCorrenti?.materialiOperativi ?? null} formatMoney={p.riepilogo.formatMoney} />
+          <p>La scomposizione è già compresa nelle Varianti approvate e non si somma nuovamente al contratto.</p>
+        </section>
+        {preventivoId && <ManodoperaEconomiaDettaglio key={`${cantiere.id}:${preventivoId}:${aggiornamentoKpi}`} client={supabase} cantiereId={cantiere.id} contrattoId={preventivoId} cantiereNome={cantiere.nome} />}
         <div className="economia-cantiere-grafici">
           {contrattoAggiornato !== null && utileAggiornato !== null && margineAggiornato !== null && <EconomiaGraficiPanel {...p.riepilogo} cantiereScheda={cantiere.nome}
             preventivoCantiere={contrattoAggiornato}
+            totaleMaterialiEconomia={costoMateriali}
+            totaleCostiCantiere={costiTotali}
             totaleAccontiCantiere={accontiCumulativi}
             residuoDaIncassare={residuoContrattuale}
             utileCantiere={utileAggiornato}
@@ -185,7 +219,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
                 totaleAccontiCantiere={accontiCumulativi}
                 residuoDaIncassare={residuoContrattuale} />}
         </div>
-        <SalDettagliatoPanel {...p.sal} contestuale cantiereContestuale={cantiere} cantiereScheda={cantiere.nome} />
+        <SalDettagliatoPanel {...p.sal} scomposizioneEconomiaApprovata={variantiCorrenti?.scomposizione ?? null} contestuale cantiereContestuale={cantiere} cantiereScheda={cantiere.nome} />
       </section>}
       <style>{`
         .economia-cantiere-acconti button { min-height: 44px; }

@@ -109,6 +109,8 @@ export default function RegistroPanel(props: any) {
     preventivoAiGenerato={p.preventivoAiGenerato}
     pannelloRevisione={revisioneVisibile ? (
       <RevisionePreventivoAiPanel
+    prezziRiferimento={p.prezziRiferimento}
+    memoriaRiferimento={p.memoriaRiferimento}
         messaggioAi={p.messaggioAi}
         descrizionePreventivoAi={p.descrizionePreventivoAi}
         setDescrizionePreventivoAi={p.setDescrizionePreventivoAi}

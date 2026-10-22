@@ -2,6 +2,7 @@ import type {
   PriceImportPreview,
   PriceImportRow,
 } from './types'
+import { erroriRigaRegionale } from './regional-metadata'
 
 const normalizzaChiave = (value: string): string =>
   value.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -10,7 +11,7 @@ const creaChiaveDuplicato = (row: PriceImportRow): string => {
   const codice = normalizzaChiave(row.codice)
 
   if (codice) {
-    return `codice:${codice}`
+    return JSON.stringify(['codice', codice, row.fonte.trim(), row.versione || row.anno || null])
   }
 
   return [
@@ -25,7 +26,7 @@ const validaRiga = (
   codiciDuplicati: Set<string>,
 ): PriceImportRow => {
   const warnings = [...row.warnings]
-  const errors = [...row.errors]
+  const errors = [...row.errors, ...erroriRigaRegionale(row)]
 
   const codice = row.codice.trim()
   const descrizione = row.descrizione.trim()

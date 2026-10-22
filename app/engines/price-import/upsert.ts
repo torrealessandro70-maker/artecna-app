@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { normalizzaCampiManodopera } from './manodopera'
+import { erroriRigaRegionale } from './regional-metadata'
 
 import type {
   PriceImportPreview,
@@ -18,8 +20,9 @@ const creaChiaveUpsert = (
   ].join('::')
 }
 
-const creaPayloadImportazione = (
+export const creaPayloadImportazione = (
   preview: PriceImportPreview,
+  manodoperaPersistente = false,
 ): PriceImportUpsertRow[] => {
   const righeImportabili = preview.rows
     .filter(
@@ -29,7 +32,10 @@ const creaPayloadImportazione = (
         row.codice.trim() &&
         row.descrizione.trim(),
     )
-    .map<PriceImportUpsertRow>((row) => ({
+    .map<PriceImportUpsertRow>((row) => {
+      const errors = erroriRigaRegionale(row, preview.prezzario)
+      if (errors.length) throw Error(errors.join(' '))
+      return ({
       codice: row.codice.trim(),
       descrizione: row.descrizione.trim(),
       unita_misura: row.unitaMisura.trim(),
@@ -40,7 +46,11 @@ const creaPayloadImportazione = (
       anno: row.anno ?? null,
       versione: row.versione?.trim() || null,
       tipo_prezzo: row.tipoPrezzo,
-    }))
+      ...(manodoperaPersistente ? normalizzaCampiManodopera({
+        incidenza_manodopera: row.percentualeManodopera ?? null,
+        prezzo_manodopera: row.prezzoManodopera ?? null,
+      }) : {}),
+    })})
 
   const righeUniche = new Map<
     string,
@@ -81,8 +91,9 @@ const dividiInBlocchi = <T>(
 export const upsertPriceImportPreview = async (
   supabase: SupabaseClient,
   preview: PriceImportPreview,
+  manodoperaPersistente = false,
 ): Promise<PriceImportResult> => {
-  const payload = creaPayloadImportazione(preview)
+  const payload = creaPayloadImportazione(preview, manodoperaPersistente)
   const blocks = dividiInBlocchi(payload, BATCH_SIZE)
 
   let importedRows = 0

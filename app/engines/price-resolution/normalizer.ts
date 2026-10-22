@@ -37,6 +37,7 @@ export const normalizeUnitOfMeasure = (
     .toLowerCase()
     .trim()
     .replace(/\s+/g, '')
+    .replace(/^mâ([²³])$/, 'm$1')
     .replace(/²/g, '2')
     .replace(/³/g, '3')
     .replace(/\./g, '')

@@ -17,6 +17,12 @@ export type PriceImportRow = {
   descrizione: string
   unitaMisura: string
   prezzo: number | null
+  // Dati PDF: persistiti solo con supporto delle colonne verificato.
+  percentualeManodopera?: number | null
+  prezzoManodopera?: number | null
+  paginaPdf?: number
+  classificazione?: 'NUOVA' | 'AGGIORNAMENTO' | 'DUPLICATO' | 'BLOCCATA'
+  selezionata?: boolean
 
   fonte: string
   regione?: string
@@ -38,6 +44,7 @@ export type PriceImportMetadata = {
 }
 
 export type PriceImportPreview = {
+  prezzario?: PriceImportDocument
   fileName: string
   totalRows: number
   validRows: number
@@ -51,6 +58,8 @@ export type PriceImportUpsertRow = {
   descrizione: string
   unita_misura: string
   prezzo_unitario: number
+  incidenza_manodopera?: number | null
+  prezzo_manodopera?: number | null
 
   fonte: string
   regione: string | null
@@ -81,4 +90,10 @@ export type PriceImportExcelInput = {
   fileName: string
   buffer: ArrayBuffer
   metadata: PriceImportMetadata
+  rilevaVersione?: boolean
+}
+
+export type PriceImportDocument = PriceImportMetadata & {
+  regione: string; anno: number; versione: string
+  prefissoCodice: string | null; evidenza: string
 }

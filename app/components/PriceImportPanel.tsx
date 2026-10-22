@@ -1,8 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { usePriceImport } from '../hooks/usePriceImport'
+import { applicablePriceRow } from '../engines/price-import/preview'
 
 type Props = {
   supabase: SupabaseClient
@@ -12,6 +14,7 @@ export default function PriceImportPanel({
   supabase,
 }: Props) {
   const {
+    manodoperaPersistente,
     preview,
     result,
     isReading,
@@ -19,9 +22,16 @@ export default function PriceImportPanel({
     error,
     handleFileChange,
     importPreview,
+    editRow,
+    selectRows,
   } = usePriceImport({
     supabase,
   })
+  const [search,setSearch]=useState('')
+  const [page,setPage]=useState(0)
+  const filtered=preview?.rows.map((row,index)=>({row,index})).filter(({row})=>`${row.codice} ${row.descrizione}`.toLocaleLowerCase('it-IT').includes(search.toLocaleLowerCase('it-IT'))) || []
+  const currentPage=Math.min(page,Math.max(0,Math.ceil(filtered.length/30)-1))
+  const selectedCount=preview?.rows.filter(r=>r.selezionata&&applicablePriceRow(r)).length||0
 
   return (
     <section
@@ -51,7 +61,7 @@ export default function PriceImportPanel({
             lineHeight: 1.5,
           }}
         >
-          Carica un prezzario Excel e verifica i dati prima
+          Carica un prezzario regionale PDF compatibile, Excel o CSV e verifica anno e dati prima
           dell’importazione nella Knowledge Base ARTECNA.
         </div>
       </div>
@@ -71,13 +81,14 @@ export default function PriceImportPanel({
           opacity: isReading ? 0.65 : 1,
         }}
       >
-        📥 {isReading ? 'Analisi in corso...' : 'Carica Excel'}
+        📥 {isReading ? 'Analisi in corso...' : 'Carica prezzario'}
 
         <input
           type="file"
-          accept=".xlsx,.xls"
+          accept=".xlsx,.xls,.csv,.pdf"
           disabled={isReading || isImporting}
           onChange={handleFileChange}
+          aria-label="Carica prezzario"
           style={{
             display: 'none',
           }}
@@ -127,6 +138,13 @@ export default function PriceImportPanel({
             >
               File: {preview.fileName}
             </div>
+            {preview.prezzario && <div aria-label="Prezzario rilevato">
+              <div>Prezzario rilevato: {preview.prezzario.regione} {preview.prezzario.anno}</div>
+              <div>Fonte: {preview.prezzario.versione} · {preview.prezzario.fonte}</div>
+              <div>Anno: {preview.prezzario.anno} · Versione: {preview.prezzario.versione}</div>
+              <div>Prefisso codici: {preview.prezzario.prefissoCodice || 'Assente nel documento: codici originali preservati'}</div>
+              <div>Righe estratte: {preview.totalRows}</div>
+            </div>}
           </div>
 
           <div
@@ -163,7 +181,7 @@ export default function PriceImportPanel({
   onClick={importPreview}
   disabled={
     isImporting ||
-    preview.validRows + preview.warningRows === 0
+    selectedCount === 0
   }
   style={{
     width: 'fit-content',
@@ -178,14 +196,14 @@ export default function PriceImportPanel({
       : 'pointer',
     opacity:
       isImporting ||
-      preview.validRows + preview.warningRows === 0
+      selectedCount === 0
         ? 0.6
         : 1,
   }}
 >
   {isImporting
     ? '⏳ Importazione in corso...'
-    : '📚 Importa nella Knowledge Base'}
+    : `📚 Importa selezionate nella Knowledge Base (${selectedCount})`}
 </button>
 
 
@@ -256,6 +274,14 @@ export default function PriceImportPanel({
             >
               Prime lavorazioni riconosciute
             </div>
+            <p>{manodoperaPersistente ? 'I valori ufficiali di manodopera vengono salvati solo dopo conferma.' : 'Le colonne manodopera sono informative e non vengono salvate: migration non disponibile.'} I record PDF ambigui restano bloccati.</p>
+            <input aria-label="Cerca nel prezzario" placeholder="Cerca codice o descrizione" value={search} onChange={e=>{setSearch(e.target.value);setPage(0)}} />
+            <div>
+              <button type="button" disabled={isImporting} onClick={()=>selectRows(true)}>Seleziona tutto</button>{' '}
+              <button type="button" disabled={isImporting} onClick={()=>selectRows(false)}>Deseleziona tutto</button>
+              <span> · {filtered.length} / {preview.totalRows} righe · {selectedCount} selezionate</span>
+            </div>
+            <div>{(['NUOVA','AGGIORNAMENTO','DUPLICATO','BLOCCATA'] as const).map(label=><span key={label} style={{marginRight:12}}>{label}: {preview.rows.filter(r=>r.classificazione===label).length}</span>)}</div>
 
             {preview.rows.length === 0 && (
               <div
@@ -270,9 +296,9 @@ export default function PriceImportPanel({
               </div>
             )}
 
-            {preview.rows.slice(0, 30).map((row, index) => (
+            {filtered.slice(currentPage*30,currentPage*30+30).map(({row,index}) => (
               <div
-                key={`${row.rowNumber}-${row.codice}-${index}`}
+                key={`${row.rowNumber}-${index}`}
                 style={{
                   display: 'grid',
                   gap: 7,
@@ -297,7 +323,8 @@ export default function PriceImportPanel({
                       color: '#0f172a',
                     }}
                   >
-                    {row.codice || 'Codice non disponibile'}
+                    <label><input type="checkbox" aria-label={`Seleziona riga ${index+1}`} checked={!!row.selezionata} disabled={isImporting||!applicablePriceRow(row)} onChange={e=>selectRows(e.target.checked,index)} />{' '}{row.classificazione}</label>
+                    <input aria-label={`Codice riga ${index+1}`} disabled={isImporting} value={row.codice} onChange={e=>editRow(index,{codice:e.target.value})} />
                   </div>
 
                   <StatusBadge status={row.status} />
@@ -309,8 +336,7 @@ export default function PriceImportPanel({
                     lineHeight: 1.45,
                   }}
                 >
-                  {row.descrizione ||
-                    'Descrizione non disponibile'}
+                  <textarea aria-label={`Descrizione riga ${index+1}`} disabled={isImporting} value={row.descrizione} onChange={e=>editRow(index,{descrizione:e.target.value})} style={{width:'100%',minHeight:70}} />
                 </div>
 
                 <div
@@ -324,23 +350,20 @@ export default function PriceImportPanel({
                 >
                   <span>
                     <strong>UM:</strong>{' '}
-                    {row.unitaMisura || '-'}
+                    <input aria-label={`U.M. riga ${index+1}`} disabled={isImporting} value={row.unitaMisura} onChange={e=>editRow(index,{unitaMisura:e.target.value})} />
                   </span>
 
                   <span>
                     <strong>Prezzo:</strong>{' '}
-                    {row.prezzo !== null
-                      ? `${row.prezzo.toLocaleString('it-IT', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })} €`
-                      : 'Non disponibile'}
+                    <input aria-label={`Prezzo riga ${index+1}`} type="number" min="0" step="any" disabled={isImporting} value={row.prezzo??''} onChange={e=>editRow(index,{prezzo:e.target.value===''?null:Number(e.target.value)})} /> €
                   </span>
 
                   <span>
-                    <strong>Riga Excel:</strong>{' '}
+                    <strong>Riga:</strong>{' '}
                     {row.rowNumber}
                   </span>
+                  <span>Fonte: {row.fonte} · Anno: {row.anno??'Non disponibile'} · Versione: {row.versione||'Non disponibile'}</span>
+                  {row.paginaPdf!==undefined&&<span>Pagina PDF: {row.paginaPdf} · % Manodopera: {row.percentualeManodopera?.toLocaleString('it-IT')??'Non disponibile'} · Manodopera €/U.M.: {row.prezzoManodopera?.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})??'Non disponibile'}</span>}
                 </div>
 
                 {row.warnings.length > 0 && (
@@ -375,8 +398,9 @@ export default function PriceImportPanel({
                   fontSize: 13,
                 }}
               >
-                Visualizzate le prime 30 di{' '}
-                {preview.totalRows} righe.
+                <button type="button" disabled={currentPage===0} onClick={()=>setPage(currentPage-1)}>Precedenti</button>{' '}
+                Pagina {currentPage+1} / {Math.max(1,Math.ceil(filtered.length/30))}{' '}
+                <button type="button" disabled={(currentPage+1)*30>=filtered.length} onClick={()=>setPage(currentPage+1)}>Successive</button>
               </div>
             )}
           </div>

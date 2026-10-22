@@ -105,8 +105,8 @@ export function validaPrestazioneBozza(p: PrestazioneBozzaV1, varianti: readonly
   const invariata = originale && prestazioniUguali(p, originale)
   const collegamentoStorico = originale?.lavoro_in_economia && p.variante_id !== null && p.variante_id === originale.variante_id
   if (originale && (p.operaio_id !== originale.operaio_id || p.chiave_client !== originale.chiave_client)) errori.push('Identità persistente non modificabile')
-  if (p.lavoro_in_economia && !invariata && (!p.variante_id || !uuid.test(p.variante_id))) errori.push('Seleziona una variante per Economia')
-  else if (p.lavoro_in_economia && !invariata && !collegamentoStorico && !varianti.some(v => v.id === p.variante_id && v.selezionabile)) errori.push('La variante non è disponibile per un nuovo collegamento')
+  if (p.lavoro_in_economia && p.variante_id !== null && !invariata && !uuid.test(p.variante_id)) errori.push('Variante collegata non valida')
+  else if (p.lavoro_in_economia && p.variante_id !== null && !invariata && !collegamentoStorico && !varianti.some(v => v.id === p.variante_id && v.selezionabile)) errori.push('La variante non è disponibile per un nuovo collegamento')
   if (!p.lavoro_in_economia && p.variante_id !== null) errori.push('Ordinario non può avere una variante')
   return errori
 }

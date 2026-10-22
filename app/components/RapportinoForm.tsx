@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { Cantiere, FotoCantiere, Operaio, OperaioRapportinoInput } from '../types'
 import RapportinoOperaiEditor from './RapportinoOperaiEditor'
+import FotoPrivataDesktopV1 from './FotoPrivataDesktopV1'
 import type { ParsedReport } from '../engines/document-intelligence/report-parser'
 import type { PropostaOperaioRiconosciuto } from '../utils/applicaOperaiRiconosciuti'
 import RapportinoActivities, {
@@ -157,8 +158,11 @@ export default function RapportinoForm({
       }]
     })
 
-  const fotoCollegate = cantiereRapporto && data
-    ? fotoCantiere.filter((foto) => {
+  const fotoCollegate = fotoCantiere.filter((foto) => {
+        if (foto.allegato_v1_id) {
+          return !!rapportinoInModifica && (foto as any).rapportino_id === rapportinoInModifica
+        }
+        if (!cantiereRapporto || !data) return false
         const categoria = String(foto.categoria || '').toLowerCase()
 
         return (
@@ -167,7 +171,6 @@ export default function RapportinoForm({
           (!categoria || categoria === 'rapportino')
         )
       })
-    : []
 
  const applicaReport = (report: ParsedReport) => {
   if (!modalitaPortaleOperai) {
@@ -570,7 +573,16 @@ export default function RapportinoForm({
               gap: 8,
             }}
           >
-            {fotoCollegate.map((foto, indice) => (
+            {fotoCollegate.map((foto, indice) => foto.allegato_v1_id ? (
+              <div key={foto.id || indice}>
+                <FotoPrivataDesktopV1 allegato={foto.allegato_v1_id}
+                  rapportino={rapportinoInModifica ?? undefined} foto={foto.id}
+                  style={{ display: 'block', width: 72, height: 72, objectFit: 'cover' }} />
+                <button type="button" onClick={() => setFotoRapportinoAperte(fotoCollegate)}>
+                  Apri foto
+                </button>
+              </div>
+            ) : (
               <button
                 key={foto.id || indice}
                 type="button"

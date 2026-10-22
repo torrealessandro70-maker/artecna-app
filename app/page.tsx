@@ -1,4 +1,7 @@
+import type { AnteprimaFattura } from './engines/fatture/import-documenti'
 'use client'
+import { preservaPerimetroMiglioraTesto, messaggioPerimetro } from './utils/perimetroMiglioraTesto'
+import { chiaveAnalisiVoce } from './components/AnalisiPrezzoVoce'
 import { contabilizzaManodopera } from './engines/economia/contabilitaManodopera'
 
 import type { EsitoArchiviazionePreventivo } from './components/DocumentiCantierePanel'
@@ -32,6 +35,8 @@ import { creaVociPreventivoDaDocumento } from './engines/preventivo-from-documen
 import { createPreventivoRevision } from './engines/preventivo'
 import { buildSopralluogoMemory } from './engines/sopralluogo-memory'
 import PriceImportPanel from './components/PriceImportPanel'
+import ListinoArtecnaPanel from './components/ListinoArtecnaPanel'
+import PrezzarioSic24Panel from './components/PrezzarioSic24Panel'
 import {
   parseExcelDocument,
   matchDocumentRowPrice,
@@ -48,6 +53,8 @@ import {
   type DocumentKind,
 } from './engines/document-intelligence'
 import { resolvePrice } from './engines/price-resolution'
+import { mediaMemoriaCompatibile } from './engines/price-resolution/revisione-ai'
+import { leggiStoricoPrezzi, risolviPrezzoPrioritario } from './engines/price-resolution/storico-prezzi'
 
 
 import PopupModificaOperaio from './components/PopupModificaOperaio'
@@ -90,6 +97,8 @@ import FattureEmessePanel from './components/FattureEmessePanel'
 import PopupNuovaFatturaEmessa from './components/PopupNuovaFatturaEmessa'
 import PopupDettaglioFatturaEmessa from './components/PopupDettaglioFatturaEmessa'
 import RegistroFattureFornitoriPanel from './components/RegistroFattureFornitoriPanel'
+import { verificaFatturaLegacy, messaggioAssegnazione } from './engines/economia/fattureMateriali'
+import { creaSalvataggioDocumento } from './engines/fatture/classificazioneDocumento'
 import PopupFotoRapportino from './components/PopupFotoRapportino'
 import PopupOperaiRapportino from './components/PopupOperaiRapportino'
 import PopupFotoRapportinoAperte from './components/PopupFotoRapportinoAperte'
@@ -308,6 +317,14 @@ file_url?: string | null
   file_path?: string | null
   file_tipo?: string | null
   anteprima_testo?: string | null
+}
+
+const normalizzaQuantitaPreventivoAi = (valore: unknown): number | null => {
+  if (valore === undefined || valore === null ||
+      (typeof valore === 'string' && valore.trim() === '')) return 1
+  if (typeof valore !== 'number' && typeof valore !== 'string') return null
+  const numero = Number(valore)
+  return Number.isFinite(numero) ? numero : null
 }
 
 export default function Home() {
@@ -568,6 +585,10 @@ const [mostraAppuntiSopralluogo, setMostraAppuntiSopralluogo] = useState(false)
 const [pagineAppunti, setPagineAppunti] = useState<string[]>([''])
 const appuntiRefs = useRef<any[]>([])
 const [memoriaPrezzi, setMemoriaPrezzi] = useState<MemoriaPrezzo[]>([])
+const memoriaPrezziValidi = memoriaPrezzi.filter(
+  (riga): riga is MemoriaPrezzo & { prezzo_unitario: number } =>
+    typeof riga.prezzo_unitario === 'number' && Number.isFinite(riga.prezzo_unitario),
+)
 const [ricercaMemoriaPrezzi, setRicercaMemoriaPrezzi] = useState('')
 const [suggerimentoPrezzoAI, setSuggerimentoPrezzoAI] = useState('')
 const [utilizzoAi, setUtilizzoAi] = useState<any[]>([])
@@ -1447,25 +1468,29 @@ const response = await fetch('/api/genera-preventivo-ai', {
     return false
   }
 
-  const vociAi = (risultato.voci || []).map((voce: any) => {
-    const prezzoTrovato = cercaPrezzoMigliore(voce.descrizione || '')
-    const prezzoBaseGrezzo = Number(prezzoTrovato?.prezzo_unitario || 0)
-    const prezzoBase =
-      prezzoBaseGrezzo >= 5 ? prezzoBaseGrezzo : Number(voce.prezzo_unitario || 0)
+  const vociRispostaAi = risultato.voci || []
+  const quantitaAi = vociRispostaAi.map((voce: any) => normalizzaQuantitaPreventivoAi(voce.quantita))
+  const indiceQuantitaNonValida = quantitaAi.findIndex((quantita: number | null) => quantita === null)
+  if (indiceQuantitaNonValida >= 0) {
+    alert(`Quantità AI non valida alla voce ${indiceQuantitaNonValida + 1}: verifica la quantità prima di generare il preventivo. Nessun preventivo salvato.`)
+    return false
+  }
 
-    const prezzoFinale = prezzoBase > 0 ? prezzoBase * 1.25 : 0
+  let storicoPrezzi
+  try { storicoPrezzi = await leggiStoricoPrezzi(supabase) }
+  catch { alert("Storico preventivi non verificabile: nessun fallback automatico."); return false }
 
+  const vociAi = vociRispostaAi.map((voce: any, index: number) => {
+    const risoluzione = risolviPrezzoPrioritario({
+      descrizione: voce.descrizione || '',
+      unitaMisura: voce.unita_misura,
+      prezzoAi: Number(voce.prezzo_unitario || 0),
+    }, prezziarioSicilia, memoriaPrezziValidi, storicoPrezzi)
     return {
       ...voce,
-      prezzo_unitario: Number(prezzoFinale.toFixed(2)),
-      quantita: Number(voce.quantita || 1),
-      unita_misura:
-        voce.unita_misura || prezzoTrovato?.unita_misura || 'a corpo',
-      fonte_prezzo:
-        prezzoTrovato?.fonte_prezzo ||
-        prezzoTrovato?.fonte ||
-        prezzoTrovato?.origine_prezzo ||
-        'Da verificare',
+      ...risoluzione,
+      quantita: quantitaAi[index] as number,
+      unita_misura: voce.unita_misura || '',
     }
   })
 
@@ -1749,6 +1774,12 @@ console.log('CLICK AI', index)
 
   if (!voce) return
 
+  const descrizioneRichiesta = voce.descrizione
+  // Senza id, copie indistinguibili non sono un'identità certa: fail closed.
+  const identita = (riga: typeof voce) => chiaveAnalisiVoce(riga, 0, [])
+  const identitaRichiesta = identita(voce)
+  if (vociPreventivoAi.filter(riga => identita(riga) === identitaRichiesta).length !== 1) return
+
   try {
     const response = await fetch('/api/migliora-voce-ai', {
       method: 'POST',
@@ -1756,7 +1787,7 @@ console.log('CLICK AI', index)
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        descrizione: voce.descrizione,
+        descrizione: descrizioneRichiesta,
       }),
     })
 
@@ -1767,17 +1798,19 @@ console.log('CLICK AI', index)
       return
     }
 
-    const nuove = [...vociPreventivoAi]
-
-    nuove[index].descrizione =
-      risultato.descrizione || voce.descrizione
-
-    if (risultato.prezzo_unitario) {
-      nuove[index].prezzo_unitario =
-        risultato.prezzo_unitario
+    if (risultato.applicato === false ||
+        !preservaPerimetroMiglioraTesto(descrizioneRichiesta, risultato.descrizione)) {
+      setMessaggioAi(messaggioPerimetro)
+      return
     }
 
-    setVociPreventivoAi(nuove)
+    setVociPreventivoAi((correnti) => {
+      const corrispondenti = correnti.filter(corrente => identita(corrente) === identitaRichiesta)
+      if (corrispondenti.length !== 1 || corrispondenti[0].descrizione !== descrizioneRichiesta) return correnti
+      return correnti.map(corrente => corrente === corrispondenti[0]
+        ? { ...corrente, descrizione: risultato.descrizione }
+        : corrente)
+    })
 
     setMessaggioAi('✨ Voce aggiornata')
 
@@ -2629,6 +2662,8 @@ const salvaSalLavorazione = async (cantiereOverride?: string) => {
 
 const eliminaMaterialeCantiere = async (id?: string) => {
   if (!id) return
+  const originale = materialiCantiere.find(m => m.id === id)
+  if (originale && 'fattura_riga_id' in originale && originale.fattura_riga_id != null) { alert('Assegnazione fattura protetta'); return }
 
   const conferma = confirm('Eliminare questa riga materiale?')
   if (!conferma) return
@@ -2636,6 +2671,7 @@ const eliminaMaterialeCantiere = async (id?: string) => {
   const { error } = await supabase
     .from('materiali_cantiere')
     .delete()
+    .is('fattura_riga_id', null)
     .eq('id', id)
 
   if (error) {
@@ -2761,7 +2797,7 @@ const numeroXml = (valore: string) => {
   return Number.isFinite(numero) ? numero : 0
 }
 
-const caricaFatturaXml = async (file: File) => {
+const caricaFatturaXml = async (file: File, soloAnteprima = false): Promise<AnteprimaFattura | undefined> => {
   try {
     const testo = await file.text()
     const parser = new DOMParser()
@@ -2769,6 +2805,7 @@ const caricaFatturaXml = async (file: File) => {
 
     const erroreParser = xml.getElementsByTagName('parsererror')[0]
     if (erroreParser) {
+      if (soloAnteprima) throw Error('Il file XML non sembra valido.')
       alert('Il file XML non sembra valido.')
       return
     }
@@ -2835,11 +2872,13 @@ const totaleIvato =
         descrizione,
         quantita,
         prezzo_unitario: prezzoUnitario,
+        unita_misura: riga.getElementsByTagName('UnitaMisura')[0]?.textContent?.trim() || '',
         totale_riga: prezzoTotale,
         cantiere: '',
       }
     })
 
+    if (!soloAnteprima) {
     setFatturaFornitore(denominazione)
     setFatturaPartitaIva(partitaIva)
     setFatturaNumero(numeroFattura)
@@ -2851,7 +2890,11 @@ const totaleIvato =
     setRigheFatturaDaAssegnare(righe)
 
     alert(`Fattura XML caricata. Righe trovate: ${righe.length}`)
+    }
+    return { fornitore: denominazione, partitaIva, numero: numeroFattura, data: dataFattura, totale: importoTotale,
+      nomeFile: file.name, tipoFile: 'xml', testoOriginale: testo, righe }
   } catch (errore) {
+    if (soloAnteprima) throw errore
     console.error(errore)
     alert('Errore durante la lettura della fattura XML.')
   }
@@ -2980,7 +3023,7 @@ const estraiTotaleDocumentoPdf = (testo: string) => {
 }
 
 
-const caricaFatturaPdf = async (file: File) => {
+const caricaFatturaPdf = async (file: File, soloAnteprima = false): Promise<AnteprimaFattura | undefined> => {
   try {
     const pdfjsLib = await import('pdfjs-dist')
     pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
@@ -3021,34 +3064,27 @@ const caricaFatturaPdf = async (file: File) => {
 
     console.log('TESTO OCR PDF:', testoCompleto)
 
-    setFatturaNomeFile(file.name)
-    setFatturaTipoFile('pdf')
-    setFatturaTestoOriginale(testoCompleto)
-
-const righePdf = estraiRigheDaTestoPdf(testoCompleto)
-
-setRigheFatturaDaAssegnare(righePdf)
-const matchFornitore = testoCompleto.match(
-  /Denominazione:\s*(.+)/i
-)
-
-const fornitoreEstratto = matchFornitore
-  ? matchFornitore[1].trim()
-  : 'Fornitore da PDF'
-setFatturaFornitore(fornitoreEstratto)
-setFatturaNumero(file.name)
-setFatturaData(new Date().toISOString().slice(0, 10))
-const totaleDocumentoPdf = estraiTotaleDocumentoPdf(testoCompleto)
-
-setFatturaTotale(
-  String(
-    totaleDocumentoPdf > 0
-      ? totaleDocumentoPdf
-      : righePdf.reduce((tot, r) => tot + r.totale_riga, 0)
-  )
-)
-    alert('PDF elaborato con OCR.')
+    const righePdf = estraiRigheDaTestoPdf(testoCompleto)
+    const matchFornitore = testoCompleto.match(/Denominazione:\s*(.+)/i)
+    const fornitoreEstratto = matchFornitore ? matchFornitore[1].trim() : 'Fornitore da PDF'
+    const totaleDocumentoPdf = estraiTotaleDocumentoPdf(testoCompleto)
+    const totale = String(totaleDocumentoPdf > 0 ? totaleDocumentoPdf : righePdf.reduce((tot, r) => tot + r.totale_riga, 0))
+    const data = new Date().toISOString().slice(0, 10)
+    if (!soloAnteprima) {
+      setFatturaNomeFile(file.name)
+      setFatturaTipoFile('pdf')
+      setFatturaTestoOriginale(testoCompleto)
+      setRigheFatturaDaAssegnare(righePdf)
+      setFatturaFornitore(fornitoreEstratto)
+      setFatturaNumero(file.name)
+      setFatturaData(data)
+      setFatturaTotale(totale)
+      alert('PDF elaborato con OCR.')
+    }
+    return { fornitore: fornitoreEstratto, partitaIva: '', numero: file.name, data, totale,
+      nomeFile: file.name, tipoFile: 'pdf', testoOriginale: testoCompleto, righe: righePdf }
   } catch (errore) {
+    if (soloAnteprima) throw errore
     console.error(errore)
     alert('Errore OCR PDF.')
   }
@@ -3596,181 +3632,27 @@ const apriFatturaFornitore = async (fatturaId: string) => {
 }
 
 
-const salvaModificheFatturaAperta = async () => {
-  if (!fatturaApertaId) {
-    alert('Nessuna fattura aperta')
-    return
+const salvataggioDocumentoRef = useRef<ReturnType<typeof creaSalvataggioDocumento> | null>(null)
+const salvaModificheFatturaAperta = async (righeIds?: string[]) => {
+  if (!fatturaApertaId) throw Error('Nessuna fattura aperta')
+  const righeDaClassificare = righeIds ? righeFatturaAperta.filter(r => typeof r.id === 'string' && righeIds.includes(r.id)) : righeFatturaAperta
+  if (righeIds && (!righeIds.length || new Set(righeIds).size !== righeIds.length || righeDaClassificare.length !== righeIds.length)) throw Error('Selezione documentale non valida: rileggere la fattura')
+  salvataggioDocumentoRef.current ??= creaSalvataggioDocumento(supabase)
+  await salvataggioDocumentoRef.current.salva(fatturaApertaId, righeDaClassificare)
+  try {
+    await caricaFattureFornitori()
+    await caricaEconomia()
+    await caricaSpeseImpresa()
+  } catch (e) {
+    throw Object.assign(Error('Classificazione salvata dal server; rilettura non completata. ' + messaggioAssegnazione(e)), { classificazioneSalvata: true })
   }
-
-
-
-const totaleAssegnatoFattura = righeFatturaAperta.reduce(
-  (tot, r) => tot + Number(r.totale_riga || 0),
-  0
-)
-
-const fatturaCorrenteAperta = fattureFornitori.find(
-  (f) => String(f.id) === String(fatturaApertaId)
-)
-
-const totaleDocumentoFattura =
-  Number(fatturaCorrenteAperta?.importo_totale || 0)
-const differenzaFattura =
-  totaleDocumentoFattura - totaleAssegnatoFattura
-
-
-
-  const righeAggiornate = righeFatturaAperta.map((r) => ({
-  id: r.id,
-  cantiere: r.cantiere || null,
-  categoria_economica: r.categoria_economica || null,
-  stato: r.cantiere ? 'assegnata' : 'da_assegnare',
-}))
-
-for (const riga of righeAggiornate) {
-  if (!riga.id) continue
-
-  const { error } = await supabase
-    .from('fatture_fornitori_righe')
-    .update({
-      cantiere: riga.cantiere,
-      categoria_economica: riga.categoria_economica,
-      stato: riga.stato,
-    })
-    .eq('id', riga.id)
-
-  if (error) {
-    alert('Errore aggiornamento riga fattura: ' + error.message)
-    return
-  }
+  // La schermata resta aperta: l'assegnazione quantitativa e' un'azione distinta.
 }
-
-const fatturaCorrente = fattureFornitori.find(
-  (f) => String(f.id) === String(fatturaApertaId)
-)
-
-if (fatturaCorrente) {
-  await supabase
-    .from('materiali_cantiere')
-    .delete()
-    .eq('nome_file', fatturaCorrente.nome_file || '')
-
-  await supabase
-    .from('spese_impresa')
-    .delete()
-    .eq('nome_file', fatturaCorrente.nome_file || '')
-
-  const materialiDaSalvare = righeFatturaAperta
-    .filter(
-      (r) =>
-        r.cantiere &&
-        r.cantiere !== 'Generale impresa' &&
-        r.categoria_economica === 'materiale_cantiere'
-    )
-    .map((r) => ({
-      cantiere: r.cantiere,
-      descrizione: r.descrizione,
-      quantita: r.quantita || 1,
-      prezzo_unitario: r.prezzo_unitario || 0,
-      totale: Number(r.totale_riga || 0),
-      fornitore: fatturaCorrente.fornitore || '',
-      data_documento: fatturaCorrente.data_fattura || '',
-      nome_file: fatturaCorrente.nome_file || '',
-      file_tipo: fatturaCorrente.tipo_file || '',
-      anteprima_testo: `Fattura ${fatturaCorrente.numero_fattura || ''}`,
-    }))
-
-  if (materialiDaSalvare.length > 0) {
-    const { error: erroreMateriali } = await supabase
-      .from('materiali_cantiere')
-      .insert(materialiDaSalvare)
-
-    if (erroreMateriali) {
-      alert(
-        'Errore salvataggio materiali: ' +
-          JSON.stringify(erroreMateriali)
-      )
-      return
-    }
-  }
-
-  const speseImpresaDaSalvare = righeFatturaAperta
-    .filter(
-      (r) =>
-        r.categoria_economica === 'attrezzo_ditta' ||
-        r.categoria_economica === 'magazzino' ||
-        r.categoria_economica === 'spesa_generale'
-    )
-    .map((r) => ({
-      categoria: r.categoria_economica,
-      descrizione: r.descrizione || '',
-      importo: Number(r.totale_riga || 0),
-      fornitore: fatturaCorrente.fornitore || '',
-      data_documento: fatturaCorrente.data_fattura || null,
-      nome_file: fatturaCorrente.nome_file || '',
-      fattura_id: fatturaCorrente.id || null,
-      riga_fattura_id: r.id || null,
-      nota: `Fattura ${fatturaCorrente.numero_fattura || ''}`,
-    }))
-
-  if (speseImpresaDaSalvare.length > 0) {
-    const { error: erroreSpese } = await supabase
-      .from('spese_impresa')
-      .insert(speseImpresaDaSalvare)
-
-    if (erroreSpese) {
-      alert(
-        'Errore salvataggio spese impresa: ' +
-          JSON.stringify(erroreSpese)
-      )
-      return
-    }
-  }
-}
-
-
-const righeAssegnate = righeFatturaAperta.filter(
-  (r) => r.cantiere || r.categoria_economica
-)
-  const nuovoStato =
-    righeAssegnate.length === righeFatturaAperta.length
-      ? 'assegnata'
-      : righeAssegnate.length > 0
-      ? 'parzialmente_assegnata'
-      : 'da_assegnare'
-
-  const { error: erroreFattura } = await supabase
-    .from('fatture_fornitori')
-    .update({ stato: nuovoStato })
-    .eq('id', fatturaApertaId)
-
-  if (erroreFattura) {
-  alert(
-    'Errore aggiornamento stato fattura: ' +
-      JSON.stringify(erroreFattura)
-  )
-  return
-}
-
-
-// QUI INCOLLI IL BLOCCO MATERIALI
-
-await caricaFattureFornitori()
-await caricaEconomia()
-await caricaSpeseImpresa()
-
-setFatturaApertaId(null)
-setRigheFatturaAperta([])
-setCantiereMassivoFattura('')
-
-alert('Modifiche fattura salvate')
-
-}
-
-
 
 const eliminaFatturaFornitore = async (fattura: FatturaFornitore) => {
   if (!fattura.id) return
+  try { await verificaFatturaLegacy(supabase, fattura.id) }
+  catch (e) { alert(e instanceof Error ? e.message : 'Verifica assegnazioni non riuscita'); return }
 
   const conferma = confirm(
     `Vuoi eliminare la fattura ${fattura.numero_fattura} di ${fattura.fornitore}?\n\nVerranno eliminate anche le righe collegate.`
@@ -3789,6 +3671,7 @@ await supabase
 await supabase
   .from('materiali_cantiere')
   .delete()
+    .is('fattura_riga_id', null)
   .eq('nome_file', fattura.nome_file || '')
 
 const { error } = await supabase
@@ -4005,86 +3888,11 @@ const salvaInMemoriaPrezzi = async ({
   await caricaMemoriaPrezzi()
 }
 
-const cercaPrezzoMigliore = (descrizione: string) => {
-  const testo = String(descrizione || '').toLowerCase().trim()
+const calcolaMediaPrezziSimili = (testo: string, unitaMisura?: string) =>
+  mediaMemoriaCompatibile({ descrizione: testo, unitaMisura }, memoriaPrezziValidi)
 
-  if (!testo) return null
-
-  const parole = testo
-    .split(' ')
-    .filter((p) => p.length > 3)
-
-  const risultatiPrezzario = prezziarioSicilia
-    .map((p: any) => {
-      const desc = String(p.descrizione || '').toLowerCase()
-
-      const punteggio = parole.filter((parola) =>
-        desc.includes(parola)
-      ).length
-
-      return {
-        ...p,
-        punteggio,
-        fonte_prezzo:
-          p.fonte ||
-          `Prezzario Regione Siciliana ${p.anno || ''}`,
-      }
-    })
-    .filter(
-      (p: any) =>
-        p.punteggio > 0 &&
-        Number(p.prezzo_unitario || 0) > 0
-    )
-    .sort((a: any, b: any) => b.punteggio - a.punteggio)
-
-  if (risultatiPrezzario.length > 0) {
-    return risultatiPrezzario[0]
-  }
-
-  const mediaArtecna = calcolaMediaPrezziSimili(descrizione)
-
-  if (mediaArtecna) {
-    return {
-      descrizione,
-      prezzo_unitario: mediaArtecna,
-      unita_misura: '',
-      fonte_prezzo: 'Memoria prezzi ARTECNA / Catania',
-    }
-  }
-
-  return null
-}
-
-
-
-const cercaPrezziSimili = (testo: string) => {
-  const parole = testo
-    .toLowerCase()
-    .split(' ')
-    .filter((p) => p.length > 3)
-
-  return memoriaPrezzi.filter((p) => {
-    const descrizione = String(p.descrizione || '').toLowerCase()
-    return parole.some((parola) => descrizione.includes(parola))
-  })
-}
-
-const calcolaMediaPrezziSimili = (testo: string) => {
-  const simili = cercaPrezziSimili(testo)
-    .filter((p) => Number(p.prezzo_unitario) > 0)
-
-  if (simili.length === 0) return null
-
-  const totale = simili.reduce(
-    (somma, p) => somma + Number(p.prezzo_unitario || 0),
-    0
-  )
-
-  return totale / simili.length
-}
-
-const verificaPrezzoAnomalo = (descrizione: string, prezzo: number) => {
-  const media = calcolaMediaPrezziSimili(descrizione)
+const verificaPrezzoAnomalo = (descrizione: string, prezzo: number, unitaMisura?: string) => {
+  const media = calcolaMediaPrezziSimili(descrizione, unitaMisura)
 
   if (!media || !prezzo) return ''
 
@@ -5600,9 +5408,7 @@ const eliminaPagamentoOperaio = async (id?: string) => {
 const caricaFotoCantiere = async () => {
   const { data, error } = await supabase
     .from('foto_cantiere')
-  .select(
-  'id,cantiere_id,allegato_v1_id,cantiere,nota,data_foto,geolocalizzazione,created_at,categoria,file_url,file_path,thumbnail_url,storage_provider,sync_status,rapportino_id'
-)
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(80)
 
@@ -6342,6 +6148,7 @@ const eliminaVociImportate = async () => {
   const { error } = await supabase
     .from('materiali_cantiere')
     .delete()
+    .is('fattura_riga_id', null)
     .eq('cantiere', cantiereScheda)
     .eq('fornitore', 'Documento analizzato')
 
@@ -8080,6 +7887,10 @@ fotoGiaInserite.add(chiaveFoto)
 
 
   const preparaModificaRapportino = (r: Rapportino, scorriInAlto = true) => {
+    if (r.versione_prestazioni === 1) {
+      alert('Rapportino strutturato: modifica le prestazioni tramite «Apri / Modifica rapportino» nel portale Mobile.')
+      return
+    }
     setSquadraRapportino([])
     setOperaiRapportinoModificati(false)
     setOperaiRapportinoTemp([])
@@ -8101,6 +7912,11 @@ fotoGiaInserite.add(chiaveFoto)
   const aggiornaRapportino = async () => {
     if (!rapportinoInModifica) {
       alert('Nessun rapportino selezionato')
+      return
+    }
+
+    if (rapportini.find(r => r.id === rapportinoInModifica)?.versione_prestazioni === 1) {
+      alert('Rapportino strutturato: aggiornamento legacy non consentito. Usa il portale Mobile.')
       return
     }
 
@@ -8248,6 +8064,10 @@ const eliminaFotoRapportino = async (foto: any) => {
 
 
   const eliminaRapportino = async (id?: string) => {
+    if (rapportini.find(r => r.id === id)?.versione_prestazioni === 1) {
+      alert('L’eliminazione completa di un Rapportino strutturato V1 non è disponibile. Prestazioni e collegamenti sono conservati; usa il portale Mobile per modificare le righe.')
+      return
+    }
     if (!id || !confirm('Vuoi eliminare questo rapportino?')) return
     const { error } = await supabase.rpc('elimina_rapportino_legacy_senza_allegati', {
       p_rapportino_id: id,
@@ -9933,6 +9753,7 @@ if (modalita === 'documento' && !totale) {
         data_documento: dataDocumentoMaterialeModifica || null,
         nome_file: nomeFileMaterialeModifica.trim(),
       })
+      .is('fattura_riga_id', null)
       .eq('id', materialeInModifica)
 
     if (error) {
@@ -11070,6 +10891,7 @@ for (const riga of righeAssegnate) {
   descrizione: r.descrizione,
   quantita: Number(r.quantita || 0),
   prezzo_unitario: Number(r.prezzo_unitario || 0),
+  unita_misura: r.unita_misura || '',
 
   aliquota_iva: Number(r.aliquota_iva || 0),
 
@@ -13129,7 +12951,9 @@ onDocumentAction={gestisciAzioneDocumento}
   pagineAperte.includes('prezzari') ||
   (!modalitaMulti && sezioneAttiva === 'prezzari')
 ) && (
-  <PriceImportPanel supabase={supabase} />
+  <><ListinoArtecnaPanel supabase={supabase} onSaved={caricaPrezziarioSicilia} />
+  <PrezzarioSic24Panel supabase={supabase} />
+  <PriceImportPanel supabase={supabase} /></>
 )}
 
 <OperaiContainer
@@ -13619,6 +13443,8 @@ salvaRevisionePreventivoAi={salvaRevisionePreventivoAi}
   setVociPreventivoAiOriginali={setVociPreventivoAiOriginali}
   preventivoAiGenerato={preventivoAiGenerato}
   setPreventivoAiGenerato={setPreventivoAiGenerato}
+  prezziRiferimento={prezziarioSicilia}
+  memoriaRiferimento={memoriaPrezziValidi}
   calcolaMediaPrezziSimili={calcolaMediaPrezziSimili}
   verificaPrezzoAnomalo={verificaPrezzoAnomalo}
   miglioraVocePreventivoAi={miglioraVocePreventivoAi}

@@ -1,7 +1,40 @@
 import { RepositoryCodaFotoIndexedDB } from './codaFotoIndexedDB'
 import { CodaFotoRapportinoV1, type ContestoFoto, type FotoLocaleInCoda } from './fotoRapportinoV1'
-import { validaUUIDAllegato } from './contrattoAllegati'
+import { LIMITI_ALLEGATI, validaMimeAllegato, validaUUIDAllegato } from './contrattoAllegati'
 import { creaTrasportoHttpFotoV1 } from './trasportoHttpFotoV1'
+
+/** Adatta solo immagini fuori limite prima che la coda assegni hash e identità. */
+export async function preparaFotoMobile(blob: Blob): Promise<Blob> {
+  validaMimeAllegato(blob.type)
+  if (!blob.size) throw new Error('Immagine vuota')
+  const url = URL.createObjectURL(blob)
+  try {
+    const image = new Image()
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve()
+      image.onerror = () => reject(new Error('Immagine non leggibile'))
+      image.src = url
+    })
+    const w = image.naturalWidth, h = image.naturalHeight
+    if (!w || !h) throw new Error('Dimensioni immagine non valide')
+    if (blob.size <= LIMITI_ALLEGATI.byte_size && w * h <= LIMITI_ALLEGATI.pixel) return blob
+    // Stesso formato/qualità della fotocamera Desktop; rispetta l'orientamento.
+    const scale = Math.min(1, 1920 / Math.max(w, h), 1080 / Math.min(w, h))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(w * scale))
+    canvas.height = Math.max(1, Math.round(h * scale))
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Preparazione immagine non disponibile')
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    for (const quality of [0.9, 0.8, 0.7, 0.6]) {
+      const result = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', quality))
+      if (result?.type === 'image/jpeg' && result.size > 0 && result.size <= LIMITI_ALLEGATI.byte_size) return result
+    }
+    throw new Error('Immagine non riducibile entro 4 MB')
+  } finally { URL.revokeObjectURL(url) }
+}
 
 /** Nessun token nel nome o nei record. La vecchia coda non scoped non viene importata. */
 export function factoryFotoOperaio(factory: IDBFactory, operaioId: string): IDBFactory {

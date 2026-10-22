@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { supabase } from '../../lib/supabaseClient'
+import { provenienzaFatturaEconomia } from '../engines/economia/fattureMateriali'
 import { elencaPreventiviSorgenteVariante, caricaLavorazioniPreventivoSorgente, type PreventivoSorgenteCandidato } from '../engines/varianti/repositoryPreventiviSorgente'
 import { adattaPreventivoAVariante } from '../engines/varianti/adattaPreventivoAVariante'
 import type { PropostaVarianteDaPreventivo, PropostaVarianteDaFile, NaturaVariante, AcquisizioneVariante, AnomaliaPropostaVarianteDaFile, SorgenteVariante } from '../engines/varianti/types'
@@ -9,7 +10,13 @@ import type { AnomaliaMappingLavorazionePreventivo } from '../engines/varianti/m
 import { estraiVociVarianteDaFile } from '../engines/varianti/estraiVociVarianteDaFile'
 import { adattaFileAVariante } from '../engines/varianti/adattaFileAVariante'
 import { confermaPreventivoIntegrativo } from '../engines/varianti/confermaPreventivoIntegrativo'
+import { preparaCorrezioneContrattuale } from '../engines/varianti/preparaCorrezioneContrattuale'
 import UsaRaccoltaEconomiaInVariante from './UsaRaccoltaEconomiaInVariante'
+import PrestazioniRapportiniEconomia from './PrestazioniRapportiniEconomia'
+import PrezziRapportiniEconomia from './PrezziRapportiniEconomia'
+import { documentoVariantiCliente, vociCliente, type ContestoStampaVarianti, type VarianteCliente } from '../engines/economia/stampaVariantiCliente'
+import { operativoPrestazioneAcquisita } from '../engines/economia/prestazioniRapportiniDesktop'
+import RaccoltaSorgenteVariante from './RaccoltaSorgenteVariante'
 
 const etichetteAnomalieFile: Record<AnomaliaPropostaVarianteDaFile['codice'], string> = {
   cantiere_id_non_valido: 'Cantiere non valido',
@@ -590,7 +597,35 @@ function leggiIdentitaImportazioneEconomia(v: unknown, cantiereId: string, id?: 
 }
 
 type RaccoltaConsultazioneEconomia = RaccoltaImportazioneEconomia & { titolo: string; data: string; totale: number | null; nonValorizzate: number }
-type RigaConsultazioneEconomia = { id: string; ordine: number; tipo: 'generica' | 'manodopera' | 'materiale'; descrizione: string; um: string; quantita: number; prezzo: number | null; totale: number | null; note: string | null; operativo: Record<string, unknown> }
+
+// Consultazione autenticata Desktop: il testo attuale non sostituisce lo snapshot acquisito.
+async function arricchisciOriginiRapportino(sorgenti: Record<string, unknown>[], cantiereId: string) {
+  for (const sorgente of sorgenti) {
+    // L'elenco RPC contiene solo metadati: leggere il dettaglio autorizzato
+    // prima di cercare i riferimenti Rapportino nello snapshot Economia.
+    if (sorgente.tipo === 'raccolta_economia' && !recordSorgente(sorgente.snapshot)) {
+      const { data, error } = await supabase.rpc('leggi_sorgente_variante', { p_sorgente_id: sorgente.id })
+      const completa = singolaRigaSorgente(data)
+      if (error || !recordSorgente(completa) || completa.id !== sorgente.id ||
+          completa.variante_id !== sorgente.variante_id || completa.tipo !== 'raccolta_economia' ||
+          !recordSorgente(completa.snapshot) || completa.snapshot.cantiere_id !== cantiereId ||
+          !Array.isArray(completa.snapshot.registrazioni)) throw new Error('Dettaglio sorgente Economia non verificabile.')
+      Object.assign(sorgente, completa)
+    }
+    if (!recordSorgente(sorgente.snapshot) || !Array.isArray(sorgente.snapshot.registrazioni)) continue
+    for (const r of sorgente.snapshot.registrazioni) {
+      if (!recordSorgente(r) || r.origine !== 'rapportino' || !recordSorgente(r.dettagli_analitici) || !recordSorgente(r.dettagli_analitici.rapportino)) continue
+      const origine = r.dettagli_analitici.rapportino
+      if (origine.cantiere_id !== cantiereId || typeof origine.rapportino_id !== 'string' || typeof origine.operaio_id !== 'string') continue
+      const { data: rapportino, error } = await supabase.from('rapportini').select('id,cantiere_id,data,note').eq('id', origine.rapportino_id).eq('cantiere_id', cantiereId).maybeSingle()
+      const { data: operaio, error: erroreNome } = await supabase.from('operai').select('nome').eq('id', origine.operaio_id).maybeSingle()
+      r.consultazione_rapportino = { descrizione: !error && rapportino && rapportino.data === origine.data && typeof rapportino.note === 'string' ? rapportino.note : undefined,
+        operaio: !erroreNome && typeof operaio?.nome === 'string' ? operaio.nome : 'Operaio non disponibile' }
+    }
+  }
+}
+
+type RigaConsultazioneEconomia = { id: string; ordine: number; tipo: 'generica' | 'manodopera' | 'materiale'; descrizione: string; um: string; quantita: number; prezzo: number | null; totale: number | null; note: string | null; origine: string; operativo: Record<string, unknown>; provenienzaFattura: string | null }
 type DettaglioConsultazioneEconomia = { raccolta: RaccoltaConsultazioneEconomia; righe: RigaConsultazioneEconomia[] }
 
 function numeroConsultazioneEconomia(v: unknown, nullable = false): number | null {
@@ -620,7 +655,9 @@ function dettaglioConsultazioneEconomia(v: unknown, cantiereId: string, raccolta
     if (ids.has(r.id) || ordini.has(Number(r.ordine))) throw new Error('Righe Economia duplicate.')
     ids.add(r.id); ordini.add(Number(r.ordine))
     let operativo: Record<string, unknown> = {}
-    if (r.tipo_riga !== 'generica') {
+    if (r.origine === 'rapportino') {
+      operativo = operativoPrestazioneAcquisita(r, cantiereId)
+    } else if (r.tipo_riga !== 'generica') {
       if (!recordSorgente(r.dettagli_analitici) || r.dettagli_analitici.version !== 1 || !recordSorgente(r.dettagli_analitici.operativo)) throw new Error('Dettagli analitici Economia non verificabili.')
       operativo = r.dettagli_analitici.operativo
       const campi = r.tipo_riga === 'manodopera' ? ['data','operaio','qualifica','ora_inizio','ora_fine','riferimento'] : ['data','fornitore','documento','riferimento_rapportino']
@@ -630,18 +667,133 @@ function dettaglioConsultazioneEconomia(v: unknown, cantiereId: string, raccolta
     if (quantita === null || quantita <= 0) throw new Error('Quantità Economia non verificabile.')
     const prezzo = numeroConsultazioneEconomia(r.prezzo_unitario, true), totale = numeroConsultazioneEconomia(r.totale, true)
     if ((prezzo === null) !== (totale === null)) throw new Error('Valorizzazione Economia non verificabile.')
-    return { id: r.id, ordine: Number(r.ordine), tipo: r.tipo_riga as RigaConsultazioneEconomia['tipo'], descrizione: r.descrizione, um: r.unita_misura, quantita, prezzo, totale, note: r.note as string | null, operativo }
+    return { id: r.id, ordine: Number(r.ordine), tipo: r.tipo_riga as RigaConsultazioneEconomia['tipo'], descrizione: r.descrizione, um: r.unita_misura, quantita, prezzo, totale, note: r.note as string | null, origine: String(r.origine), operativo, provenienzaFattura: r.origine === 'fattura_fornitore' ? provenienzaFatturaEconomia(r) : null }
   }).sort((a,b) => a.ordine-b.ordine)
   if (raccolta.nonValorizzate !== righe.filter(r => r.prezzo === null).length) throw new Error('Riepilogo Economia non coerente.')
   return { raccolta, righe }
 }
-const testoConsultazioneEconomia = (v: unknown) => v === null || v === undefined || v === '' ? 'Non indicato' : String(v)
+const testoConsultazioneEconomia = (v: unknown) => typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? 'Non indicato' : v === null || v === undefined || v === '' ? 'Non indicato' : String(v)
 const dataConsultazioneEconomia = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : testoConsultazioneEconomia(v)
 const importoConsultazioneEconomia = (v: number | null) => v === null ? 'Non valorizzato' : v.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 
-function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elencoPronto, onApriVariante }: {
+function RinominaVarianteBozza({ id, stato, titoloAttuale, onRinominata }: {
+  id: string; stato: string; titoloAttuale: string; onRinominata: (titolo: string) => void
+}) {
+  const [aperto, setAperto] = useState(false)
+  const [titolo, setTitolo] = useState(titoloAttuale)
+  const [errore, setErrore] = useState('')
+  const [invio, setInvio] = useState(false)
+  const inCorso = useRef(false)
+  const contesto = useRef({ id, stato })
+  contesto.current = { id, stato }
+  if (stato !== 'bozza') return null
+  async function salva() {
+    if (inCorso.current || contesto.current.stato !== 'bozza') return
+    const nuovo = titolo.trim()
+    if (!nuovo) { setErrore('Il titolo non può essere vuoto.'); return }
+    const target = id
+    inCorso.current = true; setInvio(true); setErrore('')
+    try {
+      const { data, error } = await supabase.rpc('rinomina_variante_bozza', { p_variante_id: target, p_titolo: nuovo })
+      if (error) throw new Error('Rinomina arrestata. Nessun retry automatico.')
+      if (!data || data.id !== target || data.stato !== 'bozza' || data.titolo !== nuovo) throw new Error('Esito della rinomina non confermato.')
+      if (contesto.current.id === target && contesto.current.stato === 'bozza') { setAperto(false); onRinominata(data.titolo) }
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : 'Rinomina arrestata. Nessun retry automatico.')
+      // Dopo un errore non consentire un secondo invio da questo dialogo.
+      return
+    } finally { setInvio(false) }
+  }
+  return <div>
+    {!aperto ? <button type="button" onClick={() => { setTitolo(titoloAttuale); setErrore(''); inCorso.current = false; setAperto(true) }}>Rinomina</button> : <div role="dialog" aria-label="Rinomina variante">
+      <label>Titolo variante <input value={titolo} disabled={invio || !!errore && inCorso.current} onChange={e => setTitolo(e.target.value)} /></label>
+      <button type="button" disabled={invio || inCorso.current} onClick={salva}>Salva</button>
+      <button type="button" disabled={invio} onClick={() => setAperto(false)}>Annulla</button>
+    </div>}
+    {errore && <p role="alert">{errore}</p>}
+  </div>
+}
+
+function EliminaBozzaVuota({ tipo, id, contestoId, aggiornamento, bloccato, onEliminata }: {
+  tipo: 'raccolta' | 'variante'; id: string; contestoId: string; aggiornamento: string
+  bloccato: boolean; onEliminata: () => void | Promise<void>
+}) {
+  const [impronta, setImpronta] = useState<string | null>(null)
+  const [errore, setErrore] = useState('')
+  const [invio, setInvio] = useState(false)
+  const occupato = useRef(false), arrestato = useRef(false), contesto = useRef<object | null>(null)
+  useEffect(() => {
+    const corrente = {}
+    contesto.current = corrente; occupato.current = false; arrestato.current = false
+    setImpronta(null); setErrore(''); setInvio(false)
+    return () => { contesto.current = null }
+  }, [tipo, id, contestoId])
+  useEffect(() => {
+    let attivo = true
+    setImpronta(null)
+    if (bloccato || occupato.current || arrestato.current) return
+    async function verifica() {
+      try {
+        const { data, error } = await supabase.rpc('verifica_bozza_vuota', { p_tipo: tipo, p_id: id })
+        if (!attivo) return
+        if (error || !recordSorgente(data) || data.versione_contratto !== 1 || data.tipo !== tipo || data.id !== id ||
+            typeof data.eliminabile !== 'boolean' ||
+            (data.eliminabile ? data.motivo !== 'bozza_vuota' || typeof data.impronta !== 'string' || !/^[0-9a-f]{64}$/.test(data.impronta)
+              : data.motivo !== 'dati_da_preservare' || data.impronta !== null)) throw new Error('Verifica non confermata.')
+        if (data.eliminabile) setImpronta(data.impronta as string)
+      } catch {
+        if (attivo) { arrestato.current = true; setErrore('Verifica eliminazione non confermata. Operazione arrestata; nessun retry automatico.') }
+      }
+    }
+    void verifica()
+    return () => { attivo = false }
+  }, [tipo, id, contestoId, aggiornamento, bloccato])
+  async function elimina() {
+    if (!impronta || bloccato || occupato.current || arrestato.current) return
+    occupato.current = true
+    if (!window.confirm('Eliminare definitivamente questa bozza vuota?')) { occupato.current = false; return }
+    const corrente = contesto.current
+    if (!corrente) { occupato.current = false; return }
+    setInvio(true)
+    try {
+      const { data, error } = await supabase.rpc('elimina_bozza_vuota', { p_tipo: tipo, p_id: id, p_impronta_attesa: impronta })
+      if (contesto.current !== corrente) return
+      if (error) {
+        const code = error.code
+        throw new Error(code === 'BD409' ? 'Bozza cambiata o conflitto: eliminazione arrestata.'
+          : code === 'BD412' ? 'La bozza contiene dati da preservare: eliminazione arrestata.'
+          : code === '42501' ? 'Eliminazione non autorizzata o bozza non disponibile.'
+          : 'Eliminazione non confermata. Verifica lo stato prima di qualsiasi altra azione.')
+      }
+      if (!recordSorgente(data) || data.versione_contratto !== 1 || data.tipo !== tipo || data.id !== id || data.eliminata !== true) {
+        throw new Error('Eliminazione non confermata. Verifica lo stato prima di qualsiasi altra azione.')
+      }
+      arrestato.current = true; setImpronta(null)
+      await onEliminata()
+    } catch (e) {
+      if (contesto.current === corrente) {
+        arrestato.current = true; setImpronta(null)
+        setErrore((e instanceof Error && /^Bozza cambiata|^La bozza contiene|^Eliminazione non/.test(e.message)
+          ? e.message : 'Eliminazione o rilettura non confermata. Operazione arrestata.') + ' Nessun retry automatico.')
+      }
+    } finally {
+      if (contesto.current === corrente) { occupato.current = false; setInvio(false) }
+    }
+  }
+  return <>
+    {impronta && !bloccato && <button type="button" disabled={invio} onClick={() => void elimina()}>
+      {tipo === 'raccolta' ? 'Elimina raccolta' : 'Elimina bozza'}
+    </button>}
+    {invio && <p role="status">Eliminazione in corso...</p>}
+    {errore && <p role="alert">{errore}</p>}
+  </>
+}
+
+function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elencoPronto, onApriVariante, onCreata, onInvio, operazioneInCorso = false, operativo = false, titoloSuggerito, variantiInfo = [] }: {
   cantiereId: string; aggiornamento: number; varianti: readonly string[]; elencoPronto: boolean
   onApriVariante: (id: string) => void
+  onCreata?: () => void; onInvio?: (busy: boolean) => void; operazioneInCorso?: boolean; operativo?: boolean; titoloSuggerito?: string | null
+  variantiInfo?: readonly { id: string; titolo: string | null; stato: string }[]
 }) {
   const [elenco, setElenco] = useState<RaccoltaConsultazioneEconomia[]>([])
   const [caricamentoElenco, setCaricamentoElenco] = useState(true)
@@ -651,6 +803,47 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
   const [dettaglio, setDettaglio] = useState<DettaglioConsultazioneEconomia | null>(null)
   const [caricamentoDettaglio, setCaricamentoDettaglio] = useState(false)
   const [erroreDettaglio, setErroreDettaglio] = useState('')
+  const [letturaDettaglio, setLetturaDettaglio] = useState(0)
+  const [esitoValorizzazione, setEsitoValorizzazione] = useState<{ raccoltaId: string; messaggio: string } | null>(null)
+  const [valorizzazioneInCorso, setValorizzazioneInCorso] = useState(false)
+  const [confermaCreazione, setConfermaCreazione] = useState(false)
+  const [creazioneInCorso, setCreazioneInCorso] = useState(false)
+  const [erroreCreazione, setErroreCreazione] = useState('')
+  const [messaggioCreazione, setMessaggioCreazione] = useState('')
+  const [titoloCreazione, setTitoloCreazione] = useState('Lavori in economia — Rapportini')
+  const creazioneBloccata = useRef(false), creazioneAttiva = useRef(true)
+  useEffect(() => {
+    creazioneAttiva.current = true
+    return () => { creazioneAttiva.current = false }
+  }, [])
+  async function creaBozzaRapportini() {
+    if (!onCreata || !confermaCreazione || creazioneBloccata.current || operazioneInCorso
+      || caricamentoElenco || erroreElenco || !titoloCreazione.trim()) return
+    creazioneBloccata.current = true
+    setConfermaCreazione(false); setCreazioneInCorso(true); setErroreCreazione('')
+    onInvio?.(true)
+    try {
+      const d = new Date()
+      const dataLocale = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const { data, error } = await supabase.rpc('crea_raccolta_economia', {
+        p_cantiere_id: cantiereId, p_titolo: titoloCreazione.trim(), p_data: dataLocale, p_note: null,
+      })
+      if (!creazioneAttiva.current) return
+      if (error) throw new Error('Creazione non confermata.')
+      const raccolta = leggiIdentitaImportazioneEconomia(data, cantiereId)
+      if (raccolta.stato !== 'bozza' || raccolta.revisione !== 0) throw new Error('Bozza non verificabile.')
+      setMessaggioCreazione(`Raccolta n. ${raccolta.numero} creata in bozza. Rilettura delle prestazioni in corso.`)
+      onCreata()
+      creazioneBloccata.current = false
+    } catch {
+      if (creazioneAttiva.current) {
+        setErroreCreazione('Creazione non confermata. Rileggi le raccolte e verifica prima di qualsiasi nuova creazione; nessun retry automatico.')
+        setRilettura(v => v + 1)
+      }
+    } finally {
+      if (creazioneAttiva.current) { setCreazioneInCorso(false); onInvio?.(false) }
+    }
+  }
   const tokenElenco = useRef(0), tokenDettaglio = useRef(0)
   const cantiereCorrente = useRef(cantiereId)
   cantiereCorrente.current = cantiereId
@@ -687,7 +880,22 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
       if (token !== tokenDettaglio.current || cantiereCorrente.current !== cantiereId) return
       if (error) throw new Error('Lettura dettaglio non disponibile.')
       const lettura = dettaglioConsultazioneEconomia(data, cantiereId, id)
+      const operai = [...new Set(lettura.righe.filter(r => r.origine === 'rapportino').map(r => r.operativo.operaio).filter((v): v is string => typeof v === 'string'))]
+      if (operai.length) {
+        const { data: nomi, error: erroreNomi } = await supabase.from('operai').select('id,nome').in('id', operai)
+        if (token !== tokenDettaglio.current || cantiereCorrente.current !== cantiereId) return
+        lettura.righe.forEach(r => { if (r.origine === 'rapportino') r.operativo.operaio = !erroreNomi && Array.isArray(nomi) ? nomi.find(o => o.id === r.operativo.operaio)?.nome ?? 'Operaio non disponibile' : 'Operaio non disponibile' })
+      }
+      for (const r of lettura.righe.filter(r => r.origine === 'rapportino')) {
+        const { data: originale, error: erroreOriginale } = await supabase.from('rapportini').select('note,data').eq('id', r.operativo.riferimento).eq('cantiere_id', cantiereId).maybeSingle()
+        if (token !== tokenDettaglio.current || cantiereCorrente.current !== cantiereId) return
+        if (!erroreOriginale && originale && originale.data === r.operativo.data && typeof originale.note === 'string' && originale.note.trim()) {
+          r.descrizione = originale.note
+          r.note = [r.note, 'Descrizione: testo attuale del Rapportino'].filter(Boolean).join(' — ')
+        }
+      }
       setDettaglio(lettura)
+      setLetturaDettaglio(v => v + 1)
       setElenco(e => e.map(r => r.id === id ? lettura.raccolta : r))
     } catch {
       if (token === tokenDettaglio.current && cantiereCorrente.current === cantiereId) setErroreDettaglio('Impossibile leggere la raccolta Economia. Riprova la lettura.')
@@ -695,12 +903,18 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
       if (token === tokenDettaglio.current && cantiereCorrente.current === cantiereId) setCaricamentoDettaglio(false)
     }
   }
+  const aggiornamentoDettaglio = useRef(aggiornamento)
+  useEffect(() => {
+    if (aggiornamentoDettaglio.current === aggiornamento) return
+    aggiornamentoDettaglio.current = aggiornamento
+    if (apertaId) void apri(apertaId, true)
+  }, [aggiornamento])
   const riepilogo = (r: RaccoltaConsultazioneEconomia) => <>
     <h5>Raccolta n. {r.numero} — {r.titolo}</h5>
     <p>{r.stato === 'bozza' ? 'Bozza' : 'Chiusa'} · {dataConsultazioneEconomia(r.data)} · Revisione {r.revisione}</p>
     <p>Totale{r.nonValorizzate > 0 ? ' parziale' : ''}: {r.totale === null ? 'Non valorizzato' : importoConsultazioneEconomia(r.totale)} · Righe non valorizzate: {r.nonValorizzate}</p>
   </>
-  const tabella = (tipo: RigaConsultazioneEconomia['tipo'], titolo: string, colonne: string[], celle: (r: RigaConsultazioneEconomia) => string[]) => {
+  const tabella = (tipo: RigaConsultazioneEconomia['tipo'], titolo: string, colonne: string[], celle: (r: RigaConsultazioneEconomia) => ReactNode[]) => {
     const righe = dettaglio?.righe.filter(r => r.tipo === tipo) ?? []
     if (tipo === 'generica' && !righe.length) return null
     return <section aria-label={titolo}><h5>{titolo} — {righe.length} registrazioni</h5>
@@ -713,18 +927,41 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
   const numero = (v: number) => v.toLocaleString('it-IT', { maximumFractionDigits: 6 })
   return <section aria-label="Lavori in economia registrati" style={{ marginTop: 16 }}>
     <h4>LAVORI IN ECONOMIA REGISTRATI</h4>
+    {onCreata && <div>
+      <button type="button" disabled={caricamentoElenco || Boolean(erroreElenco) || operazioneInCorso || creazioneInCorso || creazioneBloccata.current}
+        onClick={() => setConfermaCreazione(true)}>Crea nuova raccolta</button>
+      {confermaCreazione && <div>
+        <p>Crea una raccolta vuota in bozza per questo cantiere. Nessuna prestazione viene acquisita in questa operazione.</p>
+        <label>Titolo raccolta<input value={titoloCreazione} disabled={creazioneInCorso} onChange={e => setTitoloCreazione(e.target.value)} /></label>
+        {titoloSuggerito && <p>Titolo suggerito: {titoloSuggerito} <button type="button" disabled={creazioneInCorso} onClick={() => setTitoloCreazione(titoloSuggerito)}>Usa titolo suggerito</button></p>}
+        <button type="button" disabled={creazioneInCorso || operazioneInCorso || !titoloCreazione.trim()} onClick={() => void creaBozzaRapportini()}>Conferma creazione raccolta</button>
+        <button type="button" disabled={creazioneInCorso} onClick={() => setConfermaCreazione(false)}>Annulla creazione</button>
+      </div>}
+      {creazioneInCorso && <p role="status">Creazione raccolta in corso...</p>}
+      {erroreCreazione && <p role="alert">{erroreCreazione}</p>}
+      {messaggioCreazione && <p role="status">{messaggioCreazione}</p>}
+    </div>}
     {apertaId ? <>
-      <button type="button" onClick={() => { tokenDettaglio.current += 1; setApertaId(null); setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(false) }}>Torna all'elenco</button>
+      <button type="button" disabled={valorizzazioneInCorso} onClick={() => { tokenDettaglio.current += 1; setApertaId(null); setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(false) }}>Torna all'elenco</button>
       {caricamentoDettaglio && <p role="status">Caricamento raccolta Economia...</p>}
       {erroreDettaglio && <div role="alert"><p>{erroreDettaglio}</p><button type="button" onClick={() => void apri(apertaId)}>Riprova</button></div>}
       {dettaglio && <>
         {riepilogo(dettaglio.raccolta)}
-        <UsaRaccoltaEconomiaInVariante key={dettaglio.raccolta.id} raccolta={dettaglio.raccolta}
-          varianti={varianti} elencoPronto={elencoPronto} onApri={onApriVariante}
+        <p><strong>{dettaglio.righe.filter(r => r.tipo === 'manodopera').reduce((s,r) => s+r.quantita,0).toLocaleString('it-IT')} ore · Totale da fatturare: {importoConsultazioneEconomia(dettaglio.raccolta.totale)}</strong></p>
+        {esitoValorizzazione?.raccoltaId === apertaId && <p role="status">{esitoValorizzazione.messaggio}</p>}
+        <PrezziRapportiniEconomia key={dettaglio.raccolta.id + ':' + dettaglio.raccolta.revisione + ':' + letturaDettaglio} raccolta={dettaglio.raccolta} righe={dettaglio.righe}
+          solaLettura={!operativo}
+          onEsito={messaggio => setEsitoValorizzazione({ raccoltaId: dettaglio.raccolta.id, messaggio })}
+          onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }}
           onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} />
-        <p>{dettaglio.righe.length} registrazioni · {dettaglio.righe.filter(r => r.tipo === 'manodopera').length} manodopera · {dettaglio.righe.filter(r => r.tipo === 'materiale').length} materiali. Consultazione in sola lettura.</p>
-        {tabella('manodopera','MANODOPERA',['Data','Operaio','Qualifica','Ora inizio','Ora fine','Pausa min','Ore','Tariffa €/h','Totale €','Riferimento','Note'],r => [dataConsultazioneEconomia(r.operativo.data),testoConsultazioneEconomia(r.operativo.operaio),testoConsultazioneEconomia(r.operativo.qualifica),testoConsultazioneEconomia(r.operativo.ora_inizio),testoConsultazioneEconomia(r.operativo.ora_fine),testoConsultazioneEconomia(r.operativo.pausa_min),numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.riferimento),testoConsultazioneEconomia(r.note)])}
-        {tabella('materiale','MATERIALI',['Data','Materiale','UM','Quantità','Prezzo unitario €','Totale €','Fornitore','Documento','Riferimento rapportino','Note'],r => [dataConsultazioneEconomia(r.operativo.data),r.descrizione,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.fornitore),testoConsultazioneEconomia(r.operativo.documento),testoConsultazioneEconomia(r.operativo.riferimento_rapportino),testoConsultazioneEconomia(r.note)])}
+        <UsaRaccoltaEconomiaInVariante key={dettaglio.raccolta.id} raccolta={dettaglio.raccolta}
+          varianti={varianti} elencoPronto={elencoPronto} onApri={onApriVariante} operativo={operativo} totale={dettaglio.raccolta.totale}
+          statiVarianti={variantiInfo}
+          bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio || dettaglio.righe.length === 0 || dettaglio.raccolta.nonValorizzate > 0 || dettaglio.raccolta.totale === null || dettaglio.raccolta.totale <= 0}
+          onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} />
+        <p>{dettaglio.righe.length} registrazioni · {dettaglio.righe.filter(r => r.tipo === 'manodopera').length} manodopera · {dettaglio.righe.filter(r => r.tipo === 'materiale').length} materiali. {dettaglio.raccolta.stato === 'bozza' && dettaglio.righe.some(r => r.origine === 'rapportino') ? dettaglio.righe.some(r => r.origine === 'rapportino' && r.prezzo === null) ? 'Ore e provenienza da Rapportino non modificabili; prezzi da confermare.' : 'Ore immutabili; prezzi fatturabili valorizzati.' : 'Consultazione in sola lettura.'}</p>
+        {tabella('manodopera','MANODOPERA',['Data','Descrizione','Operaio','Qualifica','Ora inizio','Ora fine','Pausa min','Ore','Tariffa €/h','Totale €','Riferimento','Note'],r => [dataConsultazioneEconomia(r.operativo.data),r.descrizione,testoConsultazioneEconomia(r.operativo.operaio),testoConsultazioneEconomia(r.operativo.qualifica),testoConsultazioneEconomia(r.operativo.ora_inizio),testoConsultazioneEconomia(r.operativo.ora_fine),testoConsultazioneEconomia(r.operativo.pausa_min),numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.riferimento),testoConsultazioneEconomia(r.note)])}
+        {tabella('materiale','MATERIALI',['Data','Materiale','UM','Quantità','Prezzo unitario €','Totale €','Fornitore','Documento','Riferimento rapportino','Note'],r => [dataConsultazioneEconomia(r.operativo.data),<span>{r.descrizione}{r.provenienzaFattura && <small style={{ display: 'block' }}>{r.provenienzaFattura}</small>}</span>,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.fornitore),testoConsultazioneEconomia(r.operativo.documento),testoConsultazioneEconomia(r.operativo.riferimento_rapportino),testoConsultazioneEconomia(r.note)])}
         {tabella('generica','REGISTRAZIONI GENERICHE',['Descrizione','UM','Quantità','Prezzo unitario €','Totale €','Note'],r => [r.descrizione,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.note)])}
       </>}
     </> : <>
@@ -732,6 +969,10 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
       {erroreElenco && <div role="alert"><p>{erroreElenco}</p><button type="button" onClick={() => setRilettura(v => v+1)}>Riprova</button></div>}
       {!caricamentoElenco && !erroreElenco && (elenco.length === 0 ? <p>Nessuna raccolta Economia registrata per questo cantiere.</p> : <div style={{ display: 'grid', gap: 12 }}>{elenco.map(r => <article key={r.id} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}>
         {riepilogo(r)}<button type="button" onClick={() => void apri(r.id)}>Apri</button>
+        <EliminaBozzaVuota tipo="raccolta" id={r.id} contestoId={cantiereId}
+          aggiornamento={`${aggiornamento}:${rilettura}:${r.revisione}`}
+          bloccato={r.stato !== 'bozza' || operazioneInCorso || creazioneInCorso}
+          onEliminata={() => { setRilettura(v => v + 1); onCreata?.() }} />
       </article>)}</div>)}
     </>}
   </section>
@@ -941,18 +1182,21 @@ function ImportazioneEconomiaLocale({ cantiereId, onInvio, onSalvata }: { cantie
   </section>
 }
 
-function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorrenti, onVarianteAggiornata, onApriVarianteEconomia, richiestaApertura = 0 }: {
+function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorrenti, onVarianteAggiornata, onApriVarianteEconomia, richiestaApertura = 0, economiaRapportini = false }: {
   cantiereId: string
   elencoVarianti: Stato
   variantiCorrenti: readonly VarianteSorgenti[]
   onVarianteAggiornata: (varianteId: string) => void
   onApriVarianteEconomia: (varianteId: string) => void
   richiestaApertura?: number
+  economiaRapportini?: boolean
 }) {
-  const [aperto, setAperto] = useState(false)
+  const [aperto, setAperto] = useState(economiaRapportini)
   useEffect(() => { if (richiestaApertura > 0) setAperto(true) }, [richiestaApertura])
-  const [natura, setNatura] = useState<NaturaVariante>('preventivo_integrativo')
+  const [natura, setNatura] = useState<NaturaVariante>(economiaRapportini ? 'lavori_in_economia' : 'preventivo_integrativo')
   const [invioEconomia, setInvioEconomia] = useState(false)
+  const [confermaAcquisizioneEconomia, setConfermaAcquisizioneEconomia] = useState(false)
+  const [titoloRaccoltaSuggerito, setTitoloRaccoltaSuggerito] = useState<string | null>(null)
   const [aggiornamentoEconomia, setAggiornamentoEconomia] = useState(0)
   const [acquisizione, setAcquisizione] = useState<AcquisizioneVariante>('dati_artecna')
   const percorsoPreventivo = natura === 'preventivo_integrativo' && acquisizione === 'dati_artecna'
@@ -1526,14 +1770,14 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     somma + (typeof voce.totale === 'number' && Number.isFinite(voce.totale) && voce.totale >= 0 ? voce.totale : 0), 0)
 
   return <div style={{ margin: '12px 0' }}>
-    <button type="button" disabled={confermaInCorso || invioEconomia} onClick={() => {
+    {!economiaRapportini && <button type="button" disabled={confermaInCorso || invioEconomia} onClick={() => {
       richiesta.current += 1
       resetFile()
       setAperto(!aperto)
-    }}>{aperto ? 'Chiudi anteprima da preventivo' : '+ Nuova variante da preventivo'}</button>
+    }}>{aperto ? 'Chiudi anteprima da preventivo' : '+ Nuova variante da preventivo'}</button>}
     {aperto && <section aria-label="Origine e acquisizione variante"
       style={{ marginTop: 12, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+      {!economiaRapportini && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         <label>Origine variante<select disabled={operazioneSorgenti || !acquisizioneConsentita || invioEconomia} value={natura} style={{ display: 'block', padding: 8 }}
           onChange={e => {
             if (!verificaModifica(true)) return
@@ -1557,10 +1801,15 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
           <option value="dati_artecna">Da dati ARTECNA</option>
           <option value="file">Importa file</option>
         </select></label>
-      </div>
+      </div>}
       {natura === 'lavori_in_economia' ? <>
+        <PrestazioniRapportiniEconomia key={'prestazioni:' + cantiereId} cantiereId={cantiereId} aggiornamento={aggiornamentoEconomia}
+          onInvio={setInvioEconomia} onAcquisite={() => setAggiornamentoEconomia(v => v+1)}
+          varianti={variantiCorrenti} onConferma={setConfermaAcquisizioneEconomia} onTitoloSuggerito={setTitoloRaccoltaSuggerito} />
         <RaccolteEconomiaRegistrate key={'raccolte:' + cantiereId} cantiereId={cantiereId} aggiornamento={aggiornamentoEconomia}
-          varianti={variantiCorrenti.map(v => v.id)} elencoPronto={elencoPronto} onApriVariante={onApriVarianteEconomia} />
+          varianti={variantiCorrenti.map(v => v.id)} variantiInfo={variantiCorrenti} elencoPronto={elencoPronto} onApriVariante={onApriVarianteEconomia}
+          onCreata={economiaRapportini ? () => setAggiornamentoEconomia(v => v + 1) : undefined}
+          onInvio={setInvioEconomia} operazioneInCorso={invioEconomia || confermaAcquisizioneEconomia} operativo={economiaRapportini} titoloSuggerito={titoloRaccoltaSuggerito} />
         {acquisizione === 'file' && <ImportazioneEconomiaLocale key={cantiereId} cantiereId={cantiereId} onInvio={setInvioEconomia} onSalvata={() => setAggiornamentoEconomia(v => v+1)} />}
       </> : <>
       {!elencoPronto && <p role="status">Attendi il caricamento delle varianti prima di salvare sorgenti.</p>}
@@ -1772,7 +2021,10 @@ const erroriRpc: Record<string, string> = {
   '40P01': 'Conflitto concorrente: salvataggio annullato. Puoi riprovare manualmente.',
 }
 
-export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: string | null }) {
+export default function VariantiCantierePanel({ cantiereId, economiaRapportini = false, onApprovazione, stampaContesto }: { cantiereId?: string | null; economiaRapportini?: boolean; onApprovazione?: () => void; stampaContesto?: ContestoStampaVarianti }) {
+  const [stampaInCorso, setStampaInCorso] = useState(false)
+  const [erroreStampa, setErroreStampa] = useState('')
+  const [includiProposte, setIncludiProposte] = useState(false)
   const [stato, setStato] = useState<Stato>({ tipo: 'loading' })
   const [formAperto, setFormAperto] = useState(false)
   const [varianteApertaId, setVarianteApertaId] = useState<string | null>(null)
@@ -1938,7 +2190,8 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
   function confermaApprovazione(variante: Variante, esito: EsitoApprovazione) {
     const approvata = { ...variante, ...esito }
     setApprovazioniConfermate(precedenti => [...precedenti.filter(v => v.id !== variante.id), approvata])
-    setSuccesso(`Variante n. ${esito.numero} approvata.`)
+    setSuccesso(`Proposta n. ${esito.numero} approvata.`)
+    onApprovazione?.()
     setRefresh(valore => valore + 1)
   }
 
@@ -1980,27 +2233,74 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
     portaAlControllo(anteprimaRef.current)
   }
 
+  async function stampaVarianti() {
+    if (!stampaContesto || stampaInCorso || stato.tipo !== 'elenco') return
+    const finestra = window.open('', '_blank')
+    if (!finestra) { setErroreStampa('Consenti la finestra di stampa e riprova.'); return }
+    finestra.opener = null
+    setStampaInCorso(true); setErroreStampa('')
+    try {
+      const selezionate = righe.filter(v => v.preventivo_contrattuale_id === stampaContesto.preventivoId && (v.stato === 'approvata' || (includiProposte && ['proposta','bozza'].includes(v.stato))))
+      if (!selezionate.length) throw new Error('Nessuna variante da stampare.')
+      const documenti: VarianteCliente[] = []
+      for (const v of selezionate) {
+        const lavorazioni: Record<string, unknown>[] = [], sorgenti: Record<string, unknown>[] = []
+        for (const [rpc, ordine, dest] of [['leggi_lavorazioni_variante','numero_riga',lavorazioni],['leggi_sorgenti_variante','id',sorgenti]] as const) {
+          for (let offset = 0; ; offset += 200) {
+            const { data, error } = await supabase.rpc(rpc, { p_variante_id: v.id }).order(ordine, { ascending: true }).range(offset, offset+199)
+            if (error || !Array.isArray(data)) throw new Error('Lettura stampa non disponibile.')
+            dest.push(...data)
+            if (data.length < 200) break
+          }
+        }
+        if (cantiereId) await arricchisciOriginiRapportino(sorgenti, cantiereId)
+        for (const s of sorgenti) {
+          if (s.tipo !== 'raccolta_economia' || typeof s.economia_raccolta_id !== 'string') continue
+          const { data, error } = await supabase.rpc('leggi_raccolta_economia', { p_raccolta_id: s.economia_raccolta_id })
+          if (error || !cantiereId) throw new Error('Provenienza stampa non disponibile.')
+          const dettaglio = dettaglioConsultazioneEconomia(data, cantiereId, s.economia_raccolta_id)
+          if (recordSorgente(s.snapshot) && Array.isArray(s.snapshot.registrazioni)) {
+            s.snapshot = { ...s.snapshot, registrazioni: s.snapshot.registrazioni.map((r: unknown) => {
+              if (!recordSorgente(r)) return r
+              const voce = dettaglio.righe.find(v => v.id === r.id)
+              return voce ? { ...r, prestazione_snapshot: recordSorgente(r.dettagli_analitici) ? r.dettagli_analitici.rapportino ?? { data: voce.operativo.data } : { data: voce.operativo.data } } : r
+            }) }
+          }
+        }
+        const voci = vociCliente(lavorazioni, sorgenti)
+        const totale = v.stato === 'approvata' ? Number(v.importo_delta_approvato) : voci.some(r=>r.totale === null) ? null : voci.reduce((s,r)=>s+(r.totale??0),0)
+        if (v.stato === 'approvata' && v.importo_delta_approvato === null) throw new Error('Importo approvato non disponibile.')
+        documenti.push({ id: v.id, numero: v.numero, titolo: v.titolo ?? 'Lavori extra', data: v.data_variante || '', stato: v.stato, totale, voci })
+      }
+      finestra.document.open(); finestra.document.write(documentoVariantiCliente(stampaContesto, documenti, undefined, { includiProposteBozze: includiProposte })); finestra.document.close(); finestra.focus(); finestra.print()
+    } catch { finestra.close(); setErroreStampa('Stampa non disponibile: verifica elenco, lavorazioni e contratto prima di riprovare.'); }
+    finally { setStampaInCorso(false) }
+  }
   const bozzeNonRilette = stato.tipo === 'elenco' &&
     bozzeCreate.some(bozza => !righeLette.some(riga => riga.id === bozza.id))
 
   return (
     <section aria-label="Varianti" style={{ marginTop: 16 }}>
-      <h3>Varianti</h3>
-      {stato.tipo === 'elenco' && !varianteApertaId && !righe.some(v => v.stato === 'bozza' || v.stato === 'proposta') &&
+      {economiaRapportini && <p>Prestazioni da acquisire → Prezzi fatturabili → Totale lavori → Crea proposta → Approva proposta → KPI aggiornati</p>}
+      {stampaContesto && <div><button type="button" disabled={stampaInCorso || stato.tipo !== 'elenco'} onClick={() => void stampaVarianti()}>Stampa varianti</button>
+        <label><input type="checkbox" checked={includiProposte} disabled={stampaInCorso} onChange={e => setIncludiProposte(e.target.checked)} /> Includi proposte e bozze, con stato indicato</label></div>}
+      {erroreStampa && <p role="alert">{erroreStampa}</p>}
+      <h3>{economiaRapportini ? 'Lavori in economia dai Rapportini' : 'Varianti'}</h3>
+      {!economiaRapportini && stato.tipo === 'elenco' && !varianteApertaId && !righe.some(v => v.stato === 'bozza' || v.stato === 'proposta') &&
         <GuidaPassoSuccessivo stato={null} onCrea={() => portaAlControllo(formCreazioneRef.current ?? creazioneRef.current)}
           onAcquisisci={cantiereId ? vaiAnteprima : undefined} />}
       {cantiereId && <div ref={anteprimaRef} tabIndex={-1}>
         <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} elencoVarianti={stato} variantiCorrenti={righe}
-          onVarianteAggiornata={aggiornaVariante} richiestaApertura={richiestaAperturaAnteprima}
+          onVarianteAggiornata={aggiornaVariante} richiestaApertura={richiestaAperturaAnteprima} economiaRapportini={economiaRapportini}
           onApriVarianteEconomia={apriVarianteEconomia} />
       </div>}
-      {!formAperto && (
+      {!economiaRapportini && !formAperto && (
         <button ref={creazioneRef} type="button" disabled={!cantiereId || salvataggio}
           onClick={() => { setErroreSalvataggio(''); setFormAperto(true) }}>
           Nuova variante
         </button>
       )}
-      {formAperto && (
+      {!economiaRapportini && formAperto && (
         <form ref={formCreazioneRef} tabIndex={-1} onSubmit={salvaBozza} style={{ marginTop: 16 }}>
           <fieldset disabled={salvataggio} style={{ display: 'grid', gap: 12, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12 }}>
             <legend>Nuova variante</legend>
@@ -2026,16 +2326,31 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
       {stato.tipo === 'loading' && <p role="status">Caricamento varianti...</p>}
       {stato.tipo === 'errore' && <p role="alert">{stato.messaggio}</p>}
       {bozzeNonRilette && <p role="status">L'elenco aggiornato non restituisce tutte le bozze appena salvate. Sono mostrate le conferme di questa apertura del pannello; la rilettura non è confermata.</p>}
-      {stato.tipo === 'elenco' && righe.length === 0 && <p>Nessuna variante tradizionale presente per questo cantiere.</p>}
+      {!economiaRapportini && stato.tipo === 'elenco' && righe.length === 0 && <p>Nessuna variante tradizionale presente per questo cantiere.</p>}
       {righe.length > 0 && (
         <div style={{ display: 'grid', gap: 12 }}>
-          {righe.map(variante => (
+          {(economiaRapportini ? righe.filter(v => v.id === varianteApertaId) : righe).map(variante => (
             <article key={variante.id} style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
               <h4 style={{ marginTop: 0 }}>
                 {variante.stato === 'approvata' ? 'Approvata' : variante.stato === 'proposta' ? 'Proposta' : variante.numero === null ? 'Bozza' : `Variante n. ${variante.numero}`}
                 {' — '}{variante.titolo || 'Senza titolo'}
               </h4>
               <p>Stato: {variante.stato}</p>
+              {!economiaRapportini && variante.stato === 'bozza' && <RinominaVarianteBozza id={variante.id} stato={variante.stato} titoloAttuale={variante.titolo || ''}
+                onRinominata={nuovo => {
+                  setBozzeCreate(v => v.map(r => r.id === variante.id ? { ...r, titolo: nuovo } : r))
+                  setRefresh(v => v + 1)
+                }} />}
+              {!economiaRapportini && <EliminaBozzaVuota tipo="variante" id={variante.id} contestoId={cantiereId || ''}
+                aggiornamento={`${refresh}:${refreshLavorazioni[variante.id] ?? 0}`}
+                bloccato={variante.stato !== 'bozza' || salvataggio || stato.tipo !== 'elenco'}
+                onEliminata={() => {
+                  setBozzeCreate(v => v.filter(r => r.id !== variante.id))
+                  setProposteConfermate(v => v.filter(r => r.id !== variante.id))
+                  setApprovazioniConfermate(v => v.filter(r => r.id !== variante.id))
+                  setVarianteApertaId(v => v === variante.id ? null : v)
+                  setRefresh(v => v + 1)
+                }} />}
               {variante.numero !== null && <p>Numero: {variante.numero}</p>}
               <p>Data variante: {variante.data_variante
                 ? variante.data_variante.slice(0, 10).split('-').reverse().join('/')
@@ -2055,17 +2370,19 @@ export default function VariantiCantierePanel({ cantiereId }: { cantiereId?: str
                 <p>Data approvazione: {variante.approvata_at && Number.isFinite(Date.parse(variante.approvata_at))
                   ? new Date(variante.approvata_at).toLocaleString('it-IT') : 'Non disponibile'}</p>
               </>}
-              <details>
+              {!economiaRapportini && <details>
                 <summary>Preventivo contrattuale collegato</summary>
                 <p style={{ overflowWrap: 'anywhere' }}>{variante.preventivo_contrattuale_id || 'Non disponibile'}</p>
-              </details>
+              </details>}
               <LavorazioniVariantePanel key={`${cantiereId}:${variante.id}`} varianteId={variante.id}
                 cantiereId={cantiereId} statoVariante={variante.stato}
+                sintetico={economiaRapportini}
                 refreshEsterno={refreshLavorazioni[variante.id] ?? 0}
-                onNuoviLavori={cantiereId ? vaiAnteprima : undefined}
-                selettoreContrattuale={variante.stato === 'bozza' && <SelettoreComponentiContrattuali
+                onNuoviLavori={!economiaRapportini && cantiereId ? vaiAnteprima : undefined}
+                selettoreContrattuale={!economiaRapportini && variante.stato === 'bozza' ? ({ occupato, onInCorso }) => <SelettoreComponentiContrattuali
                   key={`${cantiereId}:${variante.id}:${variante.preventivo_contrattuale_id}`}
-                  variante={variante} cantiereId={cantiereId} elencoVarianti={elencoContrattuale} />}
+                  variante={variante} cantiereId={cantiereId} elencoVarianti={elencoContrattuale}
+                  occupato={occupato} onInCorso={onInCorso} onSalvata={() => aggiornaVariante(variante.id)} /> : undefined}
                 onProposta={numero => confermaProposta(variante, numero)}
                 renderApprovazione={lavorazioniLette => variante.stato === 'proposta' &&
                   <ApprovazioneVarianteForm key={'approva:' + cantiereId + ':' + variante.id}
@@ -2118,10 +2435,30 @@ function leggiComponenteContrattuale(riga: Record<string, unknown>,
     quantitaOriginaria, prezzoUnitario, importoOriginario, origineLabel, numeroVariante }
 }
 
-function SelettoreComponentiContrattuali({ variante, cantiereId, elencoVarianti }: {
+const erroriCorrezioneVariante: Record<string, string> = {
+  P2083: 'Riduzione superiore al residuo disponibile.',
+  P2084: 'Eliminazione non coincidente con il residuo disponibile.',
+  P2082: 'SAL o maturato non verificabile.',
+  P2088: 'Stato contrattuale o SAL incoerente: correzione non confermata.',
+  P2089: 'Nessun residuo disponibile.',
+  P2091: 'Richiesta di correzione non valida.',
+  P2092: 'Utente non autorizzato sul cantiere.',
+  P2093: 'Variante non più in bozza o contratto cambiato.',
+  P2094: 'Voce contrattuale non disponibile o incoerente.',
+  P2095: 'SAL, maturato o residuo non verificabile.',
+  P2096: 'Quantità o importo della riduzione superiore al residuo disponibile.',
+  P2097: 'Eliminazione economicamente diversa dal residuo disponibile.',
+  P2098: 'Conflitto durante il salvataggio. Rileggi la bozza prima di procedere.',
+  '42501': 'Sessione o autorizzazione non valida.',
+}
+
+function SelettoreComponentiContrattuali({ variante, cantiereId, elencoVarianti, occupato = false, onInCorso, onSalvata }: {
   variante: Variante
   cantiereId?: string | null
   elencoVarianti: Stato
+  occupato?: boolean
+  onInCorso: (valore: boolean) => void
+  onSalvata: () => void
 }) {
   type LetturaComponenti =
     | { tipo: 'loading' }
@@ -2129,10 +2466,21 @@ function SelettoreComponentiContrattuali({ variante, cantiereId, elencoVarianti 
     | { tipo: 'elenco'; componenti: ComponenteContrattualeSelezionabile[]; contesto: Stato }
   const [lettura, setLettura] = useState<LetturaComponenti>({ tipo: 'loading' })
   const [componenteContrattualeSelezionata, setComponenteContrattualeSelezionata] = useState('')
+  const [operazione, setOperazione] = useState<'eliminazione_residua' | 'riduzione_residua'>('eliminazione_residua')
+  const [motivo, setMotivo] = useState('')
+  const [quantita, setQuantita] = useState('')
+  const [salvataggio, setSalvataggio] = useState(false)
+  const [erroreCorrezione, setErroreCorrezione] = useState('')
+  const [successoCorrezione, setSuccessoCorrezione] = useState('')
+  const [arrestata, setArrestata] = useState(false)
+  const invioCorrezione = useRef(false)
+  const contestoCorrezione = useRef<object | null>(null)
   const preventivoId = variante.preventivo_contrattuale_id
 
   useEffect(() => {
     let attivo = true
+    const sessione = {}
+    contestoCorrezione.current = sessione
     setLettura({ tipo: 'loading' })
     setComponenteContrattualeSelezionata('')
     async function carica() {
@@ -2190,12 +2538,61 @@ function SelettoreComponentiContrattuali({ variante, cantiereId, elencoVarianti 
       }
     }
     void carica()
-    return () => { attivo = false }
+    return () => { attivo = false; if (contestoCorrezione.current === sessione) contestoCorrezione.current = null }
   }, [cantiereId, preventivoId, variante.id, elencoVarianti])
 
   if (variante.stato !== 'bozza') return null
   const componenti = lettura.tipo === 'elenco' && lettura.contesto === elencoVarianti ? lettura.componenti : []
   const selezionata = componenti.find(c => `${c.tipo}:${c.id}` === componenteContrattualeSelezionata)
+  const richiesta = selezionata ? preparaCorrezioneContrattuale({
+    varianteId: variante.id, tipoComponente: selezionata.tipo, componenteId: selezionata.id,
+    operazione, quantita: operazione === 'riduzione_residua' ? quantita : null, motivo,
+  }) : null
+  async function salvaCorrezione(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault()
+    if (invioCorrezione.current || occupato || arrestata || variante.stato !== 'bozza' ||
+        !selezionata || richiesta?.stato !== 'ok' || !contestoCorrezione.current) return
+    const r = richiesta.richiesta, sessione = contestoCorrezione.current
+    const riepilogo = `Voce contrattuale: ${selezionata.descrizione}\nOperazione: ${r.operazione === 'eliminazione_residua' ? 'Elimina residuo' : 'Riduci residuo'}${r.operazione === 'riduzione_residua' ? '\nQuantità: ' + r.quantitaRichiesta : ''}\nMotivazione: ${r.motivo}\n\nConfermare la correzione? Il server verifica il residuo e calcola il delta.`
+    if (!confirm(riepilogo)) return
+    invioCorrezione.current = true
+    setSalvataggio(true); onInCorso(true)
+    setErroreCorrezione(''); setSuccessoCorrezione('')
+    try {
+      const { data, error } = await supabase.rpc('aggiungi_correzione_variante', {
+        p_variante_id: r.varianteId, p_tipo_componente: r.tipoComponente, p_componente_id: r.componenteId,
+        p_operazione: r.operazione, p_quantita: r.operazione === 'riduzione_residua' ? r.quantitaRichiesta : null,
+        p_motivo: r.motivo,
+      })
+      if (contestoCorrezione.current !== sessione) return
+      if (error) {
+        const codice = typeof error.code === 'string' && /^[A-Z0-9]{5}$/.test(error.code) ? error.code : 'non disponibile'
+        setErroreCorrezione(`Correzione (${codice}): ${erroriCorrezioneVariante[codice] || 'Esito non confermato. Rileggi la bozza prima di procedere.'}`)
+        setArrestata(true)
+        return
+      }
+      const salvata = Array.isArray(data) && data.length === 1 ? data[0] : null
+      if (!salvata || !lavorazioneValida(salvata) || salvata.variante_id !== r.varianteId || salvata.operazione !== r.operazione ||
+          numeroLavorazione(salvata.quantita_delta) >= 0 || numeroLavorazione(salvata.delta_contratto) >= 0 ||
+          String(r.tipoComponente === 'preventivo' ? salvata.riferimento_preventivo_lavorazione_id : salvata.riferimento_variante_lavorazione_id) !== String(r.componenteId) ||
+          (r.tipoComponente === 'preventivo' ? salvata.riferimento_variante_lavorazione_id : salvata.riferimento_preventivo_lavorazione_id) != null) {
+        setErroreCorrezione('Risposta di correzione non verificabile. Rileggi la bozza prima di procedere.')
+        setArrestata(true)
+        return
+      }
+      setSuccessoCorrezione('Correzione salvata. Rilettura delle lavorazioni e del totale richiesta.')
+      setMotivo(''); setQuantita('')
+      onSalvata()
+    } catch {
+      if (contestoCorrezione.current === sessione) {
+        setErroreCorrezione('Esito della correzione non confermato. Rileggi la bozza prima di procedere.')
+        setArrestata(true)
+      }
+    } finally {
+      invioCorrezione.current = false; onInCorso(false)
+      if (contestoCorrezione.current === sessione) setSalvataggio(false)
+    }
+  }
   const numero = (v: number) => v.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 20 })
   const euro = (v: number) => v.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
   return <section aria-label="Modifica lavorazione contrattuale" style={{ marginTop: 16, padding: 12, border: '1px solid #e2e8f0' }}>
@@ -2209,6 +2606,7 @@ function SelettoreComponentiContrattuali({ variante, cantiereId, elencoVarianti 
       <p>Nessuna componente contrattuale disponibile.</p>}
     {componenti.length > 0 && <label>Componente contrattuale
       <select value={selezionata ? componenteContrattualeSelezionata : ''}
+        disabled={salvataggio || occupato || arrestata}
         onChange={e => setComponenteContrattualeSelezionata(e.target.value)}
         style={{ display: 'block', width: '100%', padding: 8 }}>
         <option value="">Seleziona una lavorazione</option>
@@ -2228,18 +2626,53 @@ function SelettoreComponentiContrattuali({ variante, cantiereId, elencoVarianti 
         <dt>Importo originario</dt><dd>{euro(selezionata.importoOriginario)}</dd>
       </dl>
       <p><small>Il residuo effettivamente modificabile sarà verificato dal server al momento della correzione.</small></p>
+      <form onSubmit={salvaCorrezione}>
+        <fieldset disabled={salvataggio || occupato || arrestata}>
+          <legend>Correzione della lavorazione contrattuale</legend>
+          <label>Operazione<select value={operazione} onChange={e => {
+            setOperazione(e.target.value as typeof operazione); setQuantita('')
+          }}>
+            <option value="eliminazione_residua">Elimina residuo</option>
+            <option value="riduzione_residua">Riduci residuo</option>
+          </select></label>
+          {operazione === 'riduzione_residua' && <label>Quantità da ridurre<input required inputMode="decimal"
+            value={quantita} onChange={e => setQuantita(e.target.value)} /></label>}
+          <label>Motivazione<textarea required value={motivo} onChange={e => setMotivo(e.target.value)} /></label>
+          <p>Il maturato e gli avanzamenti SAL restano invariati. Residuo e delta sono calcolati dal server.</p>
+          <button type="submit" disabled={salvataggio || occupato || arrestata || richiesta?.stato !== 'ok'}>
+            {salvataggio ? 'Salvataggio...' : 'Conferma correzione'}
+          </button>
+        </fieldset>
+      </form>
     </div>}
+    {erroreCorrezione && <p role="alert">{erroreCorrezione} Chiudi e riapri la bozza per verificarne lo stato; nessun retry automatico.</p>}
+    {successoCorrezione && <p role="status">{successoCorrezione}</p>}
   </section>
 }
 
 type LavorazioneVariante = {
+  variante_id: string
   numero_riga: number
   descrizione: string
   unita_misura: string | null
   quantita_delta: number | string
   prezzo_unitario: number | string
   delta_contratto: number | string
-}
+} & (
+  // leggi_lavorazioni_variante / aggiungi_correzione_variante:
+  // bigint serializzati numericamente o come testo; riferimenti DB nullable.
+  {
+    operazione: 'nuova' | 'aumento' | 'riduzione_residua' | 'eliminazione_residua'
+    riferimento_preventivo_lavorazione_id: number | string | null
+    riferimento_variante_lavorazione_id: number | string | null
+  }
+  // aggiungi_lavorazione_variante restituisce sempre nuova e omette i riferimenti.
+  | {
+    operazione: 'nuova'
+    riferimento_preventivo_lavorazione_id?: never
+    riferimento_variante_lavorazione_id?: never
+  }
+)
 
 const erroriLavorazioniRpc: Record<string, string> = {
   P2022: 'Sessione utente non valida.',
@@ -2276,7 +2709,7 @@ const erroriPropostaRpc: Record<string, string> = {
   P2017: 'Conflitto durante la proposta. Riprova.',
 }
 
-function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refreshEsterno = 0, onNuoviLavori, onProposta, renderApprovazione, selettoreContrattuale }: {
+function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refreshEsterno = 0, onNuoviLavori, onProposta, renderApprovazione, selettoreContrattuale, sintetico = false }: {
   varianteId: string
   cantiereId?: string | null
   statoVariante: string
@@ -2284,10 +2717,14 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
   onNuoviLavori?: () => void
   onProposta: (numero: number) => void
   renderApprovazione?: (lavorazioniLette: readonly LavorazioneVariante[] | null) => ReactNode
-  selettoreContrattuale?: ReactNode
+  selettoreContrattuale?: (controlli: { occupato: boolean; onInCorso: (valore: boolean) => void }) => ReactNode
+  sintetico?: boolean
 }) {
   const [righe, setRighe] = useState<LavorazioneVariante[]>([])
   const [confermate, setConfermate] = useState<LavorazioneVariante[]>([])
+  const [origini, setOrigini] = useState<ReturnType<typeof vociCliente>>([])
+  const [erroreOrigini, setErroreOrigini] = useState('')
+  const [sorgentiEconomiaCollegate, setSorgentiEconomiaCollegate] = useState<Record<string, unknown>[] | null>(null)
   const [lettura, setLettura] = useState<'loading' | 'elenco' | 'errore'>('loading')
   const [erroreLettura, setErroreLettura] = useState('')
   const [refresh, setRefresh] = useState(0)
@@ -2301,6 +2738,7 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
   const [successo, setSuccesso] = useState('')
   const [bloccata, setBloccata] = useState(false)
   const [propostaInCorso, setPropostaInCorso] = useState(false)
+  const [correzioneInCorso, setCorrezioneInCorso] = useState(false)
   const [erroreProposta, setErroreProposta] = useState('')
   const invio = useRef(false)
   const contesto = useRef<object | null>(null)
@@ -2320,6 +2758,9 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
     setLettura('loading')
     setErroreLettura('')
     async function caricaLavorazioni() {
+      setOrigini([])
+      setErroreOrigini('')
+      setSorgentiEconomiaCollegate(null)
       try {
         const elenco: LavorazioneVariante[] = []
         const pagina = 200
@@ -2340,6 +2781,24 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
           if (data.length < pagina) break
         }
         if (attivo) {
+          if (cantiereId) {
+            try {
+              const sorgenti: Record<string, unknown>[] = []
+              for (let offset = 0; ; offset += 200) {
+                const { data, error } = await supabase.rpc('leggi_sorgenti_variante', { p_variante_id: varianteId }).order('id', { ascending: true }).range(offset, offset + 199)
+                if (error || !Array.isArray(data)) throw new Error('Origini non disponibili')
+                sorgenti.push(...data)
+                if (data.length < 200) break
+              }
+              await arricchisciOriginiRapportino(sorgenti, cantiereId)
+              if (!attivo) return
+              setSorgentiEconomiaCollegate(sorgenti)
+              setOrigini(vociCliente(elenco as unknown as Record<string, unknown>[], sorgenti))
+            } catch {
+              if (attivo) setErroreOrigini('Dettaglio origine non disponibile. Le lavorazioni restano consultabili.')
+            }
+          }
+          if (!attivo) return
           setRighe(elenco)
           setLettura('elenco')
         }
@@ -2352,7 +2811,7 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
     }
     void caricaLavorazioni()
     return () => { attivo = false }
-  }, [varianteId, refresh, refreshEsterno, statoVariante])
+  }, [varianteId, cantiereId, refresh, refreshEsterno, statoVariante])
 
   function resetForm() {
     setAperto(false)
@@ -2365,7 +2824,7 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
 
   async function salvaLavorazione(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
-    if (invio.current) return
+    if (invio.current || correzioneInCorso) return
     if (!modificabile) {
       setErroreSalvataggio(erroriLavorazioniRpc.P2025)
       return
@@ -2419,7 +2878,7 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
   }
 
   async function proponiVariante() {
-    if (invio.current || !modificabile || lettura !== 'elenco' || righe.length === 0 || !cantiereId) return
+    if (invio.current || correzioneInCorso || !modificabile || lettura !== 'elenco' || righe.length === 0 || !cantiereId) return
     if (!confirm('Proporre la Variante bloccherà la modifica delle sorgenti e delle lavorazioni. Continuare?')) return
     const corrente = contesto.current
     if (!corrente) return
@@ -2467,27 +2926,28 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
 
   return (
     <section aria-label="Lavorazioni della variante" style={{ marginTop: 20, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
-      <GuidaPassoSuccessivo stato={statoVariante} modificabile={modificabile}
+      {cantiereId && <RaccoltaSorgenteVariante client={supabase} varianteId={varianteId} cantiereId={cantiereId} sorgenti={sorgentiEconomiaCollegate} />}
+      {!sintetico && <GuidaPassoSuccessivo stato={statoVariante} modificabile={modificabile}
         conteggio={lettura === 'elenco' && !nonRilette ? visibili.length : null}
         onAcquisisci={onNuoviLavori} onContratto={selettoreContrattuale ? () => portaAlControllo(contrattoRef.current) : undefined}
         onLavorazioni={() => portaAlControllo(lavorazioniRef.current)}
         onProposta={modificabile && lettura === 'elenco' && righe.length > 0 ? () => portaAlControllo(propostaRef.current) : undefined}
-        onApprova={renderApprovazione ? () => portaAlControllo(approvazioneRef.current) : undefined} />
-      <h5 ref={lavorazioniRef} tabIndex={-1}>Lavorazioni della variante</h5>
-      {modificabile && <div ref={contrattoRef} tabIndex={-1}>{selettoreContrattuale}</div>}
+        onApprova={renderApprovazione ? () => portaAlControllo(approvazioneRef.current) : undefined} />}
+      <h5 ref={lavorazioniRef} tabIndex={-1}>{sintetico ? 'Stato proposta / approvazione' : 'Lavorazioni della variante'}</h5>
+      {modificabile && <div ref={contrattoRef} tabIndex={-1}>{selettoreContrattuale?.({ occupato: salvataggio || propostaInCorso, onInCorso: setCorrezioneInCorso })}</div>}
       {renderApprovazione && <div ref={approvazioneRef} tabIndex={-1}>
         {renderApprovazione(lettura === 'elenco' && !nonRilette ? righe : null)}
       </div>}
       {modificabile && lettura === 'elenco' && righe.length > 0 && (
-        <button ref={propostaRef} type="button" disabled={propostaInCorso || salvataggio || !cantiereId} onClick={() => void proponiVariante()}>
+        <button ref={propostaRef} type="button" disabled={propostaInCorso || salvataggio || correzioneInCorso || !cantiereId} onClick={() => void proponiVariante()}>
           {propostaInCorso ? 'Proposta in corso...' : 'Proponi variante'}
         </button>
       )}
       {erroreProposta && <p role="alert">{erroreProposta}</p>}
-      {modificabile && !aperto && <button type="button" disabled={propostaInCorso} onClick={() => { setAperto(true); setErroreSalvataggio(''); setSuccesso('') }}>+ Nuova lavorazione</button>}
-      {modificabile && aperto && (
+      {!sintetico && modificabile && !aperto && <button type="button" disabled={propostaInCorso || correzioneInCorso} onClick={() => { setAperto(true); setErroreSalvataggio(''); setSuccesso('') }}>+ Nuova lavorazione</button>}
+      {!sintetico && modificabile && aperto && (
         <form onSubmit={salvaLavorazione} style={{ marginTop: 12 }}>
-          <fieldset disabled={salvataggio || propostaInCorso} style={{ display: 'grid', gap: 12, padding: 12, border: '1px solid #e2e8f0' }}>
+          <fieldset disabled={salvataggio || propostaInCorso || correzioneInCorso} style={{ display: 'grid', gap: 12, padding: 12, border: '1px solid #e2e8f0' }}>
             <legend>Nuova lavorazione</legend>
             <label>Descrizione *<textarea required value={descrizione} onChange={e => setDescrizione(e.target.value)} rows={3} style={inputStyle} /></label>
             <label>UM<input value={unita} onChange={e => setUnita(e.target.value)} style={inputStyle} /></label>
@@ -2506,7 +2966,13 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
       {erroreLettura && <p role="alert">{erroreLettura}</p>}
       <button type="button" disabled={lettura === 'loading' || salvataggio || propostaInCorso} onClick={() => setRefresh(v => v + 1)}>Ricarica lavorazioni</button>
       {lettura === 'elenco' && visibili.length === 0 && <p>Nessuna lavorazione presente.</p>}
-      {visibili.length > 0 && (
+      {!sintetico && erroreOrigini && <p role="status">{erroreOrigini}</p>}
+      {!sintetico && lettura === 'elenco' && origini.some(r => r.tipo === 'manodopera') && <details><summary>Vedi rapportino — Dettaglio lavori in economia</summary>
+        <p>Data e ore acquisite; descrizione dal testo attuale del Rapportino, quando disponibile.</p>
+        <table><thead><tr>{['Data','Descrizione','Operaio','Ore','€/h','Totale'].map(t => <th key={t}>{t}</th>)}</tr></thead>
+        <tbody>{origini.filter(r => r.tipo === 'manodopera').map((r,i) => <tr key={i}><td>{r.data?.split('-').reverse().join('/') || 'Non disponibile'}</td><td>{r.descrizione}</td><td>{r.operaio}</td><td>{r.quantita}</td><td>{importoConsultazioneEconomia(r.prezzo)}</td><td>{importoConsultazioneEconomia(r.totale)}</td></tr>)}</tbody></table>
+      </details>}
+      {!sintetico && visibili.length > 0 && (
         <div style={{ overflowX: 'auto', marginTop: 12 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead><tr><th scope="col">N.</th><th scope="col">Descrizione</th><th scope="col">UM</th><th scope="col">Quantità</th><th scope="col">Prezzo unitario</th><th scope="col">Delta contratto</th></tr></thead>
@@ -2519,7 +2985,7 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
         </div>
       )}
       {lettura === 'elenco' && !nonRilette
-        ? <p><strong>Totale variante: {euro(totale)}</strong></p>
+        ? <p><strong>{statoVariante === 'proposta' ? 'Proposta da approvare' : 'Totale variante'}: {euro(totale)}</strong></p>
         : <p>Totale variante da aggiornare.{visibili.length > 0 && <> Somma delle righe visualizzate: {euro(totale)}.</>}</p>}
       {lettura === 'elenco' && nonRilette && <p role="status">La rilettura non include tutte le lavorazioni appena confermate. Sono mantenute visibili le righe restituite dal salvataggio.</p>}
     </section>
@@ -2639,10 +3105,10 @@ function ApprovazioneVarianteForm({ variante, cantiereId, lavorazioniLette, onAp
   if (variante.stato !== 'proposta') return null
   return (
     <div style={{ marginTop: 12 }}>
-      {!aperto && <button type="button" onClick={() => { setAperto(true); setErrore('') }}>Approva variante</button>}
+      {!aperto && <button type="button" onClick={() => { setAperto(true); setErrore('') }}>Approva proposta</button>}
       {aperto && <form onSubmit={approva}>
         <fieldset disabled={inCorso} style={{ display: 'grid', gap: 12, padding: 12, border: '1px solid #e2e8f0' }}>
-          <legend>Approva variante</legend>
+          <legend>Approva proposta</legend>
           <div>
             <p>Variante n. {variante.numero}</p>
             <p>Lavorazioni: {lavorazioniLette?.length ?? 'Non disponibili'}</p>

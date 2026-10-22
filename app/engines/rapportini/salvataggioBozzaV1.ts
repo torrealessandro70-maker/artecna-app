@@ -55,7 +55,7 @@ export function bozzaV1Salvabile(bozza: BozzaRapportinoV1, varianti: StatoVarian
     const storico = originale?.lavoro_in_economia && p.variante_id !== null && p.variante_id === originale.variante_id
     if (!uuid(p.operaio_id) || typeof p.lavoro_in_economia !== 'boolean'
       || !p.chiave_client || p.chiave_client !== p.chiave_client.trim() || p.chiave_client.length > 200
-      || (p.lavoro_in_economia && !invariata && !storico && !cacheValida)
+      || (p.lavoro_in_economia && p.variante_id !== null && !invariata && !storico && !cacheValida)
       || validaPrestazioneBozza(p, cacheValida ? varianti.varianti : [], originale).length) return false
     return true
   })

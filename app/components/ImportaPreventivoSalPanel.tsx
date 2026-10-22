@@ -134,7 +134,7 @@ export default function ImportaPreventivoSalPanel({ cantiere, supabase, caricaSa
 }
 
 
-type VarianteApprovataSal = { id: string; numero: number; titolo: string | null; stato: 'approvata'; importo_delta_approvato: number | string }
+type VarianteApprovataSal = { id: string; numero: number; titolo: string | null; stato: 'approvata'; importo_delta_approvato: number | string; importabili: { id: string | number; descrizione: string }[]; contieneRettifiche: boolean }
 const erroriImportazioneVariante: Record<string, string> = {
   P2070: 'Sessione utente non valida.',
   P2071: 'Variante o cantiere non disponibili.',
@@ -151,6 +151,7 @@ const conteggioSal = (valore: unknown): bigint | null => {
 }
 
 function ImportaVariantiApprovatePanel({ cantiere, supabase, caricaSalLavorazioni, formatMoney, buttonStyle }: Props) {
+  const [aperte, setAperte] = useState<Record<string, boolean>>({})
   const [varianti, setVarianti] = useState<VarianteApprovataSal[]>([])
   const [caricamento, setCaricamento] = useState(true)
   const [erroreLettura, setErroreLettura] = useState('')
@@ -166,6 +167,7 @@ function ImportaVariantiApprovatePanel({ cantiere, supabase, caricaSalLavorazion
   }, [])
   useEffect(() => {
     let attivo = true
+    setAperte({})
     setCaricamento(true)
     setErroreLettura('')
     setVarianti([])
@@ -191,7 +193,25 @@ function ImportaVariantiApprovatePanel({ cantiere, supabase, caricaSalLavorazion
                 (variante.titolo !== null && typeof variante.titolo !== 'string') ||
                 !['number', 'string'].includes(typeof variante.importo_delta_approvato) ||
                 String(variante.importo_delta_approvato).trim() === '' || !Number.isFinite(Number(variante.importo_delta_approvato))) throw new Error('Variante non valida')
-            approvate.push(variante)
+            const importabili: VarianteApprovataSal['importabili'] = [], ids = new Set<string>(); let contieneRettifiche = false
+            for (let inizio = 0; ; inizio += pagina) {
+              const { data: lavori, error: erroreLavori } = await supabase.rpc('leggi_lavorazioni_variante', { p_variante_id: variante.id })
+                .order('numero_riga', { ascending: true }).order('id', { ascending: true }).range(inizio, inizio + pagina - 1)
+              if (!attivo) return
+              if (erroreLavori || !Array.isArray(lavori)) throw new Error('Lavorazioni non verificabili')
+              for (const lavoro of lavori) {
+                if (!lavoro?.id || ids.has(String(lavoro.id)) || lavoro.variante_id !== variante.id ||
+                    !['nuova', 'aumento', 'riduzione_residua', 'eliminazione_residua'].includes(lavoro.operazione)) throw new Error('Lavorazione non valida')
+                ids.add(String(lavoro.id))
+                if (['riduzione_residua', 'eliminazione_residua'].includes(lavoro.operazione)) contieneRettifiche = true
+                if (['nuova', 'aumento'].includes(lavoro.operazione)) {
+                  if (typeof lavoro.descrizione !== 'string' || !lavoro.descrizione.trim() || !Number.isFinite(Number(lavoro.delta_contratto)) || Number(lavoro.delta_contratto) <= 0 || !Number.isFinite(Number(lavoro.quantita_delta)) || Number(lavoro.quantita_delta) <= 0) throw new Error('Lavorazione positiva non valida')
+                  importabili.push({ id: lavoro.id, descrizione: lavoro.descrizione })
+                }
+              }
+              if (lavori.length < pagina) break
+            }
+            approvate.push({ ...variante, importabili, contieneRettifiche })
           }
           if (data.length < pagina) break
         }
@@ -207,7 +227,7 @@ function ImportaVariantiApprovatePanel({ cantiere, supabase, caricaSalLavorazion
   }, [supabase, cantiere.id, refresh])
 
   async function importaVariante(variante: VarianteApprovataSal) {
-    if (occupato.current || caricamento || variante.stato !== 'approvata') return
+    if (occupato.current || caricamento || variante.stato !== 'approvata' || variante.importabili.length === 0) return
     const corrente = contesto.current
     if (!corrente) return
     occupato.current = true
@@ -226,11 +246,11 @@ function ImportaVariantiApprovatePanel({ cantiere, supabase, caricaSalLavorazion
       const importate = conteggioSal(esito?.importate)
       const presenti = conteggioSal(esito?.gia_presenti)
       if (!esito || esito.variante_id !== variante.id || esito.cantiere_id !== cantiere.id ||
-          righe === null || righe < BigInt(1) || importate === null || presenti === null || importate + presenti !== righe) {
+          righe === null || importate === null || presenti === null || importate + presenti !== righe || righe !== BigInt(variante.importabili.length)) {
         setErroreImportazione('Risposta di importazione non verificabile. Verifica il SAL prima di riprovare.')
         return
       }
-      setMessaggio(importate > BigInt(0)
+      setMessaggio(righe === BigInt(0) ? 'Rettifiche contrattuali: nessuna nuova lavorazione da importare' : importate > BigInt(0)
         ? `${importate.toString()} lavorazioni della Variante n. ${variante.numero} importate nel SAL.`
         : `Variante n. ${variante.numero} già completamente presente nel SAL.`)
       try {
@@ -248,7 +268,7 @@ function ImportaVariantiApprovatePanel({ cantiere, supabase, caricaSalLavorazion
     }
   }
 
-  return <section aria-label="Importa lavorazioni da varianti approvate" style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #cbd5e1' }}>
+  return <section aria-label="Importa nuove lavorazioni operative nel SAL" style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #cbd5e1' }}>
     <h3>Importa lavorazioni da varianti approvate</h3>
     <button type="button" style={buttonStyle} disabled={caricamento || inCorso !== null} onClick={() => setRefresh(v => v + 1)}>Ricarica varianti</button>
     {caricamento && <p role="status">Caricamento varianti approvate...</p>}
@@ -260,7 +280,14 @@ function ImportaVariantiApprovatePanel({ cantiere, supabase, caricaSalLavorazion
       {varianti.map(variante => <article key={variante.id} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}>
         <h4 style={{ marginTop: 0 }}>Variante n. {variante.numero} — {variante.titolo || 'Senza titolo'}</h4>
         <p>Delta approvato: {formatMoney(Number(variante.importo_delta_approvato))}</p>
-        <button type="button" style={{ ...buttonStyle, minHeight: 44 }} disabled={caricamento || inCorso !== null}
+        {variante.importabili.length > 0 ? <>
+          <button type="button" style={{ ...buttonStyle, minHeight: 44 }} aria-expanded={!!aperte[variante.id]}
+            onClick={() => setAperte(prima => ({ ...prima, [variante.id]: !prima[variante.id] }))}>
+            {aperte[variante.id] ? 'Nascondi lavorazioni' : 'Mostra lavorazioni'}
+          </button>
+          {aperte[variante.id] && <ul>{variante.importabili.map(l => <li key={l.id}>{l.descrizione}</li>)}</ul>}
+        </> : <p>Rettifiche contrattuali: nessuna nuova lavorazione da importare</p>}
+        <button type="button" style={{ ...buttonStyle, minHeight: 44 }} disabled={caricamento || inCorso !== null || variante.importabili.length === 0}
           onClick={() => void importaVariante(variante)}>{inCorso === variante.id ? 'Importazione…' : 'Importa nel SAL'}</button>
       </article>)}
     </div>

@@ -2,6 +2,13 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import PriceResolutionSummary from './PriceResolutionSummary'
+import { modificaVoceDiagnostica, esitoDiagnosticaVoce } from '../engines/price-resolution/diagnostica-voce'
+import PrezzoWebVoce from './PrezzoWebVoce'
+import AnalisiPrezzoVoce, { chiaveAnalisiVoce } from './AnalisiPrezzoVoce'
+import { applicaAnalisiPrezzo } from '../engines/price-resolution/ai-price-analyst'
+import type { EsitoWeb } from '../engines/price-resolution/web-fallback'
+import { applicaPrezzoWeb, puoSalvarePrezzoInMemoria } from '../engines/price-resolution/web-fallback'
+import type { PriceKnowledgeItem } from '../engines/price-resolution/types'
 import {
   formatConfidence,
   getConfidenceBadge,
@@ -15,7 +22,7 @@ function calcolaEspressione(input: string): EsitoCalcolo {
   const formula = input.replace(/,/g, '.').replace(/\s+/g, '')
   if (!formula) return { errore: 'Inserisci un calcolo' }
   if (!/^[0-9.+\-*/()]+$/.test(formula)) {
-    return { errore: 'Sono ammessi solo numeri e operatori + âˆ’ Ã— Ã·' }
+    return { errore: 'Sono ammessi solo numeri e operatori + - * /' }
   }
 
   let posizione = 0
@@ -96,8 +103,10 @@ type Props = {
   setVociPreventivoAi: (v: any[]) => void
   vociPreventivoAiOriginali: any[]
 
-  calcolaMediaPrezziSimili: (descrizione: string) => number | null
-  verificaPrezzoAnomalo: (descrizione: string, prezzo: number) => string
+  prezziRiferimento: readonly PriceKnowledgeItem[]
+  memoriaRiferimento: readonly PriceKnowledgeItem[]
+  calcolaMediaPrezziSimili: (descrizione: string, unitaMisura?: string) => number | null
+  verificaPrezzoAnomalo: (descrizione: string, prezzo: number, unitaMisura?: string) => string
 
   formatMoney: (v: any) => string
   miglioraVocePreventivoAi: (index: number) => void | Promise<void>
@@ -122,6 +131,8 @@ export default function RevisionePreventivoAiPanel({
   vociPreventivoAi,
   setVociPreventivoAi,
   vociPreventivoAiOriginali,
+  prezziRiferimento,
+  memoriaRiferimento,
   calcolaMediaPrezziSimili,
   verificaPrezzoAnomalo,
   formatMoney,
@@ -142,6 +153,7 @@ salvaRevisionePreventivoAi,
     formula: string
   } | null>(null)
   const formulaRef = useRef<HTMLInputElement>(null)
+  const [webPerVoce, setWebPerVoce] = useState<Record<string, EsitoWeb | null>>({})
   const indiceCalcolatrice = calcolatrice?.indice
 
 
@@ -234,83 +246,12 @@ useEffect(() => {
     0
   )
 
-  const priceResolutionStatistics = vociPreventivoAi.reduce(
-  (stats, voce) => {
-    const strategy = voce.priceResolution?.strategy
-
-    switch (strategy) {
-      case 'exact_code':
-        stats.exactCode += 1
-        break
-
-      case 'normalized_code':
-        stats.normalizedCode += 1
-        break
-
-      case 'description_unit':
-        stats.descriptionUnit += 1
-        break
-
-      case 'description':
-        stats.description += 1
-        break
-
-      case 'similarity':
-        stats.similarity += 1
-        break
-
-      default:
-        stats.noMatch += 1
-        break
-    }
-
-    const confidencePercent =
-      Number(voce.priceResolution?.confidence || 0) * 100
-
-    const confidenceBadge =
-      getConfidenceBadge(confidencePercent)
-
-    switch (confidenceBadge.level) {
-      case 'perfect':
-        stats.perfect += 1
-        break
-
-      case 'reliable':
-        stats.reliable += 1
-        break
-
-      case 'review':
-        stats.review += 1
-        break
-
-      case 'weak':
-        stats.weak += 1
-        break
-
-      case 'none':
-        stats.none += 1
-        break
-    }
-
+  const priceResolutionStatistics = vociPreventivoAi.reduce((stats, voce) => {
+    stats[esitoDiagnosticaVoce(voce)] += 1
     return stats
-  },
-  {
-    exactCode: 0,
-    normalizedCode: 0,
-    descriptionUnit: 0,
-    description: 0,
-    similarity: 0,
-    noMatch: 0,
-    perfect: 0,
-    reliable: 0,
-    review: 0,
-    weak: 0,
-    none: 0,
-  },
-)
+  }, { resolved: 0, review: 0, unresolved: 0, modified: 0 })
 
-  const mostraPriceResolutionSummary =
-    vociPreventivoAi.some((voce) => voce.priceResolution)
+  const mostraPriceResolutionSummary = vociPreventivoAi.length > 0
 
   const esitoCalcolo = calcolatrice
     ? calcolaEspressione(calcolatrice.formula)
@@ -370,7 +311,7 @@ useEffect(() => {
           marginBottom: 20,
         }}
       >
-        ðŸ¤– Revisione preventivo AI
+        Revisione preventivo AI
       </h3>
 
       {mostraPriceResolutionSummary && (
@@ -419,12 +360,12 @@ useEffect(() => {
         }}
       >
         <strong style={{ fontSize: 20 }}>
-          ðŸ§  Memoria prezzi ARTECNA
+          Memoria prezzi ARTECNA
         </strong>
 
         <div style={{ marginTop: 10, fontSize: 15, color: '#475569' }}>
           La memoria prezzi confronta le lavorazioni del preventivo con i prezzi
-          reali giÃ  usati da ARTECNA a Catania.
+          reali già usati da ARTECNA a Catania.
         </div>
 
         {vociPreventivoAi.length === 0 ? (
@@ -435,17 +376,17 @@ useEffect(() => {
           <div style={{ marginTop: 12 }}>
             {vociPreventivoAi.map((voce, index) => {
               const media = calcolaMediaPrezziSimili(
-                voce.descrizione || ''
+                voce.descrizione || '', voce.unita_misura
               )
 
               const avviso = verificaPrezzoAnomalo(
                 voce.descrizione || '',
-                Number(voce.prezzo_unitario || 0)
+                Number(voce.prezzo_unitario || 0), voce.unita_misura
               )
 
               return (
                 <div
-                  key={index}
+                  key={chiaveAnalisiVoce(voce,index,vociPreventivoAi)}
                   style={{
                     marginBottom: 10,
                     padding: 10,
@@ -484,6 +425,24 @@ useEffect(() => {
                     {avviso || 'Nessun confronto disponibile'}
                   </div>
 
+                  {voce.priceResolution?.manodoperaSic24 && <p style={{ fontSize: 12 }}>
+                    Fonte: SIC24 · Prezzo completo: {voce.priceResolution.manodoperaSic24.prezzoCompleto} €/{voce.priceResolution.manodoperaSic24.unitaMisura}<br />
+                    Incidenza manodopera: {voce.priceResolution.manodoperaSic24.percentualeManodopera}% · Quota manodopera: {voce.priceResolution.manodoperaSic24.prezzoManodopera} €/{voce.priceResolution.manodoperaSic24.unitaMisura}<br />
+                    Metodo: {voce.priceResolution.manodoperaSic24.metodo}. Nessuna maggiorazione.
+                  </p>}
+                  {(!voce.priceResolution?.matched || voce.priceResolution?.strategy === 'similarity') && <AnalisiPrezzoVoce
+                    descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} quantita={Number(voce.quantita || 0)} prezzo={Number(voce.prezzo_unitario || 0)}
+                    prezzi={prezziRiferimento} memoria={memoriaRiferimento} webVerificato={webPerVoce[JSON.stringify([voce.descrizione,voce.unita_misura])]}
+                    onUsa={(input,result)=>aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?applicaAnalisiPrezzo(v,input,result):v))} />}
+                  {!voce.priceResolution?.matched && <PrezzoWebVoce descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} prezzi={prezziRiferimento} memoria={memoriaRiferimento}
+                    onVerificato={result=>setWebPerVoce(correnti=>({...correnti,[JSON.stringify([voce.descrizione,voce.unita_misura])]:result}))}
+                    onInterno={r => aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?{...v,...r,priceResolutionInvalidated:false}:v))}
+                    onUsa={r => aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?applicaPrezzoWeb(v,r):v))} />}
+                  {voce.webPriceApplied && voce.fonte_prezzo !== 'Prezzo manuale' && !voce.priceResolutionInvalidated && <div><p>Origine: Web — Prezzo da verificare. Nessuna maggiorazione automatica.</p>
+                    <label><input type="checkbox" checked={voce.webMemoryConfirmed === true} onChange={e=>{
+                      if(e.target.checked && !window.confirm('Confermare questo prezzo Web come riferimento da salvare nella memoria ARTECNA?'))return
+                      aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?{...v,webMemoryConfirmed:e.target.checked}:v))
+                    }} /> Conferma esplicita per salvare il prezzo Web in memoria ARTECNA</label></div>}
                   {media && (
   <button
     onClick={() => {
@@ -571,7 +530,7 @@ useEffect(() => {
           <tr>
             <th style={excelTh}>Descrizione</th>
             <th style={excelTh}>UM</th>
-            <th style={excelTh}>Q.tÃ </th>
+            <th style={excelTh}>Q.tà</th>
             <th style={excelTh}>Prezzo</th>
             <th style={excelTh}>Totale</th>
             <th style={excelTh}>Azioni</th>
@@ -610,7 +569,7 @@ return (
     onChange={(e) => {
      const nuove = vociPreventivoAi.map((voce, i) =>
   i === index
-    ? { ...voce, descrizione: e.target.value }
+    ? modificaVoceDiagnostica(voce, 'descrizione', e.target.value)
     : voce
 )
 
@@ -624,6 +583,9 @@ aggiornaVociConCronologia(nuove)
     }}
   />
 
+  {!voce.priceResolution && <p role="status" style={{ color: '#92400e', fontWeight: 600 }}>
+    {voce.fonte_prezzo === 'Prezzo manuale' ? 'Prezzo manuale — da rivalutare' : voce.priceResolutionInvalidated ? 'Prezzo da rivalutare — voce modificata dopo la risoluzione' : 'Diagnostica non disponibile — prezzo da verificare'}
+  </p>}
   {voce.priceResolution && (
     <div
       style={{
@@ -663,12 +625,12 @@ aggiornaVociConCronologia(nuove)
         </span>
       </div>
       <div>
-        <strong>Strategia:</strong>{' '}
+        <strong>Strategia dell’esito salvato:</strong>{' '}
         {voce.priceResolution.strategy}
       </div>
 
       <div>
-        <strong>AffidabilitÃ :</strong>{' '}
+        <strong>Affidabilità:</strong>{' '}
         {Math.round(
           Number(voce.priceResolution.confidence || 0) * 100,
         )}
@@ -720,7 +682,7 @@ aggiornaVociConCronologia(nuove)
                     onChange={(e) => {
                      const nuove = vociPreventivoAi.map((voce, i) =>
   i === index
-    ? { ...voce, unita_misura: e.target.value }
+    ? modificaVoceDiagnostica(voce, 'unita_misura', e.target.value)
     : voce
 )
 
@@ -748,7 +710,7 @@ aggiornaVociConCronologia(nuove)
                         }
                         aggiornaVociConCronologia(nuove)
                       }}
-                      aria-label={`QuantitÃ  voce ${index + 1}`}
+                      aria-label={`Quantità voce ${index + 1}`}
                       style={{ width: 80, minHeight: 44 }}
                     />
                     <button
@@ -757,7 +719,7 @@ aggiornaVociConCronologia(nuove)
                         event.stopPropagation()
                         apriCalcolatrice(index)
                       }}
-                      aria-label={`Calcola quantitÃ  voce ${index + 1}`}
+                      aria-label={`Calcola quantità voce ${index + 1}`}
                       style={{
                         width: 44,
                         height: 44,
@@ -768,7 +730,7 @@ aggiornaVociConCronologia(nuove)
                         cursor: 'pointer',
                       }}
                     >
-                      Ã·
+                      ÷
                     </button>
                   </div>
                 </td>
@@ -780,7 +742,7 @@ aggiornaVociConCronologia(nuove)
                     onChange={(e) => {
                      const nuove = vociPreventivoAi.map((voce, i) =>
   i === index
-    ? { ...voce, prezzo_unitario: Number(e.target.value) }
+    ? modificaVoceDiagnostica(voce, 'prezzo_unitario', Number(e.target.value))
     : voce
 )
 
@@ -816,7 +778,7 @@ aggiornaVociConCronologia(nuove)
                         opacity: index === 0 ? 0.4 : 1,
                       }}
                     >
-                      â†‘
+                      ↑
                     </button>
 
                     <button
@@ -838,7 +800,7 @@ aggiornaVociConCronologia(nuove)
                         opacity: index === vociPreventivoAi.length - 1 ? 0.4 : 1,
                       }}
                     >
-                      â†“
+                      ↓
                     </button>
 
                     <button
@@ -853,7 +815,7 @@ aggiornaVociConCronologia(nuove)
                         cursor: 'pointer',
                       }}
                     >
-                      âœ¨
+                      Migliora testo
                     </button>
 
                     <button
@@ -872,7 +834,7 @@ aggiornaVociConCronologia(nuove)
                         cursor: 'pointer',
                       }}
                     >
-                      ðŸ—‘
+                      Elimina
                     </button>
                   </div>
                 </td>
@@ -915,7 +877,7 @@ aggiornaVociConCronologia(nuove)
           }
           style={buttonSecondary}
         >
-          âž• Aggiungi voce
+          + Aggiungi voce
         </button>
 
         <button
@@ -932,7 +894,7 @@ aggiornaVociConCronologia(nuove)
             color: '#fff',
           }}
         >
-          â†© Ripristina originale
+          Ripristina originale
         </button>
 
        <button
@@ -944,24 +906,13 @@ aggiornaVociConCronologia(nuove)
     backgroundColor: '#16a34a',
   }}
 >
-  ðŸ’¾ Salva revisione
-</button>
-
-<button
-  onClick={async () => {
-    await salvaRevisionePreventivoAi()
-  }}
-  style={{
-    ...buttonPrimary,
-    backgroundColor: '#16a34a',
-  }}
->
-  ðŸ’¾ Salva revisione
+  Salva revisione
 </button>
 
 <button
   onClick={async () => {
     for (const voce of vociPreventivoAi) {
+      if (!puoSalvarePrezzoInMemoria(voce)) continue
       await salvaInMemoriaPrezzi({
         descrizione: voce.descrizione || '',
         categoria: 'preventivo AI',
@@ -972,7 +923,8 @@ aggiornaVociConCronologia(nuove)
           Number(voce.quantita || 0) *
           Number(voce.prezzo_unitario || 0),
         cantiere: preventivoRegistroCantiere || '',
-        fonte: 'preventivo AI approvato',
+        fonte: voce.webPriceApplied ? 'Web confermato dall’utente' : 'preventivo AI approvato',
+        note: voce.webPriceApplied ? JSON.stringify({ area: voce.webPrice.area, data_ricerca: voce.webPrice.data_ricerca, fonti: voce.webPrice.fonti.map((f: {url:string})=>f.url) }) : undefined,
         provincia: 'Catania',
       })
     }
@@ -984,7 +936,7 @@ aggiornaVociConCronologia(nuove)
     backgroundColor: '#2563eb',
   }}
 >
-  ðŸ“„ Genera Excel definitivo
+  Genera Excel definitivo
 </button>
         <button
           onClick={() => setMostraRevisionePreventivoAi(false)}
@@ -1022,7 +974,7 @@ aggiornaVociConCronologia(nuove)
             }}
           >
             <h4 id="titolo-calcolatrice-quantita" style={{ margin: 0, fontSize: 22 }}>
-              Calcola quantitÃ 
+              Calcola quantità
             </h4>
             <div style={{ marginTop: 8, color: '#64748b' }}>
               Valore attuale:{' '}

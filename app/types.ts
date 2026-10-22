@@ -12,6 +12,7 @@ export type Cantiere = {
 
 export type Rapportino = {
   id?: string
+  versione_prestazioni?: number | null
   cantiere_id?: string
   compilato_da_operaio_id?: string | null
   compilato_da_nome?: string | null

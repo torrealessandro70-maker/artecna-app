@@ -5,7 +5,7 @@ export async function impostaPreventivoContrattuale(db: any, cantiereId: string,
   if (erroreVerifica || !preventivo || preventivo.cantiere_id !== cantiereId || preventivo.id !== preventivoId) {
     throw new Error('Il preventivo non è disponibile o non appartiene a questo cantiere. Nessuna modifica eseguita.')
   }
-  const incompatibile = 'Non puoi cambiare il preventivo contrattuale: il SAL contiene lavorazioni collegate a un altro contratto.'
+  const incompatibile = 'Non puoi sostituire il preventivo contrattuale con il comando normale: esistono SAL collegati a un preventivo incompatibile. Usa la procedura di sostituzione/reset controllato.'
   let offset = 0
   while (true) {
     const { data: sal, error: erroreSal, count } = await db.from('sal_lavorazioni')
@@ -60,7 +60,12 @@ export async function impostaPreventivoContrattuale(db: any, cantiereId: string,
   const { data, error } = await db.from('cantieri')
     .update({ preventivo_contrattuale_id: preventivoId }).eq('id', cantiereId)
     .select('id, preventivo_contrattuale_id').single()
-  if (error) throw new Error(`Impossibile impostare il preventivo contrattuale: ${error.message}`)
+  if (error) {
+    if (error.code === 'SP402') throw new Error(incompatibile)
+    if (error.code === 'SP403') throw new Error('Il nuovo preventivo non appartiene al cantiere. Nessuna modifica eseguita.')
+    if (error.code === 'P2001') throw new Error('Il contratto è congelato da varianti approvate. Usa la procedura di sostituzione/reset controllato.')
+    throw new Error(`Impossibile impostare il preventivo contrattuale: ${error.message}`)
+  }
   if (data?.id !== cantiereId || data?.preventivo_contrattuale_id !== preventivoId) {
     throw new Error('Salvataggio non confermato. Ricarica i cantieri prima di riprovare.')
   }

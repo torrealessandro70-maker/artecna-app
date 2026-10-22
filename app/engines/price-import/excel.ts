@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import { normalizzaCampiManodopera } from './manodopera'
 
 import type {
   PriceImportExcelInput,
@@ -10,7 +11,7 @@ type RawExcelRow = unknown[]
 const normalizzaTesto = (value: unknown): string =>
   String(value ?? '').trim()
 
-const normalizzaPrezzo = (value: unknown): number | null => {
+const normalizzaPrezzo = (value: unknown, letturaControllata = false): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value
   }
@@ -19,6 +20,16 @@ const normalizzaPrezzo = (value: unknown): number | null => {
 
   if (!testo) {
     return null
+  }
+  if (letturaControllata) {
+    const raw = testo.replace(/[\s€]/g, '')
+    // Nel CSV raw non convertire codici in date e non perdere il separatore decimale.
+    if (/^[+-]?\d+(?:,\d+)?$/.test(raw) || /^[+-]?\d+\.\d{1,2}$/.test(raw)) {
+      const n = Number(raw.replace(',', '.'))
+      return Number.isFinite(n) ? n : null
+    }
+    if (/^[+-]?\d{1,3}(?:\.\d{3})+,\d+$/.test(raw)) return Number(raw.replaceAll('.', '').replace(',', '.'))
+    return null // Separatore ambiguo: nessun valore inventato.
   }
 
   const valoreNormalizzato = testo
@@ -157,19 +168,21 @@ const trovaRigaIntestazione = (
   return -1
 }
 
-export const parsePriceListExcel = (
+export const parsePriceListExcelDocument = (
 
 
   input: PriceImportExcelInput,
-): PriceImportRow[] => {
+): { rows: PriceImportRow[]; testiDocumento: string[] } => {
   const workbook = XLSX.read(input.buffer, {
     type: 'array',
     cellDates: false,
     dense: false,
+    ...(input.rilevaVersione ? { raw: true, codepage: 65001 } : {}),
   })
 
 
   const rowsImportate: PriceImportRow[] = []
+  const testiDocumento: string[] = []
 
   workbook.SheetNames.forEach((sheetName) => {
     const sheet = workbook.Sheets[sheetName]
@@ -195,6 +208,7 @@ export const parsePriceListExcel = (
     if (headerRowIndex < 0) {
       return
     }
+    testiDocumento.push(sheetName, ...rows.slice(0, headerRowIndex).map(r => r.map(normalizzaTesto).join(' ')))
 
    const intestazioni =
   rows[headerRowIndex].map(normalizzaIntestazione)
@@ -237,26 +251,19 @@ const unitaMisuraIndex = trovaIndiceColonna(intestazioni, [
   'misura',
 ])
 
-const prezzoIndex = trovaIndiceColonna(intestazioni, [
-  'prezzo unitario',
-  'prezzo',
-  'costo unitario',
-  'costo',
-  'importo unitario',
-  'importo',
-  'tariffa',
-  'valore',
-  'unit price',
-  'price',
-  'rate',
-])
+// Non usare importo/costo/valore o "prezzo totale" come tariffa unitaria.
+const espliciti = ['prezzo unitario', 'costo unitario', 'importo unitario', 'unit price', 'tariffa unitaria']
+const genericiPrezzo = ['prezzo', 'price', 'tariffa', 'rate']
+const esplicitoIndex = intestazioni.findIndex(h => espliciti.includes(h))
+const prezzoIndex = esplicitoIndex >= 0 ? esplicitoIndex : intestazioni.findIndex(h => genericiPrezzo.includes(h))
+if (descrizioneIndex < 0) return
+const percentualeIndex = intestazioni.findIndex(h => ['incidenza manodopera', 'incidenza manodopera %', 'percentuale manodopera', '% manodopera'].includes(h))
+const quotaIndex = intestazioni.findIndex(h => ['prezzo manodopera', 'quota manodopera', 'manodopera u m', 'manodopera'].includes(h))
+const annoIndex = intestazioni.findIndex(h => h === 'anno')
+const regioneIndex = intestazioni.findIndex(h => h === 'regione')
+const versioneIndex = intestazioni.findIndex(h => h === 'versione')
+const fonteIndex = intestazioni.findIndex(h => h === 'fonte')
 
-if (
-  descrizioneIndex < 0 ||
-  prezzoIndex < 0
-) {
-  return
-}
     rows
       .slice(headerRowIndex + 1)
       .forEach((row, relativeIndex) => {
@@ -265,7 +272,7 @@ if (
         const codice = normalizzaTesto(row[codiceIndex])
         const descrizione = normalizzaTesto(row[descrizioneIndex])
         const unitaMisura = normalizzaTesto(row[unitaMisuraIndex])
-        const prezzo = normalizzaPrezzo(row[prezzoIndex])
+        const prezzo = prezzoIndex >= 0 ? normalizzaPrezzo(row[prezzoIndex], input.rilevaVersione) : null
 
         const rigaVuota =
           !codice &&
@@ -279,6 +286,19 @@ if (
 
         const warnings: string[] = []
         const errors: string[] = []
+        if (annoIndex >= 0 && normalizzaTesto(row[annoIndex])) testiDocumento.push(`Anno: ${normalizzaTesto(row[annoIndex])}`)
+        if (regioneIndex >= 0 && normalizzaTesto(row[regioneIndex])) testiDocumento.push(`Regione: ${normalizzaTesto(row[regioneIndex])}`)
+        if (versioneIndex >= 0 && normalizzaTesto(row[versioneIndex])) testiDocumento.push(`Versione: ${normalizzaTesto(row[versioneIndex])}`)
+        if (fonteIndex >= 0 && normalizzaTesto(row[fonteIndex])) testiDocumento.push(`Fonte: ${normalizzaTesto(row[fonteIndex])}`)
+        let manodopera: Partial<Pick<PriceImportRow, 'percentualeManodopera' | 'prezzoManodopera'>> = {}
+        try {
+          const campi = normalizzaCampiManodopera({
+            ...(percentualeIndex >= 0 ? { incidenza_manodopera: normalizzaTesto(row[percentualeIndex]).replace(/%$/, '') } : {}),
+            ...(quotaIndex >= 0 ? { prezzo_manodopera: row[quotaIndex] } : {}),
+          })
+          if (percentualeIndex >= 0) manodopera.percentualeManodopera = campi.incidenza_manodopera ?? null
+          if (quotaIndex >= 0) manodopera.prezzoManodopera = campi.prezzo_manodopera ?? null
+        } catch (e) { errors.push(e instanceof Error ? e.message : 'Manodopera non valida') }
 
         if (!codice) {
           errors.push('Codice mancante')
@@ -295,7 +315,7 @@ if (
         }
 
         if (prezzo === null) {
-          errors.push('Prezzo mancante o non valido')
+          errors.push(prezzoIndex < 0 ? 'Colonna prezzo ambigua: indicare esplicitamente il prezzo unitario; importo/costo/valore non sono tariffe certificate.' : 'Prezzo mancante o non valido')
         }
 
         rowsImportate.push({
@@ -304,6 +324,7 @@ if (
           descrizione,
           unitaMisura,
           prezzo,
+          ...manodopera,
           fonte: input.metadata.fonte,
           regione: input.metadata.regione,
           anno: input.metadata.anno,
@@ -321,5 +342,7 @@ if (
       })
   })
 
-  return rowsImportate
+  return { rows: rowsImportate, testiDocumento }
 }
+
+export const parsePriceListExcel = (input: PriceImportExcelInput): PriceImportRow[] => parsePriceListExcelDocument(input).rows

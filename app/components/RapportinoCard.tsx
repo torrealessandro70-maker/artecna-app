@@ -23,6 +23,10 @@ export const fotoCollegataAlRapportino = (
 ) => {
   const fotoRapportinoId = (foto as any).rapportino_id
 
+  if (foto.allegato_v1_id) {
+    return !!rapportino.id && fotoRapportinoId === rapportino.id
+  }
+
   if (fotoRapportinoId && rapportino.id) {
     return String(fotoRapportinoId) === String(rapportino.id)
   }
@@ -88,9 +92,14 @@ export default function RapportinoCard({
       <div style={{ marginTop: 6, color: '#475569' }}>
         Foto collegate: {fotoCollegate.length}
       </div>
+      {r.versione_prestazioni === 1 && <p>
+        Rapportino strutturato: usa «Apri / Modifica rapportino» nel portale Mobile.
+        L’eliminazione completa V1 non è disponibile; prestazioni e collegamenti restano conservati.
+      </p>}
 
       <div style={{ marginTop: 8 }}>
         <button
+          disabled={r.versione_prestazioni === 1}
           onClick={() => preparaModificaRapportino(r)}
           style={buttonSecondary}
         >
@@ -110,6 +119,7 @@ export default function RapportinoCard({
         </button>
 
         <button
+          disabled={r.versione_prestazioni === 1}
           onClick={() => eliminaRapportino(r.id)}
           style={{
             marginLeft: 8,

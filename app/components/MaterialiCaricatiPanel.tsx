@@ -220,7 +220,10 @@ export default function MaterialiCaricatiPanel({
 
                 <div style={{ marginTop: 10 }}>
                   <button
+                    disabled={m.fattura_riga_id != null}
+                    title={m.fattura_riga_id != null ? 'Assegnazione fattura protetta' : undefined}
                     onClick={async () => {
+                      if (m.fattura_riga_id != null) return
                       try {
                         await eliminaFileDaStorage(m.file_path)
                       } catch {
@@ -231,6 +234,7 @@ export default function MaterialiCaricatiPanel({
                       const { error } = await supabase
                         .from('materiali_cantiere')
                         .delete()
+                        .is('fattura_riga_id', null)
                         .eq('id', m.id)
 
                       if (error) {

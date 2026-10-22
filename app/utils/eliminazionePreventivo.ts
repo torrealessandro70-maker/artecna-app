@@ -1,4 +1,21 @@
-export function messaggioEliminazione(error: { code?: string; message?: string }, entita: string) {
+export function messaggioEliminazione(error: { code?: string; message?: string; details?: string }, entita: string) {
+  if (error.code === 'SP401') {
+    const etichette: Record<string, string> = {
+      righe_sal: 'righe SAL', contratti: 'riferimenti contrattuali',
+      lavorazioni: 'lavorazioni', varianti: 'varianti',
+      sorgenti_varianti: 'sorgenti Variante', origini_cantiere: 'origini cantiere',
+    }
+    let dipendenze: string[] = []
+    try {
+      const dati = JSON.parse(error.details || '{}')
+      dipendenze = Object.entries(etichette).flatMap(([key, label]) =>
+        Number.isSafeInteger(dati?.[key]) && dati[key] > 0 ? [`${dati[key]} ${label}`] : [])
+    } catch { /* Il blocco resta valido anche senza dettaglio leggibile. */ }
+    return `Questo preventivo non può essere eliminato perché è usato${dipendenze.length ? ' da ' + dipendenze.join(', ') : ' da altri dati'}. Nessun dato o file è stato eliminato.`
+  }
+  if (error.code === 'P2001') {
+    return 'Questo preventivo è una base contrattuale congelata da varianti approvate. Eliminazione normale non consentita.'
+  }
   if (error.code === '23503' && error.message?.includes('cantieri_preventivo_contrattuale_id_fkey')) {
     return 'Questo preventivo è impostato come contrattuale del cantiere. Se vuoi eliminarlo, scegli prima un altro preventivo contrattuale. Nessun file è stato eliminato.'
   }

@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { CodaFotoRapportinoV1, type ContestoFoto, type FotoLocaleInCoda } from '../engines/rapportini/fotoRapportinoV1'
 import { RepositoryCodaFotoIndexedDB } from '../engines/rapportini/codaFotoIndexedDB'
-import { FotoMobileQueue, factoryFotoOperaio, lockFotoOperaio, statoVisibileFoto } from '../engines/rapportini/fotoMobileQueue'
+import { FotoMobileQueue, factoryFotoOperaio, lockFotoOperaio, preparaFotoMobile, statoVisibileFoto } from '../engines/rapportini/fotoMobileQueue'
+import { messaggioErroreInvioFotoV1 } from '../engines/rapportini/trasportoHttpFotoV1'
 
 function Anteprima({ blob }: { blob: Blob }) {
   const [url, setUrl] = useState('')
@@ -45,7 +46,7 @@ export default function FotoRapportinoMobileV1({ operaioId, contesto, disabled }
     if (!current || busyRef.current || disabled) return
     busyRef.current = true; setBusy(true); setPreview(files); setErrore('')
     try {
-      for (const file of files) await current.aggiungi(file, contesto)
+      for (const file of files) await current.aggiungi(await preparaFotoMobile(file), contesto)
       const saved = await current.elenca(contesto)
       if (gen === generation.current) { setFoto(saved); setPreview([]) }
     } catch {
@@ -62,7 +63,7 @@ export default function FotoRapportinoMobileV1({ operaioId, contesto, disabled }
     busyRef.current = true; setBusy(true); setErrore('')
     setFoto(values => values.map(f => f.chiave_client_allegato === key ? { ...f, stato: 'caricamento' } : f))
     try { await current.invia(key, contesto) }
-    catch { if (gen === generation.current) setErrore('Invio non completato. Il Rapportino non viene risalvato. La foto resta in coda: riprova manualmente. Il servizio Storage potrebbe non essere ancora configurato.') }
+    catch (error) { if (gen === generation.current) setErrore(messaggioErroreInvioFotoV1(error)) }
     finally {
       if (gen === generation.current) setFoto(await current.elenca(contesto).catch(() => []))
       busyRef.current = false; setBusy(false)
@@ -71,6 +72,7 @@ export default function FotoRapportinoMobileV1({ operaioId, contesto, disabled }
   return <section aria-label="Foto del Rapportino strutturato" style={{ padding: 14, border: '1px solid #ddd', borderRadius: 10 }}>
     <h3>Foto del lavoro</h3>
     <p>Le foto restano su questo browser. Salva il Rapportino, poi premi Invia foto. L’invio non ripete il salvataggio del Rapportino.</p>
+    <p>Le immagini oltre 4 MB o 24 megapixel vengono ridotte in JPEG prima di essere conservate e inviate.</p>
     <label>Scatta o seleziona foto <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple
       disabled={disabled || busy || !queue.current} onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; void seleziona(files) }} /></label>
     {preview.map((blob, i) => <div key={i}><Anteprima blob={blob} /><p>Conservazione in coda…</p></div>)}

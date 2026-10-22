@@ -78,23 +78,23 @@ export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange,
             onChange={() => modifica(p.chiave_client, { lavoro_in_economia: true })} /> Economia</label>
         </fieldset>
         {p.lavoro_in_economia && <div>
-          <label>Variante<select aria-label={'Variante prestazione ' + (index + 1)} style={input} value={p.variante_id || ''}
+          <label>Variante collegata (opzionale)<select aria-label={'Variante prestazione ' + (index + 1)} style={input} value={p.variante_id || ''}
             disabled={disabled || varianti.stato !== 'pronte' || varianti.cantiere_id !== bozza.cantiere_id}
             onChange={e => {
               const scelta = varianti.varianti.find(v => v.id === e.target.value && (v.selezionabile || v.id === originale?.variante_id))
               if (varianti.stato === 'pronte' && varianti.cantiere_id === bozza.cantiere_id && (scelta || e.target.value === ''))
                 modifica(p.chiave_client, { variante_id: scelta?.id || null })
             }}>
-            <option value="">Seleziona variante</option>
+            <option value="">Variante collegata (opzionale)</option>
             {p.variante_id && !varianti.varianti.some(v => v.id === p.variante_id) && <option value={p.variante_id} disabled>
               Variante collegata — {p.variante_id}
             </option>}
             {varianti.cantiere_id === bozza.cantiere_id && varianti.varianti.map(v =>
               <option key={v.id} value={v.id} disabled={!v.selezionabile && v.id !== originale?.variante_id}>{etichettaVarianteBozza(v)}</option>)}
-          </select></label>
+          </select></label><p>Usala solo se queste ore riguardano una variante già esistente.</p>
           {varianti.stato === 'caricamento' && <p role="status">Caricamento varianti…</p>}
           {varianti.stato === 'pronte' && !varianti.varianti.some(v => v.selezionabile) && !originale?.variante_id && <p>Nessuna variante disponibile</p>}
-          {originale?.lavoro_in_economia && originale.variante_id === null && <p>Economia storica senza Variante: per modificare questa prestazione seleziona una Variante.</p>}
+          {originale?.lavoro_in_economia && originale.variante_id === null && <p>Economia senza variante collegata.</p>}
           {varianti.stato === 'errore' && <div role="alert">
             <p>Impossibile caricare le varianti. Riprova.</p>
             <button type="button" style={button} disabled={disabled} onClick={() => { if (!disabled) onRiprovaVarianti() }}>Riprova caricamento varianti</button>
