@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { apriArteCna, esportaArteCna, type DocumentoFile } from './fileNativo'
 import { riferimentoFileQuaderno, leggiRiferimentoPrivato } from './storagePrivato'
-import type { AllegatoNota, AnalisiNota, PaginaQuadernoNota } from '../../components/note/types'
+import { archivioOperazioni, chiaveOperazione, trovaOperazione, rpcQuaderno, type ArchivioOperazioni, type Preparazione, type Esito } from './operazioni'
+import type { AnalisiNota, PaginaQuadernoNota } from '../../components/note/types'
 
 export const BUCKET_COPIE = 'quaderno-sopralluoghi' as const
 export type ProvenienzaQuaderno = { richiamoId: string; progettoId: string; titolo: string; salvatoIl: string; richiamatoIl: string; analisiSorgente?: AnalisiNota | null }
@@ -56,13 +57,15 @@ export function aggiungiDocumento(attuale: DocumentoFile, copia: DocumentoFile):
 
 export async function richiamaProgetto(args: {
   supabase: SupabaseClient; progettoId: string; sopralluogoId: string; attuale: DocumentoFile;
-  versioneNota: string | null; ancoraAttivo: () => boolean;
+  versioneNota: string | null; ancoraAttivo: () => boolean; archivio?: ArchivioOperazioni;
 }) {
   const { supabase, progettoId, sopralluogoId } = args
   const { data: auth, error: authError } = await supabase.auth.getUser()
   if (authError) throw authError
   if (!auth.user) throw Error('Accedi per richiamare un progetto')
-  const uid = auth.user.id
+  const uid = auth.user.id, archivio = args.archivio || archivioOperazioni
+  const precedente = await trovaOperazione(supabase, sopralluogoId, archivio)
+  if (precedente.id || precedente.locale?.conflitto) throw new EsitoRichiamoIncerto('Operazione o conflitto da riconciliare prima di un nuovo richiamo')
   const source = await supabase.from('quaderno_progetti').select('*').eq('id', progettoId).eq('user_id', uid).single()
   if (source.error) throw source.error
   const files = await supabase.from('quaderno_allegati').select('*').eq('nota_id', progettoId).eq('user_id', uid)
@@ -82,53 +85,40 @@ export async function richiamaProgetto(args: {
     return response.blob()
   })
   const portable = await apriArteCna(packed)
+
   const id = crypto.randomUUID(), created = new Date().toISOString()
   const provenienza = { richiamoId: id, progettoId, titolo: source.data.titolo, salvatoIl: source.data.updated_at, richiamatoIl: created, analisiSorgente: source.data.analisi_ai }
   const copia = clonaDocumento(portable.documento, provenienza)
-  const check = () => { if (!args.ancoraAttivo()) throw Error('Sopralluogo cambiato: richiamo interrotto') }
+  const replacements = new Map<string, string>()
+  const assets = await Promise.all(portable.risorse.map(async resource => {
+    const path = 'utenti/' + uid + '/richiami/' + id + '/' + crypto.randomUUID()
+    replacements.set(resource.uri, riferimentoFileQuaderno(path, BUCKET_COPIE))
+    const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(resource.bytes))
+    const sha256 = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')
+    return { id: crypto.randomUUID(), nome_file: resource.nome, tipo: resource.tipo || 'immagine', mime_type: resource.mime, storage_path: path, sha256 }
+  }))
+  const merged = aggiungiDocumento(args.attuale, JSON.parse(JSON.stringify(copia, (_k, v: unknown) => typeof v === 'string' ? replacements.get(v) || v : v)))
+  const preparazione: Preparazione = { p_id: id, p_sopralluogo: sopralluogoId, p_sorgente: progettoId,
+    p_sorgente_versione: source.data.updated_at, p_versione: args.versioneNota, p_documento: merged, p_assets: assets }
+  const check = () => { if (!args.ancoraAttivo()) throw Error('Sopralluogo cambiato: riconciliare il richiamo') }
   check()
-  const prepared = await supabase.from('quaderno_richiami_sopralluogo').insert({ id, user_id: uid, sopralluogo_id: sopralluogoId,
-    sorgente_id: progettoId, sorgente_titolo: provenienza.titolo, sorgente_updated_at: provenienza.salvatoIl }).select('id').single()
-  if (prepared.error) {
-    if (['42P01', 'PGRST205'].includes(prepared.error.code)) throw Error('Richiamo non disponibile: richiede la nuova migrazione 20261023_quaderno_richiamo_sopralluogo.sql. Bozza conservata.')
-    throw Object.assign(new Error(`Preparazione ${id} non completata: ${prepared.error.message}. Nessuna nota modificata; eventuale preparazione da verificare.`), {
-      code: prepared.error.code, details: prepared.error.details, hint: prepared.error.hint,
-    })
-  }
-  const uploaded: string[] = [], replacements = new Map<string, string>(), anteprime = new Map<string, string>()
-  const assets: { id: string; nome_file: string; tipo: string; mime_type: string; storage_path: string }[] = []
-  let committed = false, merged: DocumentoFile | undefined
+  // Durevole PRIMA di qualsiasi scrittura remota. Una risposta persa non cambia ID.
+  await archivio.scrivi({ chiave: chiaveOperazione(uid, sopralluogoId), utente: uid, sopralluogo: sopralluogoId, bozza: args.attuale, preparazione })
   try {
-    for (const resource of portable.risorse) {
+    await rpcQuaderno(supabase, 'prepara_richiamo_quaderno', preparazione)
+    for (let i = 0; i < portable.risorse.length; i++) {
       check()
-      const path = `utenti/${uid}/richiami/${id}/${crypto.randomUUID()}`
-      const result = await supabase.storage.from(BUCKET_COPIE).upload(path, new Blob([new Uint8Array(resource.bytes)], { type: resource.mime }), { upsert: false })
+      const resource = portable.risorse[i]
+      const result = await supabase.storage.from(BUCKET_COPIE).upload(assets[i].storage_path,
+        new Blob([new Uint8Array(resource.bytes)], { type: resource.mime }), { upsert: false })
       if (result.error) throw result.error
-      uploaded.push(path)
-      replacements.set(resource.uri, riferimentoFileQuaderno(path, BUCKET_COPIE))
-      if (!resource.tipo) anteprime.set(riferimentoFileQuaderno(path, BUCKET_COPIE), resource.uri + '#richiamo-' + crypto.randomUUID())
-      assets.push({ id: crypto.randomUUID(), nome_file: resource.nome, tipo: resource.tipo || 'immagine', mime_type: resource.mime, storage_path: path })
     }
-    merged = aggiungiDocumento(args.attuale, JSON.parse(JSON.stringify(copia, (_k, v: unknown) => typeof v === 'string' ? replacements.get(v) || v : v)))
     check()
-    const result = await supabase.rpc('completa_richiamo_quaderno', { p_richiamo: id, p_documento: merged, p_assets: assets, p_versione_nota: args.versioneNota })
-    if (result.error) throw result.error
-    committed = true
-    return { documento: merged, provenienza, anteprime, notaId: result.data.nota_id as string, updatedAt: result.data.updated_at as string,
-      allegati: assets.filter(a => a.tipo !== 'immagine').map(a => ({ ...a, tipo: a.tipo as AllegatoNota['tipo'], storage_bucket: BUCKET_COPIE, url: '' })) }
+    // Anche nel successo si rilegge il risultato persistito, mai merged come autorita.
+    await rpcQuaderno(supabase, 'completa_richiamo_quaderno', { p_richiamo: id })
+    return await rpcQuaderno<Esito>(supabase, 'esito_richiamo_quaderno', { p_id: id })
   } catch (error) {
-    // Una risposta persa non prova un rollback. Prima di rimuovere i SOLI nuovi
-    // oggetti si verifica l'esito; nessun retry del writer.
-    const status = await Promise.resolve(supabase.from('quaderno_richiami_sopralluogo').select('stato,nota_id,nota_updated_at').eq('id', id).single())
-      .catch(() => ({ error: new Error('Connessione interrotta'), data: null }))
-    if (status.error || status.data?.stato === 'completato' || committed) {
-      throw new EsitoRichiamoIncerto(`Richiamo ${id}: esito da rileggere dal server prima di salvare o ripetere. La bozza è conservata. ${status.data?.stato === 'completato' ? 'Copia registrata sul server.' : ''}`)
-    }
-    const cleanup = uploaded.length ? await Promise.resolve(supabase.storage.from(BUCKET_COPIE).remove(uploaded))
-      .catch(() => ({ error: new Error('Rimozione non confermata') })) : { error: null }
-    if (cleanup.error) throw Error(`Richiamo non completato. Bozza conservata; file parziali della richiesta ${id} da ripulire separatamente.`)
-    const removed = await supabase.from('quaderno_richiami_sopralluogo').delete().eq('id', id).eq('stato', 'preparazione')
-    if (removed.error) throw Error(`Bozza conservata; preparazione ${id} da verificare separatamente.`)
-    throw error
+    const tecnico = error as { code?: string; message?: string; details?: string; hint?: string }
+    throw Object.assign(new EsitoRichiamoIncerto('Richiamo ' + id + ': riprendere o annullare tramite il server. Bozza e percorsi conservati. ' + (tecnico.message || '')), tecnico)
   }
 }

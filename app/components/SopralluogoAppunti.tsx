@@ -20,6 +20,8 @@ import { esportaDxf, importaDxf, type UnitaDxf } from '../engines/quaderno/dxf';
 import AllegatoQuadernoPrivato from './AllegatoQuadernoPrivato';
 import RichiamaQuadernoPanel from './RichiamaQuadernoPanel';
 import { richiamaProgetto, EsitoRichiamoIncerto } from '../engines/quaderno/richiamo';
+import { archivioOperazioni, chiaveOperazione, trovaOperazione, rpcQuaderno, risolviOperazione, pulisciAnnullato, type Esito } from '../engines/quaderno/operazioni';
+import type { DocumentoFile } from '../engines/quaderno/fileNativo';
 import { riferimentoFileQuaderno, leggiRiferimentoPrivato, leggiImmaginePrivata, ripristinaSorgentiPrivate, risolviSorgentiPrivate } from '../engines/quaderno/storagePrivato';
 import NotaDisegno from "./note/NotaDisegno";
 import { destinazioneQuaderno, percorsoQuaderno, paginePerSalvataggio, erroreQuaderno } from '../engines/quaderno/persistenza';
@@ -269,6 +271,9 @@ const sorgentiPrivateRef = useRef(new Map<string, string>());
 const risorseImportateRef = useRef(importazioneFile?.risorse || []);
 const risorseSalvateRef = useRef(new Map<string, { path: string; metadata: boolean }>());
 const progettoCreatoRef = useRef(!importazioneFile);
+const [ricaricaNota, setRicaricaNota] = useState(0);
+const [operazioneDaRiprendere, setOperazioneDaRiprendere] = useState<string | null>(null);
+const [bozzaSeparata, setBozzaSeparata] = useState<DocumentoFile | null>(null);
 const [richiamoAperto, setRichiamoAperto] = useState(false);
 const [richiamoInCorso, setRichiamoInCorso] = useState(false);
 const [richiamoIncerto, setRichiamoIncerto] = useState(false);
@@ -5849,7 +5854,7 @@ useEffect(() => {
     const caricaNota = async () => {
       documentoAttivoRef.current = documentoId;
       setPronto(false);
-      setRichiamoAperto(false); setRichiamoIncerto(false); richiamoIncertoRef.current = false;
+      setRichiamoAperto(false); setRichiamoIncerto(true); richiamoIncertoRef.current = true;
       versioneNotaRef.current = null;
       setNotaId(null);
       firmaPersistitaRef.current = null;
@@ -6133,6 +6138,14 @@ setWorkspaceCadEntities([])
         setAnalisiAi(null);
       }
 
+      if (!progettoQuadernoId && !importazioneFile) {
+        const pending = await trovaOperazione(supabase, documentoId);
+        if (!attivo) return;
+        setOperazioneDaRiprendere(pending.id || null);
+        if (pending.locale || pending.backup) setBozzaSeparata((pending.locale || pending.backup)!.bozza);
+        const blocco = !!(pending.id || pending.locale?.conflitto);
+        richiamoIncertoRef.current = blocco; setRichiamoIncerto(blocco); setRichiamoAperto(blocco);
+      } else { richiamoIncertoRef.current = false; setRichiamoIncerto(false); }
       setQuadernoDirty(!!importazioneFile);
       setPronto(true);
       setStato(importazioneFile ? "File aperto come nuovo progetto: non ancora salvato nell’archivio" : "Nota pronta");
@@ -6149,6 +6162,7 @@ setWorkspaceCadEntities([])
     };
   }, [
     notaVisibile,
+    ricaricaNota,
     documentoId,
     destinazione.tabella,
     destinazione.allegati,
@@ -6194,13 +6208,18 @@ setWorkspaceCadEntities([])
       const { data: userData, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       if (!userData.user) throw new Error('Accedi per salvare il Quaderno');
-      const { data, error } = await supabase.from(destinazione.tabella)
-        .upsert({ ...(risorseImportateRef.current.length ? { titolo: contenuto.titolo } : contenuto), [destinazione.chiave]: documentoId, user_id: userData.user.id, updated_at: new Date().toISOString() },
-          { onConflict: destinazione.conflitto }).select('id,updated_at').single();
-      if (error) throw error;
+      let data: { id: string; updated_at: string };
+      if (!progettoQuadernoId) {
+        // Unico writer per la nota: crea se assente o aggiorna la versione esatta.
+        data = await rpcQuaderno(supabase, 'salva_nota_quaderno', { p_sopralluogo: documentoId, p_documento: contenuto, p_versione: versioneNotaRef.current });
+      } else {
+        const result = await supabase.from(destinazione.tabella).upsert({ ...(risorseImportateRef.current.length ? { titolo: contenuto.titolo } : contenuto), [destinazione.chiave]: documentoId, user_id: userData.user.id, updated_at: new Date().toISOString() }, { onConflict: destinazione.conflitto }).select('id,updated_at').single();
+        if (result.error) throw result.error;
+        data = result.data;
+      }
       versioneNotaRef.current = data.updated_at;
       progettoCreatoRef.current = true;
-      if (risorseImportateRef.current.length) {
+      if (progettoQuadernoId && risorseImportateRef.current.length) {
         for (const r of risorseImportateRef.current) {
           let saved = risorseSalvateRef.current.get(r.id);
           if (!saved) {
@@ -6232,6 +6251,15 @@ setWorkspaceCadEntities([])
       return data.id as string;
     } catch (error) {
       setQuadernoDirty(true);
+      if (!progettoQuadernoId && (error as { code?: string }).code === '40001') {
+        richiamoIncertoRef.current = true; setRichiamoIncerto(true); setRichiamoAperto(true);
+        setBozzaSeparata(contenuto);
+        const auth = await supabase.auth.getUser();
+        if (auth.data.user) {
+          try { await archivioOperazioni.scrivi({ chiave: chiaveOperazione(auth.data.user.id, documentoId), utente: auth.data.user.id, sopralluogo: documentoId, bozza: contenuto, conflitto: true }); }
+          catch { setStato('Conflitto: bozza conservata in memoria ma archivio locale non disponibile. Scarica la bozza prima di chiudere.'); return null; }
+        }
+      }
       setStato('Errore salvataggio: ' + erroreQuaderno(error as Error));
       return null;
     } finally {
@@ -6274,34 +6302,81 @@ setWorkspaceCadEntities([])
 
 
 
+
+  const applicaEsitoPersistito = async (esito: Esito, bozza: DocumentoFile) => {
+    if (esito.richiamo.stato !== 'completato' || !esito.nota) throw Error('Richiamo non completato');
+    // La bozza resta disponibile separatamente, anche se la nota server e diversa.
+    const prima = JSON.stringify(preparaContenuto());
+    setBozzaSeparata(bozza);
+    richiamoIncertoRef.current = true; setRichiamoIncerto(true);
+    const auth = await supabase.auth.getUser();
+    if (!auth.data.user) throw Error('Autenticazione richiesta');
+    await rpcQuaderno(supabase, 'conferma_richiamo_quaderno', { p_id: esito.richiamo.id, p_pulizia: false });
+    const key = chiaveOperazione(auth.data.user.id, documentoId), dopo = structuredClone(preparaContenuto());
+    const conservata = JSON.stringify(dopo) === prima ? bozza : dopo;
+    setBozzaSeparata(conservata);
+    await archivioOperazioni.scrivi({ chiave: key + ':bozza', utente: auth.data.user.id, sopralluogo: documentoId, bozza: conservata });
+    await archivioOperazioni.elimina(key);
+    setOperazioneDaRiprendere(null); setRicaricaNota(n => n + 1);
+  };
   const aggiungiDallArchivio = async (progettoId: string) => {
     if (richiamoBusyRef.current || salvataggioInCorsoRef.current || richiamoIncertoRef.current) return;
-    const target = documentoId;
+    const target = documentoId, iniziale = structuredClone(preparaContenuto());
     richiamoBusyRef.current = true; setRichiamoInCorso(true);
     try {
       const result = await richiamaProgetto({ supabase, progettoId, sopralluogoId: target,
-        attuale: structuredClone(preparaContenuto()), versioneNota: versioneNotaRef.current,
+        attuale: iniziale, versioneNota: versioneNotaRef.current,
         ancoraAttivo: () => documentoAttivoRef.current === target });
       if (documentoAttivoRef.current !== target) return;
-      const display = new Map(Array.from(sorgentiPrivateRef.current, ([uri, ref]) => [ref, uri]));
-      for (const [ref, uri] of result.anteprime) { sorgentiPrivateRef.current.set(uri, ref); display.set(ref, uri); }
-      const pagine: PaginaQuadernoNota[] = JSON.parse(JSON.stringify(result.documento.disegni, (_k, v: unknown) => typeof v === 'string' ? display.get(v) || v : v));
-      setPagineQuaderno(pagine);
-      if (paginaCorrenteIndex === 0 && pagine[0].layers) setLayers(pagine[0].layers);
-      setWorkspaceCadEntities(pagine[0].workspaceCadEntities || []);
-      setWorkspacePosterImages(pagine[0].workspacePosterImages || []);
-      setTesto(result.documento.testo); setChecklist(result.documento.checklist);
-      setAllegati(current => [...current, ...result.allegati]);
-      setNotaId(result.notaId); versioneNotaRef.current = result.updatedAt;
-      firmaPersistitaRef.current = JSON.stringify(result.documento);
-      setQuadernoDirty(false); setRichiamoAperto(false);
-      setStato('Copia aggiunta e salvata nel sopralluogo. Il progetto originale è indipendente.');
+      const corrente = structuredClone(preparaContenuto());
+      if (JSON.stringify(corrente) !== JSON.stringify(iniziale)) {
+        setBozzaSeparata(corrente);
+        const auth = await supabase.auth.getUser();
+        if (auth.data.user) { const key = chiaveOperazione(auth.data.user.id, target), journal = await archivioOperazioni.leggi(key); if (journal) await archivioOperazioni.scrivi({ ...journal, bozza: corrente }); }
+        throw new EsitoRichiamoIncerto('Copia registrata; modifiche locali successive conservate separatamente. Riconciliare esplicitamente.');
+      }
+      await applicaEsitoPersistito(result, iniziale);
     } catch (error) {
       if (documentoAttivoRef.current !== target) return;
-      if (error instanceof EsitoRichiamoIncerto) { richiamoIncertoRef.current = true; setRichiamoIncerto(true); }
-      setStato('Richiamo: ' + erroreQuaderno(error as Error));
-      throw error;
+      richiamoIncertoRef.current = true; setRichiamoIncerto(true);
+      const pending = await trovaOperazione(supabase, target).catch(() => null);
+      setOperazioneDaRiprendere(pending?.id || null); setBozzaSeparata(pending?.locale?.bozza || structuredClone(preparaContenuto()));
+      setStato('Richiamo: ' + erroreQuaderno(error as Error)); throw error;
     } finally { richiamoBusyRef.current = false; setRichiamoInCorso(false); }
+  };
+  const riconciliaRichiamo = async (annulla: boolean) => {
+    if (richiamoBusyRef.current) return;
+    const target = documentoId;
+    richiamoBusyRef.current = true; setRichiamoInCorso(true);
+    try {
+      const pending = await trovaOperazione(supabase, target), journal = pending.locale;
+      if (journal) setBozzaSeparata(journal.bozza);
+      if (!journal && bozzaSeparata) {
+        const auth = await supabase.auth.getUser();
+        if (!auth.data.user) throw Error('Autenticazione richiesta');
+        await archivioOperazioni.scrivi({ chiave: chiaveOperazione(auth.data.user.id, target) + ':bozza', utente: auth.data.user.id, sopralluogo: target, bozza: bozzaSeparata });
+      }
+      if (pending.id) {
+        // Anche la preparazione con risposta persa riusa esattamente il payload originale.
+        if (!annulla && journal?.preparazione?.p_id === pending.id) await rpcQuaderno(supabase, 'prepara_richiamo_quaderno', journal.preparazione);
+        let result = annulla ? await pulisciAnnullato(supabase, pending.id, target) : await risolviOperazione(supabase, pending.id);
+        if (!annulla && result.richiamo.stato === 'preparazione') {
+          result = await rpcQuaderno<Esito>(supabase, 'completa_richiamo_quaderno', { p_richiamo: pending.id });
+          result = await risolviOperazione(supabase, pending.id);
+        }
+        if (result.richiamo.stato === 'completato') {
+          if (documentoAttivoRef.current === target) await applicaEsitoPersistito(result, journal?.bozza || structuredClone(preparaContenuto()));
+          return;
+        }
+        if (!annulla && result.richiamo.stato === 'annullato') throw Error('Operazione annullata: usa Annulla operazione e riprendi pulizia per risolvere i file previsti.');
+      }
+      const auth = await supabase.auth.getUser();
+      if (!auth.data.user) throw Error('Autenticazione richiesta');
+      if (journal) await archivioOperazioni.scrivi({ ...journal, chiave: journal.chiave + ':bozza', preparazione: undefined, conflitto: false });
+      await archivioOperazioni.elimina(chiaveOperazione(auth.data.user.id, target));
+      if (documentoAttivoRef.current === target) { setOperazioneDaRiprendere(null); setRicaricaNota(n => n + 1); }
+    } catch (error) { if (documentoAttivoRef.current === target) setStato('Riconciliazione: ' + erroreQuaderno(error as Error)); }
+    finally { richiamoBusyRef.current = false; setRichiamoInCorso(false); }
   };
 
   async function fileAzione(azione: () => Promise<void>) {
@@ -6324,8 +6399,8 @@ setWorkspaceCadEntities([])
     }
     const response = await fetch(uri); if (!response.ok) throw Error('Contenuto non recuperabile'); return response.blob();
   }
-  const salvaSuFile = () => fileAzione(async () => {
-    const documento = structuredClone(preparaContenuto());
+  const salvaSuFile = (bozza?: DocumentoFile) => fileAzione(async () => {
+    const documento = structuredClone(bozza || preparaContenuto());
     const files = allegati.map(a => ({ ...a, uri: a.storage_path.startsWith('file:') ? a.storage_path : a.storage_bucket === 'quaderno-sopralluoghi' ? riferimentoFileQuaderno(a.storage_path, a.storage_bucket) : progettoQuadernoId ? 'storage:' + a.storage_path : a.url }));
     const bytes = await esportaArteCna(documento, files, recuperaContenutoFile);
     scaricaFile(bytes, (titolo || 'Quaderno') + '.artecna', 'application/zip');
@@ -6856,10 +6931,14 @@ return (
               : "none",
           }}
         >
+{bozzaSeparata && !richiamoIncerto && <p>Bozza precedente conservata separatamente. <button type="button" onClick={() => void salvaSuFile(bozzaSeparata)}>Scarica bozza precedente</button></p>}
 {!progettoQuadernoId && <button type="button" disabled={!pronto || salvataggioInCorso || fileOccupato || richiamoInCorso || richiamoIncerto} onClick={() => setRichiamoAperto(true)}>Richiama dall’archivio</button>}
 {richiamoAperto && typeof document !== 'undefined' && createPortal(<div style={{ position: 'fixed', inset: '5vh 5vw', overflow: 'auto', zIndex: 12000, background: '#fff', padding: 16, boxShadow: '0 0 0 100vmax #0008' }}>
 <RichiamaQuadernoPanel supabase={supabase} busy={richiamoInCorso || richiamoIncerto} onConferma={aggiungiDallArchivio} onAnnulla={() => setRichiamoAperto(false)} />
-{richiamoIncerto && <p role="alert">Esito da verificare: salva una copia locale della bozza, poi riapri la nota dal server prima di continuare. <button type="button" onClick={() => void salvaSuFile()}>Salva bozza su file</button></p>}
+{richiamoIncerto && <div role="alert"><p>Operazione o conflitto da riconciliare. Nessun salvataggio automatico: la bozza resta separata dal risultato server.</p>
+<button type="button" disabled={richiamoInCorso} onClick={() => void riconciliaRichiamo(false)}>Rileggi e riconcilia dal server</button>
+{operazioneDaRiprendere && <button type="button" disabled={richiamoInCorso} onClick={() => void riconciliaRichiamo(true)}>Annulla operazione e riprendi pulizia</button>}
+<button type="button" onClick={() => void salvaSuFile(bozzaSeparata || undefined)}>Salva bozza separata su file</button></div>}
 </div>, document.body)}
 {Array.from(new Map(pagineQuaderno.filter(p => p.provenienzaQuaderno).map(p => [p.provenienzaQuaderno!.richiamoId, p.provenienzaQuaderno!])).values()).map(p => <p key={p.richiamoId}>Da archivio: {p.titolo} — stato salvato {new Date(p.salvatoIl).toLocaleString('it-IT')} — richiamato {new Date(p.richiamatoIl).toLocaleString('it-IT')} (progetto {p.progettoId})</p>)}
 <>
