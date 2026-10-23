@@ -37,7 +37,8 @@ export async function risolviSorgentiPrivate(value: unknown, supabase: SupabaseC
   const urls = new Map<string, string>()
   for (const ref of refs) {
     const file = leggiRiferimentoPrivato(ref)!
-    const uri = await leggiImmaginePrivata(supabase, file.path, file.bucket)
+    // Due copie possono avere byte identici ma autorizzazioni/path indipendenti.
+    const uri = await leggiImmaginePrivata(supabase, file.path, file.bucket) + '#quaderno-ref=' + encodeURIComponent(ref)
     urls.set(ref, uri)
     riferimenti.set(uri, ref)
   }

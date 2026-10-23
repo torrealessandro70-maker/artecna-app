@@ -118,3 +118,9 @@ test('ripresa completata rilegge la nota attuale, non il documento pianificato; 
  const row=(await h.db.query('select * from quaderno_richiami_sopralluogo where id=$1',[first.richiamo.id])).rows[0],assets=structuredClone(row.assets);assets[0].sha256='0'.repeat(64);
  await a.rejects(h.rpc('prepara_richiamo_quaderno',{p_id:row.id,p_sopralluogo:row.sopralluogo_id,p_sorgente:row.sorgente_id,p_sorgente_versione:row.sorgente_updated_at,p_versione:row.versione_base,p_documento:row.input_documento,p_assets:assets}),e=>e.code==='22023');
 });
+test('due immagini identiche riaperte mantengono distinti i riferimenti privati delle copie',async()=>{
+ const storage=require(p.join(root,'app/engines/quaderno/storagePrivato.ts')),refs=new Map();
+ const one=storage.riferimentoFileQuaderno('utenti/u/richiami/r1/x','quaderno-sopralluoghi'),two=storage.riferimentoFileQuaderno('utenti/u/richiami/r2/x','quaderno-sopralluoghi');
+ const resolved=await storage.risolviSorgentiPrivate([one,two],{storage:{from:()=>({download:async()=>({data:new Blob(['STESSI BYTE'],{type:'image/png'}),error:null})})}},refs);
+ a.notEqual(resolved[0],resolved[1]);a.deepEqual(storage.ripristinaSorgentiPrivate(resolved,refs),[one,two]);
+});
