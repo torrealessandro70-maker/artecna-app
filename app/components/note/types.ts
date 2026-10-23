@@ -86,6 +86,7 @@ export type OggettoGraficoQuaderno = {
   layerId?: QuadernoLayerId
 }
 export type PaginaQuadernoNota = {
+  provenienzaQuaderno?: import('../../engines/quaderno/richiamo').ProvenienzaQuaderno
   cadOrigin?: { x: number; y: number }
   id: string
   titolo: string
@@ -119,6 +120,7 @@ export type VoceChecklistNota = {
 }
 
 export type AllegatoNota = {
+  storage_bucket?: 'quaderno-privato' | 'quaderno-sopralluoghi'
   id: string
   nome_file: string
   tipo: 'foto' | 'allegato' | 'audio'

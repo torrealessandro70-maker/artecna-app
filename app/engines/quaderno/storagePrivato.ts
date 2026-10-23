@@ -2,10 +2,16 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const BUCKET_QUADERNO = 'quaderno-privato'
 const prefisso = 'quaderno-storage:'
-export const riferimentoFileQuaderno = (path: string) => prefisso + encodeURIComponent(path)
+const prefissoCopia = 'quaderno-sopralluogo:'
+export function leggiRiferimentoPrivato(uri: string) {
+  const prefix = uri.startsWith(prefisso) ? prefisso : uri.startsWith(prefissoCopia) ? prefissoCopia : null
+  return prefix ? { bucket: prefix === prefisso ? BUCKET_QUADERNO : 'quaderno-sopralluoghi', path: decodeURIComponent(uri.slice(prefix.length)) } : null
+}
+export const riferimentoFileQuaderno = (path: string, bucket = BUCKET_QUADERNO) =>
+  (bucket === 'quaderno-sopralluoghi' ? prefissoCopia : prefisso) + encodeURIComponent(path)
 
-export async function leggiImmaginePrivata(supabase: SupabaseClient, path: string) {
-  const { data, error } = await supabase.storage.from(BUCKET_QUADERNO).download(path)
+export async function leggiImmaginePrivata(supabase: SupabaseClient, path: string, bucket = BUCKET_QUADERNO) {
+  const { data, error } = await supabase.storage.from(bucket).download(path)
   if (error) throw error
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -25,12 +31,13 @@ export async function risolviSorgentiPrivate(value: unknown, supabase: SupabaseC
   const json = JSON.stringify(value)
   const refs = new Set<string>()
   JSON.parse(json, (_key, item: unknown) => {
-    if (typeof item === 'string' && item.startsWith(prefisso)) refs.add(item)
+    if (typeof item === 'string' && leggiRiferimentoPrivato(item)) refs.add(item)
     return item
   })
   const urls = new Map<string, string>()
   for (const ref of refs) {
-    const uri = await leggiImmaginePrivata(supabase, decodeURIComponent(ref.slice(prefisso.length)))
+    const file = leggiRiferimentoPrivato(ref)!
+    const uri = await leggiImmaginePrivata(supabase, file.path, file.bucket)
     urls.set(ref, uri)
     riferimenti.set(uri, ref)
   }
