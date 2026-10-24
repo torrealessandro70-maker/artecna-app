@@ -1,4 +1,4 @@
-import { validaPrestazioneBozza, prestazioniAttiveBozza, originalePrestazioneBozza, prestazioniUguali, type PrestazioneBozzaV1, type BozzaRapportinoV1 } from './bozzaRapportinoV1'
+import { chiaviPrestazioniSovrapposte, validaPrestazioneBozza, prestazioniAttiveBozza, originalePrestazioneBozza, prestazioniUguali, type PrestazioneBozzaV1, type BozzaRapportinoV1 } from './bozzaRapportinoV1'
 import type { StatoVariantiBozza } from './variantiBozzaV1'
 import type { RichiestaSalvataggioRapportino, EsitoSalvataggioRapportino } from './contrattoServizio'
 import { contestoLetturaPortaleValido, letturaPortaleValida } from './validaLetturaPortale'
@@ -21,6 +21,7 @@ export type TentativoSalvataggioV1 = Readonly<{
 const uuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
 
 export function bozzaV1Salvabile(bozza: BozzaRapportinoV1, varianti: StatoVariantiBozza): boolean {
+  if (chiaviPrestazioniSovrapposte(bozza).size) return false
   if (bozza.materialiStrutturati?.versione_materiali === 1) {
     try { deltaMaterialiBozza(bozza) } catch { return false }
   }

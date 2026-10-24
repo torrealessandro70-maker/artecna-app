@@ -114,3 +114,47 @@ export function oreAnteprimaPrestazione(p: PrestazioneBozzaV1): number {
   if (validaOrariOperaio(p).length) return 0
   return calcolaOreNetteTimbratura(p.ora_inizio, p.ora_fine, p.pausa_minuti)
 }
+
+/** Seconda fascia dello stesso operaio: identità nuova, nessuna pausa o modalità ereditata. */
+export function aggiungiPrestazioneOperaioBozza(bozza: BozzaRapportinoV1, operaio: string, chiave: string): BozzaRapportinoV1 {
+  if (!operaio) throw new Error('Seleziona un operaio')
+  const fine = prestazioniAttiveBozza(bozza).filter(p => p.operaio_id === operaio && !validaOrariOperaio(p).length)
+    .map(p => p.ora_fine).sort().at(-1) || ''
+  return modificaPrestazioneBozza(aggiungiPrestazioneBozza(bozza, chiave), chiave, { operaio_id: operaio, ora_inizio: fine })
+}
+
+export function gruppiPrestazioniBozza(bozza: BozzaRapportinoV1) {
+  const gruppi = new Map<string, { chiave: string; operaio_id: string; prestazioni: PrestazioneBozzaV1[] }>()
+  for (const p of prestazioniAttiveBozza(bozza)) {
+    const chiave = p.operaio_id || `nuova:${p.chiave_client}`
+    if (!gruppi.has(chiave)) gruppi.set(chiave, { chiave, operaio_id: p.operaio_id, prestazioni: [] })
+    gruppi.get(chiave)!.prestazioni.push(p)
+  }
+  return Array.from(gruppi.values())
+}
+
+/** La pausa è una durata senza collocazione: non rende lecita una sovrapposizione delle fasce. */
+export function chiaviPrestazioniSovrapposte(bozza: BozzaRapportinoV1): ReadonlySet<string> {
+  const chiavi = new Set<string>()
+  for (const gruppo of gruppiPrestazioniBozza(bozza)) {
+    if (!gruppo.operaio_id) continue
+    const righe = gruppo.prestazioni.filter(p => !validaOrariOperaio(p).length)
+    for (let i = 0; i < righe.length; i++) for (let j = i + 1; j < righe.length; j++) {
+      if (righe[i].ora_inizio < righe[j].ora_fine && righe[j].ora_inizio < righe[i].ora_fine) {
+        chiavi.add(righe[i].chiave_client); chiavi.add(righe[j].chiave_client)
+      }
+    }
+  }
+  return chiavi
+}
+
+export function riepilogoOreOperaio(prestazioni: readonly PrestazioneBozzaV1[]): string {
+  let ordinario = 0, economia = 0
+  for (const p of prestazioni) {
+    const minuti = Math.round(oreAnteprimaPrestazione(p) * 60)
+    if (p.lavoro_in_economia) economia += minuti
+    else ordinario += minuti
+  }
+  const ore = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} h`
+  return `Totale ${ore(ordinario + economia)} — Ordinario ${ore(ordinario)} — Economia ${ore(economia)}`
+}

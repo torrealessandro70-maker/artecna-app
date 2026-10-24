@@ -3,7 +3,7 @@ const load=name=>{const e={};new Function('exports','require',ts.transpileModule
 const model=load('salvataggioBozzaV1')
 const S='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',O='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',V='cccccccc-cccc-4ccc-8ccc-cccccccccccc',R='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const cache={cantiere_id:S,stato:'pronte',varianti:[{id:V,numero:1,etichetta:'Variante',selezionabile:true}]}
-const row=(key,economy=false)=>({prestazione_id:null,chiave_client:key,operaio_id:O,ora_inizio:'08:00',ora_fine:'12:00',pausa_minuti:30,lavoro_in_economia:economy,variante_id:economy?V:null})
+const row=(key,economy=false)=>({prestazione_id:null,chiave_client:key,operaio_id:O,ora_inizio:economy?'13:00':'08:00',ora_fine:economy?'17:00':'12:00',pausa_minuti:30,lavoro_in_economia:economy,variante_id:economy?V:null})
 const draft=()=>({versione_contratto:1,rapportino_id:null,revisione_attesa:null,cantiere_id:S,data:'2026-09-30',documento:{note:'Lavori',materiali:'Cemento',quantita_materiali:'5'},prestazioni:{nuove:[row('one'),row('two',true)],aggiornate:[],rimosse:[]}})
 test('builder creazione: contratto esatto, nessun campo autorevole, stesso operaio e modalità diverse',()=>{
   const b=draft();b.prestazioni.nuove[0].ore=100;b.prestazioni.nuove[0].foto=['non inviare'];b.documento.costo=99
@@ -30,7 +30,7 @@ test('risultato autorevole: validazione contesto/UUID/revisione e rifiuto costi 
 
 const bozzaModel=load('bozzaRapportinoV1')
 const P1='11111111-1111-4111-8111-111111111111',P2='22222222-2222-4222-8222-222222222222',P3='33333333-3333-4333-8333-333333333333',P4='44444444-4444-4444-8444-444444444444'
-const persisted=(key,id,economy=false,variante_id=economy?V:null,removed=null)=>({...row(key,economy),prestazione_id:id,variante_id,operaio_nome:'Mario',ore:3.5,revisione:2,rimossa_at:removed})
+const persisted=(key,id,economy=false,variante_id=economy?V:null,removed=null)=>({...row(key,economy),...(key==='three'?{ora_inizio:'06:00',ora_fine:'08:00'}:{}),prestazione_id:id,variante_id,operaio_nome:'Mario',ore:key==='three'?1.5:3.5,revisione:2,rimossa_at:removed})
 const baseline=()=>({versione_contratto:1,rapportino_id:R,revisione:7,cantiere_id:S,data:'2026-09-30',documento:draft().documento,prestazioni:[persisted('one',P1),persisted('two',P2,true),persisted('three',P3,true,null),persisted('removed',P4,false,null,'2026-09-29T08:00:00Z')]})
 const historicalCache={...cache,varianti:[{...cache.varianti[0],selezionabile:false}]}
 test('rilettura: documento, identità, revisioni e righe rimosse conservati; nessuna deduplicazione per operaio',()=>{
@@ -70,7 +70,7 @@ test('payload modifica esatto: UUID/revisione autorevoli, nuove/aggiornate/rimos
 })
 test('Variante storica: invariata e orari modificati preservano collegamento non selezionabile; nuovi collegamenti vietati',()=>{
   let b=bozzaModel.ricostruisciBozzaRapportinoV1(baseline())
-  assert(model.bozzaV1Salvabile(b,historicalCache));b=bozzaModel.modificaPrestazioneBozza(b,'two',{ora_fine:'13:00'})
+  assert(model.bozzaV1Salvabile(b,historicalCache));b=bozzaModel.modificaPrestazioneBozza(b,'two',{ora_fine:'18:00'})
   assert(model.bozzaV1Salvabile(b,{cantiere_id:S,stato:'errore',varianti:[]}));assert.equal(b.prestazioni.aggiornate[0].variante_id,V)
   const a=model.creaTentativoSalvataggioV1(b,historicalCache,()=>R);assert.equal(a.payload.prestazioni.aggiornate[0].variante_id,V)
   b=bozzaModel.aggiungiPrestazioneBozza(b,'new-economy');b=bozzaModel.modificaPrestazioneBozza(b,'new-economy',{operaio_id:O,ora_inizio:'13:00',ora_fine:'17:00',lavoro_in_economia:true});b=bozzaModel.modificaPrestazioneBozza(b,'new-economy',{variante_id:V})
@@ -79,7 +79,7 @@ test('Variante storica: invariata e orari modificati preservano collegamento non
 test('Economia storica NULL: invariata/documento preservati; modifica richiede Variante; nessuna conversione automatica',()=>{
   let b=bozzaModel.ricostruisciBozzaRapportinoV1(baseline());b={...b,documento:{...b.documento,note:'Solo documento'}}
   assert(model.bozzaV1Salvabile(b,historicalCache));assert.equal(model.creaTentativoSalvataggioV1(b,historicalCache,()=>R).payload.prestazioni.aggiornate.length,0)
-  b=bozzaModel.modificaPrestazioneBozza(b,'three',{ora_fine:'13:00'});assert.equal(model.bozzaV1Salvabile(b,cache),false);assert.equal(b.prestazioni.aggiornate[0].variante_id,null)
+  b=bozzaModel.modificaPrestazioneBozza(b,'three',{ora_fine:'07:00'});assert.equal(model.bozzaV1Salvabile(b,cache),false);assert.equal(b.prestazioni.aggiornate[0].variante_id,null)
   b=bozzaModel.modificaPrestazioneBozza(b,'three',{variante_id:V});assert(model.bozzaV1Salvabile(b,cache));assert.equal(b.baseline.prestazioni[2].variante_id,null)
 })
 test('aggiornate non possono alterare identità, risuscitare righe, duplicare UUID o sovrapporsi a rimosse',()=>{

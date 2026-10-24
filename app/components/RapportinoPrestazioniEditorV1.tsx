@@ -8,6 +8,7 @@ import {
   aggiungiPrestazioneBozza, modificaPrestazioneBozza, rimuoviPrestazioneBozza,
   oreAnteprimaPrestazione, validaPrestazioneBozza,
   prestazioniAttiveBozza, originalePrestazioneBozza,
+  aggiungiPrestazioneOperaioBozza, gruppiPrestazioniBozza, riepilogoOreOperaio, chiaviPrestazioniSovrapposte,
   type BozzaRapportinoV1,
 } from '../engines/rapportini/bozzaRapportinoV1'
 
@@ -32,6 +33,8 @@ type Props = {
   disabled?: boolean
 }
 export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange, onClose, varianti, onRiprovaVarianti, onRichiediVarianti, salvabile = false, salvataggioInCorso = false, retryDisponibile = false, onSalva, onRetry, disabled = false }: Props) {
+  const attive = prestazioniAttiveBozza(bozza)
+  const sovrapposte = chiaviPrestazioniSovrapposte(bozza)
   const modifica = (chiave: string, value: Parameters<typeof modificaPrestazioneBozza>[2]) => {
     if (!disabled) onChange(modificaPrestazioneBozza(bozza, chiave, value, () => crypto.randomUUID()))
   }
@@ -47,9 +50,16 @@ export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange,
     <RapportinoSquadraV1 key={`${bozza.cantiere_id}/${bozza.data}/${bozza.rapportino_id}/${bozza.revisione_attesa}`}
       bozza={bozza} operai={operai} varianti={varianti} disabled={disabled} onChange={onChange}
       onRichiediVarianti={onRichiediVarianti} onRiprovaVarianti={onRiprovaVarianti} />
-    {prestazioniAttiveBozza(bozza).map((p, index) => {
+    {gruppiPrestazioniBozza(bozza).map(gruppo => {
+      const nome = operai.find(o => o.id === gruppo.operaio_id)?.nome
+        || bozza.baseline?.prestazioni.find(p => p.operaio_id === gruppo.operaio_id)?.operaio_nome || 'Seleziona operaio'
+      return <section key={gruppo.chiave} aria-label={'Prestazioni di ' + nome} style={{ display: 'grid', gap: 12 }}>
+      <h3 style={{ margin: 0 }}>{nome}</h3>
+      {gruppo.prestazioni.map(p => {
+      const index = attive.findIndex(a => a.chiave_client === p.chiave_client)
       const originale = originalePrestazioneBozza(bozza, p)
-      const errori = validaPrestazioneBozza(p, varianti.stato === 'pronte' && varianti.cantiere_id === bozza.cantiere_id ? varianti.varianti : [], originale)
+      const errori = [...validaPrestazioneBozza(p, varianti.stato === 'pronte' && varianti.cantiere_id === bozza.cantiere_id ? varianti.varianti : [], originale),
+        ...(sovrapposte.has(p.chiave_client) ? ['Fascia sovrapposta a un’altra prestazione dello stesso operaio'] : [])]
       return <fieldset key={p.chiave_client} disabled={disabled} style={{ minWidth: 0, display: 'grid', gap: 12,
         padding: 12, border: '1px solid #e2e8f0', borderRadius: 10 }}>
         <legend>Prestazione {index + 1}</legend>
@@ -63,9 +73,9 @@ export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange,
         </select></label>
         {p.prestazione_id && <small>Cambiando operaio la prestazione sarà sostituita con una nuova riga.</small>}
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
-          <label>Da<input type="time" style={input} value={p.ora_inizio}
+          <label>Ora da<input type="time" style={input} value={p.ora_inizio}
             onChange={e => modifica(p.chiave_client, { ora_inizio: e.target.value })} /></label>
-          <label>A<input type="time" style={input} value={p.ora_fine}
+          <label>Ora a<input type="time" style={input} value={p.ora_fine}
             onChange={e => modifica(p.chiave_client, { ora_fine: e.target.value })} /></label>
         </div>
         <label>Pausa (minuti)<input type="number" min={0} step={1} style={input}
@@ -109,6 +119,16 @@ export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange,
           if (!disabled) onChange(rimuoviPrestazioneBozza(bozza, p.chiave_client))
         }}>Rimuovi</button>
       </fieldset>
+      })}
+      {gruppo.operaio_id && <>
+        <output aria-label={'Riepilogo ore di ' + nome} aria-live="polite">{riepilogoOreOperaio(gruppo.prestazioni)}</output>
+        <button type="button" style={button} aria-label={'Aggiungi prestazione per ' + nome}
+          disabled={disabled || !operai.some(o => o.id === gruppo.operaio_id)} onClick={() => {
+            if (!disabled && operai.some(o => o.id === gruppo.operaio_id))
+              onChange(aggiungiPrestazioneOperaioBozza(bozza, gruppo.operaio_id, crypto.randomUUID()))
+          }}>+ Aggiungi prestazione</button>
+      </>}
+      </section>
     })}
     {prestazioniAttiveBozza(bozza).length === 0 && <p>{bozza.rapportino_id ? 'Nessuna prestazione attiva.' : 'Aggiungi almeno una prestazione per compilare la bozza.'}</p>}
     <label>Lavori eseguiti / Note<textarea disabled={disabled} rows={4} style={input} value={bozza.documento.note}
@@ -127,8 +147,8 @@ export default function RapportinoPrestazioniEditorV1({ bozza, operai, onChange,
       <p>Il retry invia lo stesso contenuto. Modificando la bozza inizierai un nuovo intento di salvataggio.</p>
       <button type="button" style={button} disabled={disabled} onClick={() => { if (!disabled) onRetry?.() }}>Riprova stesso salvataggio</button>
     </div>}
-    <button type="button" disabled={disabled || !salvabile || retryDisponibile} style={button}
-      onClick={() => { if (!disabled && salvabile && !retryDisponibile) onSalva?.() }}>Salva rapportino</button>
+    <button type="button" disabled={disabled || !salvabile || retryDisponibile || sovrapposte.size > 0} style={button}
+      onClick={() => { if (!disabled && salvabile && !retryDisponibile && !sovrapposte.size) onSalva?.() }}>Salva rapportino</button>
     <button type="button" disabled={disabled} style={button} onClick={onClose}>Chiudi</button>
   </section>
 }
