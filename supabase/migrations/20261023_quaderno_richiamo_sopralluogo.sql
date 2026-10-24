@@ -128,9 +128,10 @@ begin
  select * into r from public.quaderno_richiami_sopralluogo where id=p_id and user_id=auth.uid() for update;
  if not found then
   if not public.quaderno_target_accessibile(p_sopralluogo) or exists(select 1 from public.quaderno_richiami_sopralluogo where id=p_id) then raise exception 'Richiamo non accessibile' using errcode='42501'; end if;
-  -- Tombstone: una preparazione con risposta persa non potra comparire dopo l'annullamento.
-  insert into public.quaderno_richiami_sopralluogo(id,user_id,sopralluogo_id,sorgente_id,sorgente_titolo,sorgente_updated_at,documento,input_documento,assets,stato)
-   values(p_id,auth.uid(),p_sopralluogo,'00000000-0000-0000-0000-000000000000','Annullato prima della preparazione',clock_timestamp(),'{}','{}','[]','annullato') returning * into r;
+  -- Tombstone senza asset: gia pulita e confermata, non occupa il posto di un altro richiamo aperto.
+  -- Il record e il lock per UUID continuano a impedire le richieste tardive.
+  insert into public.quaderno_richiami_sopralluogo(id,user_id,sopralluogo_id,sorgente_id,sorgente_titolo,sorgente_updated_at,documento,input_documento,assets,stato,confermato_at,pulito_at)
+   values(p_id,auth.uid(),p_sopralluogo,'00000000-0000-0000-0000-000000000000','Annullato prima della preparazione',clock_timestamp(),'{}','{}','[]','annullato',clock_timestamp(),clock_timestamp()) returning * into r;
  end if;
  if r.sopralluogo_id<>p_sopralluogo then raise exception 'Sopralluogo differente' using errcode='42501'; end if;
  if r.stato='preparazione' then update public.quaderno_richiami_sopralluogo set stato='annullato' where id=r.id; end if;

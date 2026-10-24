@@ -124,3 +124,19 @@ test('due immagini identiche riaperte mantengono distinti i riferimenti privati 
  const resolved=await storage.risolviSorgentiPrivate([one,two],{storage:{from:()=>({download:async()=>({data:new Blob(['STESSI BYTE'],{type:'image/png'}),error:null})})}},refs);
  a.notEqual(resolved[0],resolved[1]);a.deepEqual(storage.ripristinaSorgentiPrivate(resolved,refs),[one,two]);
 });
+
+test('annullamento UUID mai preparato con altro richiamo aperto: tombstone durevole senza liberare asset',async t=>{
+ const h=await banco();t.after(()=>h.db.close());h.flags.uploadLost=true;await a.rejects(h.start(s1));
+ const A=(await h.db.query('select * from quaderno_richiami_sopralluogo')).rows[0],B=crypto.randomUUID();a.equal(A.confermato_at,null);a(A.assets.length);
+ const cancel=()=>h.rpc('annulla_richiamo_quaderno',{p_id:B,p_sopralluogo:s1});
+ const b=(await cancel()).richiamo;a.equal(b.stato,'annullato');a.deepEqual(b.assets,[]);a(b.confermato_at);a(b.pulito_at);
+ a.deepEqual((await h.db.query('select * from quaderno_richiami_sopralluogo where id=$1',[A.id])).rows[0],A);
+ a.deepEqual((await cancel()).richiamo,b);
+ const late=async()=>{await a.rejects(h.rpc('prepara_richiamo_quaderno',{p_id:B,p_sopralluogo:s1,p_sorgente:A.sorgente_id,p_sorgente_versione:A.sorgente_updated_at,p_documento:A.input_documento,p_assets:[],p_versione:A.versione_base}),e=>e.code==='22023');await a.rejects(h.rpc('completa_richiamo_quaderno',{p_richiamo:B}),e=>e.code==='55000')};
+ await late();await h.rpc('annulla_richiamo_quaderno',{p_id:A.id,p_sopralluogo:s1});
+ const dirty=(await h.db.query('select * from quaderno_richiami_sopralluogo where id=$1',[A.id])).rows[0];a.equal(dirty.confermato_at,null);a.equal(dirty.pulito_at,null);
+ await a.rejects(h.rpc('conferma_richiamo_quaderno',{p_id:A.id,p_pulizia:true}),e=>e.code==='55000');
+ await ops.pulisciAnnullato(h.client,A.id,s1);await late();a.deepEqual((await cancel()).richiamo,b);
+ const C=crypto.randomUUID();const c=(await h.rpc('annulla_richiamo_quaderno',{p_id:C,p_sopralluogo:s2})).richiamo;a.equal(c.stato,'annullato');a(c.confermato_at);a(c.pulito_at);a.deepEqual((await h.rpc('annulla_richiamo_quaderno',{p_id:C,p_sopralluogo:s2})).richiamo,c);
+ a.equal((await h.db.query('select stato from quaderno_richiami_sopralluogo where id=$1',[B])).rows[0].stato,'annullato');
+});
