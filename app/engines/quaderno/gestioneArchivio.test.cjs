@@ -129,6 +129,7 @@ test('snapshot legacy: workspace importato rimosso, nuovo workspace manuale sull
  const saved=await h.rpc('salva_nota_quaderno',{p_sopralluogo:s1,p_documento:current,p_versione:first.nota.updated_at});
  await gestione.rimuoviRichiamo(h.client,{id:rid,titolo:'Legacy',sopralluogo:s1,versione:saved.updated_at},h.diario);
  const after=(await h.db.query('select * from note_sopralluogo')).rows[0];a(!after.disegni[0].workspaceCadEntities.some(e=>e.id===importedWorkspace.id));a.deepEqual(after.disegni[0].workspaceCadEntities.find(e=>e.id===manualWorkspace.id),manualWorkspace);
+ const host=after.disegni.find(p=>p.id===imported.id);a(host);a.equal(host.provenienzaQuaderno,undefined);a.equal(host.sfondoDisegno,null);a.deepEqual(host.oggettiGrafici,[]);
 });
 test('file del richiamo riutilizzato da un contenuto manuale: nessuna pulizia distruttiva e nessun falso successo',async t=>{
  const h=await setup(t),first=await h.confirm(await h.start()),current=structuredClone(first.nota),image=current.disegni.find(p=>p.provenienzaQuaderno)?.oggettiGrafici[0];

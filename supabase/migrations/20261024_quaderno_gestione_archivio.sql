@@ -199,7 +199,7 @@ end; $$;
 
 create function public.quaderno_prepara_rimozione(p_id uuid,p_richiamo uuid,p_versione timestamptz) returns jsonb
 language plpgsql security definer set search_path=pg_catalog,pg_temp as $$
-declare r public.quaderno_richiami_sopralluogo; n public.note_sopralluogo; g public.quaderno_gestioni; pages jsonb; pageids text[]; ids text[]; doc jsonb; files jsonb; prefix text;
+declare r public.quaderno_richiami_sopralluogo; n public.note_sopralluogo; g public.quaderno_gestioni; pages jsonb; pageids text[]; ids text[]; doc jsonb; files jsonb; prefix text; anchor jsonb;
 begin
  perform pg_advisory_xact_lock(hashtextextended('gestione:'||p_id::text,0));
  select * into g from public.quaderno_gestioni where id=p_id;
@@ -225,6 +225,15 @@ begin
  where item->'metadata'->>'workspacePageId'=any(pageids) or item->>'workspacePageId'=any(pageids);
  doc:=jsonb_build_object('titolo',n.titolo,'testo',n.testo,'checklist',n.checklist,'disegni',n.disegni,'analisi_ai',n.analisi_ai);
  doc:=public.quaderno_filtra_richiamo(doc,r.id::text,ids,pageids,pages);
+ -- Una geometria manuale successiva puo ancorarsi a una pagina importata.
+ -- Mantieni la pagina vuota (stesso ID/geometria), senza provenienza o file,
+ -- se quel riferimento sopravvive alla rimozione dei contenuti importati.
+ for anchor in select value from jsonb_array_elements(n.disegni) where value->>'id'=any(pageids) loop
+  if not exists(select 1 from jsonb_array_elements(doc->'disegni') p where p->>'id'=anchor->>'id') and position(anchor->>'id' in doc::text)>0 then
+   anchor:=jsonb_set(public.quaderno_filtra_richiamo(anchor,r.id::text,ids,pageids,pages)-'provenienzaQuaderno','{sfondoDisegno}','null');
+   doc:=jsonb_set(doc,'{disegni}',(doc->'disegni')||jsonb_build_array(anchor));
+  end if;
+ end loop;
  -- Conserva almeno una pagina vuota, senza riusare la provenienza eliminata.
  if jsonb_array_length(doc->'disegni')=0 then doc:=jsonb_set(doc,'{disegni}',jsonb_build_array(jsonb_build_object('id',gen_random_uuid(),'titolo','Pagina','disegni','[]'::jsonb,'sfondoDisegno',null))); end if;
  prefix:='utenti/'||r.user_id::text||'/richiami/'||r.id::text||'/';
