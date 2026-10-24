@@ -18,6 +18,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { apriArteCna, esportaArteCna, scaricaFile, uriBinaria, type QuadernoFile } from '../engines/quaderno/fileNativo';
 import { esportaDxf, importaDxf, type UnitaDxf } from '../engines/quaderno/dxf';
 import AllegatoQuadernoPrivato from './AllegatoQuadernoPrivato';
+import RimozioneRichiamoPanel from './RimozioneRichiamoPanel';
+import { idsRichiamiPresenti } from '../engines/quaderno/gestione';
 import RichiamaQuadernoPanel from './RichiamaQuadernoPanel';
 import { richiamaProgetto, EsitoRichiamoIncerto } from '../engines/quaderno/richiamo';
 import { archivioOperazioni, chiaveOperazione, trovaOperazione, rpcQuaderno, risolviOperazione, pulisciAnnullato, type Esito } from '../engines/quaderno/operazioni';
@@ -6941,6 +6943,11 @@ return (
 <button type="button" onClick={() => void salvaSuFile(bozzaSeparata || undefined)}>Salva bozza separata su file</button></div>}
 </div>, document.body)}
 {Array.from(new Map(pagineQuaderno.filter(p => p.provenienzaQuaderno).map(p => [p.provenienzaQuaderno!.richiamoId, p.provenienzaQuaderno!])).values()).map(p => <p key={p.richiamoId}>Da archivio: {p.titolo} — stato salvato {new Date(p.salvatoIl).toLocaleString('it-IT')} — richiamato {new Date(p.richiamatoIl).toLocaleString('it-IT')} (progetto {p.progettoId})</p>)}
+{!progettoQuadernoId && pronto && <RimozioneRichiamoPanel supabase={supabase} sopralluogo={documentoId} versione={versioneNotaRef.current}
+  ids={idsRichiamiPresenti(pagineQuaderno, allegati)} disabled={quadernoDirty || salvataggioInCorso || richiamoInCorso || richiamoIncerto || fileOccupato}
+  onBusy={value => { richiamoBusyRef.current = value; setRichiamoInCorso(value); }}
+  onConclusa={() => setRicaricaNota(n => n + 1)} />}
+
 <>
 
 

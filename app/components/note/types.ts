@@ -114,12 +114,14 @@ scaleCalibration?: CadScaleCalibration | null
 }
 
 export type VoceChecklistNota = {
+  provenienzaQuaderno?: import('../../engines/quaderno/richiamo').ProvenienzaQuaderno
   id: string
   testo: string
   completata: boolean
 }
 
 export type AllegatoNota = {
+  richiamo_id?: string
   storage_bucket?: 'quaderno-privato' | 'quaderno-sopralluoghi'
   id: string
   nome_file: string

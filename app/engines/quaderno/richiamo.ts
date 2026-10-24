@@ -10,7 +10,7 @@ export class EsitoRichiamoIncerto extends Error {}
 
 // Gli ID dei livelli restano locali alla pagina. Gli ID di pagine/oggetti e i
 // relativi riferimenti (anche metadata/workspace) cambiano insieme.
-export function clonaDocumento(documento: DocumentoFile, provenienza: ProvenienzaQuaderno): DocumentoFile {
+export function clonaDocumento(documento: DocumentoFile, provenienza?: ProvenienzaQuaderno): DocumentoFile {
   const ids = new Map<string, string>()
   function raccogli(v: unknown, key = '') {
     if (!v || typeof v !== 'object' || key === 'layers') return
@@ -22,7 +22,15 @@ export function clonaDocumento(documento: DocumentoFile, provenienza: Provenienz
   raccogli(documento)
   const nuovo: DocumentoFile = JSON.parse(JSON.stringify(documento, (key, value: unknown) =>
     typeof value === 'string' && (key === 'id' || /Ids?$/.test(key) || /^\d+$/.test(key)) ? ids.get(value) || value : value))
-  nuovo.disegni.forEach(page => { page.provenienzaQuaderno = provenienza })
+  function marca(v: unknown, key = '') {
+    if (!v || typeof v !== 'object' || key === 'layers') return
+    if (Array.isArray(v)) { v.forEach(x => marca(x)); return }
+    const rec = v as Record<string, unknown>
+    delete rec.provenienzaQuaderno
+    for (const [k, x] of Object.entries(rec)) marca(x, k)
+    if (provenienza && typeof rec.id === 'string') rec.provenienzaQuaderno = provenienza
+  }
+  marca(nuovo)
   return nuovo
 }
 
