@@ -176,8 +176,10 @@ language plpgsql security definer set search_path=pg_catalog,pg_temp as $$
 declare r public.quaderno_richiami_sopralluogo;
 begin
  if new.bucket_id <> 'quaderno-sopralluoghi' then return new; end if;
- select * into r from public.quaderno_richiami_sopralluogo where id::text=(storage.foldername(new.name))[4] and user_id=auth.uid() for update;
- if not found or r.user_id is distinct from auth.uid() or r.stato<>'preparazione' or not exists(select 1 from jsonb_array_elements(r.assets) a where a->>'storage_path'=new.name) then raise exception 'Upload non piu autorizzato' using errcode='42501'; end if;
+ -- Storage finalizza i metadati con un ruolo interno: owner_id conserva il proprietario della richiesta.
+ -- Le policy RLS restano legate ad auth.uid(); il trigger serializza proprietario, stato e manifesto.
+ select * into r from public.quaderno_richiami_sopralluogo where id::text=(storage.foldername(new.name))[4] and user_id::text=new.owner_id for update;
+ if not found or r.user_id::text is distinct from new.owner_id or r.stato<>'preparazione' or not exists(select 1 from jsonb_array_elements(r.assets) a where a->>'storage_path'=new.name) then raise exception 'Upload non piu autorizzato' using errcode='42501'; end if;
  return new;
 end;
 $$;

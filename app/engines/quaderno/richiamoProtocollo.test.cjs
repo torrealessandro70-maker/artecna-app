@@ -8,7 +8,7 @@ global.FileReader=class{readAsDataURL(b){b.arrayBuffer().then(v=>{this.result='d
 const {richiamaProgetto}=require(p.join(root,'app/engines/quaderno/richiamo.ts')),ops=require(p.join(root,'app/engines/quaderno/operazioni.ts'));
 const doc={titolo:'Nota esistente',testo:'BOZZA',checklist:[],disegni:[{id:'pagina-esistente',titolo:'Pagina',disegni:[],sfondoDisegno:null,oggettiGrafici:[],workspaceY:0}],analisi_ai:null};
 async function banco(){
- const db=new PGlite();await db.exec(`create schema auth;create schema storage;create role authenticated;create role anon;create table auth.users(id uuid primary key);insert into auth.users values('${u}'),('${other}');create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;create function storage.foldername(text) returns text[] language sql immutable as $$select (string_to_array($1,'/'))[1:array_length(string_to_array($1,'/'),1)-1]$$;create table storage.buckets(id text primary key,name text,public boolean);create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);alter table storage.objects enable row level security;grant usage on schema auth,storage,public to authenticated,anon;grant select,insert,update,delete on storage.objects to authenticated,anon;create policy generale on storage.objects for all to public using(true) with check(true);create table public.sopralluoghi(id uuid primary key);insert into sopralluoghi values('${s1}'),('${s2}');grant select on sopralluoghi to authenticated;`);
+ const db=new PGlite();await db.exec(`create schema auth;create schema storage;create role authenticated;create role anon;create table auth.users(id uuid primary key);insert into auth.users values('${u}'),('${other}');create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;create function storage.foldername(text) returns text[] language sql immutable as $$select (string_to_array($1,'/'))[1:array_length(string_to_array($1,'/'),1)-1]$$;create table storage.buckets(id text primary key,name text,public boolean);create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text,owner_id text);create role storage_admin nologin bypassrls;grant usage on schema auth,storage to storage_admin;grant select,insert,update,delete on storage.objects to storage_admin;alter table storage.objects enable row level security;grant usage on schema auth,storage,public to authenticated,anon;grant select,insert,update,delete on storage.objects to authenticated,anon;create policy generale on storage.objects for all to public using(true) with check(true);create table public.sopralluoghi(id uuid primary key);insert into sopralluoghi values('${s1}'),('${s2}');grant select on sopralluoghi to authenticated;`);
  for(const file of ['20260618_note_sopralluogo.sql','20261022_quaderno_progetti.sql','20261023_quaderno_richiamo_sopralluogo.sql'])await db.exec(fs.readFileSync(p.join(root,'supabase/migrations',file),'utf8').replace('create extension if not exists pgcrypto;',''));
  await db.exec('grant select,insert,update,delete on note_sopralluogo,note_allegati to authenticated,anon');
  const user=(fn,uid=u,role='authenticated')=>db.transaction(async tx=>{await tx.exec('set local role '+role);await tx.query("select set_config('request.jwt.claim.sub',$1,true)",[uid]);return fn(tx)});
@@ -20,7 +20,7 @@ async function banco(){
  const flags={},calls=[],removed=[];
  const functions={prepara_richiamo_quaderno:['p_id','p_sopralluogo','p_sorgente','p_sorgente_versione','p_documento','p_assets','p_versione'],completa_richiamo_quaderno:['p_richiamo'],esito_richiamo_quaderno:['p_id'],annulla_richiamo_quaderno:['p_id','p_sopralluogo'],conferma_richiamo_quaderno:['p_id','p_pulizia'],salva_nota_quaderno:['p_sopralluogo','p_documento','p_versione']};
  const rpc=async(name,args,uid=u)=>user(tx=>tx.query('select public.'+name+'('+functions[name].map((_,i)=>'$'+(i+1)).join(',')+') r',functions[name].map(k=>typeof args[k]==='object'&&args[k]!==null?JSON.stringify(args[k]):args[k]??null)),uid).then(r=>r.rows[0].r);
- const client={auth:{getUser:async()=>({data:{user:{id:u}},error:null})},from(table){const filters=[];const b={select(){return b},eq(k,v){filters.push([k,v]);return b},is(k,v){filters.push([k,v]);return b},single:()=>run(true),maybeSingle:()=>run(true),then:(yes,no)=>run(false).then(yes,no)};async function run(single){try{const rows=(await user(tx=>tx.query('select * from '+table))).rows.filter(r=>filters.every(([k,v])=>r[k]===v));return{data:single?rows[0]||null:rows,error:null}}catch(error){return{error,data:null}}}return b},rpc:async(name,args)=>{calls.push(name);try{const data=await rpc(name,args);if(flags.commitLost&&name==='completa_richiamo_quaderno')throw Error('risposta commit persa');return{data,error:null}}catch(error){return{error,data:null}}},storage:{from(bucket){return{download:async path=>({data:bytes.get(bucket+':'+path),error:bytes.has(bucket+':'+path)?null:Error('File assente')}),upload:async(path,blob)=>{try{await user(tx=>tx.query('insert into storage.objects(bucket_id,name) values($1,$2)',[bucket,path]));bytes.set(bucket+':'+path,blob);if(flags.uploadLost)throw Error('risposta upload persa');return{data:{path},error:null}}catch(error){return{error,data:null}}},remove:async paths=>{removed.push(...paths);await user(tx=>tx.query('delete from storage.objects where bucket_id=$1 and name=any($2::text[])',[bucket,paths]));paths.forEach(path=>bytes.delete(bucket+':'+path));return{error:null}}}}}};
+ const client={auth:{getUser:async()=>({data:{user:{id:u}},error:null})},from(table){const filters=[];const b={select(){return b},eq(k,v){filters.push([k,v]);return b},is(k,v){filters.push([k,v]);return b},single:()=>run(true),maybeSingle:()=>run(true),then:(yes,no)=>run(false).then(yes,no)};async function run(single){try{const rows=(await user(tx=>tx.query('select * from '+table))).rows.filter(r=>filters.every(([k,v])=>r[k]===v));return{data:single?rows[0]||null:rows,error:null}}catch(error){return{error,data:null}}}return b},rpc:async(name,args)=>{calls.push(name);try{const data=await rpc(name,args);if(flags.commitLost&&name==='completa_richiamo_quaderno')throw Error('risposta commit persa');return{data,error:null}}catch(error){return{error,data:null}}},storage:{from(bucket){return{download:async path=>({data:bytes.get(bucket+':'+path),error:bytes.has(bucket+':'+path)?null:Error('File assente')}),upload:async(path,blob)=>{try{await user(tx=>tx.query('insert into storage.objects(bucket_id,name,owner_id) values($1,$2,$3)',[bucket,path,u]));bytes.set(bucket+':'+path,blob);if(flags.uploadLost)throw Error('risposta upload persa');return{data:{path},error:null}}catch(error){return{error,data:null}}},remove:async paths=>{removed.push(...paths);await user(tx=>tx.query('delete from storage.objects where bucket_id=$1 and name=any($2::text[])',[bucket,paths]));paths.forEach(path=>bytes.delete(bucket+':'+path));return{error:null}}}}}};
  const start=(sop=s1,current=doc,version=null)=>richiamaProgetto({supabase:client,progettoId:source,sopralluogoId:sop,attuale:current,versioneNota:version,ancoraAttivo:()=>true,archivio});
  return{db,user,client,rpc,flags,calls,removed,bytes,journal,archivio,start};
 }
@@ -68,7 +68,7 @@ test('protocollo recuperabile con runtime reale e SQL PGlite; SDK/Auth/Storage a
  await t.test('tombstone prima della preparazione e upload dopo annullamento rifiutati',async()=>{
   const id=crypto.randomUUID();const r=await h.rpc('annulla_richiamo_quaderno',{p_id:id,p_sopralluogo:s2});a.equal(r.richiamo.stato,'annullato');
   await a.rejects(h.rpc('completa_richiamo_quaderno',{p_richiamo:id}),e=>e.code==='55000');
-  await a.rejects(h.user(tx=>tx.query("insert into storage.objects(bucket_id,name) values('quaderno-sopralluoghi',$1)",['utenti/'+u+'/richiami/'+id+'/'+crypto.randomUUID()])));
+  await a.rejects(h.user(tx=>tx.query("insert into storage.objects(bucket_id,name,owner_id) values('quaderno-sopralluoghi',$1,$2)",['utenti/'+u+'/richiami/'+id+'/'+crypto.randomUUID(),u])));
   await h.rpc('conferma_richiamo_quaderno',{p_id:id,p_pulizia:true});
  });
 });
@@ -139,4 +139,39 @@ test('annullamento UUID mai preparato con altro richiamo aperto: tombstone durev
  await ops.pulisciAnnullato(h.client,A.id,s1);await late();a.deepEqual((await cancel()).richiamo,b);
  const C=crypto.randomUUID();const c=(await h.rpc('annulla_richiamo_quaderno',{p_id:C,p_sopralluogo:s2})).richiamo;a.equal(c.stato,'annullato');a(c.confermato_at);a(c.pulito_at);a.deepEqual((await h.rpc('annulla_richiamo_quaderno',{p_id:C,p_sopralluogo:s2})).richiamo,c);
  a.equal((await h.db.query('select stato from quaderno_richiami_sopralluogo where id=$1',[B])).rows[0].stato,'annullato');
+});
+
+test('Storage interno UID nullo: owner esplicito, stato e manifesto; RLS autenticata separata',async t=>{
+ for(const stato of ['annullato','completato']){
+  const h=await banco();t.after(()=>h.db.close());h.flags.uploadLost=true;await a.rejects(h.start(s1));
+  const r=(await h.db.query('select * from quaderno_richiami_sopralluogo')).rows[0],path=r.assets[0].storage_path;
+  const internal=fn=>h.user(fn,'','storage_admin');
+  a.equal((await internal(tx=>tx.query('select auth.uid() uid'))).rows[0].uid,null);
+  await internal(tx=>tx.query('delete from storage.objects'));
+  const insert=(owner,name=path,run=internal)=>run(tx=>tx.query("insert into storage.objects(bucket_id,name,owner_id) values('quaderno-sopralluoghi',$1,$2)",[name,owner]));
+  for(const owner of [null,other])await a.rejects(insert(owner),e=>e.code==='42501');
+  await a.rejects(insert(u,path+'-estraneo'),e=>e.code==='42501');
+  a.equal((await h.db.query('select * from storage.objects')).rows.length,0);
+  // RLS client: UID B non puo usare il manifesto A neppure falsificando owner_id A.
+  await a.rejects(insert(u,path,fn=>h.user(fn,other)),e=>e.code==='42501');
+  // UID A non puo dichiarare owner B: controllo distinto del trigger.
+  await a.rejects(insert(other,path,fn=>h.user(fn,u)),e=>e.code==='42501');
+  await insert(u);const before=(await h.db.query('select * from storage.objects')).rows;
+  a.equal(before[0].owner_id,u);
+  await a.rejects(internal(tx=>tx.query('update storage.objects set owner_id=$1',[other])),e=>e.code==='42501');
+  a.deepEqual((await h.db.query('select * from storage.objects')).rows,before);
+  if(stato==='completato'){
+   for(const asset of r.assets.slice(1))await insert(u,asset.storage_path);
+   await h.rpc('completa_richiamo_quaderno',{p_richiamo:r.id});
+  }else await h.rpc('annulla_richiamo_quaderno',{p_id:r.id,p_sopralluogo:s1});
+  const stable=(await h.db.query('select * from storage.objects order by name')).rows;
+  await a.rejects(insert(u),e=>e.code==='42501');
+  await a.rejects(internal(tx=>tx.query('update storage.objects set owner_id=$1',[u])),e=>e.code==='42501');
+  a.deepEqual((await h.db.query('select * from storage.objects order by name')).rows,stable);
+  if(stato==='annullato'){
+   await internal(tx=>tx.query('delete from storage.objects'));
+   await h.rpc('conferma_richiamo_quaderno',{p_id:r.id,p_pulizia:true});
+   await a.rejects(insert(u),e=>e.code==='42501');
+  }
+ }
 });
