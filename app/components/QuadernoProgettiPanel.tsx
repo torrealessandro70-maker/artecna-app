@@ -10,12 +10,12 @@ import SopralluogoAppunti from './SopralluogoAppunti'
 import { erroreQuaderno } from '../engines/quaderno/persistenza'
 
 type Progetto = { id: string; titolo: string; updated_at: string; gestione_id?: string | null }
-type Props = { supabase: SupabaseClient; attivo: boolean; buttonPrimary: CSSProperties; buttonSecondary: CSSProperties }
+type Props = { onChiudi?: () => void; progettoInizialeId?: string; selezione?: { collegati: readonly string[]; disabled: boolean; onSeleziona: (progetto: Progetto) => void }; supabase: SupabaseClient; attivo: boolean; buttonPrimary: CSSProperties; buttonSecondary: CSSProperties }
 
-export default function QuadernoProgettiPanel({ supabase, attivo, buttonPrimary, buttonSecondary }: Props) {
+export default function QuadernoProgettiPanel({ supabase, attivo, buttonPrimary, buttonSecondary, selezione, progettoInizialeId, onChiudi }: Props) {
   const [importato, setImportato] = useState<QuadernoFile | undefined>()
   const [progetti, setProgetti] = useState<Progetto[]>([])
-  const [aperto, setAperto] = useState<string | null>(null)
+  const [aperto, setAperto] = useState<string | null>(progettoInizialeId ?? null)
   const [titolo, setTitolo] = useState('')
   const [errore, setErrore] = useState('')
   const [caricamento, setCaricamento] = useState(false)
@@ -57,6 +57,7 @@ export default function QuadernoProgettiPanel({ supabase, attivo, buttonPrimary,
   }
 
   useEffect(() => {
+    if (selezione) return
     const apri = (event: Event) => {
       const contenuto = (event as CustomEvent<QuadernoFile>).detail
       if (!puoCambiare(true)) { event.preventDefault(); return }
@@ -64,7 +65,7 @@ export default function QuadernoProgettiPanel({ supabase, attivo, buttonPrimary,
     }
     window.addEventListener('artecna-quaderno-file', apri)
     return () => window.removeEventListener('artecna-quaderno-file', apri)
-  }, [])
+  }, [selezione])
   async function apriFile(file?: File) {
     if (!file || caricamento) return
     setCaricamento(true)
@@ -114,8 +115,22 @@ export default function QuadernoProgettiPanel({ supabase, attivo, buttonPrimary,
     finally { gestioneBusyRef.current = false; setGestioneBusy(false); setRevisioneGestione(n => n + 1); await carica(); if (erroreOperazione) setErrore(erroreOperazione) }
   }
 
+  if (selezione) return <section aria-label="Archivio Quaderno">
+    <h4>Archivio Quaderno</h4>
+    <button type="button" disabled={caricamento || selezione.disabled} onClick={() => void carica()}>Aggiorna archivio</button>
+    {errore && <p role="alert">{errore}</p>}
+    {caricamento && <p role="status">Caricamento archivio…</p>}
+    {!caricamento && !errore && progetti.length === 0 && <p>Nessun progetto salvato.</p>}
+    <ul>{progetti.map(p => <li key={p.id}>
+      {p.titolo || 'Senza titolo'} — {p.updated_at}{' '}
+      <button type="button" disabled={caricamento || selezione.disabled || !!p.gestione_id || selezione.collegati.includes(p.id)}
+        onClick={() => selezione.onSeleziona(p)}>{selezione.collegati.includes(p.id) ? 'Collegato' : 'Collega'}</button>
+    </li>)}</ul>
+  </section>
+
   return <section aria-label="Quaderno autonomo" style={{ padding: 16 }}>
     <h2>Strumenti · Quaderno</h2>
+    {onChiudi && <button type="button" onClick={() => { if (puoCambiare()) onChiudi() }}>Chiudi Quaderno e rileggi fonti</button>}
     <p>Progetti indipendenti dai sopralluoghi. Salva le modifiche con il pulsante Salva dell’editor.</p>
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
       <input aria-label="Titolo nuovo progetto" placeholder="Titolo nuovo progetto" value={titolo}

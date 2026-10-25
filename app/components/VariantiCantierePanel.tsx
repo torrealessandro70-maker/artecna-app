@@ -17,6 +17,7 @@ import PrezziRapportiniEconomia from './PrezziRapportiniEconomia'
 import { documentoVariantiCliente, vociCliente, type ContestoStampaVarianti, type VarianteCliente } from '../engines/economia/stampaVariantiCliente'
 import { operativoPrestazioneAcquisita } from '../engines/economia/prestazioniRapportiniDesktop'
 import RaccoltaSorgenteVariante from './RaccoltaSorgenteVariante'
+import VarianteFontiMemoryPanel from './VarianteFontiMemoryPanel'
 
 const etichetteAnomalieFile: Record<AnomaliaPropostaVarianteDaFile['codice'], string> = {
   cantiere_id_non_valido: 'Cantiere non valido',
@@ -2374,6 +2375,9 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
                 <summary>Preventivo contrattuale collegato</summary>
                 <p style={{ overflowWrap: 'anywhere' }}>{variante.preventivo_contrattuale_id || 'Non disponibile'}</p>
               </details>}
+              {!economiaRapportini && variante.stato === 'bozza' && cantiereId && <VarianteFontiMemoryPanel
+                key={'fonti:' + cantiereId + ':' + variante.id} supabase={supabase} cantiereId={cantiereId}
+                variante={{ ...variante, stato: 'bozza' }} />}
               <LavorazioniVariantePanel key={`${cantiereId}:${variante.id}`} varianteId={variante.id}
                 cantiereId={cantiereId} statoVariante={variante.stato}
                 sintetico={economiaRapportini}
