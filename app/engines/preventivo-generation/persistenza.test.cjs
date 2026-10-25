@@ -2,6 +2,7 @@ const {test}=require('node:test'),a=require('node:assert/strict'),fs=require('fs
 const {id,packet}=require('../variante-fonti/fixture.cjs'),root=path.resolve(__dirname,'../../..'),sql=fs.readFileSync(path.join(root,'supabase/migrations/20261025_variante_preventivo_integrativo.sql'),'utf8')
 function installed(file,name){const s=fs.readFileSync(path.join(root,'supabase/migrations',file),'utf8'),start=s.toLowerCase().indexOf('create function '+name.toLowerCase()+'('),body=s.indexOf('as $function$',start),end=s.indexOf('$function$;',body+14);a(start>=0&&body>=0&&end>=0);return s.slice(start,end+11)}
 test('SQL effettivo embedded: documento/genealogia/lavorazioni atomici, correzioni canoniche e retry',async t=>{
+ const cleanup=await import('./cleanup.fixture.mjs');
  const db=new PGlite();t.after(()=>db.close());const u=id(1),c=id(3),p=id(14),rid=id(40);let v=id(5)
  await db.exec(`CREATE ROLE authenticated;CREATE ROLE anon;CREATE ROLE service_role;CREATE ROLE artecna_varianti_rpc NOLOGIN NOINHERIT BYPASSRLS;CREATE ROLE artecna_sal_rpc NOLOGIN NOINHERIT BYPASSRLS;
  CREATE SCHEMA artecna_guardie;GRANT USAGE ON SCHEMA artecna_guardie TO artecna_varianti_rpc,artecna_sal_rpc;
@@ -29,12 +30,19 @@ test('SQL effettivo embedded: documento/genealogia/lavorazioni atomici, correzio
  await db.exec('ALTER FUNCTION artecna_guardie.calcola_residuo_componente(text,bigint,uuid,uuid) OWNER TO artecna_sal_rpc;')
  await db.exec(installed('20261001_aggiungi_correzione_variante.sql','public.aggiungi_correzione_variante'))
  await db.exec('ALTER FUNCTION public.aggiungi_correzione_variante(uuid,text,bigint,text,numeric,text) OWNER TO artecna_varianti_rpc;')
+ // Actual legacy body was recovered from the versioned Production schema fixture.
+ await db.exec('DROP FUNCTION public.aggiungi_lavorazione_variante(uuid,text,text,numeric,numeric)')
+ await db.exec(cleanup.legacyWriterDDL())
+ await db.exec('ALTER FUNCTION public.aggiungi_lavorazione_variante(uuid,text,text,numeric,numeric) OWNER TO artecna_varianti_rpc;')
  await db.query('insert into cantieri values($1,$2,$3)',[c,'Sintetico',p]);await db.query('insert into utenti_cantiere values($1,$2,$3)',[u,c,'owner'])
  await db.query('insert into preventivi_cantiere(id,cantiere,cantiere_id,sopralluogo_id) values($1,$2,$3,$4)',[p,'Sintetico',c,id(10)])
  await db.query("insert into varianti_cantiere values($1,$2,$3,'bozza','Variante sintetica','Descrizione')",[v,c,p])
  for(let i=1;i<=3;i++){await db.query("insert into preventivo_lavorazioni values($1,$2,$3,'Voce contratto','m²',10,20,200)",[i,c,p]);await db.query('insert into sal_lavorazioni(cantiere_id,source_lavorazione_id,importo_previsto,percentuale) values($1,$2,200,20)',[c,i])}
  const pac=packet([]);pac.variante.id=v;pac.cantiere_id=c;pac.quaderni=[];pac.manifesto.quaderni=[];await db.query('insert into fixture_lettura values($1)',[{fonti:pac,analisi:null}])
  const before=(await db.query("select md5(pg_get_functiondef('public.aggiungi_correzione_variante(uuid,text,bigint,text,numeric,text)'::regprocedure)) h")).rows[0].h
+ await db.exec('CREATE ROLE artecna_cantieri_delete_rpc NOLOGIN NOINHERIT BYPASSRLS;')
+ await db.exec('CREATE TABLE variante_fonti_memory(variante_id uuid);CREATE TABLE variante_fonti_visive(variante_id uuid);CREATE TABLE variante_osservatore_analisi(variante_id uuid);')
+ await db.exec(cleanup.baselineDDL())
  await db.exec(sql)
  await db.exec(`SET request.jwt.claim.sub='${u}';SET ROLE authenticated;`)
  let ctx=(await db.query('select public.leggi_contesto_preventivo_integrativo($1) d',[v])).rows[0].d

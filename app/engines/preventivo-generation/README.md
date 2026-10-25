@@ -27,7 +27,7 @@ Le operazioni sono nuova/aumento/riduzione/eliminazione; una sostituzione si rap
 ## Persistenza locale proposta
 
 SQL integrale: `supabase/migrations/20261025_variante_preventivo_integrativo.sql`.
-SHA-256 sui byte: `39466e294f7d197bbae60dbe2274cf2514adb8bffeb82ee3d2bcb25acfddd88c`.
+SHA-256 finale dopo Step 5A: `45af46251f0bb226af2cc38893e61475dfcce14b603d027c3148b434e897ef36`. L'hash precedente `39466e…` è superato.
 
 Estende il Registro esistente con natura, variante_id, preventivo_contrattuale_id, provenienza_generazione, FK RESTRICT, check e unique per Variante; sopralluogo_id conserva l'origine del contratto. Non modifica origine_preventivo_id né il riferimento contrattuale della Variante. Introduce guard del documento e RPC `leggi_contesto_preventivo_integrativo(uuid)` / `salva_preventivo_integrativo_generato(uuid,uuid,text,text,jsonb)`, SECURITY DEFINER con ruolo tecnico esistente, EXECUTE solo authenticated. Un grant aggiuntivo consente al ruolo tecnico la lettura Osservatore. Non riscrive RPC economiche esistenti.
 
@@ -38,11 +38,11 @@ Scelta prudenziale esplicita: solo bozze prive di lavorazioni economiche; un doc
 ## Verifiche e limiti
 
 - Nuovi test: 33/33, provider/HTTP simulati, componenti reali eseguiti con hook fixture, SQL effettivo su PGlite e ExcelJS/template effettivi. Test di parità legacy inclusi.
-- Suite ampliata: 294/294 eseguiti. Due prove native Economia escluse esplicitamente dalla corsa verde: runtime PostgreSQL disponibile incompleto (`postgres.bki` mancante); tentativi falliti conservati. Nessuna certificazione di concorrenza PostgreSQL nativa o HTTP/browser reale Step 5.
+- Step 5A recupera le due prove native Economia (16/16 controlli), esegue la persistenza su PostgreSQL nativo (9/9) e la regressione storica della cancellazione PostgreSQL 17.6 (10/10). La suite ampliata finale comprende anche la nuova matrice cleanup, senza esclusioni: risultati e log nel report di consegna. Nessun HTTP/browser reale Step 5.
 - TypeScript: ExitCode 0. ESLint nuovi moduli/pannello/route: ExitCode 0. Sui sei file legacy toccati persistono gli stessi 171 errori e 256 warning della baseline, con stessi conteggi per file; ESLint globale non GREEN. Build non eseguita.
-- SQL embedded usa i corpi reali di residuo/correzione; la definizione della RPC legacy aggiungi_lavorazione_variante non è versionata: fixture minima per questa dipendenza e per la lettura Osservatore.
+- SQL embedded e nativo usano i corpi reali di residuo/correzione. Step 5A ha recuperato anche il corpo legacy aggiungi_lavorazione_variante dalla fixture di catalogo versionata `ponteEconomiaProduction.fixture.json`; soltanto la lettura Osservatore resta una fixture sintetica nelle prove di persistenza.
 - Prima di attivare: precheck Production READ ONLY su schema, firme, ACL, owner e shape reale della RPC legacy. Nessun precheck remoto eseguito qui.
-- **Compatibilità ancora bloccante per il rilascio:** verificare il percorso amministrativo di eliminazione Cantiere (`artecna_cantieri_delete_rpc`) contro nuove FK e guard documentale. Il guard consente scritture integrative al solo ruolo Variante e può fermare la cancellazione amministrativa. Non sono state alterate RPC distruttive fuori scope e non è stata certificata tale compatibilità.
+- La compatibilità amministrativa è trattata in [STEP5A.md](STEP5A.md): estensione certificata dell'inventario/manifest, cleanup delle sole relazioni e cancellazione anticipata dei documenti Integrativi, con guard limitato al contesto amministrativo valido. Quaderni e fonti autonome non sono figli da cancellare. SQL precedente, UI e motori AI invariati; nessuna applicazione remota.
 - Foto senza versione passiva: sostituzione agli stessi ID/path non osservabile dal solo SQL; possibile cambiamento byte fra generazione e conferma. Nessuno snapshot immutabile dei blob introdotto.
 
 Configurazione, ENV e credenziali preservati. Nessun valore segreto letto, stampato o copiato. I mock non inizializzano il provider reale.
