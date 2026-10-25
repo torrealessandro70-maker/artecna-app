@@ -1,0 +1,215 @@
+{
+  "evidenza": "Dati sintetici e risposta AI fixture. Nessuna chiamata al provider.",
+  "endpointComune": "/api/genera-preventivo-ai",
+  "modelloInvariato": "gpt-4.1-mini",
+  "jsonForzato": "json_object",
+  "payloadContrattuale": {
+    "sopralluogo": {
+      "cliente": "Cliente sintetico",
+      "tipo_lavoro": "Intervento",
+      "note": "Descrizione iniziale\n\nNota\nTesto della nota"
+    },
+    "foto": [],
+    "prezzi_riferimento": []
+  },
+  "payloadIntegrativoBrowser": {
+    "tipo": "integrativo",
+    "variante_id": "00000005-1111-4111-8111-111111111111"
+  },
+  "contestoIntegrativoServer": {
+    "tipo": "integrativo",
+    "narrativa": {
+      "fonti": [
+        {
+          "source_id": "00000006-1111-4111-8111-111111111111",
+          "source_version": "2026-10-25T10:00:00+00:00",
+          "updated_at": "2026-10-25T10:00:00+00:00",
+          "source_type": "nota",
+          "origine": "quaderno",
+          "titolo": "Quaderno test",
+          "testo": "Testo Quaderno"
+        },
+        {
+          "source_id": "00000005-1111-4111-8111-111111111111",
+          "source_type": "nota",
+          "origine": "variante",
+          "titolo": "Variante test",
+          "testo": "Descrizione Variante"
+        }
+      ],
+      "testoUnificato": "Quaderno test\nTesto Quaderno\n\nVariante test\nDescrizione Variante"
+    },
+    "contestoContrattuale": {
+      "id": "00000014-1111-4111-8111-111111111111",
+      "voci": [
+        {
+          "id": "1",
+          "descrizione": "Voce contrattuale sintetica 1",
+          "unita_misura": "m²",
+          "quantita": 10,
+          "prezzo_unitario": 20,
+          "quantita_riducibile": 8
+        },
+        {
+          "id": "2",
+          "descrizione": "Voce contrattuale sintetica 2",
+          "unita_misura": "m²",
+          "quantita": 10,
+          "prezzo_unitario": 20,
+          "quantita_riducibile": 8
+        },
+        {
+          "id": "3",
+          "descrizione": "Voce contrattuale sintetica 3",
+          "unita_misura": "m²",
+          "quantita": 10,
+          "prezzo_unitario": 20,
+          "quantita_riducibile": 8
+        }
+      ]
+    },
+    "foto": [],
+    "genealogia": {
+      "cantiere_id": "00000003-1111-4111-8111-111111111111",
+      "variante_id": "00000005-1111-4111-8111-111111111111",
+      "preventivo_contrattuale_id": "00000014-1111-4111-8111-111111111111",
+      "sopralluogo_origine_id": "00000010-1111-4111-8111-111111111111"
+    }
+  },
+  "rispostaAIMock": {
+    "descrizione_intervento": "Sole variazioni documentate della Variante sintetica",
+    "cronoprogramma_lavori": "Da definire",
+    "schema_pagamenti": "Da definire",
+    "garanzia": "Da definire",
+    "voci": [
+      {
+        "descrizione": "Posa piastrelle ceramiche",
+        "unita_misura": "m²",
+        "quantita": 2,
+        "prezzo_unitario": 0,
+        "fonte_prezzo": "Da verificare",
+        "note": "",
+        "operazione": "nuova",
+        "riferimento_preventivo_lavorazione_id": null,
+        "da_verificare": true
+      },
+      {
+        "descrizione": "Variazione documentata aumento",
+        "unita_misura": "m²",
+        "quantita": 1,
+        "prezzo_unitario": 0,
+        "fonte_prezzo": "Da verificare",
+        "note": "",
+        "operazione": "aumento",
+        "riferimento_preventivo_lavorazione_id": "1",
+        "da_verificare": false
+      },
+      {
+        "descrizione": "Variazione documentata riduzione",
+        "unita_misura": "m²",
+        "quantita": 2,
+        "prezzo_unitario": 0,
+        "fonte_prezzo": "Da verificare",
+        "note": "",
+        "operazione": "riduzione",
+        "riferimento_preventivo_lavorazione_id": "2",
+        "da_verificare": false
+      },
+      {
+        "descrizione": "Variazione documentata eliminazione",
+        "unita_misura": "m²",
+        "quantita": 8,
+        "prezzo_unitario": 0,
+        "fonte_prezzo": "Da verificare",
+        "note": "",
+        "operazione": "eliminazione",
+        "riferimento_preventivo_lavorazione_id": "3",
+        "da_verificare": false
+      }
+    ]
+  },
+  "revisioneUmanaFixture": [
+    {
+      "prezzo_unitario": 31,
+      "fonte_prezzo": "ARTECNA",
+      "priceResolution": {
+        "matched": true,
+        "strategy": "description_unit",
+        "confidence": 1,
+        "prezzoUnitarioRisolto": 31,
+        "reasons": [
+          "Listino ARTECNA: prezzo aziendale senza maggiorazione."
+        ]
+      },
+      "descrizione": "Posa piastrelle ceramiche",
+      "unita_misura": "m²",
+      "quantita": 2,
+      "note": "",
+      "operazione": "nuova",
+      "riferimento_preventivo_lavorazione_id": null,
+      "da_verificare": false,
+      "revisione_confermata": true
+    },
+    {
+      "prezzo_unitario": 20,
+      "fonte_prezzo": "Prezzo contratto — nessuna nuova risoluzione",
+      "priceResolution": {
+        "matched": false,
+        "strategy": "ai_fallback",
+        "confidence": 0,
+        "reasons": [
+          "Prezzo da verificare: nessun riferimento univoco e affidabile con U.M. compatibile."
+        ]
+      },
+      "descrizione": "Variazione documentata aumento",
+      "unita_misura": "m²",
+      "quantita": 1,
+      "note": "",
+      "operazione": "aumento",
+      "riferimento_preventivo_lavorazione_id": "1",
+      "da_verificare": false,
+      "revisione_confermata": true
+    },
+    {
+      "prezzo_unitario": 20,
+      "fonte_prezzo": "Prezzo contratto — nessuna nuova risoluzione",
+      "priceResolution": {
+        "matched": false,
+        "strategy": "ai_fallback",
+        "confidence": 0,
+        "reasons": [
+          "Prezzo da verificare: nessun riferimento univoco e affidabile con U.M. compatibile."
+        ]
+      },
+      "descrizione": "Variazione documentata riduzione",
+      "unita_misura": "m²",
+      "quantita": -2,
+      "note": "",
+      "operazione": "riduzione",
+      "riferimento_preventivo_lavorazione_id": "2",
+      "da_verificare": false,
+      "revisione_confermata": true
+    },
+    {
+      "prezzo_unitario": 20,
+      "fonte_prezzo": "Prezzo contratto — nessuna nuova risoluzione",
+      "priceResolution": {
+        "matched": false,
+        "strategy": "ai_fallback",
+        "confidence": 0,
+        "reasons": [
+          "Prezzo da verificare: nessun riferimento univoco e affidabile con U.M. compatibile."
+        ]
+      },
+      "descrizione": "Variazione documentata eliminazione",
+      "unita_misura": "m²",
+      "quantita": -8,
+      "note": "",
+      "operazione": "eliminazione",
+      "riferimento_preventivo_lavorazione_id": "3",
+      "da_verificare": false,
+      "revisione_confermata": true
+    }
+  ],
+  "deltaConfermatoFixture": -118
+}

@@ -34,7 +34,7 @@ import StatCard from './components/StatCard'
 import EconomiaGeneralePanel from './components/EconomiaGeneralePanel'
 import { creaVociPreventivoDaDocumento } from './engines/preventivo-from-document'
 import { createPreventivoRevision } from './engines/preventivo'
-import { buildSopralluogoMemory } from './engines/sopralluogo-memory'
+import { contestoSopralluogo } from './engines/preventivo-generation/contesto'
 import PriceImportPanel from './components/PriceImportPanel'
 import ListinoArtecnaPanel from './components/ListinoArtecnaPanel'
 import PrezzarioSic24Panel from './components/PrezzarioSic24Panel'
@@ -378,7 +378,7 @@ const calcoloEconomiaCantiere = (nomeCantiere: string) => {
   const cantiere = cantieri.find((c) => c.nome === nomeCantiere)
 
   const totalePreventiviCaricati = preventivi
-    .filter((p) => p.cantiere === nomeCantiere)
+    .filter((p) => p.cantiere === nomeCantiere && p.natura !== 'integrativo')
     .reduce((tot, p) => {
       const valoreDaUsare =
         (p as any).importo_corretto &&
@@ -1392,7 +1392,7 @@ const generaVociAutomatiche = (
     return false
   }
 
-  const memoriaSopralluogo = buildSopralluogoMemory({
+  const memoriaSopralluogo = contestoSopralluogo({
     sopralluogoId: s.id,
     descrizioneIniziale: s.note || '',
     quaderno: notaQuaderno
@@ -1401,7 +1401,7 @@ const generaVociAutomatiche = (
           testo: notaQuaderno.testo || '',
         }
       : null,
-  })
+  }).memoria
 console.group('=== SOPRALLUOGO MEMORY ===')
 
 console.log(memoriaSopralluogo)
@@ -2146,6 +2146,9 @@ const generaExcelDaPreventivoAi = async (
         descrizioneRevisionata ?? p.descrizione_ai ?? p.note ?? ''
       }`
 
+    if (p.natura === 'integrativo') ws.getCell('A15').value =
+      `PREVENTIVO INTEGRATIVO — sole variazioni\nVariante: ${p.variante_id}\nContratto: ${p.preventivo_contrattuale_id}\n\n${descrizioneRevisionata ?? p.descrizione_ai ?? ''}`
+
     let rigaExcel = 22
     let totalePreventivo = 0
 
@@ -2163,7 +2166,9 @@ const generaExcelDaPreventivoAi = async (
       totalePreventivo += totale
 
       ws.getCell(`A${rigaExcel}`).value = index + 1
-      ws.getCell(`B${rigaExcel}`).value = voce.descrizione || ''
+      ws.getCell(`B${rigaExcel}`).value = p.natura === 'integrativo'
+        ? `[${voce.operazione || 'da verificare'}]${voce.riferimento_preventivo_lavorazione_id ? ' Rif. contratto #' + voce.riferimento_preventivo_lavorazione_id : ''} ${voce.descrizione || ''}`
+        : voce.descrizione || ''
       ws.getCell(`C${rigaExcel}`).value = um
       ws.getCell(`D${rigaExcel}`).value = quantita
       ws.getCell(`E${rigaExcel}`).value = prezzo
@@ -2250,6 +2255,13 @@ Restano escluse problematiche dovute a supporti preesistenti, infiltrazioni preg
       'Pagamenti tramite bonifico bancario o modalità concordata.'
 
     ws.getCell('A65').value = testoGaranzia
+
+    if (p.natura === 'integrativo') {
+      ws.getCell('A53').value = 'Durata da definire. Documento delle sole variazioni; il contratto resta il riferimento separato.'
+      ws.getCell('A59').value = 'Pagamenti: da definire.'
+      for (const cella of ['F59','A60','F60','A61','F61','A63']) ws.getCell(cella).value = null
+      ws.getCell('A65').value = 'Garanzia: da definire.'
+    }
 
     ws.getRow(53).height = Math.max(45, testoCronoprogramma.length * 0.35)
     ws.getRow(59).height = 24
@@ -3562,6 +3574,7 @@ alert('PDF letto: ' + file.name + '\nNumero estratto: ' + numeroEstratto)
 }
 
 const approvaPreventivoAiECreaCantiere = async (p: any) => {
+  if (p?.natura === 'integrativo') { alert('Il Preventivo Integrativo resta nella Variante: non crea un altro cantiere o contratto.'); return }
   const oggi = new Date().toISOString().slice(0, 10)
 
   const { error: errorePreventivo } = await supabase
@@ -10079,7 +10092,7 @@ const totaleFinaleRapportino =
 )
 
 const totalePreventiviCaricati = preventivi
-  .filter((p) => p.cantiere === cantiereScheda)
+  .filter((p) => p.cantiere === cantiereScheda && p.natura !== 'integrativo')
   .reduce((tot, p) => {
     const valoreDaUsare =
       (p as any).importo_corretto &&
@@ -10192,7 +10205,7 @@ const utileCantiere = preventivoCantiere - totaleCostiCantiere
 
 const dashboardCantieri = cantieri.map((c) => {
   const totalePreventiviCaricati = preventivi
-    .filter((p) => p.cantiere === c.nome)
+    .filter((p) => p.cantiere === c.nome && p.natura !== 'integrativo')
     .reduce((tot, p) => {
       const valoreDaUsare =
         (p as any).importo_corretto &&

@@ -9,6 +9,7 @@ import { applicaAnalisiPrezzo } from '../engines/price-resolution/ai-price-analy
 import type { EsitoWeb } from '../engines/price-resolution/web-fallback'
 import { applicaPrezzoWeb, puoSalvarePrezzoInMemoria } from '../engines/price-resolution/web-fallback'
 import type { PriceKnowledgeItem } from '../engines/price-resolution/types'
+import type { ContrattoContext, OperazioneIntegrativa } from '../engines/preventivo-generation/contesto'
 import {
   formatConfidence,
   getConfidenceBadge,
@@ -95,6 +96,8 @@ function calcolaEspressione(input: string): EsitoCalcolo {
 }
 
 type Props = {
+  integrativo?: ContrattoContext
+  confermaInCorso?: boolean
   messaggioAi: string
   descrizionePreventivoAi: string
   setDescrizionePreventivoAi: (v: string) => void
@@ -125,6 +128,8 @@ salvaRevisionePreventivoAi: () => void | Promise<void>
 }
 
 export default function RevisionePreventivoAiPanel({
+  integrativo,
+  confermaInCorso = false,
   messaggioAi,
   descrizionePreventivoAi,
   setDescrizionePreventivoAi,
@@ -211,7 +216,11 @@ useEffect(() => {
 
     redoStackRef.current = []
 
-    const copiaNuoveVoci = clonaVoci(nuoveVoci)
+    const copiaNuoveVoci = clonaVoci(nuoveVoci).map((v, i) => {
+      if (!integrativo) return v
+      const keys = ['descrizione','unita_misura','quantita','prezzo_unitario','operazione','riferimento_preventivo_lavorazione_id']
+      return keys.some(k => v[k] !== vociCorrentiRef.current[i]?.[k]) ? { ...v, revisione_confermata: false, da_verificare: true } : v
+    })
     vociCorrentiRef.current = copiaNuoveVoci
     setVociPreventivoAi(copiaNuoveVoci)
   }
@@ -311,7 +320,7 @@ useEffect(() => {
           marginBottom: 20,
         }}
       >
-        Revisione preventivo AI
+        {integrativo ? 'Revisione Preventivo Integrativo — delta della Variante' : 'Revisione preventivo AI'}
       </h3>
 
       {mostraPriceResolutionSummary && (
@@ -430,11 +439,11 @@ useEffect(() => {
                     Incidenza manodopera: {voce.priceResolution.manodoperaSic24.percentualeManodopera}% · Quota manodopera: {voce.priceResolution.manodoperaSic24.prezzoManodopera} €/{voce.priceResolution.manodoperaSic24.unitaMisura}<br />
                     Metodo: {voce.priceResolution.manodoperaSic24.metodo}. Nessuna maggiorazione.
                   </p>}
-                  {(!voce.priceResolution?.matched || voce.priceResolution?.strategy === 'similarity') && <AnalisiPrezzoVoce
+                  {(!integrativo || voce.operazione === 'nuova') && (!voce.priceResolution?.matched || voce.priceResolution?.strategy === 'similarity') && <AnalisiPrezzoVoce
                     descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} quantita={Number(voce.quantita || 0)} prezzo={Number(voce.prezzo_unitario || 0)}
                     prezzi={prezziRiferimento} memoria={memoriaRiferimento} webVerificato={webPerVoce[JSON.stringify([voce.descrizione,voce.unita_misura])]}
                     onUsa={(input,result)=>aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?applicaAnalisiPrezzo(v,input,result):v))} />}
-                  {!voce.priceResolution?.matched && <PrezzoWebVoce descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} prezzi={prezziRiferimento} memoria={memoriaRiferimento}
+                  {(!integrativo || voce.operazione === 'nuova') && !voce.priceResolution?.matched && <PrezzoWebVoce descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} prezzi={prezziRiferimento} memoria={memoriaRiferimento}
                     onVerificato={result=>setWebPerVoce(correnti=>({...correnti,[JSON.stringify([voce.descrizione,voce.unita_misura])]:result}))}
                     onInterno={r => aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?{...v,...r,priceResolutionInvalidated:false}:v))}
                     onUsa={r => aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?applicaPrezzoWeb(v,r):v))} />}
@@ -564,6 +573,23 @@ return (
   <tr key={index}>
 
                <td style={excelTd}>
+  {integrativo && <fieldset aria-label={`Operazione voce ${index + 1}`}>
+    <label>Tipo operazione<select value={voce.operazione || 'nuova'} onChange={e => {
+      const operazione = e.target.value as OperazioneIntegrativa
+      aggiornaVociConCronologia(vociPreventivoAi.map((v, i) => i === index ? { ...v, operazione,
+        riferimento_preventivo_lavorazione_id: operazione === 'nuova' ? null : v.riferimento_preventivo_lavorazione_id,
+        quantita: ['riduzione','eliminazione'].includes(operazione) ? -Math.abs(v.quantita) : Math.abs(v.quantita) } : v))
+    }}><option value="nuova">Nuova</option><option value="aumento">Aumento</option><option value="riduzione">Riduzione</option><option value="eliminazione">Eliminazione del residuo</option></select></label>
+    <label>Voce contrattuale<select disabled={voce.operazione === 'nuova'} value={voce.riferimento_preventivo_lavorazione_id ?? ''} onChange={e => {
+      const ref = integrativo.voci.find(r => r.id === e.target.value)
+      aggiornaVociConCronologia(vociPreventivoAi.map((v, i) => i === index ? { ...v, riferimento_preventivo_lavorazione_id: ref?.id ?? null,
+        ...(ref ? { prezzo_unitario: ref.prezzo_unitario, unita_misura: ref.unita_misura, fonte_prezzo: 'Prezzo contratto',
+          ...(v.operazione === 'eliminazione' ? { quantita: -(ref.quantita_riducibile ?? 0) } : {}) } : {}) } : v))
+    }}><option value="">Da verificare — nessun riferimento certo</option>{integrativo.voci.map(r => <option key={r.id} value={r.id}>{r.id} — {r.descrizione}</option>)}</select></label>
+    <p>Delta economico: {formatMoney(totale)} · Origine prezzo: {voce.fonte_prezzo || 'Da verificare'} · Confidenza: {confidencePercent.toFixed(0)}%</p>
+    {voce.da_verificare && <p role="status">Da verificare</p>}
+    <label><input type="checkbox" checked={voce.revisione_confermata === true} onChange={e => aggiornaVociConCronologia(vociPreventivoAi.map((v, i) => i === index ? { ...v, revisione_confermata: e.target.checked, da_verificare: !e.target.checked } : v))} /> Ho verificato operazione, riferimento, quantità e prezzo</label>
+  </fieldset>}
   <textarea
     value={voce.descrizione || ''}
     onChange={(e) => {
@@ -679,6 +705,7 @@ aggiornaVociConCronologia(nuove)
                 <td style={excelTd}>
                   <input
                     value={voce.unita_misura || ''}
+                    disabled={!!integrativo && voce.operazione !== 'nuova'}
                     onChange={(e) => {
                      const nuove = vociPreventivoAi.map((voce, i) =>
   i === index
@@ -739,6 +766,7 @@ aggiornaVociConCronologia(nuove)
                   <input
                     type="number"
                     value={voce.prezzo_unitario || 0}
+                      disabled={!!integrativo && voce.operazione !== 'nuova'}
                     onChange={(e) => {
                      const nuove = vociPreventivoAi.map((voce, i) =>
   i === index
@@ -872,6 +900,7 @@ aggiornaVociConCronologia(nuove)
     unita_misura: 'a corpo',
     quantita: 1,
     prezzo_unitario: 0,
+    ...(integrativo ? { operazione: 'nuova', riferimento_preventivo_lavorazione_id: null, da_verificare: true, revisione_confermata: false } : {}),
   },
 ])
           }
@@ -898,6 +927,7 @@ aggiornaVociConCronologia(nuove)
         </button>
 
        <button
+  disabled={confermaInCorso}
   onClick={async () => {
     await salvaRevisionePreventivoAi()
   }}
@@ -906,10 +936,10 @@ aggiornaVociConCronologia(nuove)
     backgroundColor: '#16a34a',
   }}
 >
-  Salva revisione
+  {integrativo ? 'Conferma Preventivo Integrativo e lavorazioni nella bozza' : 'Salva revisione'}
 </button>
 
-<button
+{!integrativo && <button
   onClick={async () => {
     for (const voce of vociPreventivoAi) {
       if (!puoSalvarePrezzoInMemoria(voce)) continue
@@ -937,7 +967,7 @@ aggiornaVociConCronologia(nuove)
   }}
 >
   Genera Excel definitivo
-</button>
+</button>}
         <button
           onClick={() => setMostraRevisionePreventivoAi(false)}
           style={buttonSecondary}

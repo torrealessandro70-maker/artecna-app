@@ -249,6 +249,7 @@ export default function CantieriSchedaPanel(props: any) {
       {p.cantiereSelezionatoDaId && paginaAttiva === 'varianti' && (
         <VariantiCantierePanel key={p.cantiereSelezionatoDaId.id}
           cantiereId={p.cantiereSelezionatoDaId.id}
+          onDocumentoConfermato={() => void p.documentiPanelProps.caricaEconomia()}
           stampaContesto={{ nome: p.cantiereSelezionatoDaId.nome, contrattoBase: p.economiaPanelProps.contrattoBase?.importo ?? null, preventivoId: p.economiaPanelProps.contrattoBase?.preventivoId ?? null }} />
       )}
       {p.cantiereSelezionatoDaId && paginaAttiva === 'fascicolo' && (

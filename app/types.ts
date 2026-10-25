@@ -187,6 +187,9 @@ export type Timbratura = {
 }
 
 export type PreventivoCantiere = {
+  natura?: 'contrattuale' | 'integrativo' | null
+  variante_id?: string | null
+  preventivo_contrattuale_id?: string | null
   id?: string
   cantiere: string
   importo_totale?: number

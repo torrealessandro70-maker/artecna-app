@@ -1,0 +1,17 @@
+# Mappa completata prima delle modifiche runtime
+
+Baseline origin/main: 1f65385315059275f01f7d622b72ed4054a7565b.
+
+SopralluogoAzioniPreventivo → page.tsx:generaPreventivoAiDaSopralluogo → lettura titolo/testo note_sopralluogo del proprietario → buildSopralluogoMemory → payload sopralluogo.note=testoUnificato, foto=[] (intenzionalmente vuote nel chiamante attuale), prezzi_lavorazioni → POST /api/genera-preventivo-ai → OpenAI Responses gpt-4.1-mini, json_object → rimozione fence/estrazione JSON/JSON.parse → controllo quantità nel chiamante → risolviPrezzoPrioritario (storico affidabile, ARTECNA, SIC24, memoria, unresolved; nessun prezzo AI assunto autorevole) → INSERT preventivi_cantiere bozza_ai immediato → RevisionePreventivoAiPanel.
+
+La revisione comune gestisce descrizione/UM/quantità/prezzo, undo/redo, origine/confidence, analisi prezzo e fallback Web espliciti. page.tsx:salvaRevisionePreventivoAi aggiorna il documento; generaExcelDaPreventivoAi usa ExcelJS e public/templates/preventivo-template.xlsx, con quantità/prezzi/formule numerici (accetta delta negativi). Il Registro visualizza preventivi_cantiere e riapre lo stesso pannello; Approva e crea cantiere è un percorso diverso, inadatto a un Integrativo. Il PDF presente in page.tsx riguarda altri moduli, non è un secondo export documentale da introdurre qui; la stampa/Excel comune resta autorevole.
+
+Specifici Sopralluogo: cliente/telefono/indirizzo, lettura della nota, sopralluogo_id, descrizione iniziale e salvataggio immediato legacy. Riutilizzabili: prompt/modello/parser della route, Price Engine, revisione, Excel, Registro. Il nuovo percorso non deve replicare il salvataggio anticipato legacy.
+
+Variante: VarianteFontiMemoryPanel/VarianteFontiVisivePanel, leggi_osservatore_variante, buildVarianteMemorySources + buildMemoryFromSources; immagini tramite leggiFotoOsservatore server-side (resolver privato originale compreso). Analisi valida soltanto allineata, contratto strutturato separato. Nessuna nuova Galleria, AI Osservatore o route generatrice.
+
+conferma_preventivo_integrativo(uuid,jsonb): acquisisce lock testata, membership/bozza, sorgente appartenente alla Variante, chiavi sorgente+indice uniche, esclude base contrattuale; inserisce soltanto operazione nuova con delta positivo. Non supporta aumento/riduzione/eliminazione generici. aggiungi_correzione_variante riusa calcola_residuo_componente e scrive riduzione_residua/eliminazione_residua con delta negativo, verifica contratto corrente/SAL/residuo. aggiungi_lavorazione_variante scrive nuove lavorazioni. SAL usa lavorazioni di Variante approvata; il documento del Registro non deve creare un secondo contratto.
+
+Schema fotografato nei precedenti precheck locali (nessuna nuova query remota): preventivi_cantiere possiede cantiere_id e sopralluogo_id, ma non variante_id, preventivo_contrattuale_id o natura; PK documento uuid, PK lavorazioni bigint. Non usare origine_preventivo_id come genealogia di Variante. Necessaria migrazione additiva minima per i collegamenti, il manifesto e una conferma atomica/idempotente del documento con le lavorazioni, riusando le correzioni esistenti. Nessuna riscrittura delle RPC economiche installate.
+
+Guide Next: node_modules/next/dist/docs assente nell'installazione disponibile; consultato README distribuito e tentata documentazione ufficiale versionata (non raggiungibile). Si mantengono Route Handler POST/Request/NextResponse già usati, senza introdurre API Next nuove.

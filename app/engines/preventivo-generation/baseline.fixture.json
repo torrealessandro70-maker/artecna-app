@@ -1,0 +1,65 @@
+[
+  {
+    "input": {
+      "sopralluogo": {
+        "cliente": "Cliente sintetico",
+        "indirizzo": "Prova",
+        "tipo_lavoro": "Intervento",
+        "note": "Descrizione\n\nNota"
+      },
+      "foto": [],
+      "prezzi_riferimento": []
+    },
+    "sha256": "5d7179602a2ba89c218cfffc306bbbfdbfd4f3f3a8e7e38d21644f65c5f05c17"
+  },
+  {
+    "input": {
+      "sopralluogo": {},
+      "foto": [
+        {
+          "immagine_base64": "data:image/png;base64,fixture0",
+          "nota": "Foto 0"
+        },
+        {
+          "immagine_base64": "data:image/png;base64,fixture1",
+          "nota": "Foto 1"
+        },
+        {
+          "immagine_base64": "data:image/png;base64,fixture2",
+          "nota": "Foto 2"
+        },
+        {
+          "immagine_base64": "data:image/png;base64,fixture3",
+          "nota": "Foto 3"
+        },
+        {
+          "immagine_base64": "data:image/png;base64,fixture4",
+          "nota": "Foto 4"
+        },
+        {
+          "immagine_base64": "data:image/png;base64,fixture5",
+          "nota": "Foto 5"
+        },
+        {
+          "immagine_base64": "data:image/png;base64,fixture6",
+          "nota": "Foto 6"
+        },
+        {
+          "immagine_base64": "data:image/png;base64,fixture7",
+          "nota": "Foto 7"
+        },
+        {
+          "immagine_base64": "data:image/png;base64,fixture8",
+          "nota": "Foto 8"
+        }
+      ],
+      "prezzi_riferimento": [
+        {
+          "codice": "SIC24_1",
+          "prezzo_unitario": 10
+        }
+      ]
+    },
+    "sha256": "8c7a16b7e07b0b315717024f8276e3f1e5bccf9a1bd1b1a868a0c1d9907e28a6"
+  }
+]

@@ -18,6 +18,7 @@ import { documentoVariantiCliente, vociCliente, type ContestoStampaVarianti, typ
 import { operativoPrestazioneAcquisita } from '../engines/economia/prestazioniRapportiniDesktop'
 import RaccoltaSorgenteVariante from './RaccoltaSorgenteVariante'
 import VarianteFontiMemoryPanel from './VarianteFontiMemoryPanel'
+import VariantePreventivoIntegrativoPanel from './VariantePreventivoIntegrativoPanel'
 
 const etichetteAnomalieFile: Record<AnomaliaPropostaVarianteDaFile['codice'], string> = {
   cantiere_id_non_valido: 'Cantiere non valido',
@@ -2022,7 +2023,7 @@ const erroriRpc: Record<string, string> = {
   '40P01': 'Conflitto concorrente: salvataggio annullato. Puoi riprovare manualmente.',
 }
 
-export default function VariantiCantierePanel({ cantiereId, economiaRapportini = false, onApprovazione, stampaContesto }: { cantiereId?: string | null; economiaRapportini?: boolean; onApprovazione?: () => void; stampaContesto?: ContestoStampaVarianti }) {
+export default function VariantiCantierePanel({ cantiereId, economiaRapportini = false, onApprovazione, stampaContesto, onDocumentoConfermato }: { cantiereId?: string | null; economiaRapportini?: boolean; onApprovazione?: () => void; stampaContesto?: ContestoStampaVarianti; onDocumentoConfermato?: () => void }) {
   const [stampaInCorso, setStampaInCorso] = useState(false)
   const [erroreStampa, setErroreStampa] = useState('')
   const [includiProposte, setIncludiProposte] = useState(false)
@@ -2378,6 +2379,9 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
               {!economiaRapportini && variante.stato === 'bozza' && cantiereId && <VarianteFontiMemoryPanel
                 key={'fonti:' + cantiereId + ':' + variante.id} supabase={supabase} cantiereId={cantiereId}
                 variante={{ ...variante, stato: 'bozza' }} />}
+              {!economiaRapportini && variante.stato === 'bozza' && cantiereId && <VariantePreventivoIntegrativoPanel
+                key={'generazione:' + cantiereId + ':' + variante.id} supabase={supabase} varianteId={variante.id}
+                onSalvato={() => { aggiornaVariante(variante.id); onDocumentoConfermato?.() }} />}
               <LavorazioniVariantePanel key={`${cantiereId}:${variante.id}`} varianteId={variante.id}
                 cantiereId={cantiereId} statoVariante={variante.stato}
                 sintetico={economiaRapportini}

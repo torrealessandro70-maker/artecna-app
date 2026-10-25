@@ -325,7 +325,11 @@ export default function RegistroPreventiviPanel({
                 </td>
 
                 <td style={excelTd}>
-                  {preventivoRegistroEdit === String(p.id) ? (
+                  {p.natura === 'integrativo' ? <div>
+                    <p>Preventivo Integrativo — documento della Variante, non un nuovo contratto</p>
+                    <p>Variante: {p.variante_id} · Contratto: {p.preventivo_contrattuale_id}</p>
+                    <button type="button" onClick={() => generaExcelDaPreventivoAi(p)} style={buttonSecondary}>Genera Excel Integrativo</button>
+                  </div> : preventivoRegistroEdit === String(p.id) ? (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {p.origine_ai && (
                         <>
