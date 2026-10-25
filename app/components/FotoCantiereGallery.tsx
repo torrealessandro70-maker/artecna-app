@@ -1,10 +1,12 @@
 'use client'
 
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { FotoCantiere } from '../types'
 import FotoPrivataDesktopV1 from './FotoPrivataDesktopV1'
 
 type Props = {
+  selezioneFonti?: boolean
   contestuale?: boolean
   fotoCantiere: FotoCantiere[]
   setFotoCantiere: Dispatch<SetStateAction<FotoCantiere[]>>
@@ -17,7 +19,7 @@ type Props = {
 
   setFotoFullscreen: (foto: FotoCantiere | null) => void
 
-  supabase: any
+  supabase: SupabaseClient
   fotoStorageBucket: string
   caricaFotoCantiere: () => void | Promise<void>
   eliminaFotoCantiere: (id?: string) => void | Promise<void>
@@ -26,6 +28,7 @@ type Props = {
 }
 
 export default function FotoCantiereGallery({
+  selezioneFonti = false,
   contestuale = false,
   fotoCantiere,
   setFotoCantiere,
@@ -41,6 +44,7 @@ export default function FotoCantiereGallery({
   buttonSecondary,
 }: Props) {
   const eliminaFotoSelezionate = async () => {
+    if (selezioneFonti) return
     const fotoDaEliminare = fotoCantiere.filter(
       (foto) => foto.id && fotoCantiereSelezionate.includes(foto.id)
     )
@@ -63,7 +67,7 @@ export default function FotoCantiereGallery({
     const errori: string[] = []
 
     for (const foto of fotoDaEliminare) {
-      const filePath = (foto as any).file_path
+      const filePath = (foto as FotoCantiere & { file_path?: string }).file_path
 
       if (filePath) {
         try {
@@ -105,7 +109,7 @@ export default function FotoCantiereGallery({
 
   return (
     <>
-      {numeroFotoSelezionate > 0 && (
+      {!selezioneFonti && numeroFotoSelezionate > 0 && (
         <div
           style={{
             marginTop: 15,
@@ -165,10 +169,10 @@ export default function FotoCantiereGallery({
         })
         .map((foto, i) => {
           const srcFoto =
-            (foto as any).file_url ||
-            (foto as any).url ||
-            (foto as any).thumbnail_url ||
-            (foto as any).immagine_base64 ||
+            (foto as FotoCantiere & { file_url?: string }).file_url ||
+            (foto as FotoCantiere & { url?: string }).url ||
+            (foto as FotoCantiere & { thumbnail_url?: string }).thumbnail_url ||
+            foto.immagine_base64 ||
             null
 
           return (
@@ -216,9 +220,10 @@ export default function FotoCantiereGallery({
             </label>
 
             {foto.allegato_v1_id != null ? (
-              <FotoPrivataDesktopV1 allegato={foto.allegato_v1_id} rapportino={(foto as any).rapportino_id} foto={foto.id}
+              <FotoPrivataDesktopV1 allegato={foto.allegato_v1_id} rapportino={(foto as FotoCantiere & { rapportino_id?: string }).rapportino_id} foto={foto.id}
                 onClick={() => setFotoFullscreen(foto)} style={{ width: '100%', height: 180, objectFit: 'contain', cursor: 'pointer' }} />
             ) : srcFoto ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={srcFoto}
               alt="Foto cantiere"
@@ -242,6 +247,7 @@ export default function FotoCantiereGallery({
                 {foto.nota || 'Nessuna nota'}
               </div>
 
+              {!selezioneFonti && <>
               <div style={{ marginTop: 8 }}>
                 <label
                   style={{
@@ -334,6 +340,7 @@ export default function FotoCantiereGallery({
               >
                 {foto.allegato_v1_id != null ? 'Gestita dal protocollo Allegati' : '🗑 Elimina'}
               </button>
+              </>}
               {foto.allegato_v1_id != null && <p>Foto Rapportino V1 — categoria non modificabile.</p>}
             </div>
           </div>

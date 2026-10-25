@@ -1,0 +1,84 @@
+{
+  "input": {
+    "titolo": "Nota fixture",
+    "testo": "Testo fixture",
+    "checklist": [
+      {
+        "testo": "Controllo",
+        "completata": false
+      }
+    ],
+    "immagini": [
+      "https://fixture.invalid/0.png",
+      "https://fixture.invalid/1.png",
+      "https://fixture.invalid/2.png",
+      "https://fixture.invalid/3.png",
+      "https://fixture.invalid/4.png",
+      "https://fixture.invalid/5.png",
+      "https://fixture.invalid/6.png",
+      "https://fixture.invalid/7.png",
+      "https://fixture.invalid/8.png",
+      "https://fixture.invalid/9.png"
+    ],
+    "audio": [
+      {
+        "url": "https://fixture.invalid/0.webm",
+        "nome": "audio-0.webm"
+      },
+      {
+        "url": "https://fixture.invalid/1.webm",
+        "nome": "audio-1.webm"
+      },
+      {
+        "url": "https://fixture.invalid/2.webm",
+        "nome": "audio-2.webm"
+      },
+      {
+        "url": "https://fixture.invalid/3.webm",
+        "nome": "audio-3.webm"
+      }
+    ],
+    "disegni": [
+      {
+        "strumento": "linea"
+      },
+      {
+        "strumento": "linea"
+      },
+      {}
+    ],
+    "contesto": {
+      "cliente": "SINTETICO",
+      "indirizzo": "INDIRIZZO SINTETICO",
+      "tipo_lavoro": "TEST"
+    }
+  },
+  "requestSHA256": "5582a96a82cc11eddc4a594bc5840d02f33a3b77a7b90c26afada70e93550b0b",
+  "transcriptions": [
+    {
+      "model": "whisper-1",
+      "language": "it",
+      "nome": "audio-0.webm"
+    },
+    {
+      "model": "whisper-1",
+      "language": "it",
+      "nome": "audio-1.webm"
+    },
+    {
+      "model": "whisper-1",
+      "language": "it",
+      "nome": "audio-2.webm"
+    }
+  ],
+  "result": {
+    "data": {
+      "sintesi": "fixture",
+      "ipotesi": [],
+      "verifiche": [],
+      "domande": [],
+      "avvertenza": "fixture"
+    },
+    "status": 200
+  }
+}

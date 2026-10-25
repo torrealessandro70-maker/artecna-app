@@ -130,7 +130,7 @@ test('pannello reale: selezione multipla, preview, divergenza, apertura e scolle
   return{data:null,error:null}
  }}
  const exports={}
- vm.runInNewContext(code,{exports,require:n=>n==='react'?hooks:n==='./QuadernoProgettiPanel'?{default:'Archive'}:n.includes('previewVariante')?{previewVariante,leggiFontiCollegate}:require(n)})
+ vm.runInNewContext(code,{exports,require:n=>n==='react'?hooks:n==='./QuadernoProgettiPanel'?{default:'Archive'}:n==='./VarianteFontiVisivePanel'?{default:'VisualSources'}:n.includes('previewVariante')?{previewVariante,leggiFontiCollegate}:require(n)})
  const props={supabase:client,cantiereId:c,variante:{...bozza,preventivo_contrattuale_id:'CONTRATTO-STRUTTURATO'}}
  const render=()=>{cursor=0;return exports.default(props)}
  const nodes=tree=>!tree?[]:Array.isArray(tree)?tree.flatMap(nodes):typeof tree==='object'?[tree,...nodes(tree.props?.children)]:[]

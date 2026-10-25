@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type Dispatch, type SetStateAction } from 'react'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { FotoCantiere } from '../types'
 
 type FotoSopralluogo = {
@@ -14,7 +15,8 @@ type FotoSopralluogo = {
 }
 
 type Props = {
-  sopralluogoAperto: any
+  selezioneFonti?: boolean
+  sopralluogoAperto: { id?: string } | null
   fotoSopralluoghi: FotoSopralluogo[]
   setFotoSopralluoghi: Dispatch<SetStateAction<FotoSopralluogo[]>>
   setFotoFullscreen: (foto: FotoCantiere | null) => void
@@ -22,7 +24,7 @@ type Props = {
   fotoSelezionate: string[]
   setFotoSelezionate: Dispatch<SetStateAction<string[]>>
   caricaFotoSopralluoghi: () => void | Promise<void>
-  supabase: any
+  supabase: SupabaseClient
 }
 
 const TAG_QUADERNO = 'smart-note'
@@ -56,6 +58,7 @@ function aggiornaTagQuaderno(tag: string | undefined, collegata: boolean) {
 }
 
 export default function SopralluogoFotoGallery({
+  selezioneFonti = false,
   sopralluogoAperto,
   fotoSopralluoghi,
   setFotoSopralluoghi,
@@ -82,7 +85,7 @@ export default function SopralluogoFotoGallery({
     foto: FotoSopralluogo,
     modifica: Partial<FotoSopralluogo>
   ) => {
-    if (!foto.id) return
+    if (selezioneFonti || !foto.id) return
 
     setFotoSopralluoghi((correnti) =>
       correnti.map((item) => (item.id === foto.id ? { ...item, ...modifica } : item))
@@ -169,7 +172,7 @@ export default function SopralluogoFotoGallery({
         })}
       </div>
 
-      {modalitaGestione && fotoSelezionate.length > 0 && (
+      {!selezioneFonti && modalitaGestione && fotoSelezionate.length > 0 && (
         <button
           type="button"
           onClick={() => void eliminaSelezionate()}
@@ -304,6 +307,7 @@ export default function SopralluogoFotoGallery({
                   <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{foto.nota}</div>
                 )}
 
+                {!selezioneFonti && <>
                 <details>
                   <summary
                     style={{
@@ -371,6 +375,7 @@ export default function SopralluogoFotoGallery({
                   />
                   Usa nel preventivo
                 </label>
+                </>}
               </div>
             </article>
           )

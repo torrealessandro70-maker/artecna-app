@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import QuadernoProgettiPanel from './QuadernoProgettiPanel'
+import VarianteFontiVisivePanel from './VarianteFontiVisivePanel'
 import { leggiFontiCollegate, previewVariante, type FonteQuadernoCollegata } from '../engines/sopralluogo-memory/previewVariante'
 
 type Props = {
@@ -93,8 +94,8 @@ export default function VarianteFontiMemoryPanel({ supabase, cantiereId, variant
         onChiudi={() => { setAperto(null); void carica() }} />
     </div>}
     {preview && <section aria-label="Anteprima fonti AI">
-      <h4>Anteprima fonti AI</h4>
-      <p>Anteprima del testo per il futuro generatore. Nessuna richiesta AI viene eseguita.</p>
+      <h4>Fonti narrative — anteprima Memory</h4>
+      <p>Fonti narrative — questa anteprima non esegue richieste AI.</p>
       <p>Si usa il contenuto salvato attuale dei Quaderni. Il riferimento conservato non consente di ricostruire versioni storiche.</p>
       {!variante.descrizione.trim() && fonti?.length === 0 && <p>Nessuna fonte narrativa disponibile.</p>}
       {fonti?.some(f => !f.disponibile) && <p role="status">Anteprima parziale: fonti temporaneamente non disponibili escluse.</p>}
@@ -103,5 +104,6 @@ export default function VarianteFontiMemoryPanel({ supabase, cantiereId, variant
       </li>)}</ul>
       <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{preview.testoUnificato}</pre>
     </section>}
+    <VarianteFontiVisivePanel key={variante.id} supabase={supabase} varianteId={variante.id} narrativaToken={JSON.stringify(fonti)} />
   </section>
 }

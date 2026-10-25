@@ -1,0 +1,46 @@
+STEP 4 — FOTO E OSSERVATORE VARIANTE
+Baseline: b0f467ca090ee5841cfb7d7d9f335ae6ff8e8f4a. Vedere MAPPA-STEP4.txt per la mappa ricostruita prima delle modifiche.
+
+COLLEGAMENTI
+variante_fonti_visive(variante_id,source_type,source_id,source_version=NULL,created_at)
+  + due FK generate alle tabelle foto esistenti, PK(variante_id,source_type,source_id).
+La tabella Quaderno installata resta invariata: estenderla richiederebbe cambiare la FK/check e le RPC specifiche esistenti. La relazione visiva dedicata conserva lo stesso contratto di identita, senza duplicare immagini, file, URL, didascalie o analisi.
+Scollega cancella solo questa relazione; la cancellazione della foto originale rimuove in cascata il riferimento, non l'analisi storica. Nessuna FK puo cancellare un parent per eliminazione del child.
+
+RPC
+public.leggi_foto_fonti_variante(uuid,boolean DEFAULT true): elenco collegato o candidati autorizzati.
+public.modifica_foto_fonti_variante(uuid,jsonb,text): batch atomico collega/scollega, da una a otto foto, UNIQUE 23505 esplicito, lock Variante e foto per l'inserimento.
+public.leggi_osservatore_variante(uuid): pacchetto autorevole, manifesto attuale e ultima analisi/allineamento.
+artecna_guardie.foto_fonti_variante(uuid,uuid,boolean): helper privato.
+artecna_guardie.pacchetto_osservatore_variante(uuid,uuid): helper privato.
+artecna_guardie.salva_osservatore_variante(uuid,uuid,uuid,jsonb,jsonb): scrittura del solo risultato; EXECUTE soltanto al backend gia esistente artecna_rapportini_backend, session_user controllato.
+Nuove tabelle RLS senza policy dirette; normali utenti e anonimi passano dalle RPC, nessun nuovo accesso diretto a foto/Storage.
+Controlli server: membership owner tramite guardia esistente, Variante bozza, cantiere_id UUID della foto; Sopralluogo solo attraverso il preventivo origine/contrattuale del medesimo cantiere. Nessun accoppiamento per nome. Quaderno solo del proprietario verificato e disponibile.
+
+ADAPTER AI
+payloadOsservatoreVariante(PacchettoOsservatore, immaginiAutorizzate: readonly string[]): InputOsservatore
+usa previewVariante -> buildVarianteMemorySources -> buildMemoryFromSources per la sola narrativa.
+Input: titolo Variante, testoUnificato, sole immagini collegate risolte server-side; checklist/audio/disegni vuoti, contesto vuoto. Contratto, prezzi, lavorazioni e vecchie analisi non entrano nel prompt.
+POST /api/varianti/osservatore accetta solo variante_id e richiesta_id, verifica JWT presso Auth, rilegge fonti con quel JWT, risolve immagini e richiama analizzaNotaOsservatore condiviso.
+Foto private: riuso sia del matcher triplo-ID di leggiBlobFotoDesktop sia del resolver/server reader esistente; nessun fallback a URL pubblici. Foto legacy: solo data URI JPEG/PNG/WebP oppure URL pubblico canonico del bucket preventivi dello stesso Supabase, path coerente col record, senza redirect o altri host. Riusa il limite Allegati di 4.000.000 byte. Foto non leggibili bloccano, mai saltate silenziosamente.
+Il motore condiviso conserva prompt, modello gpt-4.1-mini, limite otto immagini, trattamento audio e parser della baseline. Il percorso Sopralluogo continua a chiamare /api/analizza-nota-ai e a salvare analisi_ai nella propria nota; UI Sopralluogo e salvataggio non modificati.
+
+RISULTATO E PROVENIENZA
+variante_osservatore_analisi(id,variante_id,user_id,created_at,modello,fonti,risultato).
+fonti contiene solo manifesto e SHA256 dei byte effettivamente letti, senza testo o immagini copiati. Il manifesto identifica descrizione Variante (impronta contenuto), Quaderni (ID/updated_at) e Foto (tipo/ID, source_version NULL, impronta record).
+L'ultima analisi si confronta con il manifesto corrente. Modifica descrizione/Quaderno/record foto, cambio selezione o eliminazione fonte -> Analisi non piu allineata alle fonti. Rianalizza e' esplicito e crea un nuovo record; non entra come fonte originaria del builder.
+Foto che perde la coerenza col contesto: riferimento leggibile senza contenuto/URL, apri e analisi bloccati, scollega consentito. Perdita di accesso alla Variante o a un Quaderno blocca la lettura del pacchetto, senza esporre dati.
+Incertezza di risposta: nessuna ripetizione automatica del POST applicativo; la richiesta piu recente gia salvata puo essere riletta con lo stesso richiesta_id senza una nuova invocazione del motore. Prima di rianalizzare dopo errore, usare Aggiorna fonti visive e analisi. Il comportamento di retry interno SDK resta quello del motore esistente.
+
+UI
+VarianteFontiMemoryPanel conserva narrativa e contratto separati, aggiunge VarianteFontiVisivePanel.
+Il selettore multiplo riusa FotoCantiereGallery e SopralluogoFotoGallery con selezioneFonti=true: nessun comando di modifica/cancellazione/tag. Apertura riusa FotoFullscreenModal e FotoPrivataDesktopV1.
+Montaggio, selezione, collegamento, rilettura, scollegamento e rilevamento divergenza non invocano AI. Solo Analizza fonti con AI Osservatore / Rianalizza eseguono il POST dedicato.
+
+LIMITI E VERIFICHE
+Fonte foto priva di revisione autorevole: source_version resta NULL. L'impronta del record rileva metadati e dati inline; sostituzione di byte remoti allo stesso URL senza update DB non rilevabile passivamente. Rianalizza rilegge i byte e ne registra SHA256. Non si promette ricostruzione storica dei documenti/foto.
+Foto Cantiere legacy prive di cantiere_id e foto Sopralluogo prive del ponte contrattuale dimostrabile sono escluse, senza bonifiche o abbinamenti impliciti.
+L'allineamento e' verificato alla rilettura, non tramite una nuova sottoscrizione realtime. Modifiche Quaderno lette dal pannello narrativo ricaricano anche il risultato; per modifiche esterne usare Aggiorna fonti visive e analisi.
+Configurazione esistente riusata: OPENAI_API_KEY, URL/anon key Supabase pubbliche, RAPPORTINI_DATABASE_URL e Storage Foto V1. Nessuna variabile, credenziale, login o dipendenza aggiunta/modificata. Il ruolo backend deve esistere e riceve soltanto la nuova funzione di salvataggio.
+Tests: SQL effettivo su PostgreSQL embedded PGlite e guardie canoniche; HTTP/React/provider con mock/fixture, non browser o Supabase reali. La parita Osservatore confronta SHA256 del payload completo catturato prima del refactor, incluse immagini/audio e modello. Nessuna API AI reale eseguita. Il grafo import client esclude provider e moduli .server.
+Migrazione additiva locale NON applicata. Prima di un'eventuale attivazione occorrono precheck Production separatamente autorizzato, verifica schema/FK/ruoli e prova integrata reale isolata: questo step non li certifica. Nessun SQL remoto, push o deploy.

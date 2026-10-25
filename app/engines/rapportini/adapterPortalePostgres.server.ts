@@ -140,3 +140,12 @@ export async function risolviFotoDesktopPostgres(allegato: string, utenteVerific
   if (result.rows.length !== 1) throw new Error('Identita backend Foto non valida')
   return result.rows[0].result
 }
+
+/** Uses the existing authenticated backend pool; no new credentials or writer RPC changes. */
+export async function salvaOsservatoreVariantePostgres(user: string, variante: string, id: string, fonti: unknown, risultato: unknown): Promise<void> {
+  const result = await poolPortale(() => {}).query({
+    text: "SELECT artecna_guardie.salva_osservatore_variante($1::uuid,$2::uuid,$3::uuid,$4::jsonb,$5::jsonb) AS id WHERE session_user='artecna_rapportini_backend' AND current_user='artecna_rapportini_backend'",
+    values: [user, variante, id, JSON.stringify(fonti), JSON.stringify(risultato)],
+  })
+  if (result.rows.length !== 1 || result.rows[0].id !== id) throw new Error('Salvataggio Osservatore non confermato')
+}
