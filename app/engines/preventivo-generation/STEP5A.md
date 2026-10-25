@@ -1,5 +1,7 @@
 # Step 5A — compatibilità con cancellazione amministrativa
 
+> Documento storico: le assunzioni di catalogo qui descritte sono superate dalla fotografia Production e dalle prove documentate in [STEP5C.md](./STEP5C.md). Per baseline, FK e fingerprint usare Step 5C.
+
 Base: `1af348a5968afe87d2513f655612e1178b100d86`. Analisi e prove esclusivamente locali con dati sintetici. Nessuna lettura o scrittura Production necessaria in questo step. Le descrizioni del catalogo provengono dalle fixture/versioni SQL già presenti, non da una nuova fotografia Production.
 
 ## Percorso effettivo

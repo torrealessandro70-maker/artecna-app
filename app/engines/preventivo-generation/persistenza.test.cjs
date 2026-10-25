@@ -42,6 +42,7 @@ test('SQL effettivo embedded: documento/genealogia/lavorazioni atomici, correzio
  const before=(await db.query("select md5(pg_get_functiondef('public.aggiungi_correzione_variante(uuid,text,bigint,text,numeric,text)'::regprocedure)) h")).rows[0].h
  await db.exec('CREATE ROLE artecna_cantieri_delete_rpc NOLOGIN NOINHERIT BYPASSRLS;')
  await db.exec('CREATE TABLE variante_fonti_memory(variante_id uuid);CREATE TABLE variante_fonti_visive(variante_id uuid);CREATE TABLE variante_osservatore_analisi(variante_id uuid);')
+ await db.exec('CREATE TABLE materiali_impresa(fattura_riga_id uuid);')
  await db.exec(cleanup.baselineDDL())
  await db.exec(sql)
  await db.exec(`SET request.jwt.claim.sub='${u}';SET ROLE authenticated;`)

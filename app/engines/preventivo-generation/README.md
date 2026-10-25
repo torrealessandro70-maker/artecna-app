@@ -1,5 +1,7 @@
 # Step 5 — Preventivo Integrativo
 
+Baseline cleanup e limiti di certificazione aggiornati: [STEP5C.md](./STEP5C.md). Il vecchio candidato `5ddaed5e` e il relativo hash SQL non sono più il riferimento per l'applicazione.
+
 Implementazione locale dalla baseline `1f65385315059275f01f7d622b72ed4054a7565b`. Nessuna applicazione SQL, pubblicazione o chiamata AI reale durante la verifica.
 
 ```mermaid
