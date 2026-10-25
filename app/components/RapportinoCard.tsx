@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react'
 import type { FotoCantiere, Rapportino } from '../types'
+import RapportinoPrestazioniLetturaV1 from './RapportinoPrestazioniLetturaV1'
 
 type Props = {
   rapportino: Rapportino
@@ -96,6 +97,8 @@ export default function RapportinoCard({
         Rapportino strutturato: usa «Apri / Modifica rapportino» nel portale Mobile.
         L’eliminazione completa V1 non è disponibile; prestazioni e collegamenti restano conservati.
       </p>}
+      {r.versione_prestazioni === 1 && <RapportinoPrestazioniLetturaV1
+        key={`${r.id}/${r.cantiere_id}/${r.data}`} rapportino={r} />}
 
       <div style={{ marginTop: 8 }}>
         <button

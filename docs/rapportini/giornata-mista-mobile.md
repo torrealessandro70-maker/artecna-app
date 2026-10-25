@@ -30,13 +30,14 @@ Il writer calcola costo e ore sommando le prestazioni attive, mentre numero_pres
 
 La logica Economia preesistente filtra lavoro_in_economia, conserva lo snapshot e impedisce l'acquisizione duplicata per prestazione. Suite E3.2 preesistente rieseguita su PostgreSQL 17.6 localhost: 27/27, compresi rifiuto Ordinario, retry, acquisizione atomica, concorrenza e unicità tra raccolte. I relativi sorgenti SQL e test già disponibili nel checkout originale vengono solo letti/eseguiti in database sintetico, non copiati o modificati da questo branch.
 
-Il dettaglio salvato e riletto conserva la distinzione; il Diario Desktop attuale mostra il totale, ma non rende le fasce. Una proposta di sola lettura tramite la RPC Desktop esistente è stata fermata dalla revisione automatica per il limite esplicito sul Desktop. Approvazione specifica richiesta; nel candidato il Desktop resta invariato. Questa parte visiva non è dichiarata completata.
+Il dettaglio salvato e riletto conserva la distinzione. Dopo autorizzazione esplicita dell'utente, il Diario Desktop aggiunge soltanto «Mostra prestazioni»: legge su richiesta la RPC esistente `leggi_rapportino_desktop`, versione lettura 1. Nessuna richiesta al montaggio, nessun writer o form nuovo. Ogni fascia mostra intervallo, modalità, ore autorevoli della RPC e pausa; la variante compare solo sulla propria riga Economia. Totale giornaliero e subtotali restano separati per operaio. Righe rimosse escluse. I rapportini legacy mantengono il riepilogo originale; se il dettaglio è assente o non valido non vengono inventate fasce. Un cambio di identificativo/contesto del rapportino ricrea il pannello, impedendo di mostrare dettagli di un altro documento.
 
 ## Verifiche
 
 - `giornataMistaV1.test.cjs`: runtime JSX e bozza reali, payload, baseline precedente, RPC PostgreSQL PGlite isolata, reload, due operai, modifica di una sola fascia, pausa locale, >2 fasce, overlap e rollback integrale. Non è un test HTTP Supabase reale o browser mobile.
 - Suite HTTP/lettura esistenti: trasporti simulati, nessun server remoto.
 - `contabilitaManodopera.test.cjs`: costo senza doppie proiezioni.
+- `RapportinoPrestazioniLetturaV1.test.cjs`: quattro test JSX/hook/RPC simulata sul solo dettaglio Desktop; giornata mista 4+4, fasce consecutive, variante e subtotali, legacy, richiesta esclusivamente read-only, assenza di form e nessun dato fittizio su errore/contesto invalido. Nessun accesso remoto.
 - Economia E3.2: PostgreSQL 17.6 nativo con connessioni concorrenti effettive, dati sintetici; nessuna connessione Production.
 - TypeScript senza emissione e build Next locale; log ed esiti definitivi nella cartella audit RAPPORTINO-MISTO-20261025.
 
