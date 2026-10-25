@@ -10,6 +10,28 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- One server-owned revision token for every writer, including direct REST PATCH.
+-- Only the five persisted document fields are content. Management flags are not.
+CREATE FUNCTION public.quaderno_versione_contenuto() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path TO pg_catalog,pg_temp AS $$
+BEGIN
+  NEW.created_at := OLD.created_at;
+  IF ROW(NEW.titolo,NEW.testo,NEW.checklist,NEW.disegni,NEW.analisi_ai)
+    IS DISTINCT FROM ROW(OLD.titolo,OLD.testo,OLD.checklist,OLD.disegni,OLD.analisi_ai) THEN
+    NEW.updated_at := CASE WHEN isfinite(OLD.updated_at)
+      THEN greatest(clock_timestamp(),OLD.updated_at + interval '1 microsecond')
+      ELSE clock_timestamp() END;
+  ELSE
+    NEW.updated_at := OLD.updated_at;
+  END IF;
+  RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.quaderno_versione_contenuto() FROM PUBLIC,anon,authenticated,service_role;
+-- Existing quaderno_progetto_gestione runs first alphabetically; its locks/guards stay authoritative.
+CREATE TRIGGER quaderno_progetto_versione_contenuto
+BEFORE UPDATE ON public.quaderno_progetti
+FOR EACH ROW EXECUTE FUNCTION public.quaderno_versione_contenuto();
+
 CREATE TABLE public.variante_fonti_memory (
   variante_id uuid NOT NULL REFERENCES public.varianti_cantiere(id) ON DELETE CASCADE,
   source_type text NOT NULL DEFAULT 'quaderno' CHECK (source_type = 'quaderno'),
@@ -74,9 +96,13 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Rileggere la versione corrente del Quaderno';
   END IF;
   IF p_azione='collega' THEN
-    INSERT INTO public.variante_fonti_memory(variante_id,source_id,source_version)
-    VALUES(v.id,q.id,q.updated_at) ON CONFLICT DO NOTHING;
-    -- An existing link never refreshes its version implicitly.
+    BEGIN
+      INSERT INTO public.variante_fonti_memory(variante_id,source_id,source_version)
+      VALUES(v.id,q.id,q.updated_at);
+    EXCEPTION WHEN unique_violation THEN
+      RAISE EXCEPTION USING ERRCODE='23505',
+        MESSAGE='Questo Quaderno è già collegato alla Variante';
+    END;
   ELSE
     UPDATE public.variante_fonti_memory SET source_version=q.updated_at
     WHERE variante_id=v.id AND source_id=q.id;

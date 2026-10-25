@@ -49,8 +49,12 @@ export default function VarianteFontiMemoryPanel({ supabase, cantiereId, variant
       })
       if (r.error) throw r.error
       if (attivo.current) await carica()
-    } catch {
+    } catch (error) {
       if (attivo.current) {
+        if (azione === 'collega' && error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+          setErrore('Questo Quaderno è già collegato alla Variante')
+          return
+        }
         setFonti(null)
         setErrore('Operazione non confermata. Aggiorna le fonti prima di riprovare; nessun tentativo automatico.')
       }

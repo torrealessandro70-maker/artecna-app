@@ -11,10 +11,10 @@ const bozza={id:v,stato:'bozza',titolo:'Titolo Variante',descrizione:'Descrizion
 const date='2026-10-25T10:00:00.123456Z'
 test('collegamenti e autorizzazioni: SQL effettivo su PostgreSQL embedded PGlite',async t=>{
  const db=new PGlite();t.after(()=>db.close())
- await db.exec(`create role authenticated;create role anon;create schema artecna_guardie;
+ await db.exec(`create role authenticated;create role anon;create role service_role;create schema artecna_guardie;
  create table cantieri(id uuid primary key,user_id uuid);
  create table varianti_cantiere(id uuid primary key,cantiere_id uuid references cantieri,stato text);
- create table quaderno_progetti(id uuid primary key,user_id uuid,titolo text not null,testo text not null,updated_at timestamptz not null,gestione_id uuid,gestione_copia boolean not null default false);
+ create table quaderno_progetti(id uuid primary key,user_id uuid,titolo text not null,testo text not null,updated_at timestamptz not null,gestione_id uuid,gestione_copia boolean not null default false,created_at timestamptz not null default now(),checklist jsonb not null default '[]',disegni jsonb not null default '[]',analisi_ai jsonb);
  create table quaderno_allegati(id int primary key,progetto uuid references quaderno_progetti,payload text);
  create function artecna_guardie.utente_jwt_corrente() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
  create function artecna_guardie.utente_puo_modificare_cantiere(u uuid,c uuid) returns boolean language sql stable as $$select exists(select 1 from public.cantieri where id=c and user_id=u)$$;
@@ -32,8 +32,8 @@ test('collegamenti e autorizzazioni: SQL effettivo su PostgreSQL embedded PGlite
   const preview=previewVariante(bozza,c,'CONTRATTO-SEGRETO',await read())
   a.equal(preview.testoUnificato,'Titolo Variante\nDescrizione Variante');a(!preview.testoUnificato.includes('CONTRATTO'))
  })
- await t.test('uno e due Quaderni, doppio collegamento idempotente',async()=>{
-  await change(q1);a.equal((await read()).length,1);await change(q2);await change(q1)
+ await t.test('uno e due Quaderni, doppio collegamento rifiutato',async()=>{
+  await change(q1);a.equal((await read()).length,1);await change(q2);const before=(await db.query('select to_jsonb(f) as doc from variante_fonti_memory f order by source_id')).rows;await a.rejects(change(q1),e=>e.code==='23505'&&e.message==='Questo Quaderno è già collegato alla Variante');a.deepEqual((await db.query('select to_jsonb(f) as doc from variante_fonti_memory f order by source_id')).rows,before)
   a.equal((await read()).length,2);a.equal(await count('variante_fonti_memory'),2)
  })
  await t.test('stato aggiornato e preview deterministica senza contenuti duplicati',async()=>{
@@ -45,7 +45,7 @@ test('collegamenti e autorizzazioni: SQL effettivo su PostgreSQL embedded PGlite
   await db.query("update quaderno_progetti set testo='Testo aggiornato',updated_at=updated_at+interval '1 microsecond' where id=$1",[q1])
   const source=(await read()).find(f=>f.id===q1);a.equal(source.aggiornato,false)
   await a.rejects(change(q1,'aggiorna',date),e=>e.code==='40001')
-  await change(q1,'collega',source.updated_at)
+  await a.rejects(change(q1,'collega',source.updated_at),e=>e.code==='23505')
   a.equal((await read()).find(f=>f.id===q1).source_version,source.source_version)
   const preview=previewVariante(bozza,c,null,await read());a(preview.testoUnificato.includes('Testo aggiornato'))
   a.equal(preview.fonti.find(f=>f.source_id===q1).source_version,source.updated_at)
@@ -85,6 +85,14 @@ test('collegamenti e autorizzazioni: SQL effettivo su PostgreSQL embedded PGlite
   a.deepEqual(cols,['variante_id','source_type','source_id','source_version','created_at'])
   a(!migration.includes('storage.objects'));a(!migration.includes('quaderno_allegati'))
  })
+ await t.test('timestamp autorevole, no-op e metadati tecnici',async()=>{
+  const snapshot=async()=>(await db.query('select to_jsonb(p) as doc from quaderno_progetti p where id=$1',[q1])).rows[0].doc
+  let old=await snapshot();await db.query("update quaderno_progetti set updated_at='2099-01-01',created_at='2001-01-01' where id=$1",[q1]);a.deepEqual(await snapshot(),old)
+  for(const [field,value]of [['titolo','Altro titolo'],['testo','Altro testo'],['checklist','[{"testo":"controllo"}]'],['disegni','[{"id":"pagina"}]'],['analisi_ai','{"nota":"persistita"}']]){
+   old=await snapshot();await db.query('update quaderno_progetti set '+field+'=$1,updated_at=$2 where id=$3',[value,old.updated_at,q1]);const now=await snapshot();a.notEqual(now.updated_at,old.updated_at);a.equal(now.created_at,old.created_at);await db.query('update quaderno_progetti set '+field+'=$1,updated_at=clock_timestamp() where id=$2',[value,q1]);a.equal((await snapshot()).updated_at,now.updated_at)
+  }
+  old=await snapshot();await db.query('update quaderno_progetti set gestione_id=$1,gestione_copia=true where id=$2',[v,q1]);a.equal((await snapshot()).updated_at,old.updated_at);await db.query('update quaderno_progetti set gestione_id=null,gestione_copia=false where id=$1',[q1]);a.equal((await snapshot()).updated_at,old.updated_at)
+ })
  await t.test('fuori bozza: letture e modifiche rifiutate',async()=>{
   await db.exec("update varianti_cantiere set stato='proposta'")
   await a.rejects(read(),e=>e.code==='22023');await a.rejects(change(q2,'scollega'),e=>e.code==='22023')
@@ -115,7 +123,7 @@ test('pannello reale: selezione multipla, preview, divergenza, apertura e scolle
   calls.push({name,args})
   if(name==='leggi_fonti_memory_variante')return{data:structuredClone(links),error:null}
   a.equal(name,'modifica_fonte_memory_variante')
-  const id=args.p_source_id
+  const id=args.p_source_id; if(args.p_azione==='collega'&&links.some(f=>f.id===id))return {data:null,error:{code:'23505',message:'Questo Quaderno è già collegato alla Variante'}}
   if(args.p_azione==='collega'&&!links.some(f=>f.id===id))links.push({...projects.get(id),source_version:date,aggiornato:true,disponibile:true})
   if(args.p_azione==='scollega')links=links.filter(f=>f.id!==id)
   if(args.p_azione==='aggiorna')links=links.map(f=>f.id===id?{...f,source_version:f.updated_at,aggiornato:true}:f)
@@ -138,6 +146,7 @@ test('pannello reale: selezione multipla, preview, divergenza, apertura e scolle
  archive(tree).props.selezione.onSeleziona(projects.get(q1));await tick();tree=render()
  archive(tree).props.selezione.onSeleziona(projects.get(q2));await tick();tree=render()
  a.equal(links.length,2);a(text(tree).includes('Testo Uno'));a(text(tree).includes('Testo Due'))
+ const duplicateSnapshot=JSON.stringify(links);archive(tree).props.selezione.onSeleziona(projects.get(q1));await tick();tree=render();a(text(tree).includes('Questo Quaderno è già collegato alla Variante'));a.equal(JSON.stringify(links),duplicateSnapshot);a(text(tree).includes('Testo Due'))
  a(!nodes(tree).find(n=>n.type==='pre').props.children.includes('CONTRATTO'))
  const beforeOpen=calls.filter(x=>x.name==='modifica_fonte_memory_variante').length
  button(tree,'Apri').props.onClick();tree=render()
