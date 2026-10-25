@@ -11,6 +11,13 @@ const ore = (valore: number) => {
   return `${Math.floor(minuti / 60)}:${String(minuti % 60).padStart(2, '0')} h`
 }
 
+function diagnosticaLettura(code: string, message: string) {
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+    // Non registrare payload, identita, token o dettagli aggiuntivi della risposta.
+    console.warn('[RapportinoPrestazioniLetturaV1]', { code, message })
+  }
+}
+
 /** Proiezione del solo DTO di lettura: le ore autorevoli sono quelle della RPC. */
 export function DettaglioPrestazioniRapportinoV1({ dettaglio }: { dettaglio: EsitoSalvataggioRapportino }) {
   const gruppi = new Map<string, typeof dettaglio.prestazioni[number][]>()
@@ -45,11 +52,23 @@ export default function RapportinoPrestazioniLetturaV1({ rapportino }: { rapport
     try {
       const r = await supabase.rpc('leggi_rapportino_desktop', { p_cantiere_id: rapportino.cantiere_id,
         p_data: rapportino.data, p_rapportino_id: rapportino.id, p_versione_lettura: 1 })
-      if (r.error || !letturaPortaleValida(r.data, { cantiere_id: rapportino.cantiere_id,
-        data: rapportino.data, rapportino_id: rapportino.id })) throw Error('Dettaglio non disponibile')
+      if (r.error) {
+        diagnosticaLettura(r.error.code, r.error.message)
+        setMessaggio('Servizio di lettura prestazioni non disponibile. Resta visibile il riepilogo del rapportino; puoi riprovare.')
+        return
+      }
+      if (!letturaPortaleValida(r.data, { cantiere_id: rapportino.cantiere_id,
+        data: rapportino.data, rapportino_id: rapportino.id })) {
+        diagnosticaLettura('RESPONSE_INVALID', 'Risposta non conforme al contratto di lettura V1')
+        setMessaggio('Risposta del dettaglio prestazioni non valida. Resta visibile il riepilogo del rapportino.')
+        return
+      }
       if (r.data.versione_prestazioni === 1) setDettaglio(r.data.dettaglio)
       else setMessaggio('Dettaglio prestazioni non disponibile. Resta valido il riepilogo storico.')
-    } catch { setMessaggio('Dettaglio prestazioni non disponibile. Resta visibile il riepilogo del rapportino; puoi riprovare.') }
+    } catch {
+      diagnosticaLettura('TRANSPORT', 'Richiesta di lettura prestazioni non completata')
+      setMessaggio('Connessione al dettaglio prestazioni non riuscita. Resta visibile il riepilogo del rapportino; puoi riprovare.')
+    }
     finally { occupato.current = false; setCaricamento(false) }
   }
   if (rapportino.versione_prestazioni !== 1) return null

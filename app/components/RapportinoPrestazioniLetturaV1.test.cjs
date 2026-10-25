@@ -8,13 +8,13 @@ const response=()=>({versione_lettura:1,cantiere_id:C,data:'2026-10-25',presente
 const report=()=>({id:R,cantiere_id:C,versione_prestazioni:1,cantiere:'Cantiere sintetico',data:'2026-10-25',ore:'8',note:'Riepilogo storico'});
 const nodes=(n,out=[])=>{if(Array.isArray(n))n.forEach(x=>nodes(x,out));else if(n?.props){out.push(n);nodes(typeof n.type==='function'?n.type(n.props):n.props.children,out)}return out};
 const text=n=>Array.isArray(n)?n.map(text).join(''):n?.props?text(typeof n.type==='function'?n.type(n.props):n.props.children):n==null||typeof n==='boolean'?'':String(n);
-function harness(value=response(),rpcError=null){const state=[],refs=[],calls=[];let cursor=0,rc=0;const react={useState:init=>{const i=cursor++;if(!(i in state))state[i]=init;return[state[i],v=>state[i]=v]},useRef:init=>refs[rc++]||(refs[rc-1]={current:init})};
+function harness(value=response(),rpcError=null,mode='test'){const state=[],refs=[],calls=[],diagnostics=[];let cursor=0,rc=0;const react={useState:init=>{const i=cursor++;if(!(i in state))state[i]=init;return[state[i],v=>state[i]=v]},useRef:init=>refs[rc++]||(refs[rc-1]={current:init})};
  const validator=load('../engines/rapportini/validaLetturaPortale.ts',()=>({}));
- const client={rpc:async(n,p)=>{calls.push({n,p});return{data:value,error:rpcError}},from:()=>{throw Error('Richiesta tabellare non autorizzata')}};
- const panel=load('RapportinoPrestazioniLetturaV1.tsx',n=>n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n.includes('supabaseClient')?{supabase:client}:validator);
+ const client={rpc:async(n,p)=>{calls.push({n,p});if(value instanceof Error)throw value;return{data:value,error:rpcError}},from:()=>{throw Error('Richiesta tabellare non autorizzata')}};
+ const e={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'RapportinoPrestazioniLetturaV1.tsx'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports:e,process:{env:{NODE_ENV:mode}},console:{warn:(label,value)=>diagnostics.push({label,...value})},require:n=>n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n.includes('supabaseClient')?{supabase:client}:validator});const panel=e;
  const Table=load('RapportiniTable.tsx',n=>n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='./RapportinoCard'?{fotoCollegataAlRapportino:()=>false}:panel).default;
  const expand=n=>Array.isArray(n)?n.map(expand):n?.props?typeof n.type==='function'?expand(n.type(n.props)):{...n,props:{...n.props,children:expand(n.props.children)}}:n;
- return{panel,calls,render:(r=report())=>{cursor=0;rc=0;return panel.default({rapportino:r})},renderTable:props=>{cursor=0;rc=0;return expand(Table(props))}};
+ return{panel,calls,diagnostics,render:(r=report())=>{cursor=0;rc=0;return panel.default({rapportino:r})},renderTable:props=>{cursor=0;rc=0;return expand(Table(props))}};
 }
 const flush=()=>new Promise(setImmediate);
 test('render: due fasce consecutive distinte, 4+4, subtotali e variante solo Economia',()=>{
@@ -53,5 +53,22 @@ test('tabella Diario: legacy e V1 senza identità mantengono il riepilogo senza 
  for(const r of [{...report(),versione_prestazioni:0},{...report(),versione_prestazioni:undefined},{...report(),id:undefined},{...report(),cantiere_id:undefined}]){
   const h=harness(),tree=h.renderTable({rapportini:[{...r,operai:'Torre Alessandro — 8 h'}],fotoCantiere:[]});
   a(text(tree).includes('Torre Alessandro — 8 h'));a(text(tree).includes('Riepilogo storico'));a(!text(tree).includes('Mostra prestazioni'));a.equal(h.calls.length,0);
+ }
+});
+
+test('errore RPC: code/message diagnostici solo sviluppo/test, nessun dettaglio sensibile nella UI o nei log Production',async()=>{
+ const error={code:'PGRST202',message:'Could not find public.leggi_rapportino_desktop',details:'dato riservato',hint:'token-riservato'};
+ for(const mode of ['development','test','production']){
+  const h=harness(null,error,mode);nodes(h.render()).find(n=>n.type==='button').props.onClick();await flush();const t=text(h.render());
+  a(t.includes('Servizio di lettura prestazioni non disponibile'));a(!t.includes(error.message));a(!t.includes(error.code));a(!t.includes(error.details));
+  a.equal(h.diagnostics.length,mode==='production'?0:1);
+  if(mode!=='production'){a.equal(h.diagnostics[0].code,error.code);a.equal(h.diagnostics[0].message,error.message);a.deepEqual(Object.keys(h.diagnostics[0]).sort(),['code','label','message']);}
+  a.equal(h.calls.length,1);
+ }
+});
+
+test('risposta invalida e trasporto: diagnostica distinta, senza dump del payload o eccezione',async()=>{
+ for(const [value,code,label] of [[{secret:'payload-riservato'},'RESPONSE_INVALID','Risposta del dettaglio'],[new Error('token-riservato'),'TRANSPORT','Connessione al dettaglio']]){
+  const h=harness(value);nodes(h.render()).find(n=>n.type==='button').props.onClick();await flush();a(text(h.render()).includes(label));a.equal(h.diagnostics[0].code,code);a(!JSON.stringify(h.diagnostics).includes('riservato'));a.equal(h.calls.length,1);
  }
 });
