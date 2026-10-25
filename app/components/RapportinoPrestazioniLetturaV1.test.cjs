@@ -12,7 +12,9 @@ function harness(value=response(),rpcError=null){const state=[],refs=[],calls=[]
  const validator=load('../engines/rapportini/validaLetturaPortale.ts',()=>({}));
  const client={rpc:async(n,p)=>{calls.push({n,p});return{data:value,error:rpcError}},from:()=>{throw Error('Richiesta tabellare non autorizzata')}};
  const panel=load('RapportinoPrestazioniLetturaV1.tsx',n=>n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n.includes('supabaseClient')?{supabase:client}:validator);
- return{panel,calls,render:(r=report())=>{cursor=0;rc=0;return panel.default({rapportino:r})}};
+ const Table=load('RapportiniTable.tsx',n=>n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='./RapportinoCard'?{fotoCollegataAlRapportino:()=>false}:panel).default;
+ const expand=n=>Array.isArray(n)?n.map(expand):n?.props?typeof n.type==='function'?expand(n.type(n.props)):{...n,props:{...n.props,children:expand(n.props.children)}}:n;
+ return{panel,calls,render:(r=report())=>{cursor=0;rc=0;return panel.default({rapportino:r})},renderTable:props=>{cursor=0;rc=0;return expand(Table(props))}};
 }
 const flush=()=>new Promise(setImmediate);
 test('render: due fasce consecutive distinte, 4+4, subtotali e variante solo Economia',()=>{
@@ -29,4 +31,27 @@ test('legacy: riepilogo Card preservato e nessuna lettura o prestazione inventat
 });
 test('dettaglio assente/errore/contesto errato: riepilogo conservato, nessuna riga fittizia',async()=>{
  for(const v of [{...response(),versione_prestazioni:0,dettaglio:null},{...response(),cantiere_id:O},null]){const h=harness(v);nodes(h.render()).find(n=>n.type==='button').props.onClick();await flush();const t=h.render();a(text(t).includes('riepilogo'));a.equal(nodes(t).filter(n=>n.type==='li').length,0);a.equal(h.calls.length,1);}
+});
+
+test('tabella Diario reale: pulsante nella riga V1, apertura 4+4 e chiusura solo in lettura',async()=>{
+ const h=harness();let writes=0;
+ const props={rapportini:[{...report(),operai:'Torre Alessandro — 8 h'}],mostraCantiere:true,fotoCantiere:[],onModifica:()=>writes++,setFotoRapportinoAperte:()=>{},eliminaRapportino:()=>writes++,generaPdfRapportinoFotografico:()=>{}};
+ let tree=h.renderTable(props),buttons=nodes(tree).filter(n=>n.type==='button');
+ a.equal(h.calls.length,0);a.equal(text(buttons.find(n=>text(n)==='Mostra prestazioni')),'Mostra prestazioni');
+ const workerCell=nodes(tree).find(n=>n.type==='td'&&text(n).includes('Mostra prestazioni'));a(text(workerCell).includes('Torre Alessandro — 8 h'));
+ buttons.find(n=>text(n)==='Mostra prestazioni').props.onClick();await flush();tree=h.renderTable(props);
+ const panel=nodes(tree).find(n=>n.props['aria-label']==='Dettaglio prestazioni in sola lettura');
+ a(text(panel).includes('07:00–11:00 — Ordinario — 4:00 h'));a(text(panel).includes(`11:00–15:00 — Economia — 4:00 h · Variante ${V}`));
+ a(text(panel).includes('Totale: 8:00 h — Ordinario: 4:00 h — Economia: 4:00 h'));
+ a.equal(nodes(panel).filter(n=>['input','select','textarea','form'].includes(n.type)).length,0);
+ a.deepEqual(nodes(panel).filter(n=>n.type==='button').map(text),['Nascondi prestazioni']);
+ a.equal(h.calls.length,1);a.equal(h.calls[0].n,'leggi_rapportino_desktop');a.equal(h.calls[0].p.p_rapportino_id,R);a.equal(writes,0);
+ nodes(panel).find(n=>n.type==='button').props.onClick();tree=h.renderTable(props);a(!text(tree).includes('07:00'));a(text(tree).includes('Mostra prestazioni'));a.equal(h.calls.length,1);a.equal(writes,0);
+});
+
+test('tabella Diario: legacy e V1 senza identità mantengono il riepilogo senza pulsante o richieste',()=>{
+ for(const r of [{...report(),versione_prestazioni:0},{...report(),versione_prestazioni:undefined},{...report(),id:undefined},{...report(),cantiere_id:undefined}]){
+  const h=harness(),tree=h.renderTable({rapportini:[{...r,operai:'Torre Alessandro — 8 h'}],fotoCantiere:[]});
+  a(text(tree).includes('Torre Alessandro — 8 h'));a(text(tree).includes('Riepilogo storico'));a(!text(tree).includes('Mostra prestazioni'));a.equal(h.calls.length,0);
+ }
 });

@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { FotoCantiere, Rapportino } from '../types'
 import { apriFotoRapportino, fotoCollegataAlRapportino } from './RapportinoCard'
+import RapportinoPrestazioniLetturaV1 from './RapportinoPrestazioniLetturaV1'
 
 type Props = {
   rapportini: Rapportino[]
@@ -75,7 +76,15 @@ export default function RapportiniTable({
                 <td style={{ ...cella, whiteSpace: 'nowrap' }}>{data || '—'}</td>
                 {mostraCantiere && <td style={cella}>{evidenziaTesto(r.cantiere || '')}</td>}
                 <td style={{ ...cella, minWidth: 250, maxWidth: 450, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{evidenziaTesto(r.note || '—')}</td>
-                <td style={{ ...cella, minWidth: 140, whiteSpace: 'pre-wrap' }}>{evidenziaTesto(r.operai || '—')}</td>
+                <td style={{ ...cella, minWidth: 140, whiteSpace: 'pre-wrap' }}>
+                  {evidenziaTesto(r.operai || '—')}
+                  {r.versione_prestazioni === 1 && r.id && r.cantiere_id && (
+                    <RapportinoPrestazioniLetturaV1
+                      key={`${r.id}/${r.cantiere_id}/${r.data}`}
+                      rapportino={r}
+                    />
+                  )}
+                </td>
 <td style={{ ...cella, minWidth: 140 }}>
   {evidenziaTesto(r.compilato_da_nome || '—')}
 </td>
