@@ -22,3 +22,19 @@ export type BuildSopralluogoMemoryInput = {
 
   quaderno?: SopralluogoMemoryNotebook | null
 }
+
+export type MemorySourceIdentity = {
+  source_id: string
+  source_version?: string
+  updated_at?: string
+}
+
+export type MemorySource = MemorySourceIdentity & (
+  | { source_type: 'descrizione'; origine: 'sopralluogo' | 'cantiere' | 'variante'; testo: string }
+  | { source_type: 'nota'; origine: 'sopralluogo' | 'quaderno' | 'variante'; titolo?: string; testo: string }
+)
+
+export type ComposedMemory = {
+  fonti: MemorySource[]
+  testoUnificato: string
+}
