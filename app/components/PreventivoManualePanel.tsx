@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import VariantePreventivoIntegrativoPanel from './VariantePreventivoIntegrativoPanel'
 import RevisionePreventivoAiPanel from './RevisionePreventivoAiPanel'
+import { leggiMemoriaPrezziPreventivo } from '../engines/preventivo-generation/memoria-prezzi'
 import { leggiStoricoPrezzi } from '../engines/price-resolution/storico-prezzi'
 import type { PriceKnowledgeItem } from '../engines/price-resolution/types'
 import { totaleManuale, validaManuale, type VoceManuale } from '../engines/preventivo-generation/manuale'
@@ -16,6 +17,7 @@ export default function PreventivoManualePanel({ db, cantieri, iniziale, cantier
   const [tipo, setTipo] = useState<'contrattuale' | 'integrativo'>('contrattuale')
   const [varianti, setVarianti] = useState<{ id: string; titolo: string }[]>([])
   const [variante, setVariante] = useState('')
+  const [memoriaRiservata, setMemoriaRiservata] = useState(false)
   const [id] = useState(() => iniziale?.id || crypto.randomUUID())
   const [cliente, setCliente] = useState(iniziale?.cliente_ai || cantieri.find(c => c.id === cantiereId)?.cliente || '')
   const [cantiere, setCantiere] = useState(iniziale?.cantiere_id || cantiereId || '')
@@ -30,6 +32,11 @@ export default function PreventivoManualePanel({ db, cantieri, iniziale, cantier
   useEffect(() => {
     let attivo = true
     const pagine = async (tabella: string) => {
+      if (tabella === 'memoria_prezzi') {
+        const memoria = await leggiMemoriaPrezziPreventivo(db)
+        if (attivo) setMemoriaRiservata(!memoria.autorizzata)
+        return memoria.righe
+      }
       const righe: PriceKnowledgeItem[] = []
       for (let from = 0; ; from += 500) {
         const r = await db.from(tabella).select('*').order(tabella === 'prezzi_lavorazioni' ? 'codice' : 'creato_il').range(from, from + 499)
@@ -86,6 +93,7 @@ export default function PreventivoManualePanel({ db, cantieri, iniziale, cantier
         {variante && <VariantePreventivoIntegrativoPanel key={variante} supabase={db} soloManuale metadatiManuali={{ cliente, titolo, data }} varianteId={variante} onSalvato={() => { void salvato() }} />}
         <button type="button" onClick={() => { if (window.confirm('Chiudere il preventivo?')) chiudi() }}>Chiudi</button>
       </div>}
+      {memoriaRiservata && <p role="status">Memoria prezzi riservata al titolare autorizzato. Restano disponibili prezzario e voci libere.</p>}
       {errore && <p role="status">{errore}</p>}
       {!pronto && <p>Caricamento riferimenti prezzi…</p>}
       {pronto && tipo === 'contrattuale' && <RevisionePreventivoAiPanel manuale confermaInCorso={busy || incerto} messaggioAi="Origine: manuale" descrizionePreventivoAi={descrizione} setDescrizionePreventivoAi={setDescrizione}

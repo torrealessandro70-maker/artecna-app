@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import RevisionePreventivoAiPanel from './RevisionePreventivoAiPanel'
 import { leggiSnapshotIntegrativo } from '../engines/preventivo-generation/lettura'
 import { contestoVariante, leggiRispostaIntegrativa, validaRevisione, type SnapshotIntegrativo, type VoceIntegrativa } from '../engines/preventivo-generation/contesto'
+import { leggiMemoriaPrezziPreventivo } from '../engines/preventivo-generation/memoria-prezzi'
 import { leggiStoricoPrezzi } from '../engines/price-resolution/storico-prezzi'
 import type { PriceKnowledgeItem } from '../engines/price-resolution/types'
 import { preservaPerimetroMiglioraTesto } from '../utils/perimetroMiglioraTesto'
@@ -14,6 +15,7 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
   const [clienteManuale, setClienteManuale] = useState(metadatiManuali?.cliente || '')
   const [titoloManuale, setTitoloManuale] = useState(metadatiManuali?.titolo || 'Preventivo Integrativo manuale')
   const [dataManuale, setDataManuale] = useState(metadatiManuali?.data || new Date().toLocaleDateString('sv-SE'))
+  const [memoriaRiservata, setMemoriaRiservata] = useState(false)
   const [manuale, setManuale] = useState(false)
   const [storico, setStorico] = useState<PriceKnowledgeItem[]>([])
   const [snapshot, setSnapshot] = useState<SnapshotIntegrativo | null>(null)
@@ -34,7 +36,12 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
     if (r.error) throw Error('Fonti o contratto non disponibili. Verifica che la migrazione Step 5 sia installata.')
     return leggiSnapshotIntegrativo(r.data, varianteId)
   }
-  async function riferimenti(tabella: 'prezzi_lavorazioni' | 'memoria_prezzi') {
+  async function riferimenti(tabella: 'prezzi_lavorazioni' | 'memoria_prezzi', percorsoManuale = false) {
+    if (percorsoManuale && tabella === 'memoria_prezzi') {
+      const memoria = await leggiMemoriaPrezziPreventivo(supabase)
+      if (mounted.current) setMemoriaRiservata(!memoria.autorizzata)
+      return memoria.righe
+    }
     const righe: PriceKnowledgeItem[] = []
     for (let da = 0; ; da += 500) {
       const r = await supabase.from(tabella).select('*').order(tabella === 'prezzi_lavorazioni' ? 'codice' : 'creato_il').range(da, da + 499)
@@ -54,7 +61,7 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
     inCorso.current = true; setBusy(true); setErrore('')
     try {
       const s = await leggi(); contestoVariante(s)
-      const [p, m, h] = await Promise.all([riferimenti('prezzi_lavorazioni'), riferimenti('memoria_prezzi'), leggiStoricoPrezzi(supabase)])
+      const [p, m, h] = await Promise.all([riferimenti('prezzi_lavorazioni'), riferimenti('memoria_prezzi', true), leggiStoricoPrezzi(supabase)])
       if (!mounted.current) return
       setSnapshot(s); setPrezzi(p); setMemoria(m); setStorico(h); setVoci([]); setOriginali([])
       setDescrizione(s.lettura.fonti.variante.descrizione || 'Preventivo Integrativo manuale')
@@ -110,6 +117,7 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
     <h4>Preventivo Integrativo</h4>
     {!soloManuale && <button type="button" disabled={busy || !!salvato || arrestoVisibile || revisione} onClick={() => void anteprima()}>Genera Preventivo Integrativo</button>}
     <button type="button" disabled={busy || !!salvato || arrestoVisibile || revisione} onClick={() => void compilaManuale()}>Compila manualmente</button>
+    {manuale && memoriaRiservata && <p role="status">Memoria prezzi riservata al titolare autorizzato. Restano disponibili prezzario e voci libere.</p>}
     {errore && <p role="alert">{errore}</p>}
     {preview && snapshot && <div aria-label="Anteprima generazione integrativa">
       <p>{numeroNarrative} fonti narrative · {snapshot.lettura.fonti.quaderni.length} Quaderni · {snapshot.lettura.fonti.foto.length} foto</p>
