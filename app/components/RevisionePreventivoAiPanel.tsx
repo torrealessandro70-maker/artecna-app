@@ -1,6 +1,8 @@
 ﻿'use client'
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import RicercaPrezziPreventivo from './RicercaPrezziPreventivo'
+import { voceLibera } from '../engines/preventivo-generation/manuale'
 import PriceResolutionSummary from './PriceResolutionSummary'
 import { modificaVoceDiagnostica, esitoDiagnosticaVoce } from '../engines/price-resolution/diagnostica-voce'
 import PrezzoWebVoce from './PrezzoWebVoce'
@@ -96,6 +98,8 @@ function calcolaEspressione(input: string): EsitoCalcolo {
 }
 
 type Props = {
+  manuale?: boolean
+  storicoRiferimento?: readonly PriceKnowledgeItem[]
   integrativo?: ContrattoContext
   confermaInCorso?: boolean
   messaggioAi: string
@@ -128,6 +132,8 @@ salvaRevisionePreventivoAi: () => void | Promise<void>
 }
 
 export default function RevisionePreventivoAiPanel({
+  manuale = false,
+  storicoRiferimento = [],
   integrativo,
   confermaInCorso = false,
   messaggioAi,
@@ -320,7 +326,7 @@ useEffect(() => {
           marginBottom: 20,
         }}
       >
-        {integrativo ? 'Revisione Preventivo Integrativo — delta della Variante' : 'Revisione preventivo AI'}
+        {integrativo ? 'Revisione Preventivo Integrativo — delta della Variante' : manuale ? 'Preventivo manuale' : 'Revisione preventivo AI'}
       </h3>
 
       {mostraPriceResolutionSummary && (
@@ -439,11 +445,11 @@ useEffect(() => {
                     Incidenza manodopera: {voce.priceResolution.manodoperaSic24.percentualeManodopera}% · Quota manodopera: {voce.priceResolution.manodoperaSic24.prezzoManodopera} €/{voce.priceResolution.manodoperaSic24.unitaMisura}<br />
                     Metodo: {voce.priceResolution.manodoperaSic24.metodo}. Nessuna maggiorazione.
                   </p>}
-                  {(!integrativo || voce.operazione === 'nuova') && (!voce.priceResolution?.matched || voce.priceResolution?.strategy === 'similarity') && <AnalisiPrezzoVoce
+                  {!manuale && (!integrativo || voce.operazione === 'nuova') && (!voce.priceResolution?.matched || voce.priceResolution?.strategy === 'similarity') && <AnalisiPrezzoVoce
                     descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} quantita={Number(voce.quantita || 0)} prezzo={Number(voce.prezzo_unitario || 0)}
                     prezzi={prezziRiferimento} memoria={memoriaRiferimento} webVerificato={webPerVoce[JSON.stringify([voce.descrizione,voce.unita_misura])]}
                     onUsa={(input,result)=>aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?applicaAnalisiPrezzo(v,input,result):v))} />}
-                  {(!integrativo || voce.operazione === 'nuova') && !voce.priceResolution?.matched && <PrezzoWebVoce descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} prezzi={prezziRiferimento} memoria={memoriaRiferimento}
+                  {!manuale && (!integrativo || voce.operazione === 'nuova') && !voce.priceResolution?.matched && <PrezzoWebVoce descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} prezzi={prezziRiferimento} memoria={memoriaRiferimento}
                     onVerificato={result=>setWebPerVoce(correnti=>({...correnti,[JSON.stringify([voce.descrizione,voce.unita_misura])]:result}))}
                     onInterno={r => aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?{...v,...r,priceResolutionInvalidated:false}:v))}
                     onUsa={r => aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?applicaPrezzoWeb(v,r):v))} />}
@@ -573,6 +579,9 @@ return (
   <tr key={index}>
 
                <td style={excelTd}>
+  {manuale && <p>Origine prezzo: {voce.riferimento_scelto ? voce.fonte_prezzo : 'Inserito manualmente'}
+    {voce.riferimento_scelto && <> · Riferimento scelto: {voce.riferimento_scelto.codice} — {voce.riferimento_scelto.fonte} — {formatMoney(voce.riferimento_scelto.prezzo_unitario)} / {voce.riferimento_scelto.unita_misura}</>}
+    {voce.priceResolutionInvalidated && ' · Modifica manuale: riferimento originale conservato'}</p>}
   {integrativo && <fieldset aria-label={`Operazione voce ${index + 1}`}>
     <label>Tipo operazione<select value={voce.operazione || 'nuova'} onChange={e => {
       const operazione = e.target.value as OperazioneIntegrativa
@@ -833,7 +842,8 @@ aggiornaVociConCronologia(nuove)
 
                     <button
                       type="button"
-                      onClick={() => miglioraVocePreventivoAi(index)}
+                      disabled={manuale}
+                      onClick={() => { if (!manuale) void miglioraVocePreventivoAi(index) }}
                       style={{
                         background: '#f59e0b',
                         color: '#fff',
@@ -890,12 +900,14 @@ aggiornaVociConCronologia(nuove)
         <span>{formatMoney(subTotale)}</span>
       </div>
 
+      {manuale && <RicercaPrezziPreventivo prezzi={prezziRiferimento} memoria={memoriaRiferimento} storico={storicoRiferimento} aggiungi={voce => aggiornaVociConCronologia([...vociPreventivoAi, voce])} />}
       <div style={{ marginTop: 15, display: 'flex', gap: 10 }}>
         <button
           onClick={() =>
            aggiornaVociConCronologia([
   ...vociPreventivoAi,
   {
+    ...(manuale ? voceLibera() : {}),
     descrizione: '',
     unita_misura: 'a corpo',
     quantita: 1,
@@ -906,7 +918,7 @@ aggiornaVociConCronologia(nuove)
           }
           style={buttonSecondary}
         >
-          + Aggiungi voce
+          {manuale ? '+ Voce libera' : '+ Aggiungi voce'}
         </button>
 
         <button
@@ -941,7 +953,7 @@ aggiornaVociConCronologia(nuove)
 
 {!integrativo && <button
   onClick={async () => {
-    for (const voce of vociPreventivoAi) {
+    for (const voce of manuale ? [] : vociPreventivoAi) {
       if (!puoSalvarePrezzoInMemoria(voce)) continue
       await salvaInMemoriaPrezzi({
         descrizione: voce.descrizione || '',

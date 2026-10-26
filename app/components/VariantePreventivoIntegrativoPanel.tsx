@@ -9,8 +9,13 @@ import { leggiStoricoPrezzi } from '../engines/price-resolution/storico-prezzi'
 import type { PriceKnowledgeItem } from '../engines/price-resolution/types'
 import { preservaPerimetroMiglioraTesto } from '../utils/perimetroMiglioraTesto'
 
-type Props = { supabase: SupabaseClient; varianteId: string; onSalvato: () => void }
-export default function VariantePreventivoIntegrativoPanel({ supabase, varianteId, onSalvato }: Props) {
+type Props = { soloManuale?: boolean; metadatiManuali?: { cliente: string; titolo: string; data: string }; supabase: SupabaseClient; varianteId: string; onSalvato: () => void }
+export default function VariantePreventivoIntegrativoPanel({ supabase, varianteId, onSalvato, metadatiManuali, soloManuale = false }: Props) {
+  const [clienteManuale, setClienteManuale] = useState(metadatiManuali?.cliente || '')
+  const [titoloManuale, setTitoloManuale] = useState(metadatiManuali?.titolo || 'Preventivo Integrativo manuale')
+  const [dataManuale, setDataManuale] = useState(metadatiManuali?.data || new Date().toLocaleDateString('sv-SE'))
+  const [manuale, setManuale] = useState(false)
+  const [storico, setStorico] = useState<PriceKnowledgeItem[]>([])
   const [snapshot, setSnapshot] = useState<SnapshotIntegrativo | null>(null)
   const [preview, setPreview] = useState(false), [busy, setBusy] = useState(false), [errore, setErrore] = useState('')
   const [arrestoVisibile, setArrestoVisibile] = useState(false)
@@ -44,6 +49,19 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
     catch (e) { if (mounted.current) setErrore(e instanceof Error ? e.message : 'Contesto non disponibile') }
     finally { inCorso.current = false; if (mounted.current) setBusy(false) }
   }
+  async function compilaManuale() {
+    if (inCorso.current || arrestato.current || salvato) return
+    inCorso.current = true; setBusy(true); setErrore('')
+    try {
+      const s = await leggi(); contestoVariante(s)
+      const [p, m, h] = await Promise.all([riferimenti('prezzi_lavorazioni'), riferimenti('memoria_prezzi'), leggiStoricoPrezzi(supabase)])
+      if (!mounted.current) return
+      setSnapshot(s); setPrezzi(p); setMemoria(m); setStorico(h); setVoci([]); setOriginali([])
+      setDescrizione(s.lettura.fonti.variante.descrizione || 'Preventivo Integrativo manuale')
+      richiesta.current = crypto.randomUUID(); setManuale(true); setRevisione(true); setPreview(false)
+    } catch (e) { if (mounted.current) setErrore(e instanceof Error ? e.message : 'Contesto non disponibile') }
+    finally { inCorso.current = false; if (mounted.current) setBusy(false) }
+  }
   async function genera() {
     if (!snapshot || inCorso.current || arrestato.current) return
     inCorso.current = true; setBusy(true); setErrore('')
@@ -60,19 +78,19 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
       const mm = m.filter(r => typeof r.prezzo_unitario === 'number' && Number.isFinite(r.prezzo_unitario))
       const righe = leggiRispostaIntegrativa(json, s.contratto, pp, mm, storico)
       if (!mounted.current) return
-      setPrezzi(pp); setMemoria(mm); setSnapshot(s); setVoci(righe); setOriginali(righe); setDescrizione(json.descrizione_intervento || 'Preventivo Integrativo')
+      setManuale(false); setPrezzi(pp); setMemoria(mm); setSnapshot(s); setVoci(righe); setOriginali(righe); setDescrizione(json.descrizione_intervento || 'Preventivo Integrativo')
       richiesta.current = crypto.randomUUID(); setRevisione(true); setPreview(false)
     } catch (e) { if (mounted.current) setErrore(e instanceof Error ? e.message : 'Generazione non confermata') }
     finally { inCorso.current = false; if (mounted.current) setBusy(false) }
   }
   async function conferma() {
     if (!snapshot || inCorso.current || arrestato.current || salvato) return
-    try { validaRevisione(voci, snapshot.contratto) } catch (e) { setErrore(e instanceof Error ? e.message : 'Revisione incompleta'); return }
+    try { validaRevisione(voci, snapshot.contratto); if (manuale && (!clienteManuale.trim() || !titoloManuale.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(dataManuale))) throw Error('Completa Cliente, Titolo e Data') } catch (e) { setErrore(e instanceof Error ? e.message : 'Revisione incompleta'); return }
     inCorso.current = true; setBusy(true); setErrore('')
     // One request identity, retained on an uncertain response. No automatic retry.
     try {
-      const r = await supabase.rpc('salva_preventivo_integrativo_generato', { p_variante_id: varianteId, p_richiesta_id: richiesta.current,
-        p_firma: snapshot.firma, p_descrizione: descrizione, p_voci: voci })
+      const r = await supabase.rpc(manuale ? 'salva_preventivo_integrativo_manuale' : 'salva_preventivo_integrativo_generato', { p_variante_id: varianteId, p_richiesta_id: richiesta.current,
+        p_firma: snapshot.firma, p_descrizione: descrizione, p_voci: voci, ...(manuale ? { p_metadati: { cliente: clienteManuale.trim(), titolo: titoloManuale.trim(), data: dataManuale } } : {}) })
       if (r.error || r.data?.preventivo_id !== richiesta.current || r.data?.variante_id !== varianteId) throw Error('Salvataggio non confermato: verifica il Registro e la bozza prima di altre azioni. Nessun retry automatico.')
       if (mounted.current) { setSalvato(r.data.preventivo_id); setRevisione(false); onSalvato() }
     } catch (e) { arrestato.current = true; if (mounted.current) { setArrestoVisibile(true); setErrore(e instanceof Error ? e.message : 'Salvataggio non confermato') } }
@@ -90,7 +108,8 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
   if (snapshot) { try { numeroNarrative = contestoVariante(snapshot).narrativa.fonti.length } catch (e) { stato = e instanceof Error ? e.message : 'Fonti non valide' } }
   return <section aria-label="Generazione Preventivo Integrativo">
     <h4>Preventivo Integrativo</h4>
-    <button type="button" disabled={busy || !!salvato || arrestoVisibile || revisione} onClick={() => void anteprima()}>Genera Preventivo Integrativo</button>
+    {!soloManuale && <button type="button" disabled={busy || !!salvato || arrestoVisibile || revisione} onClick={() => void anteprima()}>Genera Preventivo Integrativo</button>}
+    <button type="button" disabled={busy || !!salvato || arrestoVisibile || revisione} onClick={() => void compilaManuale()}>Compila manualmente</button>
     {errore && <p role="alert">{errore}</p>}
     {preview && snapshot && <div aria-label="Anteprima generazione integrativa">
       <p>{numeroNarrative} fonti narrative · {snapshot.lettura.fonti.quaderni.length} Quaderni · {snapshot.lettura.fonti.foto.length} foto</p>
@@ -102,7 +121,12 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
       <button type="button" onClick={() => setPreview(false)}>Annulla</button>
     </div>}
     {revisione && snapshot && <fieldset disabled={busy || arrestoVisibile} style={{ border: 0, margin: 0, padding: 0 }} aria-label="Revisione Integrativo">
-      <RevisionePreventivoAiPanel integrativo={snapshot.contratto} confermaInCorso={busy || arrestoVisibile}
+      {manuale && <div><p>Cantiere: {snapshot.genealogia.cantiere_id} · Variante: {varianteId} · Contratto: {snapshot.contratto.id}</p>
+        <label>Cliente <input value={clienteManuale} onChange={e => setClienteManuale(e.target.value)} /></label>
+        <label>Titolo <input value={titoloManuale} onChange={e => setTitoloManuale(e.target.value)} /></label>
+        <label>Data <input type="date" value={dataManuale} onChange={e => setDataManuale(e.target.value)} /></label>
+      </div>}
+      <RevisionePreventivoAiPanel manuale={manuale} storicoRiferimento={storico} integrativo={snapshot.contratto} confermaInCorso={busy || arrestoVisibile}
       messaggioAi={errore} descrizionePreventivoAi={descrizione} setDescrizionePreventivoAi={setDescrizione}
       vociPreventivoAi={voci} setVociPreventivoAi={setVoci} vociPreventivoAiOriginali={originali}
       prezziRiferimento={prezzi} memoriaRiferimento={memoria} calcolaMediaPrezziSimili={() => null} verificaPrezzoAnomalo={() => ''}

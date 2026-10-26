@@ -19,6 +19,7 @@ import Webcam from 'react-webcam'
 import SignatureCanvas from 'react-signature-canvas'
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
+import PreventivoManualePanel from './components/PreventivoManualePanel'
 import { supabase } from '../lib/supabaseClient'
 import jsPDF from 'jspdf'
 import * as XLSX from 'xlsx'
@@ -4880,6 +4881,7 @@ const [vociPreventivoAi, setVociPreventivoAi] =
 const [descrizionePreventivoAi, setDescrizionePreventivoAi] =
   useState('')
 
+const [mostraManualeCantiere, setMostraManualeCantiere] = useState(false)
 const [mostraRevisionePreventivoAi, setMostraRevisionePreventivoAi] =
   useState(false)
 const [incassiNonFatturati, setIncassiNonFatturati] = useState<any[]>([])
@@ -12342,6 +12344,10 @@ WebkitOverflowScrolling: 'touch',
   />
 )}
 
+{sezioneAttiva === 'cantieri' && cantiereSelezionatoDaId?.id && <section>
+  <button type="button" onClick={() => setMostraManualeCantiere(v => !v)}>+ Nuovo preventivo manuale per questo Cantiere</button>
+  {mostraManualeCantiere && <PreventivoManualePanel key={cantiereSelezionatoDaId.id} db={supabase} cantieri={cantieri} cantiereId={cantiereSelezionatoDaId.id} chiudi={() => setMostraManualeCantiere(false)} salvato={caricaEconomia} excel={generaExcelDaPreventivoAi} />}
+</section>}
 {/* ================= CANTIERI - ELENCO ================= */}
 {(
   pagineAperte.includes('cantieri-elenco') ||
@@ -13319,6 +13325,8 @@ onDocumentAction: gestisciAzioneDocumento,
 {/* ================= REGISTRO ================= */}
 {sezioneAttiva === 'registro' && (
   <RegistroPanel
+    setSezioneAttiva={setSezioneAttiva}
+    ricaricaPreventivi={caricaEconomia}
   sezioneAttiva={sezioneAttiva}
   registroTab={registroTab}
   setRegistroTab={setRegistroTab}

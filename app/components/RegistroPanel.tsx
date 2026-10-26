@@ -1,5 +1,8 @@
 'use client'
 
+import { useState } from 'react'
+import { supabase } from '../../lib/supabaseClient'
+import PreventivoManualePanel, { type DocumentoManuale } from './PreventivoManualePanel'
 import RegistroHeaderToolbar from './RegistroHeaderToolbar'
 import RegistroCantieriPanel from './RegistroCantieriPanel'
 import RegistroPreventiviPanel from './RegistroPreventiviPanel'
@@ -12,6 +15,8 @@ import FattureEmessePanel from './FattureEmessePanel'
 import FattureEmessePopupLayer from './FattureEmessePopupLayer'
 
 export default function RegistroPanel(props: any) {
+  const [nuovo, setNuovo] = useState(false)
+  const [manuale, setManuale] = useState<DocumentoManuale | null | undefined>(undefined)
   const p = props
   const revisioneVisibile =
     p.sezioneAttiva === 'registro' &&
@@ -73,8 +78,12 @@ export default function RegistroPanel(props: any) {
     buttonSecondary={p.buttonSecondary}
   />
 )}
-     {p.registroTab === 'preventivi' && (
+     {p.registroTab === 'preventivi' && <>
+       <button type="button" disabled={manuale !== undefined} onClick={() => setNuovo(v => !v)}>+ Nuovo preventivo</button>
+       {nuovo && <div aria-label="Modalità nuovo preventivo"><button type="button" onClick={() => { p.setSezioneAttiva('sopralluoghi'); setNuovo(false) }}>Genera con AI</button><button type="button" onClick={() => { setManuale(null); setNuovo(false) }}>Compila manualmente</button></div>}
+       {manuale !== undefined && <PreventivoManualePanel key={manuale?.id || 'nuovo'} db={supabase} cantieri={p.cantieri} iniziale={manuale || undefined} chiudi={() => setManuale(undefined)} salvato={p.ricaricaPreventivi} excel={p.generaExcelDaPreventivoAi} />}
   <RegistroPreventiviPanel
+    apriManuale={documento => { if (manuale === undefined || window.confirm("Scartare le modifiche non salvate e aprire questo preventivo?")) setManuale(documento) }}
     preventivi={p.preventivi}
     registroCerca={p.registroCerca}
     mostraRegistroPreventiviCaricati={p.mostraRegistroPreventiviCaricati}
@@ -142,7 +151,7 @@ salvaRevisionePreventivoAi={p.salvaRevisionePreventivoAi}
     buttonPrimary={p.buttonPrimary}
     buttonSecondary={p.buttonSecondary}
   />
-)}
+</>}
 {p.registroTab === 'rapportini' && (
   <RegistroRapportiniPanel
     rapportini={p.rapportini}

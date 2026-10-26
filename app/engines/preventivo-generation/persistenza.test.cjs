@@ -9,7 +9,7 @@ test('SQL effettivo embedded: documento/genealogia/lavorazioni atomici, correzio
  CREATE TABLE cantieri(id uuid PRIMARY KEY,nome text,preventivo_contrattuale_id uuid);
  CREATE TABLE utenti_cantiere(user_id uuid,cantiere_id uuid,ruolo text);
  CREATE TABLE varianti_cantiere(id uuid PRIMARY KEY,cantiere_id uuid,preventivo_contrattuale_id uuid,stato text,titolo text,descrizione text);
- CREATE TABLE preventivi_cantiere(id uuid PRIMARY KEY,cantiere text,cantiere_id uuid,sopralluogo_id uuid,nome_file text,descrizione_ai text,note text,json_voci_ai jsonb,importo_totale numeric,origine_ai boolean,stato_preventivo text,approvato boolean,data_preventivo date);
+ CREATE TABLE preventivi_cantiere(id uuid PRIMARY KEY,cliente_ai text,cantiere text,cantiere_id uuid,sopralluogo_id uuid,nome_file text,descrizione_ai text,note text,json_voci_ai jsonb,importo_totale numeric,origine_ai boolean,stato_preventivo text,approvato boolean,data_preventivo date);
  CREATE TABLE preventivo_lavorazioni(id bigint PRIMARY KEY,cantiere_id uuid,preventivo_id uuid,descrizione text,unita_misura text,quantita numeric,prezzo_unitario numeric,importo_previsto numeric);
  CREATE TABLE variante_lavorazioni(id bigserial PRIMARY KEY,variante_id uuid,numero_riga integer,operazione text CHECK(operazione IN('nuova','aumento','riduzione_residua','eliminazione_residua')),descrizione text,unita_misura text,quantita_delta numeric(18,6),prezzo_unitario numeric(18,6),delta_contratto numeric(18,2),riferimento_preventivo_lavorazione_id bigint,riferimento_variante_lavorazione_id bigint,note text,variante_sorgente_id uuid,indice_voce_sorgente integer,created_at timestamptz DEFAULT now(),UNIQUE(variante_id,numero_riga));
  CREATE TABLE sal_lavorazioni(id bigserial,cantiere_id uuid,source_lavorazione_id bigint,source_variante_lavorazione_id bigint,importo_previsto numeric,percentuale numeric);
@@ -70,6 +70,25 @@ test('SQL effettivo embedded: documento/genealogia/lavorazioni atomici, correzio
  })
  await t.test('altro utente e anonimo negati; edit diretto documento integrativo bloccato',async()=>{
  await db.exec(`SET request.jwt.claim.sub='${id(2)}'`);await a.rejects(db.query('select public.leggi_contesto_preventivo_integrativo($1)',[v]),e=>e.code==='42501');await a.rejects(save(id(44)),e=>e.code==='42501');await db.exec('RESET ROLE;SET ROLE anon');await a.rejects(db.query('select public.leggi_contesto_preventivo_integrativo($1)',[v]),e=>e.code==='42501');await db.exec('RESET ROLE;GRANT UPDATE ON preventivi_cantiere TO authenticated;SET ROLE authenticated');await a.rejects(db.query("update preventivi_cantiere set natura=null where id=$1",[rid]),e=>e.code==='42501');await db.exec('RESET ROLE')
+ })
+
+ await db.exec('RESET ROLE')
+ const originaleStep5=(await db.query("select md5(pg_get_functiondef('public.salva_preventivo_integrativo_generato(uuid,uuid,text,text,jsonb)'::regprocedure)) h")).rows[0].h
+ await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/20261026_preventivo_integrativo_manuale.sql'),'utf8'))
+ await db.exec(`SET request.jwt.claim.sub='${u}';`)
+ v=id(70);await db.query("insert into varianti_cantiere values($1,$2,$3,'bozza','Manuale sintetico','Descrizione')",[v,c,p]);pac.variante.id=v;pac.manifesto.variante.source_id=v;await db.query('update fixture_lettura set doc=$1',[{fonti:pac,analisi:null}]);await db.exec('SET ROLE authenticated');ctx=(await db.query('select public.leggi_contesto_preventivo_integrativo($1) d',[v])).rows[0].d
+ const manuali=righe.map(r=>({...r,origine_documento:'manuale'})),manualId=id(71)
+ const metadati={cliente:'Cliente sintetico manuale',titolo:'Integrativo compilato',data:'2026-10-26'}
+ const saveManual=(rows=manuali,request=manualId,meta=metadati)=>db.query('select public.salva_preventivo_integrativo_manuale($1,$2,$3,$4,$5,$6) d',[v,request,ctx.firma,'Integrativo manuale sintetico',rows,meta])
+ await t.test('manuale: origine esplicita obbligatoria, nessuna lavorazione se batch invalido',async()=>{await a.rejects(saveManual(righe),e=>e.code==='22023');await a.rejects(saveManual([...manuali.slice(0,1),{...manuali[1],riferimento_preventivo_lavorazione_id:'999'}]));await db.exec('RESET ROLE');a.equal((await db.query('select count(*)::int n from variante_lavorazioni where variante_id=$1',[v])).rows[0].n,0);await db.exec('SET ROLE authenticated')})
+ await t.test('manuale: quattro operazioni, genealogia e origine false, retry senza doppio conteggio',async()=>{
+  a.equal((await saveManual()).rows[0].d.preventivo_id,manualId);a.equal((await saveManual()).rows[0].d.gia_salvato,true);await a.rejects(saveManual(manuali,manualId,{...metadati,titolo:'Mutato'}),e=>e.code==='23505')
+  await db.exec('RESET ROLE');const doc=(await db.query('select * from preventivi_cantiere where id=$1',[manualId])).rows[0];a.equal(doc.origine_ai,false);a.equal(doc.cliente_ai,metadati.cliente);a.equal(doc.nome_file,metadati.titolo);a.equal(new Date(doc.data_preventivo).toISOString().slice(0,10),'2026-10-26');a.equal(doc.provenienza_generazione.origine,'manuale');a.equal(doc.variante_id,v);a.equal(doc.preventivo_contrattuale_id,p);a.equal(doc.json_voci_ai.length,4);a.equal(doc.provenienza_generazione.lavorazioni_variante_id.length,4)
+  a.equal((await db.query('select count(*)::int n from variante_lavorazioni where variante_id=$1',[v])).rows[0].n,4)
+ })
+ await t.test('manuale: writer Step5 invariato, wrapper proprietario corretto, anonimo negato',async()=>{
+  a.equal((await db.query("select md5(pg_get_functiondef('public.salva_preventivo_integrativo_generato(uuid,uuid,text,text,jsonb)'::regprocedure)) h")).rows[0].h,originaleStep5)
+  const f=(await db.query("select pg_get_userbyid(proowner) owner from pg_proc where oid='public.salva_preventivo_integrativo_manuale(uuid,uuid,text,text,jsonb,jsonb)'::regprocedure")).rows[0];a.equal(f.owner,'artecna_varianti_rpc');await db.exec('SET ROLE anon');await a.rejects(saveManual(),e=>e.code==='42501');await db.exec('RESET ROLE')
  })
  a.equal((await db.query("select md5(pg_get_functiondef('public.aggiungi_correzione_variante(uuid,text,bigint,text,numeric,text)'::regprocedure)) h")).rows[0].h,before)
 })

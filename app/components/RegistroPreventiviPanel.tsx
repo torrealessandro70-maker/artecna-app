@@ -1,8 +1,10 @@
 'use client'
 
+import type { DocumentoManuale } from './PreventivoManualePanel'
 import { Fragment, type CSSProperties, type ReactNode } from 'react'
 
 type Props = {
+  apriManuale: (p: DocumentoManuale) => void
   preventivi: any[]
   registroCerca: string
   mostraRegistroPreventiviCaricati: boolean
@@ -57,6 +59,7 @@ type Props = {
 }
 
 export default function RegistroPreventiviPanel({
+  apriManuale,
   preventivi,
   registroCerca,
   mostraRegistroPreventiviCaricati,
@@ -294,6 +297,7 @@ export default function RegistroPreventiviPanel({
                   ) : (
                     p.nome_file || '-'
                   )}
+                  {!p.origine_ai && ((p.provenienza_generazione?.origine === 'manuale') || (Array.isArray(p.json_voci_ai) && p.json_voci_ai.some((v: { origine_documento?: string }) => v.origine_documento === 'manuale'))) && <small> · Origine: manuale</small>}
                 </td>
 
                 <td style={excelTd}>
@@ -331,6 +335,7 @@ export default function RegistroPreventiviPanel({
                     <button type="button" onClick={() => generaExcelDaPreventivoAi(p)} style={buttonSecondary}>Genera Excel Integrativo</button>
                   </div> : preventivoRegistroEdit === String(p.id) ? (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {!p.origine_ai && Array.isArray(p.json_voci_ai) && p.json_voci_ai.some((v: { origine_documento?: string }) => v.origine_documento === 'manuale') && <button type="button" onClick={() => apriManuale(p)} style={buttonSecondary}>Revisione manuale</button>}
                       {p.origine_ai && (
                         <>
                           <button
