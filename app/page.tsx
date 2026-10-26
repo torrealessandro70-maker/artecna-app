@@ -119,6 +119,7 @@ import CantieriContainer from './components/CantieriContainer'
 import PagamentiContainer from './components/PagamentiContainer'
 import PresenzeCostiOperaiPanel from './components/PresenzeCostiOperaiPanel'
 import { buildPhotoRecordsWithStorage } from './engines/photo-storage'
+import { contestoUploadFotoCantiere, fotoNelCantiere } from './engines/photo-storage/cantiere-context'
 import PresenzaManualePanel from './components/PresenzaManualePanel'
 import FiltroPresenzeCostiPanel from './components/FiltroPresenzeCostiPanel'
 import PresenzePeriodoSummaryPanel from './components/PresenzePeriodoSummaryPanel'
@@ -9271,8 +9272,11 @@ const pulisciSegmentoStorage = (valore: string) =>
     .replace(/^_+|_+$/g, '') || 'cantiere'
 
 const salvaFotoCantiere = async () => {
-  if (!cantiereScheda) {
-    alert('Cantiere mancante: seleziona un cantiere prima di salvare')
+  let contestoFoto: ReturnType<typeof contestoUploadFotoCantiere>
+  try {
+    contestoFoto = contestoUploadFotoCantiere(cantiereSelezionatoDaId)
+  } catch (errore) {
+    alert(errore instanceof Error ? errore.message : 'Cantiere non disponibile')
     return false
   }
 
@@ -9304,7 +9308,7 @@ const salvaFotoCantiere = async () => {
     return false
   }
 
-  const cantierePulito = pulisciSegmentoStorage(cantiereScheda)
+  const cantierePulito = pulisciSegmentoStorage(contestoFoto.cantiere)
   const caricamenti: Array<{ path: string; url: string }> = []
 
   const rimuoviUploadParziali = async () => {
@@ -9358,7 +9362,7 @@ const salvaFotoCantiere = async () => {
   }
 
 const nuoveFoto = caricamenti.map((file) => ({
-  cantiere: cantiereScheda,
+  ...contestoFoto,
   nota: notaFotoCantiere,
   file_url: file.url,
   file_path: file.path,
@@ -9994,8 +9998,8 @@ if (modalita === 'documento' && !totale) {
     ? rapportini.filter((r) => r.cantiere === cantiereScheda)
     : []
 
-  const fotoScheda = cantiereScheda
-    ? fotoCantiere.filter((f) => f.cantiere === cantiereScheda)
+  const fotoScheda = cantiereSelezionatoDaId
+    ? fotoCantiere.filter((f) => fotoNelCantiere(f, cantiereSelezionatoDaId, cantieri))
     : []
 
   const timbratureOggi = timbrature.filter((t) => t.data === oggi)
@@ -11169,9 +11173,9 @@ const esportaPdfFotoCantiere = async () => {
     return
   }
 
-  const fotoDelCantiere = fotoCantiere.filter(
-    (f) => f.cantiere === cantiereScheda
-  )
+  const fotoDelCantiere = cantiereSelezionatoDaId
+    ? fotoCantiere.filter(f => fotoNelCantiere(f, cantiereSelezionatoDaId, cantieri))
+    : []
 
   if (fotoDelCantiere.length === 0) {
     alert('Non ci sono foto da esportare per questo cantiere')

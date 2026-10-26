@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
+import { fotoNelCantiere } from '../engines/photo-storage/cantiere-context'
 
 type SchedaCantierePagina = 'panoramica' | 'lavori' | 'documenti' | 'economia' | 'varianti' | 'fascicolo' | 'timeline'
 type LavoriSezione = 'rapportini' | 'foto' | 'presenze' | 'materiali' | 'attrezzature'
@@ -30,7 +31,7 @@ export default function CantieriSchedaPanel(props: any) {
   const ricercaOperaio = filtroOperaio.toLocaleLowerCase('it-IT')
   const nomeCantiereFoto = p.cantiereSelezionatoDaId?.nome ?? ''
   const fotoDelCantiere = p.cantiereSelezionatoDaId?.id && nomeCantiereFoto
-    ? p.fotoCantiere.filter((foto: any) => foto.cantiere === nomeCantiereFoto)
+    ? p.fotoCantiere.filter((foto: any) => fotoNelCantiere(foto, p.cantiereSelezionatoDaId, p.cantieri))
     : []
   const fotoSelezionateDelCantiere = p.fotoCantiereSelezionate.filter((id: string) =>
     fotoDelCantiere.some((foto: any) => foto.id === id)
@@ -530,6 +531,7 @@ export default function CantieriSchedaPanel(props: any) {
                   fotoCantiere={fotoDelCantiere}
                   setFotoCantiere={p.setFotoCantiere}
                   cantiereScheda={nomeCantiereFoto}
+                  cantiereId={p.cantiereSelezionatoDaId.id}
                   filtroFotoCantiere={p.filtroFotoCantiere}
                   fotoCantiereSelezionate={fotoSelezionateDelCantiere}
                   setFotoCantiereSelezionate={

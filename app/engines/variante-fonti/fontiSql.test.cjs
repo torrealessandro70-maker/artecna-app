@@ -112,4 +112,20 @@ test('Foto/analisi Variante: SQL effettivo su PostgreSQL embedded, nessuna rete/
   await a.rejects(change(ids.map(fc)),e=>e.code==='22023');a.deepEqual((await db.query('select to_jsonb(f) r from variante_fonti_visive f')).rows,before)
   await db.query("update varianti_cantiere set stato='approvata' where id=$1",[v]);await a.rejects(change([fc(ids[0])]),e=>e.code==='22023');await a.rejects(read(),e=>e.code==='22023')
  })
+ await t.test('Step5J upload Galleria -> RPC reale: stesso ID con omonimi, legacy esclusa e scollega senza copie',async()=>{
+  const {uploadHarness,fotoNelCantiere}=require('../photo-storage/galleria.fixture.cjs')
+  await db.query("update varianti_cantiere set stato='bozza' where id=$1",[v])
+  await db.query('update cantieri set nome=$1 where id in ($2,$3)',['SMOKE omonimo',c,co])
+  const h=uploadHarness({id:c,nome:'SMOKE omonimo'});a.equal(await h.run(),true);const f=h.rows[0],fresh=id(90),legacy=id(91),otherVariant=id(92)
+  await db.query('insert into foto_cantiere(id,cantiere_id,cantiere,nota,immagine_base64,file_url,file_path) values($1,$2,$3,$4,$5,$6,$7)',[fresh,f.cantiere_id,f.cantiere,f.nota,f.immagine_base64,f.file_url,f.file_path])
+  await db.query('insert into foto_cantiere(id,cantiere,nota,immagine_base64) values($1,$2,$3,$4)',[legacy,f.cantiere,'Legacy',data])
+  await db.query("insert into varianti_cantiere(id,cantiere_id,stato,titolo,descrizione) values($1,$2,'bozza','Test','Test')",[otherVariant,co])
+  a.equal(fotoNelCantiere(f,{id:c,nome:f.cantiere},[{id:c,nome:f.cantiere},{id:co,nome:f.cantiere}]),true)
+  a((await all()).some(x=>x.source_id===fresh));a(!(await all()).some(x=>x.source_id===legacy))
+  const otherPhotos=(await user(tx=>tx.query('select public.leggi_foto_fonti_variante($1,false) r',[otherVariant]),other)).rows[0].r
+  a(!otherPhotos.some(x=>[fresh,legacy].includes(x.source_id)))
+  await change([fc(fresh)]);a((await read()).fonti.foto.some(x=>x.source_id===fresh));await change([fc(fresh)],'scollega')
+  const saved=(await db.query('select file_path,file_url from foto_cantiere where id=$1',[fresh])).rows[0]
+  a.equal(saved.file_path,f.file_path);a.equal(saved.file_url,f.file_url);a.equal(h.uploads.length,1);a.deepEqual(h.removed,[])
+ })
 })

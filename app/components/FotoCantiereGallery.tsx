@@ -12,6 +12,7 @@ type Props = {
   setFotoCantiere: Dispatch<SetStateAction<FotoCantiere[]>>
 
   cantiereScheda: string
+  cantiereId?: string
   filtroFotoCantiere: string
 
   fotoCantiereSelezionate: string[]
@@ -33,6 +34,7 @@ export default function FotoCantiereGallery({
   fotoCantiere,
   setFotoCantiere,
   cantiereScheda,
+  cantiereId,
   filtroFotoCantiere,
   fotoCantiereSelezionate,
   setFotoCantiereSelezionate,
@@ -153,7 +155,7 @@ export default function FotoCantiereGallery({
       >
         {fotoCantiere
         .filter((f) => {
-          if (f.cantiere !== cantiereScheda) return false
+          if (cantiereId && f.cantiere_id ? f.cantiere_id !== cantiereId : f.cantiere !== cantiereScheda) return false
 
           const categoriaSalvata = String(f.categoria || 'prima')
             .trim()
