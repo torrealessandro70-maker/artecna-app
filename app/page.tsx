@@ -13299,6 +13299,7 @@ onDocumentAction: gestisciAzioneDocumento,
   (!modalitaMulti && sezioneAttiva === 'economia')
 ) && (
   <EconomiaGeneralePanel
+    client={supabase}
     cardStyle={cardStyle}
     fattureEmesse={fattureEmesse}
     fattureFornitori={fattureFornitori}

@@ -1,18 +1,19 @@
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 
-import EconomiaGeneraleKpiPanel from './EconomiaGeneraleKpiPanel'
-import UtileNettoImpresaContainer from './UtileNettoImpresaContainer'
+import RiepilogoDittaPanel from './RiepilogoDittaPanel'
+import type { ClientLettura } from '../engines/contabilita-ditta/lettura'
 import EconomiaSpeseImpresaPanel from './EconomiaSpeseImpresaPanel'
 
 type Props = {
+  client: ClientLettura
   cardStyle: CSSProperties
-  fattureEmesse: any[]
-  fattureFornitori: any[]
+  fattureEmesse: unknown[]
+  fattureFornitori: unknown[]
   totalePreventiviImpresa: number
-  accontiCantiere: any[]
-  cantieri: any[]
-  speseImpresa: any[]
-  calcoloEconomiaCantiere: (nomeCantiere: string) => any
+  accontiCantiere: unknown[]
+  cantieri: unknown[]
+  speseImpresa: unknown[]
+  calcoloEconomiaCantiere: (nomeCantiere: string) => unknown
   formatMoney: (n: number) => string
   filtroSpeseImpresa: string
   setFiltroSpeseImpresa: Dispatch<SetStateAction<string>>
@@ -29,14 +30,9 @@ type Props = {
 }
 
 export default function EconomiaGeneralePanel({
+  client,
   cardStyle,
-  fattureEmesse,
-  fattureFornitori,
-  totalePreventiviImpresa,
-  accontiCantiere,
-  cantieri,
   speseImpresa,
-  calcoloEconomiaCantiere,
   formatMoney,
   filtroSpeseImpresa,
   setFiltroSpeseImpresa,
@@ -55,22 +51,9 @@ export default function EconomiaGeneralePanel({
     <div style={cardStyle}>
       <h2>Economia generale</h2>
 
-      <div style={{ display: 'grid', gap: 10 }}>
-        <EconomiaGeneraleKpiPanel
-          fattureEmesse={fattureEmesse}
-          fattureFornitori={fattureFornitori}
-          totalePreventiviImpresa={totalePreventiviImpresa}
-          formatMoney={formatMoney}
-        />
-      </div>
-
-      <UtileNettoImpresaContainer
-        accontiCantiere={accontiCantiere}
-        cantieri={cantieri}
-        speseImpresa={speseImpresa}
-        calcoloEconomiaCantiere={calcoloEconomiaCantiere}
-        formatMoney={formatMoney}
-      />
+      <RiepilogoDittaPanel client={client} />
+      <h3>Classificazioni gestionali preesistenti</h3>
+      <p>Spese, magazzino e attrezzature: consultazione separata, non utile contabile o fiscale e non sommate ai documenti del riepilogo.</p>
 
       <EconomiaSpeseImpresaPanel
         speseImpresa={speseImpresa}
