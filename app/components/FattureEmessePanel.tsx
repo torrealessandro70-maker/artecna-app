@@ -1,6 +1,8 @@
 'use client'
 
-import type { CSSProperties, ChangeEvent } from 'react'
+import { useState, type CSSProperties, type ChangeEvent } from 'react'
+import { supabase } from '../../lib/supabaseClient'
+import CollegaIncassoPanel from './CollegaIncassoPanel'
 import JSZip from 'jszip'
 
 type Props = {
@@ -48,6 +50,7 @@ export default function FattureEmessePanel({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+  const [collegaId, setCollegaId] = useState<string | null>(null)
   const gestisciAggiornaBluenext = async (
     e: ChangeEvent<HTMLInputElement>
   ) => {
@@ -400,7 +403,7 @@ export default function FattureEmessePanel({
                 Stato ↕
               </th>
 
-              <th style={{ ...excelTh, whiteSpace: 'normal' }}>PDF</th>
+              <th style={excelTh}>Incassi collegati</th><th style={{ ...excelTh, whiteSpace: 'normal' }}>PDF</th>
             </tr>
           </thead>
 
@@ -440,6 +443,7 @@ export default function FattureEmessePanel({
                   </td>
 
                   <td style={excelTd}>{f.stato || 'emessa'}</td>
+                  <td style={excelTd}><button type="button" onClick={e => { e.stopPropagation(); setCollegaId(f.id) }}>Collega incasso</button></td>
 
                   <td style={excelTd}>
                     {f.pdf_url ? (
@@ -465,7 +469,8 @@ export default function FattureEmessePanel({
               ))}
           </tbody>
         </table>
-      </div>
+      {collegaId && <CollegaIncassoPanel key={collegaId} client={supabase} fatturaId={collegaId} onChiudi={() => setCollegaId(null)} onConfermato={caricaFattureEmesse} />}
+</div>
     </section>
   )
 }

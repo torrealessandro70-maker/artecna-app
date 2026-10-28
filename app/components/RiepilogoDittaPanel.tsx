@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import CollegaIncassoPanel from './CollegaIncassoPanel'
+import type { ClientAttribuzioni } from '../engines/contabilita-ditta/attribuzioni'
 import { leggiFontiDitta, type ClientLettura } from '../engines/contabilita-ditta/lettura'
 import { costruisciRiepilogo, fontiInCaricamento, periodoPreset, type Fonti, type Periodo } from '../engines/contabilita-ditta/riepilogo'
 
@@ -9,7 +11,7 @@ function oggiLocale() { const d = new Date(); return `${d.getFullYear()}-${Strin
 const colori = { Disponibile: '#166534', Limitato: '#92400e', 'Non calcolabile': '#9f1239' }
 
 /** Vista pura rispetto al DB: periodo e dettagli cambiano soltanto stato React. */
-export function RiepilogoDittaVista({ fonti, fotografia }: { fonti: Fonti; fotografia: string }) {
+export function RiepilogoDittaVista({ fonti, fotografia, onCollega }: { fonti: Fonti; fotografia: string; onCollega?: (id: string) => void }) {
   const [tipo, setTipo] = useState<'mese' | 'trimestre' | 'anno' | 'personalizzato'>('trimestre')
   const [riferimento, setRiferimento] = useState(oggiLocale)
   const [manuale, setManuale] = useState<Periodo>(() => periodoPreset('trimestre', oggiLocale()))
@@ -44,7 +46,7 @@ export function RiepilogoDittaVista({ fonti, fotografia }: { fonti: Fonti; fotog
           {!i.dettagli.length ? <p>Nessuna riga disponibile per questo prospetto. Un errore o un caricamento non equivale a un archivio vuoto.</p> : <div style={{ overflowX: 'auto' }}><table style={{ borderCollapse: 'collapse', width: '100%' }}>
             <caption>Righe incluse ed escluse — {i.nome}</caption>
             <thead><tr>{['Fonte / ID', 'Documento o movimento', 'Data dichiarata', 'Importo originale', 'Contributo al totale', 'Qualità / scadenza / IVA'].map(t => <th key={t} scope="col" style={{ textAlign: 'left', padding: 6 }}>{t}</th>)}</tr></thead>
-            <tbody>{i.dettagli.map((d, n) => <tr key={`${d.id}:${n}`}><td style={{ padding: 6, overflowWrap: 'anywhere' }}>{d.fonte}<br />{d.id}</td><td>{d.documento}{d.url && <p><a href={d.url} target="_blank" rel="noopener noreferrer">Apri documento originale</a></p>}</td><td>{d.data || 'Data mancante'}</td><td>{d.originale || 'Mancante'}</td><td>{d.incluso && i.centesimi !== null && d.centesimi !== null ? euro(d.centesimi) : 'Escluso / non sommato'}</td><td>{d.motivo || 'Incluso secondo il contratto indicatore'}<br />{d.scadenza}<br />{d.iva}</td></tr>)}</tbody>
+            <tbody>{i.dettagli.map((d, n) => <tr key={`${d.id}:${n}`}><td style={{ padding: 6, overflowWrap: 'anywhere' }}>{d.fonte}<br />{d.id}{d.fonte === 'fatture_emesse' && onCollega && <p><button type="button" onClick={() => onCollega(d.id)}>Collega incasso</button></p>}</td><td>{d.documento}{d.url && <p><a href={d.url} target="_blank" rel="noopener noreferrer">Apri documento originale</a></p>}</td><td>{d.data || 'Data mancante'}</td><td>{d.originale || 'Mancante'}</td><td>{d.incluso && i.centesimi !== null && d.centesimi !== null ? euro(d.centesimi) : 'Escluso / non sommato'}</td><td>{d.motivo || 'Incluso secondo il contratto indicatore'}<br />{d.scadenza}<br />{d.iva}</td></tr>)}</tbody>
           </table></div>}
         </details>
       </article>)}
@@ -53,7 +55,8 @@ export function RiepilogoDittaVista({ fonti, fotografia }: { fonti: Fonti; fotog
   </section>
 }
 
-export default function RiepilogoDittaPanel({ client }: { client: ClientLettura }) {
+export default function RiepilogoDittaPanel({ client }: { client: ClientLettura & ClientAttribuzioni }) {
+  const [collegaId, setCollegaId] = useState<string | null>(null)
   const [richiesta, setRichiesta] = useState(0)
   const [risultato, setRisultato] = useState<{ client: ClientLettura; richiesta: number; fonti: Fonti; fotografia: string } | null>(null)
   useEffect(() => {
@@ -61,9 +64,11 @@ export default function RiepilogoDittaPanel({ client }: { client: ClientLettura 
     void leggiFontiDitta(client).then(fonti => { if (!obsoleto) setRisultato({ client, richiesta, fonti, fotografia: new Date().toLocaleString('it-IT') }) })
     return () => { obsoleto = true }
   }, [client, richiesta])
+  useEffect(() => { const aggiorna = () => setRichiesta(r => r + 1); window.addEventListener('artecna-clienti-incassi-aggiornati', aggiorna); return () => window.removeEventListener('artecna-clienti-incassi-aggiornati', aggiorna) }, [])
   const valido = risultato?.client === client && risultato.richiesta === richiesta
   return <>
     <button type="button" onClick={() => setRichiesta(r => r + 1)}>Aggiorna letture ditta</button>
-    <RiepilogoDittaVista fonti={valido ? risultato.fonti : fontiInCaricamento()} fotografia={valido ? risultato.fotografia : ''} />
+    <RiepilogoDittaVista onCollega={setCollegaId} fonti={valido ? risultato.fonti : fontiInCaricamento()} fotografia={valido ? risultato.fotografia : ''} />
+    {collegaId && <CollegaIncassoPanel key={collegaId} client={client} fatturaId={collegaId} onChiudi={() => setCollegaId(null)} />}
   </>
 }

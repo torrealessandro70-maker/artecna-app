@@ -1,11 +1,12 @@
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 
 import RiepilogoDittaPanel from './RiepilogoDittaPanel'
+import type { ClientAttribuzioni } from '../engines/contabilita-ditta/attribuzioni'
 import type { ClientLettura } from '../engines/contabilita-ditta/lettura'
 import EconomiaSpeseImpresaPanel from './EconomiaSpeseImpresaPanel'
 
 type Props = {
-  client: ClientLettura
+  client: ClientLettura & ClientAttribuzioni
   cardStyle: CSSProperties
   fattureEmesse: unknown[]
   fattureFornitori: unknown[]
