@@ -6,6 +6,16 @@ export type Collegamento = { id: string; fattura_id: string; acconto_id: string;
 export type Acconto = { id: string; importo: string | number; attribuito: string | number; data_incasso: string | null; descrizione: string | null; provenienza: 'acconti_cantiere' }
 export type LetturaAttribuzioni = { fattura: { id: string; numero_fattura: string; data_fattura: string | null; cliente: string; totale: string | number; importo_incassato: string | number | null; stato: string }; attribuito: string | number; collegamenti: Collegamento[]; acconti: Acconto[]; incassi_non_fatturati_ambigui: number; situazione: 'Da riconciliare'; residuo_verificato: null }
 export type Operazione = { tipo: 'collega'; id: string; fattura: string; acconto: string; importo: string } | { tipo: 'scollega'; id: string; fattura: string; collegamento: string }
+export const MESSAGGIO_INCASSI_SENZA_CANTIERE = 'Collegamento incassi non disponibile: questo documento non è associato a un Cantiere.'
+// Il campo del DTO è autorevole: soltanto null esplicito attesta l'assenza.
+export function statoCantiereAttribuzioni(cantiereId: unknown): 'assente' | 'presente' | 'ignoto' {
+  return cantiereId === null ? 'assente' : uuid(cantiereId) ? 'presente' : 'ignoto'
+}
+export function cantiereDocumento(righe: readonly Record<string, unknown>[], id: string): unknown {
+  const corrispondenze = righe.filter(r => r.id === id)
+  // Un'identità mancante/ambigua o una proprietà assente non certifica NULL.
+  return corrispondenze.length === 1 && Object.prototype.hasOwnProperty.call(corrispondenze[0], 'cantiere_id') ? corrispondenze[0].cantiere_id : undefined
+}
 export const uuid = (s: unknown): s is string => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
 export function situazioneImporti(totale: unknown, attribuito: unknown) {
   const t = centesimi(totale), a = centesimi(attribuito)

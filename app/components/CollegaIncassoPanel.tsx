@@ -1,11 +1,32 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type MouseEventHandler } from 'react'
 import { centesimi } from '../engines/contabilita-ditta/riepilogo'
-import { disponibilita, eseguiAttribuzione, leggiAttribuzioni, recuperaOperazione, situazioneImporti, type ClientAttribuzioni, type LetturaAttribuzioni, type Operazione } from '../engines/contabilita-ditta/attribuzioni'
+import { MESSAGGIO_INCASSI_SENZA_CANTIERE, statoCantiereAttribuzioni, disponibilita, eseguiAttribuzione, leggiAttribuzioni, recuperaOperazione, situazioneImporti, type ClientAttribuzioni, type LetturaAttribuzioni, type Operazione } from '../engines/contabilita-ditta/attribuzioni'
 
 const euro = (n: number | null) => n === null ? 'Non determinabile' : (n / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
-export default function CollegaIncassoPanel({ client, fatturaId, onChiudi, onConfermato }: { client: ClientAttribuzioni; fatturaId: string; onChiudi: () => void; onConfermato?: () => void | Promise<void> }) {
+type Props = { client: ClientAttribuzioni; fatturaId: string; cantiereId?: unknown; onChiudi: () => void; onConfermato?: () => void | Promise<void> }
+
+export function CollegaIncassoAzione({ cantiereId, onClick }: { cantiereId?: unknown; onClick: MouseEventHandler<HTMLButtonElement> }) {
+  const motivoId = useId()
+  const stato = statoCantiereAttribuzioni(cantiereId)
+  return <div style={{ maxWidth: 280, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+    <button type="button" disabled={stato === 'assente'} aria-describedby={stato === 'assente' ? motivoId : undefined} onClick={onClick}>Collega incasso</button>
+    {stato === 'assente' && <p id={motivoId} style={{ padding: 12, background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 6 }}>{MESSAGGIO_INCASSI_SENZA_CANTIERE}</p>}
+    {stato === 'ignoto' && <p>Contesto Cantiere da verificare durante la lettura.</p>}
+  </div>
+}
+
+export default function CollegaIncassoPanel(props: Props) {
+  // La componente con gli effetti non viene montata: nessuna RPC/journal in caso NULL.
+  if (statoCantiereAttribuzioni(props.cantiereId) === 'assente') return <div role="dialog" aria-modal="true" aria-label="Collega incasso" style={{ position: 'fixed', inset: 0, background: '#0008', zIndex: 10000, overflow: 'auto', padding: 20 }}><section style={{ maxWidth: 1000, margin: 'auto', background: '#fff', color: '#111827', padding: 24, borderRadius: 12 }}>
+    <h2>Collega incasso</h2><button type="button" onClick={props.onChiudi}>Chiudi collegamenti</button>
+    <p role="status">{MESSAGGIO_INCASSI_SENZA_CANTIERE}</p>
+  </section></div>
+  return <CollegaIncassoConLettura {...props} />
+}
+
+function CollegaIncassoConLettura({ client, fatturaId, onChiudi, onConfermato }: Props) {
   const key = `artecna-attribuzione-pendente:${fatturaId}`
   const [lettura, setLettura] = useState<LetturaAttribuzioni | null>(null)
   const [errore, setErrore] = useState(''), [messaggio, setMessaggio] = useState('')

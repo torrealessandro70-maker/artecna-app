@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import CollegaIncassoPanel from './CollegaIncassoPanel'
-import type { ClientAttribuzioni } from '../engines/contabilita-ditta/attribuzioni'
+import CollegaIncassoPanel, { CollegaIncassoAzione } from './CollegaIncassoPanel'
+import { cantiereDocumento, type ClientAttribuzioni } from '../engines/contabilita-ditta/attribuzioni'
 import { leggiFontiDitta, type ClientLettura } from '../engines/contabilita-ditta/lettura'
 import { costruisciRiepilogo, fontiInCaricamento, periodoPreset, type Fonti, type Periodo } from '../engines/contabilita-ditta/riepilogo'
 
@@ -46,7 +46,7 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega }: { fonti: F
           {!i.dettagli.length ? <p>Nessuna riga disponibile per questo prospetto. Un errore o un caricamento non equivale a un archivio vuoto.</p> : <div style={{ overflowX: 'auto' }}><table style={{ borderCollapse: 'collapse', width: '100%' }}>
             <caption>Righe incluse ed escluse — {i.nome}</caption>
             <thead><tr>{['Fonte / ID', 'Documento o movimento', 'Data dichiarata', 'Importo originale', 'Contributo al totale', 'Qualità / scadenza / IVA'].map(t => <th key={t} scope="col" style={{ textAlign: 'left', padding: 6 }}>{t}</th>)}</tr></thead>
-            <tbody>{i.dettagli.map((d, n) => <tr key={`${d.id}:${n}`}><td style={{ padding: 6, overflowWrap: 'anywhere' }}>{d.fonte}<br />{d.id}{d.fonte === 'fatture_emesse' && onCollega && <p><button type="button" onClick={() => onCollega(d.id)}>Collega incasso</button></p>}</td><td>{d.documento}{d.url && <p><a href={d.url} target="_blank" rel="noopener noreferrer">Apri documento originale</a></p>}</td><td>{d.data || 'Data mancante'}</td><td>{d.originale || 'Mancante'}</td><td>{d.incluso && i.centesimi !== null && d.centesimi !== null ? euro(d.centesimi) : 'Escluso / non sommato'}</td><td>{d.motivo || 'Incluso secondo il contratto indicatore'}<br />{d.scadenza}<br />{d.iva}</td></tr>)}</tbody>
+            <tbody>{i.dettagli.map((d, n) => <tr key={`${d.id}:${n}`}><td style={{ padding: 6, overflowWrap: 'anywhere' }}>{d.fonte}<br />{d.id}{d.fonte === 'fatture_emesse' && onCollega && <div><CollegaIncassoAzione cantiereId={cantiereDocumento(fonti.fatture_emesse.righe, d.id)} onClick={() => onCollega(d.id)} /></div>}</td><td>{d.documento}{d.url && <p><a href={d.url} target="_blank" rel="noopener noreferrer">Apri documento originale</a></p>}</td><td>{d.data || 'Data mancante'}</td><td>{d.originale || 'Mancante'}</td><td>{d.incluso && i.centesimi !== null && d.centesimi !== null ? euro(d.centesimi) : 'Escluso / non sommato'}</td><td>{d.motivo || 'Incluso secondo il contratto indicatore'}<br />{d.scadenza}<br />{d.iva}</td></tr>)}</tbody>
           </table></div>}
         </details>
       </article>)}
@@ -69,6 +69,6 @@ export default function RiepilogoDittaPanel({ client }: { client: ClientLettura 
   return <>
     <button type="button" onClick={() => setRichiesta(r => r + 1)}>Aggiorna letture ditta</button>
     <RiepilogoDittaVista onCollega={setCollegaId} fonti={valido ? risultato.fonti : fontiInCaricamento()} fotografia={valido ? risultato.fotografia : ''} />
-    {collegaId && <CollegaIncassoPanel key={collegaId} client={client} fatturaId={collegaId} onChiudi={() => setCollegaId(null)} />}
+    {collegaId && <CollegaIncassoPanel key={collegaId} client={client} fatturaId={collegaId} cantiereId={valido ? cantiereDocumento(risultato.fonti.fatture_emesse.righe, collegaId) : undefined} onChiudi={() => setCollegaId(null)} />}
   </>
 }
