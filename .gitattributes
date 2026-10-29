@@ -4,3 +4,4 @@ supabase/migrations/20261025_variante_preventivo_integrativo.sql text eol=lf
 supabase/migrations/20261026_preventivo_integrativo_manuale.sql text eol=lf
 supabase/migrations/20261026_preventivo_memoria_prezzi_lettura.sql text eol=lf
 supabase/migrations/20261028_clienti_incassi_attribuzioni.sql text eol=lf
+supabase/migrations/20261029_clienti_sorgenti_sicurezza.sql text eol=lf
