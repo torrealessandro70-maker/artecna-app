@@ -1,0 +1,48 @@
+.indicatore:has(> .fonti[open]) {
+  grid-column: 1 / -1;
+}
+
+.scorrimentoFonti {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.scorrimentoFonti:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.tabellaFonti {
+  min-width: 900px;
+  table-layout: fixed;
+}
+
+.tabellaFonti th:first-child {
+  width: 260px;
+}
+
+.tabellaFonti td {
+  padding: 6px;
+  vertical-align: top;
+}
+
+.identificativo {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.azione {
+  margin-top: 12px;
+}
+
+.azione button {
+  min-width: 160px;
+  min-height: 40px;
+  padding: 8px 12px;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.azione button:disabled {
+  cursor: not-allowed;
+}

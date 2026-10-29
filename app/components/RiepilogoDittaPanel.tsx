@@ -5,6 +5,7 @@ import CollegaIncassoPanel, { CollegaIncassoAzione } from './CollegaIncassoPanel
 import { cantiereDocumento, type ClientAttribuzioni } from '../engines/contabilita-ditta/attribuzioni'
 import { leggiFontiDitta, type ClientLettura } from '../engines/contabilita-ditta/lettura'
 import { costruisciRiepilogo, fontiInCaricamento, periodoPreset, type Fonti, type Periodo } from '../engines/contabilita-ditta/riepilogo'
+import styles from './RiepilogoDittaPanel.module.css'
 
 const euro = (c: number) => (c / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 function oggiLocale() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
@@ -32,7 +33,7 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega }: { fonti: F
     <p aria-live="polite">Documenti e movimenti: {periodo.da || 'data mancante'} → {periodo.a || 'data mancante'}. Residui richiesti al {periodo.a || 'data mancante'}. Fotografia delle letture: {fotografia || 'in caricamento'}.</p>
     <p>Acconti, incassi non fatturati e cumulativi sulle fatture restano separati: possono rappresentare lo stesso denaro. Nessun consolidamento arbitrario.</p>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 12 }}>
-      {indicatori.map(i => <article key={i.id} aria-label={i.nome} style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: 14, minWidth: 0 }}>
+      {indicatori.map(i => <article key={i.id} className={styles.indicatore} aria-label={i.nome} style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: 14, minWidth: 0 }}>
         <h4 style={{ margin: '0 0 8px' }}>{i.nome}</h4>
         <strong style={{ color: colori[i.stato] }}>{i.stato}</strong>
         <p style={{ fontSize: 24, fontWeight: 700 }}>{i.centesimi === null ? 'Non determinabile' : euro(i.centesimi)}</p>
@@ -42,11 +43,11 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega }: { fonti: F
         <details><summary>Contratto indicatore</summary>
           <dl><dt>Fonte autorevole</dt><dd>{i.fonte || 'Collegamenti verificati non disponibili'}</dd><dt>Campo importo</dt><dd>{i.importo}</dd><dt>Campo data</dt><dd>{i.data}</dd><dt>Formula</dt><dd>{i.formula}</dd><dt>Esclusioni</dt><dd>{i.esclusioni}</dd></dl>
         </details>
-        <details><summary>Dettaglio delle fonti ({i.dettagli.length})</summary>
-          {!i.dettagli.length ? <p>Nessuna riga disponibile per questo prospetto. Un errore o un caricamento non equivale a un archivio vuoto.</p> : <div style={{ overflowX: 'auto' }}><table style={{ borderCollapse: 'collapse', width: '100%' }}>
+        <details className={styles.fonti}><summary>Dettaglio delle fonti ({i.dettagli.length})</summary>
+          {!i.dettagli.length ? <p>Nessuna riga disponibile per questo prospetto. Un errore o un caricamento non equivale a un archivio vuoto.</p> : <div className={styles.scorrimentoFonti} role="region" aria-label={`Fonti — ${i.nome}`} tabIndex={0}><table className={styles.tabellaFonti} style={{ borderCollapse: 'collapse', width: '100%' }}>
             <caption>Righe incluse ed escluse — {i.nome}</caption>
             <thead><tr>{['Fonte / ID', 'Documento o movimento', 'Data dichiarata', 'Importo originale', 'Contributo al totale', 'Qualità / scadenza / IVA'].map(t => <th key={t} scope="col" style={{ textAlign: 'left', padding: 6 }}>{t}</th>)}</tr></thead>
-            <tbody>{i.dettagli.map((d, n) => <tr key={`${d.id}:${n}`}><td style={{ padding: 6, overflowWrap: 'anywhere' }}>{d.fonte}<br />{d.id}{d.fonte === 'fatture_emesse' && onCollega && <div><CollegaIncassoAzione cantiereId={cantiereDocumento(fonti.fatture_emesse.righe, d.id)} onClick={() => onCollega(d.id)} /></div>}</td><td>{d.documento}{d.url && <p><a href={d.url} target="_blank" rel="noopener noreferrer">Apri documento originale</a></p>}</td><td>{d.data || 'Data mancante'}</td><td>{d.originale || 'Mancante'}</td><td>{d.incluso && i.centesimi !== null && d.centesimi !== null ? euro(d.centesimi) : 'Escluso / non sommato'}</td><td>{d.motivo || 'Incluso secondo il contratto indicatore'}<br />{d.scadenza}<br />{d.iva}</td></tr>)}</tbody>
+            <tbody>{i.dettagli.map((d, n) => <tr key={`${d.id}:${n}`}><td style={{ padding: 6 }}>{d.fonte}<br /><span className={styles.identificativo}>{d.id}</span>{d.fonte === 'fatture_emesse' && onCollega && <div className={styles.azione}><CollegaIncassoAzione cantiereId={cantiereDocumento(fonti.fatture_emesse.righe, d.id)} onClick={() => onCollega(d.id)} /></div>}</td><td>{d.documento}{d.url && <p><a href={d.url} target="_blank" rel="noopener noreferrer">Apri documento originale</a></p>}</td><td>{d.data || 'Data mancante'}</td><td>{d.originale || 'Mancante'}</td><td>{d.incluso && i.centesimi !== null && d.centesimi !== null ? euro(d.centesimi) : 'Escluso / non sommato'}</td><td>{d.motivo || 'Incluso secondo il contratto indicatore'}<br />{d.scadenza}<br />{d.iva}</td></tr>)}</tbody>
           </table></div>}
         </details>
       </article>)}
