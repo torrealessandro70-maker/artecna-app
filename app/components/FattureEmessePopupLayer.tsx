@@ -1,5 +1,6 @@
 'use client'
 
+import type { StatoCantieri, AggiornaFattura } from '../engines/contabilita-ditta/modificaFattura'
 import type { CSSProperties } from 'react'
 import PopupNuovaFatturaEmessa from './PopupNuovaFatturaEmessa'
 import PopupDettaglioFatturaEmessa from './PopupDettaglioFatturaEmessa'
@@ -12,8 +13,9 @@ type Props = {
   salvaNuovaFatturaEmessa: any
   fatturaEmessaAperta: any
   setFatturaEmessaAperta: any
-  aggiornaFatturaEmessa: any
+  aggiornaFatturaEmessa: AggiornaFattura
   eliminaFatturaEmessa: any
+  statoCantieri: StatoCantieri
   cantieri: any[]
   formatMoney: (value: number) => string
   inputStyle: CSSProperties
@@ -32,6 +34,7 @@ export default function FattureEmessePopupLayer({
   aggiornaFatturaEmessa,
   eliminaFatturaEmessa,
   cantieri,
+  statoCantieri,
   formatMoney,
   inputStyle,
   buttonPrimary,
@@ -54,6 +57,8 @@ export default function FattureEmessePopupLayer({
 
       {fatturaEmessaAperta && (
         <PopupDettaglioFatturaEmessa
+          key={fatturaEmessaAperta.id}
+          statoCantieri={statoCantieri}
           fatturaEmessaAperta={fatturaEmessaAperta}
           setFatturaEmessaAperta={setFatturaEmessaAperta}
           cantieri={cantieri}

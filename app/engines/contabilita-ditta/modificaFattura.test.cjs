@@ -1,0 +1,35 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Suite Node locale, transpiler condiviso. */
+const {test}=require('node:test'),a=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
+require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,p);
+const {preparaModifiche:prep,opzioniCantieri,modificaFattura:save,modificaERicarica:refresh}=require('./modificaFattura.ts');
+const id='00000000-0000-4000-8000-000000000001',c1='00000000-0000-4000-8000-000000000010',c2='00000000-0000-4000-8000-000000000020',opts=[{id:c1,nome:'OMONIMO'},{id:c2,nome:'OMONIMO'}],row={id,cantiere_id:c1,cantiere:'',totale:'100.00',importo_incassato:'10',stato:'parziale'};
+const patch={cantiere_id:c2,cantiere:'OMONIMO'};
+function client(response){const calls=[];const end=async()=>{if(typeof response==='function')return response();return response};return{calls,from(table){calls.push({table});return{update(p){calls.push({update:p});return{eq(k,v){calls.push({eq:[k,v]});return{select(fields){calls.push({returning:fields});return end()}}}}},select(fields){calls.push({read:fields});return{eq(k,v){calls.push({eq:[k,v]});return end()}}}}}}}
+const ok=r=>({data:[r],error:null,status:200});
+test('UUID presente e testo vuoto: nessuna normalizzazione',()=>a.deepEqual(prep(row,undefined,undefined,opts,'pronto'),{}));
+test('UUID non disponibile nelle opzioni: conservato se non modificato',()=>a.deepEqual(prep(row,undefined,undefined,[],'pronto'),{}));
+test('Selezione dello stesso UUID non normalizza il testo',()=>a.deepEqual(prep(row,c1,undefined,opts,'pronto'),{}));
+test('Omonimi distinti per UUID',()=>a.deepEqual(opzioniCantieri(opts),opts));
+test('ID assenti/duplicati non diventano opzioni ambigue',()=>a.deepEqual(opzioniCantieri([...opts,opts[0],{nome:'SENZA ID'}]),[opts[1]]));
+test('Nome storico con NULL resta descrittivo',()=>a.deepEqual(prep({...row,cantiere_id:null,cantiere:'STORICO'},undefined,undefined,opts,'pronto'),{}));
+test('NULL già assente: nessuna cancellazione incidentale del testo storico',()=>a.deepEqual(prep({...row,cantiere_id:null,cantiere:'STORICO'},'',undefined,opts,'pronto'),{}));
+test('Cambio Cantiere: solo UUID e nome della scelta',()=>a.deepEqual(prep(row,c2,undefined,opts,'pronto'),patch));
+test('Rimozione esplicita: solo due campi null',()=>a.deepEqual(prep(row,'',undefined,opts,'pronto'),{cantiere_id:null,cantiere:null}));
+for(const stato of ['caricamento','errore'])test(stato+': nessuna modifica implicita e cambio bloccato',()=>{a.deepEqual(prep(row,undefined,undefined,opts,stato),{});a.throws(()=>prep(row,c2,undefined,opts,stato));});
+test('UUID ignoto: conservazione, nessun cambio implicito o esplicito non verificabile',()=>{const r={...row,cantiere_id:undefined};a.deepEqual(prep(r,undefined,undefined,opts,'pronto'),{});a.throws(()=>prep(r,'',undefined,opts,'pronto'));});
+test('Cantiere non disponibile: scelta rifiutata senza ricerca per nome',()=>a.throws(()=>prep(row,c2,undefined,[],'pronto')));
+test('Importo mancante non modificato non diventa zero',()=>a.deepEqual(prep({...row,importo_incassato:null},undefined,undefined,opts,'pronto'),{}));
+test('Stesso importo con formattazione diversa: nessuna scrittura',()=>a.deepEqual(prep(row,undefined,'10.00',opts,'pronto'),{}));
+for(const [value,state]of [['0','emessa'],['25','parziale'],['100','incassata'],['150','incassata'],['-1','emessa']])test('Importo intenzionale '+value+': regola stato precedente',()=>a.deepEqual(prep(row,undefined,value,opts,'pronto'),{importo_incassato:Number(value),stato:state}));
+for(const value of ['', 'NaN','Infinity'])test('Importo invalido '+JSON.stringify(value)+' non convertito in zero',()=>a.throws(()=>prep(row,undefined,value,opts,'pronto')));
+test('Precisione e stato numerici preesistenti preservati senza arrotondamenti nuovi',()=>a.deepEqual(prep(row,undefined,'1.234',opts,'pronto'),{importo_incassato:1.234,stato:'parziale'}));
+test('Totale mancante impedisce ricalcolo stato, ma non cambio Cantiere',()=>{a.throws(()=>prep({...row,totale:null},undefined,'20',opts,'pronto'));a.deepEqual(prep({...row,totale:null},c2,undefined,opts,'pronto'),patch)});
+test('Richiesta esatta: tabella, filtro UUID, returning; nessun campo monetario',async()=>{const db=client(ok({...row,...patch}));a.equal((await save(db,id,patch)).tipo,'confermato');a.deepEqual(db.calls.slice(0,3),[{table:'fatture_emesse'},{update:patch},{eq:['id',id]}]);a.match(db.calls[3].returning,/cantiere_id/)});
+test('UUID fattura non valido e patch vuota non inviano richieste',async()=>{const db=client(null);await a.rejects(save(db,'NOME',patch));await a.rejects(save(db,id,{}));a.equal(db.calls.length,0)});
+for(const [name,data]of [['zero righe',[]],['più righe',[row,row]],['UUID diverso',[{...row,...patch,id:c1}]],['valori diversi',[row]],['campo mancante',[{id,cantiere:'OMONIMO'}]]])test(name+': nessuna conferma apparente',async()=>a.equal((await save(client({data,error:null,status:200}),id,patch)).tipo,'non_confermato'));
+for(const code of ['42501','23514','23503'])test('Rifiuto server '+code+' preservato',async()=>{const r=await save(client({error:{code,message:'GUARD'},status:403}),id,patch);a.equal(r.tipo,'errore_server');a.match(r.messaggio,new RegExp(code))});
+test('Errore di trasporto restituito dal client resta incerto',async()=>a.equal((await save(client({error:{code:'',message:'Failed to fetch'},status:0}),id,patch)).tipo,'non_confermato'));
+test('Risposta persa: nessun retry, recupero SELECT',async()=>{let lost=true;const db=client(()=>{if(lost){lost=false;throw Error('lost')}return ok({...row,...patch})});a.equal((await save(db,id,patch)).tipo,'non_confermato');a.equal((await save(db,id,patch,true)).tipo,'confermato');a.equal(db.calls.filter(c=>c.update).length,1);a.equal(db.calls.filter(c=>c.read).length,1)});
+test('Conferma e rilettura riuscita aggiornano entrambe le viste',async()=>{const calls=[],r=await refresh(client(ok({...row,...patch})),id,patch,false,{applica:r=>calls.push(r.id),invalida:()=>calls.push('invalidate'),rileggi:async()=>{calls.push('reload')}});a.equal(r.elencoAggiornato,true);a.deepEqual(calls,[id,'invalidate','reload'])});
+test('Rilettura fallita dopo returning valido: conferma conservata, nessun reinvio',async()=>{const db=client(ok({...row,...patch})),calls=[];const r=await refresh(db,id,patch,false,{applica:()=>calls.push('apply'),invalida:()=>calls.push('invalidate'),rileggi:async()=>{throw Error('read failure')}});a.equal(r.tipo,'confermato');a.equal(r.elencoAggiornato,false);a.deepEqual(calls,['apply','invalidate']);a.equal(db.calls.filter(c=>c.update).length,1)});
+test('Errore server non aggiorna/invalida viste',async()=>{const nope=()=>a.fail('view changed');a.equal((await refresh(client({error:{code:'23514',message:'GUARD'},status:400}),id,patch,false,{applica:nope,invalida:nope,rileggi:nope})).tipo,'errore_server')});

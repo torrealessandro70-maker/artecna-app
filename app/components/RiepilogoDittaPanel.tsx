@@ -5,6 +5,7 @@ import CollegaIncassoPanel, { CollegaIncassoAzione } from './CollegaIncassoPanel
 import { cantiereDocumento, type ClientAttribuzioni } from '../engines/contabilita-ditta/attribuzioni'
 import { leggiFontiDitta, type ClientLettura } from '../engines/contabilita-ditta/lettura'
 import { costruisciRiepilogo, fontiInCaricamento, periodoPreset, type Fonti, type Periodo } from '../engines/contabilita-ditta/riepilogo'
+import { EVENTO_FATTURE_AGGIORNATE } from '../engines/contabilita-ditta/modificaFattura'
 import styles from './RiepilogoDittaPanel.module.css'
 
 const euro = (c: number) => (c / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
@@ -65,7 +66,7 @@ export default function RiepilogoDittaPanel({ client }: { client: ClientLettura 
     void leggiFontiDitta(client).then(fonti => { if (!obsoleto) setRisultato({ client, richiesta, fonti, fotografia: new Date().toLocaleString('it-IT') }) })
     return () => { obsoleto = true }
   }, [client, richiesta])
-  useEffect(() => { const aggiorna = () => setRichiesta(r => r + 1); window.addEventListener('artecna-clienti-incassi-aggiornati', aggiorna); return () => window.removeEventListener('artecna-clienti-incassi-aggiornati', aggiorna) }, [])
+  useEffect(() => { const aggiorna = () => setRichiesta(r => r + 1); window.addEventListener('artecna-clienti-incassi-aggiornati', aggiorna); window.addEventListener(EVENTO_FATTURE_AGGIORNATE, aggiorna); return () => { window.removeEventListener('artecna-clienti-incassi-aggiornati', aggiorna); window.removeEventListener(EVENTO_FATTURE_AGGIORNATE, aggiorna) } }, [])
   const valido = risultato?.client === client && risultato.richiesta === richiesta
   return <>
     <button type="button" onClick={() => setRichiesta(r => r + 1)}>Aggiorna letture ditta</button>

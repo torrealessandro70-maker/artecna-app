@@ -1,5 +1,6 @@
 import type { AnteprimaFattura } from './engines/fatture/import-documenti'
 'use client'
+import { modificaERicarica, EVENTO_FATTURE_AGGIORNATE, type ModificheFattura, type EsitoModifica, type StatoCantieri } from './engines/contabilita-ditta/modificaFattura'
 import QuadernoProgettiPanel from './components/QuadernoProgettiPanel'
 import { preservaPerimetroMiglioraTesto, messaggioPerimetro } from './utils/perimetroMiglioraTesto'
 import { chiaveAnalisiVoce } from './components/AnalisiPrezzoVoce'
@@ -676,6 +677,7 @@ const [mostraDettaglioAttrezzi, setMostraDettaglioAttrezzi] = useState(false)
 const [mostraCostiPresenze, setMostraCostiPresenze] = useState(false)
 const [mostraRiepilogoOperai, setMostraRiepilogoOperai] = useState(true)
    const [cantieri, setCantieri] = useState<Cantiere[]>([])
+  const [statoCantieri, setStatoCantieri] = useState<StatoCantieri>('caricamento')
   const [rapportini, setRapportini] = useState<Rapportino[]>([])
 const [ordinaPreventiviCampo, setOrdinaPreventiviCampo] =
   useState('data')
@@ -3189,7 +3191,7 @@ const caricaFattureFornitori = async () => {
   await Promise.all([caricaRigheMaterialiFatture(), caricaRigheAttrezzatureFatture()])
 }
 
-const caricaFattureEmesse = async () => {
+const caricaFattureEmesse = async (propagaErrore = false) => {
   const { data, error } = await supabase
     .from('fatture_emesse')
     .select('*')
@@ -3197,6 +3199,7 @@ const caricaFattureEmesse = async () => {
 
   if (error) {
     console.error(error)
+    if (propagaErrore) throw error
     return
   }
 
@@ -5376,17 +5379,20 @@ const preparaPagamentoRapidoOperaio = (
   )
 }
   const caricaCantieri = async (propagaErrore = false) => {
+    setStatoCantieri('caricamento')
     const { data, error } = await supabase
       .from('cantieri')
       .select('*')
       .order('created_at', { ascending: false })
 
     if (error) {
+      setStatoCantieri('errore')
       if (propagaErrore) throw error
       alert('Errore caricamento cantieri: ' + error.message)
       return
     }
 
+    setStatoCantieri('pronto')
     // Una lettura iniziata prima della RPC non deve ripristinare una root eliminata.
     setCantieri(((data || []) as Cantiere[]).filter(c => !cantieriEliminatiRef.current.has(String(c.id))))
   }
@@ -11364,38 +11370,13 @@ const eliminaAcconto = async (a: any) => {
 }
 
 
-const aggiornaFatturaEmessa = async () => {
-  if (!fatturaEmessaAperta?.id) return
-
-  const totale = Number(fatturaEmessaAperta.totale || 0)
-  const incassato = Number(fatturaEmessaAperta.importo_incassato || 0)
-
-  const stato =
-    incassato <= 0
-      ? 'emessa'
-      : incassato >= totale
-      ? 'incassata'
-      : 'parziale'
-
-  const { error } = await supabase
-    .from('fatture_emesse')
-    .update({
-      importo_incassato: incassato,
-      stato,
-      cantiere: fatturaEmessaAperta.cantiere || null,
-    })
-    .eq('id', fatturaEmessaAperta.id)
-
-  if (error) {
-    alert('Errore aggiornamento: ' + error.message)
-    return
-  }
-
-  await caricaFattureEmesse()
-
-  setFatturaEmessaAperta(null)
-
-  alert('Fattura aggiornata')
+const aggiornaFatturaEmessa = async (id: string, patch: ModificheFattura, soloLettura = false): Promise<EsitoModifica> => {
+  if (id !== fatturaEmessaAperta?.id) throw Error('Il documento aperto è cambiato: nessuna scrittura eseguita.')
+  return modificaERicarica(supabase, id, patch, soloLettura, {
+    applica: riga => setFattureEmesse(righe => righe.map(r => r.id === id ? { ...r, ...riga } : r)),
+    invalida: () => window.dispatchEvent(new Event(EVENTO_FATTURE_AGGIORNATE)),
+    rileggi: () => caricaFattureEmesse(true),
+  })
 }
 
 const eliminaFatturaEmessa = async () => {
@@ -13344,6 +13325,7 @@ onDocumentAction: gestisciAzioneDocumento,
 salvaRevisionePreventivoAi={salvaRevisionePreventivoAi}
 
   cantieri={cantieri}
+  statoCantieri={statoCantieri}
   preventivi={preventivi}
   rapportini={rapportini}
   timbratureFiltrateRegistro={timbratureFiltrateRegistro}

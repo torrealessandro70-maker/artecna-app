@@ -350,6 +350,7 @@ salvaRevisionePreventivoAi={p.salvaRevisionePreventivoAi}
   aggiornaFatturaEmessa={p.aggiornaFatturaEmessa}
   eliminaFatturaEmessa={p.eliminaFatturaEmessa}
   cantieri={p.cantieri}
+  statoCantieri={p.statoCantieri}
   formatMoney={p.formatMoney}
   inputStyle={p.inputStyle}
   buttonPrimary={p.buttonPrimary}
