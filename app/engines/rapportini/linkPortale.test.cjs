@@ -1,0 +1,15 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Test Node locale con transpiler condiviso. */
+const{test}=require('node:test'),a=require('node:assert/strict'),fs=require('fs'),ts=require('typescript');require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2017}}).outputText,p);const{validaLinkPortale:valid,leggiLinkPortale:read,salvaLinkPortale:save,LINK_PORTALE_PREDEFINITO}=require('./linkPortale.ts');
+for(const url of ['/rapportino','/rapportino?ingresso=gestione#inizio','https://example.test/rapportino'])test('Link valido '+url,()=>a.equal(valid(url),url));
+test('Default interno senza dominio persistito',()=>a.equal(LINK_PORTALE_PREDEFINITO,'/rapportino'));
+for(const url of [null,undefined,'',' '])test('Link mancante '+JSON.stringify(url),()=>a.throws(()=>valid(url),/mancante/));
+for(const url of ['javascript:alert(1)','data:text/html,evil','//example.test','https://user:secret@example.test','http://example.test','/\\evil.test','https://exa mple.test','ftp://example.test','www.example.test'])test('Link non ammesso '+url,()=>a.throws(()=>valid(url)));
+test('Canonizzazione HTTPS senza memorizzare credenziali',()=>a.equal(valid(' HTTPS://EXAMPLE.TEST '),'https://example.test/'));
+test('Lettura impostazione mancante usa default dichiarato dal server',async()=>a.deepEqual(await read({rpc:async()=>({data:{url:'/rapportino',configurato:false,modificabile:true},error:null})}),{url:'/rapportino',configurato:false,modificabile:true}));
+test('Errore di lettura non inventa successo o permessi',async()=>a.rejects(read({rpc:async()=>({error:{code:'PGRST202'}})}),/non disponibili/));
+test('Risposta incompleta rifiutata',async()=>a.rejects(read({rpc:async()=>({data:{url:'/rapportino'},error:null})})));
+test('Salva e successiva rilettura riusano la stessa configurazione',async()=>{let db={url:'/rapportino',configurato:false,modificabile:true};const calls=[],client={rpc:async(name,args)=>{calls.push({name,args});if(name==='salva_link_rapportini_mobile')db={...db,url:args.p_url,configurato:true};return{data:db,error:null}}};a.equal((await save(client,'/rapportino?test=1')).url,'/rapportino?test=1');a.equal((await read(client)).url,'/rapportino?test=1');a.deepEqual(calls.map(c=>c.name),['salva_link_rapportini_mobile','leggi_link_rapportini_mobile'])});
+test('Input invalido non invia RPC',async()=>{let n=0;await a.rejects(save({rpc:async()=>{n++}},'javascript:x'));a.equal(n,0)});
+test('Rifiuto server conservato senza successo',async()=>a.rejects(save({rpc:async()=>({error:{code:'42501'}})},'/rapportino'),/42501/));
+test('Risposta salvataggio incoerente non confermata',async()=>a.rejects(save({rpc:async()=>({data:{url:'/altro',configurato:true,modificabile:true},error:null})},'/rapportino'),/non coerente/));
+test('Strumenti di modifica non importati dal portale operai',()=>{const source=fs.readFileSync(require('path').join(__dirname,'../../rapportino/page.tsx'),'utf8');a.equal(source.includes('LinkRapportiniMobile'),false);a.equal(source.includes('salva_link_rapportini_mobile'),false)});

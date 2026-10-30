@@ -13,6 +13,8 @@ import RapportinoForm, {
   type OperaioRapportinoTemp,
 } from './RapportinoForm'
 import RapportiniTable from './RapportiniTable'
+import LinkRapportiniMobile from './LinkRapportiniMobile'
+import { supabase } from '../../lib/supabaseClient'
 
 type Props = {
   cardStyle: CSSProperties
@@ -153,6 +155,7 @@ export default function RapportiniPanel({
       <p style={{ color: '#64748b' }}>
         Riepilogo operativo dei rapportini salvati per cantiere.
       </p>
+      <LinkRapportiniMobile client={supabase} buttonPrimary={buttonPrimary} buttonSecondary={buttonSecondary} inputStyle={inputStyle} />
 
       <button
         type="button"
