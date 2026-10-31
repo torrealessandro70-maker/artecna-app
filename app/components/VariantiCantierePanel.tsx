@@ -12,6 +12,7 @@ import { adattaFileAVariante } from '../engines/varianti/adattaFileAVariante'
 import { confermaPreventivoIntegrativo } from '../engines/varianti/confermaPreventivoIntegrativo'
 import { preparaCorrezioneContrattuale } from '../engines/varianti/preparaCorrezioneContrattuale'
 import UsaRaccoltaEconomiaInVariante from './UsaRaccoltaEconomiaInVariante'
+import { numeroRigaProposta } from '../engines/economia/precheckProposta'
 import PrestazioniRapportiniEconomia from './PrestazioniRapportiniEconomia'
 import PrezziRapportiniEconomia from './PrezziRapportiniEconomia'
 import { documentoVariantiCliente, vociCliente, type ContestoStampaVarianti, type VarianteCliente } from '../engines/economia/stampaVariantiCliente'
@@ -665,10 +666,8 @@ function dettaglioConsultazioneEconomia(v: unknown, cantiereId: string, raccolta
       const campi = r.tipo_riga === 'manodopera' ? ['data','operaio','qualifica','ora_inizio','ora_fine','riferimento'] : ['data','fornitore','documento','riferimento_rapportino']
       if (campi.some(c => operativo[c] !== null && typeof operativo[c] !== 'string') || (r.tipo_riga === 'manodopera' && operativo.pausa_min !== null && (typeof operativo.pausa_min !== 'number' || !Number.isSafeInteger(operativo.pausa_min) || operativo.pausa_min < 0))) throw new Error('Dati operativi Economia non verificabili.')
     }
-    const quantita = numeroConsultazioneEconomia(r.quantita)
-    if (quantita === null || quantita <= 0) throw new Error('Quantità Economia non verificabile.')
-    const prezzo = numeroConsultazioneEconomia(r.prezzo_unitario, true), totale = numeroConsultazioneEconomia(r.totale, true)
-    if ((prezzo === null) !== (totale === null)) throw new Error('Valorizzazione Economia non verificabile.')
+    const quantita = numeroRigaProposta(r.quantita) ?? NaN
+    const prezzo = numeroRigaProposta(r.prezzo_unitario), totale = numeroRigaProposta(r.totale)
     return { id: r.id, ordine: Number(r.ordine), tipo: r.tipo_riga as RigaConsultazioneEconomia['tipo'], descrizione: r.descrizione, um: r.unita_misura, quantita, prezzo, totale, note: r.note as string | null, origine: String(r.origine), operativo, provenienzaFattura: r.origine === 'fattura_fornitore' ? provenienzaFatturaEconomia(r) : null }
   }).sort((a,b) => a.ordine-b.ordine)
   if (raccolta.nonValorizzate !== righe.filter(r => r.prezzo === null).length) throw new Error('Riepilogo Economia non coerente.')
@@ -676,7 +675,7 @@ function dettaglioConsultazioneEconomia(v: unknown, cantiereId: string, raccolta
 }
 const testoConsultazioneEconomia = (v: unknown) => typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? 'Non indicato' : v === null || v === undefined || v === '' ? 'Non indicato' : String(v)
 const dataConsultazioneEconomia = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : testoConsultazioneEconomia(v)
-const importoConsultazioneEconomia = (v: number | null) => v === null ? 'Non valorizzato' : v.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
+const importoConsultazioneEconomia = (v: number | null) => v === null ? 'Non valorizzato' : !Number.isFinite(v) ? 'Non valido' : v.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 
 function RinominaVarianteBozza({ id, stato, titoloAttuale, onRinominata }: {
   id: string; stato: string; titoloAttuale: string; onRinominata: (titolo: string) => void
@@ -922,11 +921,11 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
     return <section aria-label={titolo}><h5>{titolo} — {righe.length} registrazioni</h5>
       {!righe.length ? <p>Nessuna registrazione.</p> : <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
         <thead><tr>{colonne.map(c => <th scope="col" key={c} style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #cbd5e1' }}>{c}</th>)}</tr></thead>
-        <tbody>{righe.map(r => <tr key={r.id}>{celle(r).map((v,i) => <td key={i} style={{ padding: 8, verticalAlign: 'top', whiteSpace: 'pre-wrap', borderBottom: '1px solid #e2e8f0' }}>{v}</td>)}</tr>)}</tbody>
+        <tbody>{righe.map(r => <tr key={r.id} id={`economia-${dettaglio?.raccolta.id}-${r.id}`} tabIndex={-1}>{celle(r).map((v,i) => <td key={i} style={{ padding: 8, verticalAlign: 'top', whiteSpace: 'pre-wrap', borderBottom: '1px solid #e2e8f0' }}>{v}</td>)}</tr>)}</tbody>
       </table></div>}
     </section>
   }
-  const numero = (v: number) => v.toLocaleString('it-IT', { maximumFractionDigits: 6 })
+  const numero = (v: number) => Number.isFinite(v) ? v.toLocaleString('it-IT', { maximumFractionDigits: 6 }) : 'Non valido'
   return <section aria-label="Lavori in economia registrati" style={{ marginTop: 16 }}>
     <h4>LAVORI IN ECONOMIA REGISTRATI</h4>
     {onCreata && <div>
@@ -956,7 +955,7 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
           onEsito={messaggio => setEsitoValorizzazione({ raccoltaId: dettaglio.raccolta.id, messaggio })}
           onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }}
           onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} />
-        <UsaRaccoltaEconomiaInVariante key={dettaglio.raccolta.id} raccolta={dettaglio.raccolta}
+        <UsaRaccoltaEconomiaInVariante key={dettaglio.raccolta.id} raccolta={dettaglio.raccolta} righe={dettaglio.righe}
           varianti={varianti} elencoPronto={elencoPronto} onApri={onApriVariante} operativo={operativo} totale={dettaglio.raccolta.totale}
           statiVarianti={variantiInfo}
           bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio || dettaglio.righe.length === 0 || dettaglio.raccolta.nonValorizzate > 0 || dettaglio.raccolta.totale === null || dettaglio.raccolta.totale <= 0}

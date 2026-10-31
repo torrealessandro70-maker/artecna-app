@@ -3,8 +3,10 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=r
 const A='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',V='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',S='cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const raccolta={id:A,numero:1,revisione:1,stato:'bozza'}
 const result={versione_contratto:1,riutilizzata:false,raccolta_id:A,revisione_sorgente:1,revisione_congelata:2,variante_id:V,variante_sorgente_id:S,numero_variante:null,stato_variante:'bozza',numero_lavorazioni:50,totale:3268.20}
-function compile(file,require){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,require,console,Error});return exports}
+function compile(file,require){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2017,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,require,console,Error});return exports}
 const engine=compile(path.join(__dirname,'usaRaccoltaInVariante.ts'),()=>({}))
+const precheck=compile(path.join(__dirname,'precheckProposta.ts'),()=>compile(path.join(__dirname,'riepilogoEconomico.ts'),()=>({})))
+const validRows=[{id:S,ordine:1,descrizione:'Voce sintetica',quantita:2,prezzo:10,totale:20}]
 const plain=x=>JSON.parse(JSON.stringify(x))
 test('RPC ponte: esclusivamente UUID/revisione, risposta autorevole e numero NULL',async()=>{
  const calls=[];const esito=await engine.usaRaccoltaInVariante(async(...args)=>{calls.push(args);return{data:result,error:null}}, {...raccolta,totale:999,righe:[],cantiere_id:V})
@@ -31,12 +33,12 @@ function harness(transport,{confirm=true,refreshFailure=false}={}){
  const hooks=[],effects=[],calls=[],opened=[],refreshed=[];let index=0
  const react={useState(initial){const i=index++;if(!(i in hooks))hooks[i]=initial;return[hooks[i],v=>hooks[i]=typeof v==='function'?v(hooks[i]):v]},useRef(initial){const i=index++;if(!(i in hooks))hooks[i]={current:initial};return hooks[i]},useEffect(fn,deps){const i=index++;const old=hooks[i];if(!old||deps.some((v,j)=>v!==old.deps[j])){old?.cleanup?.();hooks[i]={deps};effects.push(()=>{hooks[i].cleanup=fn()})}}}
  const jsx=(type,props)=>({type,props}),exports={}
- const code=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../../components/UsaRaccoltaEconomiaInVariante.tsx'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText
- vm.runInNewContext(code,{exports,console,Error,window:{confirm:()=>confirm},require:name=>name==='react'?react:name==='react/jsx-runtime'?{jsx,jsxs:jsx,Fragment:'fragment'}:name.includes('supabaseClient')?{supabase:{rpc(name,p){calls.push([name,p]);const promise=Promise.resolve().then(()=>transport(name,p));promise.order=()=>promise;promise.range=()=>promise;return promise}}}:engine})
- let props={raccolta,varianti:[],elencoPronto:true,onRileggi:async()=>{refreshed.push(true);if(refreshFailure)throw Error('secret')},onApri:id=>opened.push(id)}
+ const code=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../../components/UsaRaccoltaEconomiaInVariante.tsx'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2017,jsx:ts.JsxEmit.ReactJSX}}).outputText
+ vm.runInNewContext(code,{exports,console,Error,window:{confirm:()=>confirm},require:name=>name==='react'?react:name==='react/jsx-runtime'?{jsx,jsxs:jsx,Fragment:'fragment'}:name.includes('supabaseClient')?{supabase:{rpc(name,p){calls.push([name,p]);const promise=Promise.resolve().then(()=>transport(name,p));promise.order=()=>promise;promise.range=()=>promise;return promise}}}:name.includes('precheckProposta')?precheck:engine})
+ let props={raccolta,righe:validRows,varianti:[],elencoPronto:true,onRileggi:async()=>{refreshed.push(true);if(refreshFailure)throw Error('secret')},onApri:id=>opened.push(id)}
  function nodes(x,out=[]){if(Array.isArray(x))x.forEach(v=>nodes(v,out));else if(x?.props){out.push(x);nodes(x.props.children,out)}return out}
  function render(){index=0;const tree=nodes(exports.default(props));while(effects.length)effects.shift()();return tree}
- function text(){return render().flatMap(x=>Array.isArray(x.props.children)?x.props.children.filter(v=>typeof v==='string'):typeof x.props.children==='string'?[x.props.children]:[]).join(' ')}
+ function text(){return render().flatMap(x=>Array.isArray(x.props.children)?x.props.children.filter(v=>typeof v==='string'||typeof v==='number').map(String):typeof x.props.children==='string'?[x.props.children]:[]).join(' ')}
  const button=label=>render().find(x=>x.type==='button'&&x.props.children===label)
  async function ready(){render();await flush();render()}
  return{calls,opened,refreshed,text,button,ready,render,setProps:p=>props={...props,...p},unmount:()=>hooks.forEach(h=>h?.cleanup?.())}
@@ -76,4 +78,38 @@ test('integrazione additiva: refresh raccolte/Varianti, apertura e percorsi stor
  assert(source.includes('await apri(dettaglio.raccolta.id, true)'));assert(source.includes('setRilettura(v => v + 1)'));assert(source.includes('onApriVarianteEconomia={apriVarianteEconomia}'));assert(source.includes('aggiornaVariante(varianteId)'));assert(source.includes('setVarianteApertaId(aperturaEconomia.current)'))
  assert(source.includes('confermaImportazione()'));assert(source.includes("supabase.rpc('crea_raccolta_economia'"));assert(source.includes("supabase.rpc('crea_bozza_variante'"))
  const helper=fs.readFileSync(path.join(__dirname,'usaRaccoltaInVariante.ts'),'utf8');assert(!helper.includes('proponi_variante'));assert(!helper.includes('approva_variante'));assert(!helper.includes('/api/rapportino'))
+})
+
+for(const [nome,delta] of [['zero',{prezzo:0,totale:0}],['negativo',{prezzo:-1}],['mancante',{prezzo:null,totale:null}],['non numerico',{prezzo:'abc'}],['quantità zero',{quantita:0}],['quantità non finita',{quantita:Infinity}],['importo incoerente',{totale:99}]])
+ test('preflight UI blocca '+nome+' e non chiama writer anche con click diretto',async()=>{
+  const h=harness(()=>({data:result,error:null}));h.setProps({righe:[{...validRows[0],...delta}]});await h.ready()
+  const button=h.button('Usa in Variante');assert(button.props.disabled);button.props.onClick();await flush();assert.equal(h.calls.length,0)
+  assert(h.text().includes('registrazioni bloccanti'));assert(!h.text().includes('Variante creata dai lavori in economia.'))
+  if(nome==='zero')assert(h.text().includes('Prezzo 0,00 €'))
+ })
+
+test('preflight UI valido e più errori, ordine e richiamo alla riga',async()=>{
+ const h=harness(()=>({data:result,error:null}));await h.ready();assert(!h.button('Usa in Variante').props.disabled)
+ h.setProps({righe:[{...validRows[0],ordine:67,prezzo:0,totale:0},{...validRows[0],id:V,ordine:68,quantita:0}]})
+ assert(h.text().includes('2'));const links=h.render().filter(n=>n.type==='a');assert.equal(links.length,2);assert.equal(links[0].props.href,`#economia-${A}-${S}`)
+})
+
+test('rifiuto dati server comprensibile, nessun falso successo o apertura',async()=>{
+ const h=harness(()=>({data:null,error:{code:'22023',message:'Registrazione Economia non rappresentabile'}}));await h.ready();h.button('Usa in Variante').props.onClick();await flush()
+ assert(h.text().includes('Il server richiede quantità e prezzi positivi'));assert(h.text().includes('Creazione non confermata'))
+ assert.equal(h.opened.length,0);assert.equal(h.refreshed.length,0);assert(!h.button('Apri variante'))
+})
+
+test('Variante omonima senza sorgente UUID non presentata come esito',async()=>{
+ const h=harness(()=>({data:[],error:null}));h.setProps({varianti:[V],statiVarianti:[{id:V,titolo:'Titolo uguale',stato:'bozza'}]});await h.ready()
+ assert(!h.button('Apri variante'));assert(h.button('Usa in Variante'));assert(h.text().includes('Nessuna proposta collegata'))
+})
+
+test('righe non caricate e vuote bloccano senza assumere acquisizione riuscita',async()=>{
+ for(const righe of [undefined,[]]){const h=harness(()=>({data:result,error:null}));h.setProps({righe});await h.ready();assert(h.button('Usa in Variante').props.disabled)}
+})
+
+test('arrotondamento centesimi positivo come numeric PostgreSQL',()=>{
+ assert.equal(precheck.blocchiProposta([{...validRows[0],quantita:1,prezzo:1.005,totale:1.01}]).length,0)
+ assert.equal(precheck.blocchiProposta([{...validRows[0],quantita:1,prezzo:0.000001,totale:0}]).length,1)
 })

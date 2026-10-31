@@ -11,7 +11,9 @@ const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v ===
 export function raccoltaPonteValida(r: RaccoltaPonteEconomia): boolean {
   return uuid(r.id) && Number.isSafeInteger(r.revisione) && r.revisione >= 0 && ['bozza', 'chiusa'].includes(r.stato)
 }
-export function errorePonteEconomia(code?: string): string {
+export function errorePonteEconomia(code?: string, message?: string): string {
+  if (code === '22023' && ['Registrazione Economia non rappresentabile', 'Importo Economia non rappresentabile'].includes(message ?? ''))
+    return errorePonteEconomia('22023') + ' Il server richiede quantità e prezzi positivi e un importo arrotondato positivo e rappresentabile.'
   return ({ '22023': 'Raccolta non utilizzabile. Verifica i dati.', '42501': 'Operazione non autorizzata.',
     PT409: 'La Raccolta è cambiata. Aggiorna i dati e riprova.', XX001: 'Dati incoerenti. Non procedere e richiedi una verifica.' } as Record<string, string>)[code ?? '']
     ?? 'Impossibile creare la Variante.'
@@ -21,7 +23,7 @@ export async function usaRaccoltaInVariante(rpc: RpcPonteEconomia, raccolta: Rac
   const { data, error } = await rpc('usa_raccolta_economia_in_variante', {
     p_raccolta_id: raccolta.id, p_revisione_attesa: raccolta.revisione,
   })
-  if (error) throw new Error(errorePonteEconomia(error.code))
+  if (error) throw new Error(errorePonteEconomia(error.code, (error as { message?: string }).message))
   if (!record(data) || data.versione_contratto !== 1 || data.raccolta_id !== raccolta.id ||
       !uuid(data.variante_id) || !uuid(data.variante_sorgente_id) || typeof data.riutilizzata !== 'boolean' ||
       !['bozza', 'proposta', 'approvata', 'rifiutata', 'annullata'].includes(String(data.stato_variante)) ||
