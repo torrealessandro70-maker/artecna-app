@@ -106,3 +106,46 @@ il cumulativo pagato, gli acconti clienti, il SAL o l'utile fiscale.
 - Non è una revisione delle policy delle sorgenti legacy: non vengono dichiarati
   nuovi permessi o un isolamento globale di quelle tabelle. Prima dell'installazione
   occorre il precheck del catalogo/privilegi reale e dei writer attualmente online.
+
+## Compatibilità distruzione F3C3.3
+
+Le rettifiche sono storico finanziario: non entrano nel manifest distruttivo del
+Cantiere e non vengono cancellate insieme alle quote o alle fonti. Le nove FK del
+registro restano RESTRICT e non deferrable. Cinque rientrano nell'inventario chiuso
+di `artecna_distruzione.inizia_contesto(uuid)`:
+
+| Colonna del registro | Padre (chiave id) | Ruolo |
+| --- | --- | --- |
+| cantiere_id | cantieri | Contesto economico della rettifica |
+| economia_riga_id | economia_righe | Quota Economia originaria |
+| materiale_cantiere_id | materiali_cantiere | Assegnazione materiale originaria |
+| nota_riga_id | fatture_fornitori_righe | Riga della nota |
+| origine_riga_id | fatture_fornitori_righe | Riga fiscale rettificata |
+
+Il precedente inventario JSON di 48 FK viene esteso esattamente a queste cinque:
+nomi, schemi, colonne figlie/padri, DELETE/UPDATE, MATCH, validazione e deferrability.
+Non viene sostituito da un conteggio. Una FK mancante, estranea o modificata continua
+a produrre P2113. La RPC di distruzione riconosce solo le stesse cinque FK già
+certificate, senza aggiungere il registro alle liste di DELETE.
+
+Dopo la verifica strutturale, prima della creazione del contesto e prima di outbox
+o DELETE applicative, il guard rifiuta un Cantiere collegato allo storico TD04.
+Controlla gli UUID del registro, delle quote e delle righe fiscali: anche una quota
+Impresa con cantiere_id NULL può conservare una fonte assegnata a quel Cantiere.
+Il rifiuto è atomico e non cancella né modifica nota, origine, quote o rettifiche.
+Uno storico estraneo non impedisce il cleanup di un altro Cantiere. Una nota
+pendente senza legame al Cantiere non viene collegata per nome o riferimento XML;
+la testata e le righe non associate restano disponibili.
+
+Con registro vuoto, il cleanup segue l'ordine precedente. Restano invariati i
+blocchi storici su Materiali/Fatture, attribuzioni clienti, risorse condivise,
+Quaderni e dipendenze strutturate. Non sono introdotti cascade o bypass.
+
+La correzione è nella medesima migrazione TD04, mai installata: una sola transazione
+crea il delta e sostituisce due corpi esistenti, preservando firma, owner e ACL.
+Il SQL verifica prima le definizioni baseline e i permessi dell'installatore.
+Per la RPC posseduta da `artecna_cantieri_delete_rpc` richiede SET sul ruolo owner e
+CREATE di quel ruolo sullo schema public; non li concede. Usa SET LOCAL ROLE e
+RESET ROLE solo per la sostituzione. Un prerequisito mancante interrompe prima del
+DDL. Questo è un requisito del futuro precheck, non un'autorizzazione a modificare
+privilegi o installare la migrazione.
