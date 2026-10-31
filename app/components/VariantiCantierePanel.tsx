@@ -15,6 +15,7 @@ import UsaRaccoltaEconomiaInVariante from './UsaRaccoltaEconomiaInVariante'
 import { numeroRigaProposta } from '../engines/economia/precheckProposta'
 import PrestazioniRapportiniEconomia from './PrestazioniRapportiniEconomia'
 import PrezziRapportiniEconomia from './PrezziRapportiniEconomia'
+import PrezziMaterialiEconomia from './PrezziMaterialiEconomia'
 import { documentoVariantiCliente, vociCliente, type ContestoStampaVarianti, type VarianteCliente } from '../engines/economia/stampaVariantiCliente'
 import { operativoPrestazioneAcquisita } from '../engines/economia/prestazioniRapportiniDesktop'
 import RaccoltaSorgenteVariante from './RaccoltaSorgenteVariante'
@@ -628,7 +629,7 @@ async function arricchisciOriginiRapportino(sorgenti: Record<string, unknown>[],
   }
 }
 
-type RigaConsultazioneEconomia = { id: string; ordine: number; tipo: 'generica' | 'manodopera' | 'materiale'; descrizione: string; um: string; quantita: number; prezzo: number | null; totale: number | null; note: string | null; origine: string; operativo: Record<string, unknown>; provenienzaFattura: string | null }
+type RigaConsultazioneEconomia = { id: string; ordine: number; tipo: 'generica' | 'manodopera' | 'materiale'; descrizione: string; um: string; quantita: number; prezzo: number | null; prezzoOrigine: number | null; totale: number | null; note: string | null; origine: string; operativo: Record<string, unknown>; provenienzaFattura: string | null }
 type DettaglioConsultazioneEconomia = { raccolta: RaccoltaConsultazioneEconomia; righe: RigaConsultazioneEconomia[] }
 
 function numeroConsultazioneEconomia(v: unknown, nullable = false): number | null {
@@ -668,7 +669,7 @@ function dettaglioConsultazioneEconomia(v: unknown, cantiereId: string, raccolta
     }
     const quantita = numeroRigaProposta(r.quantita) ?? NaN
     const prezzo = numeroRigaProposta(r.prezzo_unitario), totale = numeroRigaProposta(r.totale)
-    return { id: r.id, ordine: Number(r.ordine), tipo: r.tipo_riga as RigaConsultazioneEconomia['tipo'], descrizione: r.descrizione, um: r.unita_misura, quantita, prezzo, totale, note: r.note as string | null, origine: String(r.origine), operativo, provenienzaFattura: r.origine === 'fattura_fornitore' ? provenienzaFatturaEconomia(r) : null }
+    return { id: r.id, ordine: Number(r.ordine), tipo: r.tipo_riga as RigaConsultazioneEconomia['tipo'], descrizione: r.descrizione, um: r.unita_misura, quantita, prezzo, prezzoOrigine: numeroRigaProposta(r.prezzo_unitario_origine), totale, note: r.note as string | null, origine: String(r.origine), operativo, provenienzaFattura: r.origine === 'fattura_fornitore' ? provenienzaFatturaEconomia(r) : null }
   }).sort((a,b) => a.ordine-b.ordine)
   if (raccolta.nonValorizzate !== righe.filter(r => r.prezzo === null).length) throw new Error('Riepilogo Economia non coerente.')
   return { raccolta, righe }
@@ -858,7 +859,7 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
     setCaricamentoElenco(true); setErroreElenco('')
     async function carica() {
       try {
-        const { data, error } = await supabase.rpc('leggi_raccolte_economia', { p_cantiere_id: cantiereId })
+        const { data, error } = await supabase.rpc('leggi_raccolte_economia_cliente', { p_cantiere_id: cantiereId })
         if (token !== tokenElenco.current || cantiereCorrente.current !== cantiereId) return
         if (error || !Array.isArray(data)) throw new Error('Lettura elenco non disponibile.')
         const raccolte = data.map(v => raccoltaConsultazioneEconomia(v, cantiereId))
@@ -877,7 +878,7 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
     const token = ++tokenDettaglio.current
     setApertaId(id); if (!conservaDettaglio) setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(true)
     try {
-      const { data, error } = await supabase.rpc('leggi_raccolta_economia', { p_raccolta_id: id })
+      const { data, error } = await supabase.rpc('leggi_raccolta_economia_cliente', { p_raccolta_id: id })
       if (token !== tokenDettaglio.current || cantiereCorrente.current !== cantiereId) return
       if (error) throw new Error('Lettura dettaglio non disponibile.')
       const lettura = dettaglioConsultazioneEconomia(data, cantiereId, id)
@@ -920,8 +921,8 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
     if (tipo === 'generica' && !righe.length) return null
     return <section aria-label={titolo}><h5>{titolo} — {righe.length} registrazioni</h5>
       {!righe.length ? <p>Nessuna registrazione.</p> : <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-        <thead><tr>{colonne.map(c => <th scope="col" key={c} style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #cbd5e1' }}>{c}</th>)}</tr></thead>
-        <tbody>{righe.map(r => <tr key={r.id} id={`economia-${dettaglio?.raccolta.id}-${r.id}`} tabIndex={-1}>{celle(r).map((v,i) => <td key={i} style={{ padding: 8, verticalAlign: 'top', whiteSpace: 'pre-wrap', borderBottom: '1px solid #e2e8f0' }}>{v}</td>)}</tr>)}</tbody>
+        <thead><tr>{colonne.map(c => <th scope="col" key={c} style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #cbd5e1' }}>{c}</th>)}{tipo === 'materiale' && <th scope="col">Prezzo cliente</th>}</tr></thead>
+        <tbody>{righe.map(r => <tr key={r.id} id={`economia-${dettaglio?.raccolta.id}-${r.id}`} tabIndex={-1}>{celle(r).map((v,i) => <td key={i} style={{ padding: 8, verticalAlign: 'top', whiteSpace: 'pre-wrap', borderBottom: '1px solid #e2e8f0' }}>{v}</td>)}{tipo === 'materiale' && dettaglio && <td style={{ padding: 8, minWidth: 180 }}><PrezziMaterialiEconomia key={`${r.id}:${dettaglio.raccolta.revisione}:${letturaDettaglio}`} raccolta={dettaglio.raccolta} righe={[r]} bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio} onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }} onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} /></td>}</tr>)}</tbody>
       </table></div>}
     </section>
   }
@@ -962,7 +963,7 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
           onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} />
         <p>{dettaglio.righe.length} registrazioni · {dettaglio.righe.filter(r => r.tipo === 'manodopera').length} manodopera · {dettaglio.righe.filter(r => r.tipo === 'materiale').length} materiali. {dettaglio.raccolta.stato === 'bozza' && dettaglio.righe.some(r => r.origine === 'rapportino') ? dettaglio.righe.some(r => r.origine === 'rapportino' && r.prezzo === null) ? 'Ore e provenienza da Rapportino non modificabili; prezzi da confermare.' : 'Ore immutabili; prezzi fatturabili valorizzati.' : 'Consultazione in sola lettura.'}</p>
         {tabella('manodopera','MANODOPERA',['Data','Descrizione','Operaio','Qualifica','Ora inizio','Ora fine','Pausa min','Ore','Tariffa €/h','Totale €','Riferimento','Note'],r => [dataConsultazioneEconomia(r.operativo.data),r.descrizione,testoConsultazioneEconomia(r.operativo.operaio),testoConsultazioneEconomia(r.operativo.qualifica),testoConsultazioneEconomia(r.operativo.ora_inizio),testoConsultazioneEconomia(r.operativo.ora_fine),testoConsultazioneEconomia(r.operativo.pausa_min),numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.riferimento),testoConsultazioneEconomia(r.note)])}
-        {tabella('materiale','MATERIALI',['Data','Materiale','UM','Quantità','Prezzo unitario €','Totale €','Fornitore','Documento','Riferimento rapportino','Note'],r => [dataConsultazioneEconomia(r.operativo.data),<span>{r.descrizione}{r.provenienzaFattura && <small style={{ display: 'block' }}>{r.provenienzaFattura}</small>}</span>,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.fornitore),testoConsultazioneEconomia(r.operativo.documento),testoConsultazioneEconomia(r.operativo.riferimento_rapportino),testoConsultazioneEconomia(r.note)])}
+        {tabella('materiale','MATERIALI',['Data','Materiale','UM','Quantità','Prezzo fatturabile €','Totale €','Fornitore','Documento','Riferimento rapportino','Note'],r => [dataConsultazioneEconomia(r.operativo.data),<span>{r.descrizione}{r.provenienzaFattura && <small style={{ display: 'block' }}>{r.provenienzaFattura}</small>}</span>,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.fornitore),testoConsultazioneEconomia(r.operativo.documento),testoConsultazioneEconomia(r.operativo.riferimento_rapportino),testoConsultazioneEconomia(r.note)])}
         {tabella('generica','REGISTRAZIONI GENERICHE',['Descrizione','UM','Quantità','Prezzo unitario €','Totale €','Note'],r => [r.descrizione,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.note)])}
       </>}
     </> : <>
@@ -1075,7 +1076,7 @@ function ImportazioneEconomiaLocale({ cantiereId, onInvio, onSalvata }: { cantie
         blocca()
         setErrore(error.code === 'PT409' ? 'Conflitto: Revisione Economia divergente. Nessun reinvio automatico.' : 'Salvataggio non confermato. Verifica della raccolta necessaria; nessun reinvio automatico.')
         try {
-          const lettura = await supabase.rpc('leggi_raccolta_economia', { p_raccolta_id: ctx.raccolta.id })
+          const lettura = await supabase.rpc('leggi_raccolta_economia_cliente', { p_raccolta_id: ctx.raccolta.id })
           if (lettura.error || !recordSorgente(lettura.data)) throw new Error('Lettura non disponibile')
           ctx.raccolta = leggiIdentitaImportazioneEconomia(lettura.data.raccolta, cantiereId, ctx.raccolta.id)
           if (attivo()) {
@@ -1107,7 +1108,7 @@ function ImportazioneEconomiaLocale({ cantiereId, onInvio, onSalvata }: { cantie
       }
       try {
         setRiepilogo(riepiloga(data))
-        const lettura = await supabase.rpc('leggi_raccolta_economia', { p_raccolta_id: ctx.raccolta.id })
+        const lettura = await supabase.rpc('leggi_raccolta_economia_cliente', { p_raccolta_id: ctx.raccolta.id })
         if (lettura.error || !recordSorgente(lettura.data)) throw new Error('Rilettura non disponibile')
         const v = lettura.data
         const corrente = leggiIdentitaImportazioneEconomia(v.raccolta, cantiereId, ctx.raccolta.id)
@@ -2257,7 +2258,7 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
         if (cantiereId) await arricchisciOriginiRapportino(sorgenti, cantiereId)
         for (const s of sorgenti) {
           if (s.tipo !== 'raccolta_economia' || typeof s.economia_raccolta_id !== 'string') continue
-          const { data, error } = await supabase.rpc('leggi_raccolta_economia', { p_raccolta_id: s.economia_raccolta_id })
+          const { data, error } = await supabase.rpc('leggi_raccolta_economia_cliente', { p_raccolta_id: s.economia_raccolta_id })
           if (error || !cantiereId) throw new Error('Provenienza stampa non disponibile.')
           const dettaglio = dettaglioConsultazioneEconomia(data, cantiereId, s.economia_raccolta_id)
           if (recordSorgente(s.snapshot) && Array.isArray(s.snapshot.registrazioni)) {

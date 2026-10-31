@@ -20,7 +20,7 @@ export function errorePonteEconomia(code?: string, message?: string): string {
 }
 export async function usaRaccoltaInVariante(rpc: RpcPonteEconomia, raccolta: RaccoltaPonteEconomia): Promise<EsitoPonteEconomia> {
   if (!raccoltaPonteValida(raccolta)) throw new Error(errorePonteEconomia('22023'))
-  const { data, error } = await rpc('usa_raccolta_economia_in_variante', {
+  const { data, error } = await rpc('usa_raccolta_economia_cliente_in_variante', {
     p_raccolta_id: raccolta.id, p_revisione_attesa: raccolta.revisione,
   })
   if (error) throw new Error(errorePonteEconomia(error.code, (error as { message?: string }).message))

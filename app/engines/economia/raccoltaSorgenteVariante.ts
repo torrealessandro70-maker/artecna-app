@@ -32,7 +32,7 @@ export async function caricaRaccolteSorgenti(client: LettoreRaccoltaSorgente, so
     if (ids.has(congelato.raccoltaId)) return stop()
     ids.add(congelato.raccoltaId)
     try {
-      const { data, error } = await client.rpc('leggi_raccolta_economia', { p_raccolta_id: congelato.raccoltaId })
+      const { data, error } = await client.rpc('leggi_raccolta_economia_cliente', { p_raccolta_id: congelato.raccoltaId })
       const c = data?.raccolta
       if (error || !record(c) || c.id !== congelato.raccoltaId || c.cantiere_id !== cantiereId || !['bozza','chiusa'].includes(c.stato) ||
           !revisione(c.revisione) || c.revisione < congelato.revisioneCongelata || !Array.isArray(data.righe)) throw Error('Corrente non verificabile')

@@ -10,7 +10,7 @@ const validRows=[{id:S,ordine:1,descrizione:'Voce sintetica',quantita:2,prezzo:1
 const plain=x=>JSON.parse(JSON.stringify(x))
 test('RPC ponte: esclusivamente UUID/revisione, risposta autorevole e numero NULL',async()=>{
  const calls=[];const esito=await engine.usaRaccoltaInVariante(async(...args)=>{calls.push(args);return{data:result,error:null}}, {...raccolta,totale:999,righe:[],cantiere_id:V})
- assert.deepEqual(plain(calls),[['usa_raccolta_economia_in_variante',{p_raccolta_id:A,p_revisione_attesa:1}]]);assert.equal(esito.numero_variante,null)
+ assert.deepEqual(plain(calls),[['usa_raccolta_economia_cliente_in_variante',{p_raccolta_id:A,p_revisione_attesa:1}]]);assert.equal(esito.numero_variante,null)
 })
 test('visibilita: bozza/chiusa valide, revisione e UUID validi obbligatori',()=>{
  assert(engine.raccoltaPonteValida(raccolta));assert(engine.raccoltaPonteValida({...raccolta,stato:'chiusa'}))

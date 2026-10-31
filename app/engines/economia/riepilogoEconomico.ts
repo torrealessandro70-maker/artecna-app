@@ -84,7 +84,7 @@ export function scomponiVarianti(varianti: Riga[], sorgenti: Riga[], cantiereId:
         identitaMateriali.push({ raccoltaId: s.economia_raccolta_id, rigaId: r.id,
           sorgenteId: r.sorgente_id ?? null, fatturaRigaId: fatturaRigaId ?? null })
         try {
-        const quantita = numero(r.quantita), prezzo = numero(r.prezzo_unitario)
+        const quantita = numero(r.quantita), prezzo = numero(r.dettagli_analitici?.cliente_materiale?.prezzo ?? r.prezzo_unitario)
         if (quantita <= 0 || prezzo < 0 || cent(costoNettoQuota(r.quantita, r.prezzo_unitario)) !== valore ||
             typeof r.descrizione !== 'string' || !r.descrizione.trim() || typeof r.unita_misura !== 'string' || !r.unita_misura.trim()) return errore()
         const testo = (v: unknown): string => typeof v === 'string' ? v.trim() : typeof v === 'number' && Number.isFinite(v) ? String(v) : ''
