@@ -1,5 +1,6 @@
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 
+import CostiFornitoriRettificati from './CostiFornitoriRettificati'
 import RiepilogoDittaPanel from './RiepilogoDittaPanel'
 import type { ClientAttribuzioni } from '../engines/contabilita-ditta/attribuzioni'
 import type { ClientLettura } from '../engines/contabilita-ditta/lettura'
@@ -53,6 +54,7 @@ export default function EconomiaGeneralePanel({
       <h2>Economia generale</h2>
 
       <RiepilogoDittaPanel client={client} />
+      <CostiFornitoriRettificati client={client} />
       <h3>Classificazioni gestionali preesistenti</h3>
       <p>Spese, magazzino e attrezzature: consultazione separata, non utile contabile o fiscale e non sommate ai documenti del riepilogo.</p>
 

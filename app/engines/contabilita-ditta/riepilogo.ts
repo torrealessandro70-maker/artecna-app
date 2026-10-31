@@ -57,7 +57,7 @@ function dettaglio(r: Riga, fonte: Fonte, campo: string, data: string, posizione
   const n = centesimi(r[campo])
   const cumulativo = campo === 'importo_incassato'
   const totale = centesimi(r.totale)
-  const motivo = !testo(r.id) ? 'ID mancante' : n === null ? 'Importo mancante o non verificabile' : credito ? 'Nota di credito esplicita: rettifica non riconciliata, esclusa' : n < 0 ? 'Importo negativo: segno/origine da verificare' : cumulativo && (totale === null || n > totale) ? 'Cumulativo non coerente con il totale documento' : ''
+  const motivo = !testo(r.id) ? 'ID mancante' : n === null ? 'Importo mancante o non verificabile' : credito ? 'Nota di credito: esclusa dai documenti ordinari; consultare le rettifiche fornitori' : n < 0 ? 'Importo negativo: segno/origine da verificare' : cumulativo && (totale === null || n > totale) ? 'Cumulativo non coerente con il totale documento' : ''
   const url = testo(r.xml_url || r.pdf_url)
   return { id: testo(r.id) || `senza-id-${posizione}`, fonte, documento: [testo(r.numero_fattura), testo(r.cliente || r.fornitore || r.operaio_nome || r.descrizione)].filter(Boolean).join(' — ') || testo(r.id) || 'Record senza riferimento', data: testo(r[data]), centesimi: n, originale: testo(r[campo]), incluso: !motivo, motivo,
     iva: ('iva' in r) ? `IVA da verificare — dato originale: ${testo(r.iva) || 'mancante'}` : 'IVA monetaria non certificata',

@@ -1,5 +1,7 @@
 'use client'
 
+import { CostiFornitoriVista, useCostiFornitori } from './CostiFornitoriRettificati'
+import { deltaRettifiche, rettificheCompatibiliConBase } from '../engines/fatture/note-credito'
 import { useEffect, useState, type ComponentProps } from 'react'
 import EconomiaGraficiPanel from './EconomiaGraficiPanel'
 import FiltroPeriodoEconomia from './FiltroPeriodoEconomia'
@@ -53,6 +55,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     materialiOperativi?: MaterialiOperativi | null
   } | null>(null)
   const da = p.periodo.economiaDataDa, a = p.periodo.economiaDataA
+  const rettifiche = useCostiFornitori(supabase, cantiere.id, da, a)
   const [quoteFattura, setQuoteFattura] = useState<{ cantiereId: string; da: string; a: string; client: typeof supabase; costo: number | null } | null>(null)
 
   useEffect(() => {
@@ -107,7 +110,9 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
   const contrattoAggiornato = deltaVariantiApprovate !== null && importoBase !== undefined
     ? importoBase + deltaVariantiApprovate : null
   const costoFattura = quoteFattura?.cantiereId === cantiere.id && quoteFattura.da === da && quoteFattura.a === a && quoteFattura.client === supabase ? quoteFattura.costo : null
-  const costiIntegrati = costoFattura === null ? null : aggiungiCostoQuote(p.riepilogo.totaleMaterialiEconomia, p.riepilogo.totaleCostiCantiere, costoFattura)
+  const baseCoerente = rettifiche.dati ? rettificheCompatibiliConBase(rettifiche.dati, p.costi.materialiCantiere.filter(m => m.cantiere === cantiere.nome).map(m => m.id)) : false
+  const deltaCredito = rettifiche.dati && baseCoerente ? deltaRettifiche(rettifiche.dati) : null
+  const costiIntegrati = costoFattura === null || deltaCredito === null ? null : aggiungiCostoQuote(p.riepilogo.totaleMaterialiEconomia, p.riepilogo.totaleCostiCantiere, costoFattura + deltaCredito)
   const costoMateriali = costiIntegrati?.materiali ?? null
   const costiTotali = costiIntegrati?.costi ?? null
   const utileAggiornato = contrattoAggiornato !== null
@@ -148,6 +153,8 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
   return (
     <section aria-label="Economia del cantiere" style={{ padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', minWidth: 0 }}>
       <h3 style={{ margin: '0 0 16px', fontSize: 22 }}>Economia del cantiere</h3>
+      <CostiFornitoriVista dati={rettifiche.dati} errore={rettifiche.errore} />
+      {rettifiche.dati && !baseCoerente && <p role="alert">Fonte originaria non compresa nella base legacy del Cantiere: totale generale non disponibile. Il riepilogo documentale mostra le quote verificate e le rettifiche.</p>}
       <nav aria-label="Sezioni economia" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, marginBottom: 20, borderBottom: '1px solid #e2e8f0' }}>
         {([['riepilogo', 'Riepilogo'], ['costi', 'Costi'], ['sal', 'SAL e acconti'], ['rapportini', 'Rapportini']] as const).map(([sezione, label]) => (
           <button key={sezione} type="button" aria-pressed={economiaSezione === sezione} onClick={() => setEconomiaSezione(sezione)}
@@ -194,7 +201,8 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
         </section>
         {preventivoId && <ManodoperaEconomiaDettaglio key={`${cantiere.id}:${preventivoId}:${aggiornamentoKpi}`} client={supabase} cantiereId={cantiere.id} contrattoId={preventivoId} cantiereNome={cantiere.nome} />}
         <div className="economia-cantiere-grafici">
-          {contrattoAggiornato !== null && utileAggiornato !== null && margineAggiornato !== null && <EconomiaGraficiPanel {...p.riepilogo} cantiereScheda={cantiere.nome}
+          {costoMateriali !== null && costoMateriali < 0 && <p>Nel periodo il costo materiali è negativo per le rettifiche: consultare il dettaglio firmato anziché il grafico di ripartizione.</p>}
+          {contrattoAggiornato !== null && utileAggiornato !== null && margineAggiornato !== null && costoMateriali !== null && costoMateriali >= 0 && <EconomiaGraficiPanel {...p.riepilogo} cantiereScheda={cantiere.nome}
             preventivoCantiere={contrattoAggiornato}
             totaleMaterialiEconomia={costoMateriali}
             totaleCostiCantiere={costiTotali}

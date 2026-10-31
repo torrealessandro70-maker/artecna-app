@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RigaDocumentoFattura } from '../engines/fatture/classificazioneDocumento'
 import FatturaOperativa from './FatturaOperativa'
+import NotaCreditoFornitorePanel from './NotaCreditoFornitorePanel'
+import { tipoFiscaleDocumento } from '../engines/fatture/documento-fiscale'
 import { supabase } from '../../lib/supabaseClient'
 import { valoriEconomiaFattura, motivoQuantita, residuoPreview, type DisponibilitaMateriale } from '../engines/economia/fattureMateriali'
 import { assegnaMaterialiImpresa, assegnaMaterialiCantiere, etichettaStatoFattura, leggiContestoMateriali, leggiStatoFattura, messaggioAssegnazione, statoRigaMateriale, verificaRigheMateriali, inviaMaterialiFattura, leggiRaccolteMateriali, motivoNonSelezionabile, motivoNonTrasferibile, selezionaRigaFattura, unitaEconomiaValida, uuidFattura, type ContestoMateriali, type DestinazioneMateriale, type StatoFattura, type StoricoMateriale, type RaccoltaMateriali, type RigaMaterialeFattura } from '../engines/economia/fattureMateriali'
@@ -346,5 +348,21 @@ export function InviaMaterialiFatturaEconomiaLegacy({ fatturaId, cantieri, onAgg
 }
 
 export default function InviaMaterialiFatturaEconomia(props: Parameters<typeof InviaMaterialiFatturaEconomiaLegacy>[0]) {
+ const [tipo, setTipo] = useState<{ id: string; valore: string | null; errore: string } | null>(null)
+ useEffect(() => {
+   let attivo = true
+   void (async () => {
+     try {
+       const { data, error } = await supabase.from('fatture_fornitori').select('id,tipo_documento,xml_testo').eq('id', props.fatturaId).single()
+       if (error || !data) throw Error(error?.message || 'Documento non disponibile')
+       const valore = tipoFiscaleDocumento(data)
+       if (attivo) setTipo({ id: props.fatturaId, valore, errore: '' })
+     } catch (e) { if (attivo) setTipo({ id: props.fatturaId, valore: null, errore: e instanceof Error ? e.message : 'Tipo fiscale non disponibile' }) }
+   })()
+   return () => { attivo = false }
+ }, [props.fatturaId])
+ if (tipo?.id !== props.fatturaId) return <p role="status">Verifica tipo documento…</p>
+ if (tipo.errore) return <p role="alert">Tipo documento non disponibile: {tipo.errore}. Nessuna assegnazione avviata.</p>
+ if (tipo.valore === 'TD04') return <NotaCreditoFornitorePanel key={props.fatturaId} client={supabase} notaId={props.fatturaId} cantieri={props.cantieri} onAggiornamento={props.onAggiornamentoFattura} />
  return props.documento ? <FatturaOperativa {...props} documento={props.documento} key={props.fatturaId} /> : <InviaMaterialiFatturaEconomiaLegacy {...props} />
 }

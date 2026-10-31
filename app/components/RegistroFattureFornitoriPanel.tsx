@@ -1,6 +1,7 @@
 'use client'
 
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
+import { tipoFiscaleDocumento } from '../engines/fatture/documento-fiscale'
 import JSZip from 'jszip'
 import ImportaFattureDocumenti from './ImportaFattureDocumenti'
 import InviaMaterialiFatturaEconomia from './InviaMaterialiFatturaEconomia'
@@ -25,6 +26,7 @@ type Props = {
   righeFatturaDaAssegnare: any[]
   righeFatturaAperta: any[]
 
+  fatturaXmlOriginale?: string
   fatturaNomeFile: string
   fatturaFornitore: string
   fatturaPartitaIva: string
@@ -58,6 +60,7 @@ type Props = {
 
   caricaFatturaXml: (file: File, soloAnteprima?: boolean) => Promise<AnteprimaFattura | undefined>
   caricaFatturaPdf: (file: File, soloAnteprima?: boolean) => Promise<AnteprimaFattura | undefined>
+  aggiornaEconomia?: () => void | Promise<void>
   caricaFattureFornitori: () => Promise<void> | void
   importaFatturaSilenziosa: (dati: any, righe: any[]) => Promise<any>
   numeroXml: (valore: string) => number
@@ -84,6 +87,7 @@ export default function RegistroFattureFornitoriPanel({
   righeFatturaDaAssegnare,
   righeFatturaAperta,
 
+  fatturaXmlOriginale,
   fatturaNomeFile,
   fatturaFornitore,
   fatturaPartitaIva,
@@ -116,6 +120,7 @@ export default function RegistroFattureFornitoriPanel({
 
   caricaFatturaXml,
   caricaFatturaPdf,
+  aggiornaEconomia,
   caricaFattureFornitori,
   importaFatturaSilenziosa,
   numeroXml,
@@ -126,6 +131,10 @@ export default function RegistroFattureFornitoriPanel({
   eliminaFatturaFornitore,
   salvaModificheFatturaAperta,
 }: Props) {
+ const notaCredito = (xml?: string, tipo?: string) => { try { return tipoFiscaleDocumento({ xml_testo: xml, tipo_documento: tipo }) === 'TD04' } catch { return false } }
+ const notaInAnteprima = notaCredito(fatturaXmlOriginale)
+ const testataAperta = fattureFornitori.find(f => f.id === fatturaApertaId)
+ const notaAperta = testataAperta ? notaCredito(testataAperta.xml_testo, testataAperta.tipo_documento) : false
  return (
   <>
 
@@ -233,6 +242,7 @@ const input = e.currentTarget
 
     </div>
 
+    {notaInAnteprima && <section aria-label="Anteprima nota di credito"><h3>Nota di credito TD04 — da riconciliare</h3><p>I valori originali restano nel documento. Nessuna assegnazione positiva ordinaria e nessuna classificazione come “storno escluso”.</p><button type="button" onClick={salvaFatturaFornitore} style={buttonPrimary}>Importa nota di credito</button>{' '}<button type="button" onClick={() => { setFatturaNomeFile(''); setFatturaTestoOriginale(''); setRigheFatturaDaAssegnare([]) }} style={buttonSecondary}>Annulla anteprima</button></section>}
     {fatturaNomeFile && (
       <div style={{ marginBottom: 16 }}>
         <strong>File:</strong> {fatturaNomeFile}<br />
@@ -240,7 +250,7 @@ const input = e.currentTarget
         <strong>P.IVA:</strong> {fatturaPartitaIva || '-'}<br />
         <strong>Numero:</strong> {fatturaNumero || '-'}<br />
         <strong>Data:</strong> {fatturaData || '-'}<br />
-        <strong>Totale righe IVA incl.:</strong>{' '}
+        <strong>{notaInAnteprima ? 'Totale righe XML (imponibile):' : 'Totale righe IVA incl.:'}</strong>{' '}
 {formatMoney(
   righeFatturaDaAssegnare.reduce(
     (tot, r) => tot + Number(r.totale_riga || 0),
@@ -250,7 +260,7 @@ const input = e.currentTarget
       </div>
     )}
 
-{righeFatturaDaAssegnare.length > 0 && (
+{righeFatturaDaAssegnare.length > 0 && !notaInAnteprima && (
   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
     <select
       value={cantiereMassivoFattura}
@@ -315,7 +325,7 @@ const input = e.currentTarget
 
 
 
-    {righeFatturaDaAssegnare.length > 0 && (
+    {righeFatturaDaAssegnare.length > 0 && !notaInAnteprima && (
       <div style={{ overflowX: 'auto' }}>
         <table style={excelTable}>
           <thead>
@@ -535,7 +545,7 @@ const input = e.currentTarget
             </td>
 
             <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', verticalAlign: 'top' }}>
-              {etichettaStatoFattura(f.stato)}
+              {notaCredito(f.xml_testo, f.tipo_documento) ? 'Nota di credito — vedi riconciliazione' : etichettaStatoFattura(f.stato)}
             </td>
 
             <td style={{ ...excelTd, padding: '5px 8px', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', verticalAlign: 'top' }}>
@@ -592,12 +602,13 @@ const input = e.currentTarget
       }}
     >    
   <h3>👁 Righe fattura aperta</h3>
-<InviaMaterialiFatturaEconomia key={fatturaApertaId} fatturaId={fatturaApertaId} cantieri={cantieri} onAggiornamentoFattura={caricaFattureFornitori}
+<InviaMaterialiFatturaEconomia key={fatturaApertaId} fatturaId={fatturaApertaId} cantieri={cantieri} onAggiornamentoFattura={async () => { await caricaFattureFornitori(); await aggiornaEconomia?.() }}
   documento={{ righe: righeFatturaAperta,
     onCategoria: (id, value) => setRigheFatturaAperta(old => old.map(r => r.id === id ? { ...r, categoria_economica: value } : r)),
     onRiferimento: (id, value) => setRigheFatturaAperta(old => old.map(r => r.id === id ? { ...r, cantiere: value } : r)),
     onSalva: salvaModificheFatturaAperta,
   }} />
+{!notaAperta && <>
 <p role="note" style={{ fontSize: 12, color: '#64748b' }}>Salva classificazione registra i campi documentali e gli eventuali costi Spesa generale. Assegna selezionate registra quantità tramite i writer esistenti. Gli storici incompatibili richiedono riconciliazione.</p>
 <div
   style={{
@@ -657,6 +668,7 @@ const input = e.currentTarget
     )
   })}
 </div>
+</>}
 
 
       <button

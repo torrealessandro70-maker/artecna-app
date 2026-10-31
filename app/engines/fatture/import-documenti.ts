@@ -5,6 +5,8 @@ export type RigaAnteprimaFattura = {
 export type AnteprimaFattura = {
   fornitore: string; partitaIva: string; numero: string; data: string; totale: string
   nomeFile: string; tipoFile: string; testoOriginale: string; righe: RigaAnteprimaFattura[]
+  tipoDocumento?: string
+  riferimenti?: { numero: string; data: string; linee: string[] }[]
 }
 export type EsitoDocumento = {
   nome: string; stato: 'importata' | 'duplicato' | 'anteprima' | 'errore' | 'non_supportato'

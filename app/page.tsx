@@ -1,5 +1,7 @@
-import type { AnteprimaFattura } from './engines/fatture/import-documenti'
 'use client'
+
+import { leggiAnteprimaXml, leggiMetadatiFiscali } from './engines/fatture/documento-fiscale'
+import type { AnteprimaFattura } from './engines/fatture/import-documenti'
 import { modificaERicarica, EVENTO_FATTURE_AGGIORNATE, type ModificheFattura, type EsitoModifica, type StatoCantieri } from './engines/contabilita-ditta/modificaFattura'
 import QuadernoProgettiPanel from './components/QuadernoProgettiPanel'
 import { preservaPerimetroMiglioraTesto, messaggioPerimetro } from './utils/perimetroMiglioraTesto'
@@ -2821,104 +2823,18 @@ const numeroXml = (valore: string) => {
 
 const caricaFatturaXml = async (file: File, soloAnteprima = false): Promise<AnteprimaFattura | undefined> => {
   try {
-    const testo = await file.text()
-    const parser = new DOMParser()
-    const xml = parser.parseFromString(testo, 'text/xml')
-
-    const erroreParser = xml.getElementsByTagName('parsererror')[0]
-    if (erroreParser) {
-      if (soloAnteprima) throw Error('Il file XML non sembra valido.')
-      alert('Il file XML non sembra valido.')
-      return
-    }
-    const cedente = xml.getElementsByTagName('CedentePrestatore')[0]
-    const datiAnagrafici = cedente?.getElementsByTagName('DatiAnagrafici')[0]
-    const idFiscaleIva = datiAnagrafici?.getElementsByTagName('IdFiscaleIVA')[0]
-
-    const partitaIva =
-      idFiscaleIva?.getElementsByTagName('IdCodice')[0]?.textContent?.trim() || ''
-
-    const denominazione =
-      datiAnagrafici?.getElementsByTagName('Denominazione')[0]?.textContent?.trim() ||
-      datiAnagrafici?.getElementsByTagName('Nome')[0]?.textContent?.trim() ||
-      ''
-
-    const datiGeneraliDocumento = xml.getElementsByTagName('DatiGeneraliDocumento')[0]
-
-    const numeroFattura =
-      datiGeneraliDocumento?.getElementsByTagName('Numero')[0]?.textContent?.trim() || ''
-
-    const dataFattura =
-      datiGeneraliDocumento?.getElementsByTagName('Data')[0]?.textContent?.trim() || ''
-
-    const importoTotale =
-      datiGeneraliDocumento?.getElementsByTagName('ImportoTotaleDocumento')[0]?.textContent?.trim() ||
-      ''
-
-    const dettaglioLinee = Array.from(xml.getElementsByTagName('DettaglioLinee'))
-
-    const righe = dettaglioLinee.map((riga, index) => {
-      const numeroLinea = Number(
-        riga.getElementsByTagName('NumeroLinea')[0]?.textContent?.trim() || index + 1
-      )
-
-      const descrizione =
-        riga.getElementsByTagName('Descrizione')[0]?.textContent?.trim() || ''
-
-      const quantita = numeroXml(
-        riga.getElementsByTagName('Quantita')[0]?.textContent?.trim() || '1'
-      )
-
-      const prezzoUnitario = numeroXml(
-        riga.getElementsByTagName('PrezzoUnitario')[0]?.textContent?.trim() || '0'
-      )
-
-      const prezzoTotale = numeroXml(
-        riga.getElementsByTagName('PrezzoTotale')[0]?.textContent?.trim() || '0'
-      )
-
-const aliquotaIva = numeroXml(
-  riga.getElementsByTagName('AliquotaIVA')[0]?.textContent?.trim() || '0'
-)
-
-const ivaRiga =
-  Math.round((prezzoTotale * aliquotaIva / 100) * 100) / 100
-
-const totaleIvato =
-  Math.round((prezzoTotale + ivaRiga) * 100) / 100
-
-
-
-      return {
-        numero_riga: numeroLinea,
-        descrizione,
-        quantita,
-        prezzo_unitario: prezzoUnitario,
-        unita_misura: riga.getElementsByTagName('UnitaMisura')[0]?.textContent?.trim() || '',
-        totale_riga: prezzoTotale,
-        cantiere: '',
-      }
-    })
-
+    const anteprima = leggiAnteprimaXml(await file.text(), file.name, numeroXml)
     if (!soloAnteprima) {
-    setFatturaFornitore(denominazione)
-    setFatturaPartitaIva(partitaIva)
-    setFatturaNumero(numeroFattura)
-    setFatturaData(dataFattura)
-    setFatturaTotale(importoTotale)
-    setFatturaNomeFile(file.name)
-    setFatturaTipoFile('xml')
-    setFatturaTestoOriginale(testo)
-    setRigheFatturaDaAssegnare(righe)
-
-    alert(`Fattura XML caricata. Righe trovate: ${righe.length}`)
+      setFatturaFornitore(anteprima.fornitore); setFatturaPartitaIva(anteprima.partitaIva)
+      setFatturaNumero(anteprima.numero); setFatturaData(anteprima.data); setFatturaTotale(anteprima.totale)
+      setFatturaNomeFile(file.name); setFatturaTipoFile('xml'); setFatturaTestoOriginale(anteprima.testoOriginale)
+      setRigheFatturaDaAssegnare(anteprima.righe)
+      alert(anteprima.tipoDocumento === 'TD04' ? 'Nota di credito TD04: salva il documento senza assegnazioni ordinarie, poi apri il percorso di riconciliazione.' : `Fattura XML caricata. Righe trovate: ${anteprima.righe.length}`)
     }
-    return { fornitore: denominazione, partitaIva, numero: numeroFattura, data: dataFattura, totale: importoTotale,
-      nomeFile: file.name, tipoFile: 'xml', testoOriginale: testo, righe }
+    return anteprima
   } catch (errore) {
     if (soloAnteprima) throw errore
-    console.error(errore)
-    alert('Errore durante la lettura della fattura XML.')
+    alert(errore instanceof Error ? errore.message : 'Errore lettura XML')
   }
 }
 
@@ -10829,6 +10745,22 @@ if (!utente) {
 
 
 const salvaFatturaFornitore = async () => {
+  // Prima di qualsiasi writer legacy: una TD04 viene soltanto importata come documento.
+  if (fatturaTipoFile === 'xml') {
+    let tipo: string
+    try { tipo = leggiMetadatiFiscali(fatturaTestoOriginale).tipoDocumento }
+    catch (e) { alert(e instanceof Error ? e.message : 'XML non disponibile'); return }
+    if (tipo === 'TD04') {
+      const esito = await importaFatturaSilenziosa({ fornitore: fatturaFornitore, partitaIva: fatturaPartitaIva,
+        numero: fatturaNumero, data: fatturaData, totale: Number(fatturaTotale), nomeFile: fatturaNomeFile,
+        tipoFile: 'xml', testoOriginale: fatturaTestoOriginale, tipoDocumento: tipo },
+        righeFatturaDaAssegnare.map(r => ({ ...r, cantiere: '', categoria_economica: '' })))
+      if (esito.stato === 'importata') { setRigheFatturaDaAssegnare([]); await caricaFattureFornitori(); alert('Nota di credito importata: da riconciliare. Nessun costo assegnato.') }
+      else if (esito.stato === 'duplicato') alert('Documento già presente: aprilo dal Registro.')
+      return
+    }
+  }
+
   if (!fatturaNumero || !fatturaData) {
   alert('Dati fattura incompleti: manca numero o data fattura')
   return
@@ -10898,7 +10830,7 @@ for (const riga of righeAssegnate) {
       partita_iva: fatturaPartitaIva,
       numero_fattura: fatturaNumero,
       data_fattura: fatturaData,
-      tipo_documento: 'fattura',
+      tipo_documento: fatturaTipoFile === 'xml' ? leggiMetadatiFiscali(fatturaTestoOriginale).tipoDocumento || 'fattura' : 'fattura',
       importo_totale: totale,
       nome_file: fatturaNomeFile,
       tipo_file: fatturaTipoFile || 'xml',
@@ -11011,28 +10943,30 @@ const importaFatturaSilenziosa = async (
     nomeFile: string
     tipoFile: string
     testoOriginale?: string
+    tipoDocumento?: string
   },
   righe: RigaFatturaDaAssegnare[]
 ) => {
   try {
-    // controllo duplicato
-    const { data: esistente } = await supabase
-      .from('fatture_fornitori')
-      .select('id')
-      .eq('numero_fattura', dati.numero)
-      .eq('fornitore', dati.fornitore)
-      .maybeSingle()
-
-    if (esistente) {
-      return {
-        stato: 'duplicato',
-      }
-    }
+    const tipoFiscale = dati.tipoFile === 'xml' && dati.testoOriginale
+      ? leggiMetadatiFiscali(dati.testoOriginale).tipoDocumento : dati.tipoDocumento || ''
+    const notaCredito = tipoFiscale === 'TD04'
+    // Confronto su dati fiscali, nessuna associazione ricostruita dal nome.
+    const { data: candidati, error: erroreDuplicato } = await supabase.from('fatture_fornitori')
+      .select('id,tipo_documento,xml_testo,data_fattura,partita_iva,fornitore')
+      .eq('numero_fattura', dati.numero).eq('data_fattura', dati.data)
+    if (erroreDuplicato) throw erroreDuplicato
+    if (candidati?.some(f => {
+      const stessoFornitore = dati.partitaIva ? f.partita_iva === dati.partitaIva : f.fornitore === dati.fornitore
+      const tipo = f.xml_testo ? leggiMetadatiFiscali(f.xml_testo).tipoDocumento : f.tipo_documento
+      return stessoFornitore && (tipo || 'fattura') === (tipoFiscale || 'fattura')
+    })) return { stato: 'duplicato' }
 
     // salva testata fattura
     const { data: fattura, error } = await supabase
       .from('fatture_fornitori')
       .insert({
+        tipo_documento: tipoFiscale || 'fattura',
         fornitore: dati.fornitore,
         partita_iva: dati.partitaIva || '',
         numero_fattura: dati.numero,
@@ -11065,15 +10999,15 @@ alert(
         fattura_id: fattura.id,
         numero_riga: r.numero_riga,
         descrizione: r.descrizione,
-        quantita: r.quantita || 1,
+        quantita: r.quantita ?? 1,
         prezzo_unitario: r.prezzo_unitario || 0,
         totale_riga: r.totale_riga || 0,
         aliquota_iva: r.aliquota_iva || 0,
         unita_misura: r.unita_misura || '',
-categoria_economica: r.categoria_economica || '',
-        cantiere: r.cantiere || '',
+categoria_economica: notaCredito ? '' : r.categoria_economica || '',
+        cantiere: notaCredito ? '' : r.cantiere || '',
        stato:
-  r.cantiere || r.categoria_economica
+  !notaCredito && (r.cantiere || r.categoria_economica)
     ? 'assegnata'
     : 'da_assegnare',
       }))
@@ -12232,6 +12166,8 @@ WebkitOverflowScrolling: 'touch',
 
    {pagineAperte.includes('economia') && (
   <HomeEconomiaGeneraleCard
+    client={supabase}
+    materialiBaseIds={materialiCantiere.flatMap(m => cantieri.filter(c => c.nome === m.cantiere).map(() => m.id)).filter((id): id is string => typeof id === 'string')}
     cardStyle={cardStyle}
     totalePreventiviImpresa={totalePreventiviImpresa}
     totaleCostiImpresa={totaleCostiImpresa}
@@ -13474,6 +13410,7 @@ salvaRevisionePreventivoAi={salvaRevisionePreventivoAi}
   generaExcelDefinitivoPreventivoAi={generaExcelDefinitivoPreventivoAi}
   setMostraRevisionePreventivoAi={setMostraRevisionePreventivoAi}
 
+  fatturaXmlOriginale={fatturaTipoFile === 'xml' ? fatturaTestoOriginale : undefined}
   fatturaNomeFile={fatturaNomeFile}
   fatturaFornitore={fatturaFornitore}
   fatturaPartitaIva={fatturaPartitaIva}
