@@ -1,5 +1,7 @@
 'use client'
 
+import { conteggiProposta } from '../engines/economia/esclusioneProposta'
+
 import { useEffect, useRef, useState } from 'react'
 import { blocchiProposta, type RigaPrecheckProposta } from '../engines/economia/precheckProposta'
 import { supabase } from '../../lib/supabaseClient'
@@ -32,7 +34,8 @@ export default function UsaRaccoltaEconomiaInVariante({ raccolta, righe, variant
   const [rilettura, setRilettura] = useState(0)
   const occupato = useRef(false), attivo = useRef(true)
   const blocchi = righe ? blocchiProposta(righe) : []
-  const datiNonPronti = !righe || righe.length === 0
+  const conteggi = conteggiProposta(righe || [])
+  const datiNonPronti = !righe || righe.length === 0 || conteggi.incluse === 0
   useEffect(() => { attivo.current = true; return () => { attivo.current = false } }, [])
   const identitaVarianti = JSON.stringify(varianti)
   useEffect(() => {
@@ -50,7 +53,7 @@ export default function UsaRaccoltaEconomiaInVariante({ raccolta, righe, variant
   async function usa() {
     if (bloccato || datiNonPronti || blocchi.length > 0 || occupato.current || verifica || erroreLettura || collegata || esito || !raccoltaPonteValida(raccolta)) return
     occupato.current = true
-    if (!window.confirm(`Creare una Variante dai lavori in economia della Raccolta n. ${raccolta.numero}?\n\nLa Raccolta verrà congelata e chiusa se necessario. Verrà creata una nuova Variante in bozza e le registrazioni diventeranno lavorazioni della Variante.`)) {
+    if (!window.confirm(`Creare una Variante dai lavori in economia della Raccolta n. ${raccolta.numero}?\n\nLa Raccolta verrà congelata e chiusa se necessario. Verrà creata una nuova Variante in bozza e soltanto le registrazioni economiche incluse diventeranno lavorazioni della Variante.`)) {
       occupato.current = false; return
     }
     setInvio(true); setErrore('')
@@ -80,6 +83,7 @@ export default function UsaRaccoltaEconomiaInVariante({ raccolta, righe, variant
   const id = esito?.variante_id ?? collegata
   const collegamento = statiVarianti.find(v => v.id === id)
   return <section aria-label="Usa raccolta in Variante">
+    <p>{conteggi.totali} registrazioni sorgente → {conteggi.incluse} incluse + {conteggi.escluse} escluse → {conteggi.incluse} lavorazioni previste.</p>
     {!id && blocchi.length > 0 && <div role="alert">
       <p>Proposta non disponibile. Numero di registrazioni bloccanti: {blocchi.length}. Nessuna riga verrà esclusa automaticamente.</p>
       <ul>{blocchi.map(r => <li key={r.id} style={{ overflowWrap: 'anywhere', marginBottom: 8 }}>
@@ -88,7 +92,7 @@ export default function UsaRaccoltaEconomiaInVariante({ raccolta, righe, variant
       </li>)}</ul>
     </div>}
     {!verifica && !erroreLettura && !id && raccolta.stato === 'bozza' && <p role="status">Nessuna proposta collegata a questa Raccolta è stata verificata. Eventuali altre Varianti non costituiscono conferma di questa acquisizione.</p>}
-    {!id && datiNonPronti && <p role="status">Registrazioni non disponibili per la verifica preliminare.</p>}
+    {!id && datiNonPronti && <p role="status">{righe?.length && conteggi.incluse === 0 ? 'Nessuna registrazione economica inclusa: la proposta non può essere vuota.' : 'Registrazioni non disponibili per la verifica preliminare.'}</p>}
     {esito && <p role="status">{esito.riutilizzata ? 'Variante già creata. È stata riaperta.' : operativo ? 'Bozza creata dai lavori in economia. Verifica le lavorazioni e conferma la proposta.' : 'Variante creata dai lavori in economia.'}
       {' '}{esito.numero_variante === null ? 'Variante' : `Variante n. ${esito.numero_variante}`} · {esito.stato_variante} · {esito.numero_lavorazioni} lavorazioni · {esito.totale.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</p>}
     {errore && <div role="alert"><p>{errore}</p>{!esito && <p>Creazione non confermata. Nessuna Variante è stata aperta come risultato di questa richiesta. Rileggi il collegamento prima di riprovare.</p>}</div>}

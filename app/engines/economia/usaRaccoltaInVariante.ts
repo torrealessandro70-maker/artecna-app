@@ -33,6 +33,7 @@ export async function usaRaccoltaInVariante(rpc: RpcPonteEconomia, raccolta: Rac
       !Number.isSafeInteger(data.numero_lavorazioni) || Number(data.numero_lavorazioni) <= 0 ||
       typeof data.totale !== 'number' || !Number.isFinite(data.totale) || data.totale <= 0)
     throw new Error(errorePonteEconomia())
+  if (data.versione_esclusioni !== undefined && (data.versione_esclusioni !== 1 || !Number.isSafeInteger(data.numero_registrazioni) || !Number.isSafeInteger(data.numero_incluse) || !Number.isSafeInteger(data.numero_escluse) || Number(data.numero_escluse)<0 || data.numero_incluse !== data.numero_lavorazioni || Number(data.numero_incluse)+Number(data.numero_escluse)!==data.numero_registrazioni)) throw new Error(errorePonteEconomia('XX001'))
   return data as unknown as EsitoPonteEconomia
 }
 

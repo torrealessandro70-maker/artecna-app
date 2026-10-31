@@ -30,7 +30,7 @@ export default function PrezziMaterialiEconomia({ raccolta, righe, bloccato, onI
   return <section aria-label="Prezzi fatturabili materiali">
     {raccolta.stato !== 'bozza' && <p>Raccolta congelata: prezzi non modificabili.</p>}
     {righe.map(r => <div key={r.id} style={{ marginBottom: 10, overflowWrap: 'anywhere' }}>
-      <button type="button" disabled={bloccato || invio || riletturaRichiesta || raccolta.stato !== 'bozza'} onClick={() => { setAperta(r.id); setPrezzo(''); setMessaggio('') }}>Modifica prezzo fatturabile · riga {r.ordine}</button>
+      <button type="button" disabled={r.esclusa_proposta === true || bloccato || invio || riletturaRichiesta || raccolta.stato !== 'bozza'} onClick={() => { setAperta(r.id); setPrezzo(''); setMessaggio('') }}>Modifica prezzo fatturabile · riga {r.ordine}</button>
       {aperta === r.id && <div>
         <p>Riga {r.ordine} — {r.descrizione} · {r.quantita} {r.um}. Prezzo fatturabile attuale: {euro(r.prezzo)}.</p>
         <p>Prezzo cliente esplicito: costo, quantità e provenienza restano invariati.</p>

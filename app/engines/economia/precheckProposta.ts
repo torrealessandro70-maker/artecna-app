@@ -1,9 +1,10 @@
+import { esclusioneValida } from './esclusioneProposta'
 import { costoNettoQuota } from './riepilogoEconomico'
 
 // Preflight delle sole condizioni economiche del ponte. Le verifiche server restano autorevoli.
 export type RigaPrecheckProposta = {
   id: string; ordine: number; descrizione: string
-  quantita: unknown; prezzo: unknown; totale: unknown
+  quantita: unknown; prezzo: unknown; totale: unknown; tipo?: string; esclusa_proposta?: unknown; motivo_esclusione?: unknown
 }
 export type BloccoProposta = { id: string; ordine: number; descrizione: string; motivi: string[] }
 
@@ -18,7 +19,9 @@ function precisioneValida(v: number): boolean {
 
 export function blocchiProposta(righe: readonly RigaPrecheckProposta[]): BloccoProposta[] {
   return righe.flatMap(r => {
+    if (esclusioneValida(r)) return []
     const motivi: string[] = []
+    if (r.esclusa_proposta !== undefined && r.esclusa_proposta !== false) motivi.push('Esclusione non verificabile: rileggi la Raccolta.')
     const q = numeroRigaProposta(r.quantita), p = numeroRigaProposta(r.prezzo), t = numeroRigaProposta(r.totale)
     if (q === null || !Number.isFinite(q) || q <= 0) motivi.push('Quantità mancante o non valida: deve essere maggiore di zero.')
     if (p === null) motivi.push('Prezzo mancante.')

@@ -1,5 +1,7 @@
 'use client'
 
+import EsclusioneRigaEconomia from './EsclusioneRigaEconomia'
+
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { provenienzaFatturaEconomia } from '../engines/economia/fattureMateriali'
@@ -629,7 +631,7 @@ async function arricchisciOriginiRapportino(sorgenti: Record<string, unknown>[],
   }
 }
 
-type RigaConsultazioneEconomia = { id: string; ordine: number; tipo: 'generica' | 'manodopera' | 'materiale'; descrizione: string; um: string; quantita: number; prezzo: number | null; prezzoOrigine: number | null; totale: number | null; note: string | null; origine: string; operativo: Record<string, unknown>; provenienzaFattura: string | null }
+type RigaConsultazioneEconomia = { id: string; ordine: number; tipo: 'generica' | 'manodopera' | 'materiale'; descrizione: string; um: string; quantita: number; prezzo: number | null; prezzoOrigine: number | null; totale: number | null; note: string | null; origine: string; operativo: Record<string, unknown>; provenienzaFattura: string | null; esclusa_proposta: boolean; motivo_esclusione: string | null; storicoEsclusione: { esclusa: boolean; motivo: string; at: string; utente: string }[] }
 type DettaglioConsultazioneEconomia = { raccolta: RaccoltaConsultazioneEconomia; righe: RigaConsultazioneEconomia[] }
 
 function numeroConsultazioneEconomia(v: unknown, nullable = false): number | null {
@@ -669,7 +671,10 @@ function dettaglioConsultazioneEconomia(v: unknown, cantiereId: string, raccolta
     }
     const quantita = numeroRigaProposta(r.quantita) ?? NaN
     const prezzo = numeroRigaProposta(r.prezzo_unitario), totale = numeroRigaProposta(r.totale)
-    return { id: r.id, ordine: Number(r.ordine), tipo: r.tipo_riga as RigaConsultazioneEconomia['tipo'], descrizione: r.descrizione, um: r.unita_misura, quantita, prezzo, prezzoOrigine: numeroRigaProposta(r.prezzo_unitario_origine), totale, note: r.note as string | null, origine: String(r.origine), operativo, provenienzaFattura: r.origine === 'fattura_fornitore' ? provenienzaFatturaEconomia(r) : null }
+    if (r.esclusa_proposta !== undefined && typeof r.esclusa_proposta !== 'boolean') throw new Error('Esclusione non verificabile.')
+    const meta = recordSorgente(r.dettagli_analitici) && recordSorgente(r.dettagli_analitici.proposta_non_economica) ? r.dettagli_analitici.proposta_non_economica : null
+    const storicoEsclusione = meta && Array.isArray(meta.storico) ? meta.storico.map((h: unknown) => { if (!recordSorgente(h) || typeof h.esclusa !== 'boolean' || typeof h.motivo !== 'string' || typeof h.at !== 'string' || typeof h.utente !== 'string') throw new Error('Storico esclusione non verificabile.'); return { esclusa:h.esclusa, motivo:h.motivo, at:h.at, utente:h.utente } }) : []
+    return { esclusa_proposta:r.esclusa_proposta === true, motivo_esclusione: typeof r.motivo_esclusione === 'string' ? r.motivo_esclusione : null, storicoEsclusione, id: r.id, ordine: Number(r.ordine), tipo: r.tipo_riga as RigaConsultazioneEconomia['tipo'], descrizione: r.descrizione, um: r.unita_misura, quantita, prezzo, prezzoOrigine: numeroRigaProposta(r.prezzo_unitario_origine), totale, note: r.note as string | null, origine: String(r.origine), operativo, provenienzaFattura: r.origine === 'fattura_fornitore' ? provenienzaFatturaEconomia(r) : null }
   }).sort((a,b) => a.ordine-b.ordine)
   if (raccolta.nonValorizzate !== righe.filter(r => r.prezzo === null).length) throw new Error('Riepilogo Economia non coerente.')
   return { raccolta, righe }
@@ -922,7 +927,7 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
     return <section aria-label={titolo}><h5>{titolo} — {righe.length} registrazioni</h5>
       {!righe.length ? <p>Nessuna registrazione.</p> : <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
         <thead><tr>{colonne.map(c => <th scope="col" key={c} style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #cbd5e1' }}>{c}</th>)}{tipo === 'materiale' && <th scope="col">Prezzo cliente</th>}</tr></thead>
-        <tbody>{righe.map(r => <tr key={r.id} id={`economia-${dettaglio?.raccolta.id}-${r.id}`} tabIndex={-1}>{celle(r).map((v,i) => <td key={i} style={{ padding: 8, verticalAlign: 'top', whiteSpace: 'pre-wrap', borderBottom: '1px solid #e2e8f0' }}>{v}</td>)}{tipo === 'materiale' && dettaglio && <td style={{ padding: 8, minWidth: 180 }}><PrezziMaterialiEconomia key={`${r.id}:${dettaglio.raccolta.revisione}:${letturaDettaglio}`} raccolta={dettaglio.raccolta} righe={[r]} bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio} onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }} onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} /></td>}</tr>)}</tbody>
+        <tbody>{righe.map(r => <tr key={r.id} id={`economia-${dettaglio?.raccolta.id}-${r.id}`} tabIndex={-1}>{celle(r).map((v,i) => <td key={i} style={{ padding: 8, verticalAlign: 'top', whiteSpace: 'pre-wrap', borderBottom: '1px solid #e2e8f0' }}>{v}</td>)}{tipo === 'materiale' && dettaglio && <td style={{ padding: 8, minWidth: 180 }}><PrezziMaterialiEconomia key={`${r.id}:${dettaglio.raccolta.revisione}:${letturaDettaglio}`} raccolta={dettaglio.raccolta} righe={[r]} bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio} onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }} onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} /><EsclusioneRigaEconomia key={'esclusione:'+r.id+':'+dettaglio.raccolta.revisione+':'+letturaDettaglio} raccolta={dettaglio.raccolta} riga={r} bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio} onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }} onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id,true) }} /></td>}</tr>)}</tbody>
       </table></div>}
     </section>
   }

@@ -5,7 +5,8 @@ const raccolta={id:A,numero:1,revisione:1,stato:'bozza'}
 const result={versione_contratto:1,riutilizzata:false,raccolta_id:A,revisione_sorgente:1,revisione_congelata:2,variante_id:V,variante_sorgente_id:S,numero_variante:null,stato_variante:'bozza',numero_lavorazioni:50,totale:3268.20}
 function compile(file,require){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2017,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,require,console,Error});return exports}
 const engine=compile(path.join(__dirname,'usaRaccoltaInVariante.ts'),()=>({}))
-const precheck=compile(path.join(__dirname,'precheckProposta.ts'),()=>compile(path.join(__dirname,'riepilogoEconomico.ts'),()=>({})))
+const esclusione=compile(path.join(__dirname,'esclusioneProposta.ts'),()=>({}))
+const precheck=compile(path.join(__dirname,'precheckProposta.ts'),name=>name.includes('esclusioneProposta')?esclusione:compile(path.join(__dirname,'riepilogoEconomico.ts'),()=>({})))
 const validRows=[{id:S,ordine:1,descrizione:'Voce sintetica',quantita:2,prezzo:10,totale:20}]
 const plain=x=>JSON.parse(JSON.stringify(x))
 test('RPC ponte: esclusivamente UUID/revisione, risposta autorevole e numero NULL',async()=>{
@@ -34,7 +35,7 @@ function harness(transport,{confirm=true,refreshFailure=false}={}){
  const react={useState(initial){const i=index++;if(!(i in hooks))hooks[i]=initial;return[hooks[i],v=>hooks[i]=typeof v==='function'?v(hooks[i]):v]},useRef(initial){const i=index++;if(!(i in hooks))hooks[i]={current:initial};return hooks[i]},useEffect(fn,deps){const i=index++;const old=hooks[i];if(!old||deps.some((v,j)=>v!==old.deps[j])){old?.cleanup?.();hooks[i]={deps};effects.push(()=>{hooks[i].cleanup=fn()})}}}
  const jsx=(type,props)=>({type,props}),exports={}
  const code=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../../components/UsaRaccoltaEconomiaInVariante.tsx'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2017,jsx:ts.JsxEmit.ReactJSX}}).outputText
- vm.runInNewContext(code,{exports,console,Error,window:{confirm:()=>confirm},require:name=>name==='react'?react:name==='react/jsx-runtime'?{jsx,jsxs:jsx,Fragment:'fragment'}:name.includes('supabaseClient')?{supabase:{rpc(name,p){calls.push([name,p]);const promise=Promise.resolve().then(()=>transport(name,p));promise.order=()=>promise;promise.range=()=>promise;return promise}}}:name.includes('precheckProposta')?precheck:engine})
+ vm.runInNewContext(code,{exports,console,Error,window:{confirm:()=>confirm},require:name=>name==='react'?react:name==='react/jsx-runtime'?{jsx,jsxs:jsx,Fragment:'fragment'}:name.includes('supabaseClient')?{supabase:{rpc(name,p){calls.push([name,p]);const promise=Promise.resolve().then(()=>transport(name,p));promise.order=()=>promise;promise.range=()=>promise;return promise}}}:name.includes('precheckProposta')?precheck:name.includes('esclusioneProposta')?esclusione:engine})
  let props={raccolta,righe:validRows,varianti:[],elencoPronto:true,onRileggi:async()=>{refreshed.push(true);if(refreshFailure)throw Error('secret')},onApri:id=>opened.push(id)}
  function nodes(x,out=[]){if(Array.isArray(x))x.forEach(v=>nodes(v,out));else if(x?.props){out.push(x);nodes(x.props.children,out)}return out}
  function render(){index=0;const tree=nodes(exports.default(props));while(effects.length)effects.shift()();return tree}
