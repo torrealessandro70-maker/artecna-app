@@ -1,81 +1,14 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Node test runner, like note-credito.test.cjs. */
-const { test } = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { createHash } = require('node:crypto');
-
-const sql = fs.readFileSync(path.resolve(__dirname, '../../..', 'supabase/migrations/20261031_note_credito_fornitori.sql'), 'utf8');
-const hash = value => createHash('sha256').update(value).digest('hex');
-const bodies = [...sql.matchAll(/CREATE OR REPLACE FUNCTION ([\w.]+)\([^]*?AS \$function\$([^]*?)\$function\$/g)];
-const init = bodies.find(m => m[1] === 'artecna_distruzione.inizia_contesto')[2];
-const rpc = bodies.find(m => m[1] === 'public.elimina_cantiere_definitivamente')[2];
-const inventoryText = init.match(/\$inventory\$([^]*?)\$inventory\$/)[1];
-const inventory = JSON.parse(inventoryText);
-const added = inventory.filter(f => f.child === 'public.fornitori_rettifiche');
-const expected = {
-  cantiere_id: 'cantieri', economia_riga_id: 'economia_righe',
-  materiale_cantiere_id: 'materiali_cantiere',
-  nota_riga_id: 'fatture_fornitori_righe', origine_riga_id: 'fatture_fornitori_righe',
-};
-
-test('certifica tutte le cinque FK per nome, rapporto, azioni e deferrability', () => {
-  assert.equal(inventory.length, 53);
-  assert.equal(added.length, 5);
-  for (const [column, parent] of Object.entries(expected)) {
-    assert.deepEqual(added.find(f => f.name === `fornitori_rettifiche_${column}_fkey`), {
-      child: 'public.fornitori_rettifiche', name: `fornitori_rettifiche_${column}_fkey`,
-      columns: [column], parent: `public.${parent}`, keys: ['id'], del: 'RESTRICT',
-      upd: 'NO ACTION', match: 's', valid: true, defer: false, deferred: false,
-    });
-  }
-});
-
-test('confronto inventario fail-closed completo, non count >= N', () => {
-  assert.match(init, /IS DISTINCT FROM \$inventory\$/);
-  for (const key of ['conkey', 'confkey', 'confdeltype', 'confupdtype', 'confmatchtype', 'convalidated', 'condeferrable', 'condeferred']) {
-    assert.ok(init.includes(key));
-  }
-  assert.ok(!/count\([^]*?>=\s*53/.test(init));
-});
-
-test('conservazione prima della prima mutazione del contesto', () => {
-  const guard = init.indexOf('Storico rettifiche TD04 presente');
-  assert.ok(guard > init.indexOf('Inventario FK distruzione'));
-  assert.ok(guard < init.indexOf('DELETE FROM artecna_distruzione.contesto'));
-  for (const clause of ['x.cantiere_id=p_cantiere', 'r.cantiere_id=p_cantiere', 'm.cantiere_id=p_cantiere', 'n.cantiere_id=p_cantiere', 'o.cantiere_id=p_cantiere']) {
-    assert.ok(init.includes(clause));
-  }
-});
-
-test('whitelist esterna limitata alle cinque FK certificate, nessuna eliminazione del registro', () => {
-  const branch = rpc.match(/    -- TD04: solo queste cinque FK[^]*?    END IF;\n/)[0];
-  for (const f of added) assert.ok(branch.includes(`'${f.name}'`));
-  assert.ok(branch.includes("fk.conrelid='public.fornitori_rettifiche'::regclass"));
-  assert.ok(!/DELETE FROM public\.fornitori_rettifiche/.test(sql));
-  for (const declaration of rpc.matchAll(/v_(?:tabelle|dirette|figli) constant[^;]+;/g)) {
-    assert.ok(!declaration[0].includes('fornitori_rettifiche'));
-  }
-});
-
-test('inizia_contesto storico identico fuori dai due inserimenti autorizzati', () => {
-  const restored = init.replace(/    -- TD04: rettifiche immutabili[^]*?    END IF;\n/, '')
-    .replace(inventoryText, JSON.stringify(inventory.filter(f => f.child !== 'public.fornitori_rettifiche')));
-  assert.equal(hash(restored), 'e3601123992e6540f5e07f4ff02baace659840652d978962b230b8e6e76d63da');
-});
-
-test('ordine cleanup e protezioni legacy identici fuori dalla whitelist puntuale', () => {
-  const restored = rpc.replace(/    -- TD04: solo queste cinque FK[^]*?    END IF;\n/, '');
-  assert.equal(hash(restored), '48a43f63f062809db3ba6b21cbdef347527128db93880e445baea48d03cfd744');
-});
-
-test('unica transazione, nessun ruolo/privilegio temporaneo aggiunto dal SQL', () => {
-  assert.equal(sql.match(/^BEGIN;/gm).length, 1);
-  assert.equal(sql.match(/^COMMIT;/gm).length, 1);
-  assert.equal(bodies.length, 2);
-  assert.match(sql, /pg_has_role\(current_user,'artecna_cantieri_delete_rpc','SET'\)/);
-  assert.match(sql, /has_schema_privilege\('artecna_cantieri_delete_rpc','public','CREATE'\)/);
-  assert.match(sql, /SET LOCAL ROLE artecna_cantieri_delete_rpc;/);
-  assert.match(sql, /RESET ROLE;/);
-  assert.ok(!/GRANT (?:CREATE|artecna_)|ALTER ROLE|ALTER FUNCTION[^;]+OWNER TO/i.test(sql));
-});
+/* eslint-disable @typescript-eslint/no-require-imports -- Node regression suite. */
+const {test}=require('node:test'),a=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{createHash}=require('node:crypto');
+const sql=fs.readFileSync(path.resolve(__dirname,'../../..','supabase/migrations/20261031_note_credito_fornitori.sql'),'utf8');
+const bodies=[...sql.matchAll(/CREATE OR REPLACE FUNCTION ([\w.]+)\([^]*?AS \$function\$([^]*?)\$function\$/g)];
+const init=bodies.find(m=>m[1]==='artecna_distruzione.inizia_contesto')[2],foto=bodies.find(m=>m[1]==='artecna_rapportini.compat_foto_fk_allegati')[2];
+const inventoryText=init.match(/\$inventory\$([^]*?)\$inventory\$/)[1],inventory=JSON.parse(inventoryText),added=inventory.filter(f=>f.child==='public.fornitori_rettifiche'),hash=x=>createHash('sha256').update(x).digest('hex');
+const expected={cantiere_id:'cantieri',economia_riga_id:'economia_righe',materiale_cantiere_id:'materiali_cantiere',nota_riga_id:'fatture_fornitori_righe',origine_riga_id:'fatture_fornitori_righe'};
+test('cinque FK esatte, inventario completo di 53 voci',()=>{a.equal(inventory.length,53);a.equal(added.length,5);for(const[col,parent]of Object.entries(expected))a.deepEqual(added.find(f=>f.name===`fornitori_rettifiche_${col}_fkey`),{child:'public.fornitori_rettifiche',name:`fornitori_rettifiche_${col}_fkey`,columns:[col],parent:`public.${parent}`,keys:['id'],del:'RESTRICT',upd:'NO ACTION',match:'s',valid:true,defer:false,deferred:false})});
+test('inventario fail-closed, tutte le proprietà FK e storico prima del contesto',()=>{a.match(init,/IS DISTINCT FROM \$inventory\$/);for(const key of ['conkey','confkey','confdeltype','confupdtype','confmatchtype','convalidated','condeferrable','condeferred'])a.ok(init.includes(key));const guard=init.indexOf('Storico rettifiche TD04 presente');a.ok(guard>init.indexOf('Inventario FK distruzione'));a.ok(guard<init.indexOf('DELETE FROM artecna_distruzione.contesto'));for(const c of ['x','r','m','n','o'])a.ok(init.includes(c+'.cantiere_id=p_cantiere'))});
+test('guard storico integro fuori dai due inserimenti autorizzati',()=>{const restored=init.replace(/    -- TD04: rettifiche immutabili[^]*?    END IF;\n/,'').replace(inventoryText,JSON.stringify(inventory.filter(f=>f.child!=='public.fornitori_rettifiche')));a.equal(hash(restored),'e3601123992e6540f5e07f4ff02baace659840652d978962b230b8e6e76d63da')});
+test('hook allegati integro fuori dalla delega TD04 puntuale',()=>{const restored=foto.replace(/ -- TD04: punto di compatibilità[^]*? END IF;\n/,'');a.equal(hash(restored),'c19a0fc93ebfaa2926467699a9021ee124dde1e15fd3f3d1258f38344de4a3b3')});
+test('certificatore privato ricontrolla le cinque FK e richiede contesto valido',()=>{const helper=sql.match(/CREATE FUNCTION artecna_distruzione\.fk_rettifiche_td04_certificata[^]*?END \$td04_fk\$;/)[0];for(const f of added)a.ok(helper.includes(`'${f.name}'`));for(const token of ['k.conrelid','k.contype','k.convalidated','k.condeferrable','k.condeferred','k.confrelid','k.confdeltype','k.confupdtype','k.confmatchtype','k.conkey','k.confkey','pg_current_xact_id_if_assigned()','pg_backend_pid()','utente_jwt_corrente()','contesto_valido(c.cantiere_id)'])a.ok(helper.includes(token));a.ok(!helper.includes('SECURITY DEFINER'));a.match(sql,/REVOKE ALL ON FUNCTION artecna_distruzione\.fk_rettifiche_td04_certificata\(oid\) FROM PUBLIC,anon,authenticated,service_role/)});
+test('RPC non sostituita, registro mai cancellato, transazione unica',()=>{a.equal(bodies.length,2);a.ok(!/CREATE(?: OR REPLACE)? FUNCTION public\.elimina_cantiere_definitivamente/.test(sql));a.ok(!/DELETE FROM public\.fornitori_rettifiche/.test(sql));a.equal(sql.match(/^BEGIN;/gm).length,1);a.equal(sql.match(/^COMMIT;/gm).length,1)});
+test('vietati cambi ruolo, autenticazione, owner e grant installatore',()=>{a.ok(!/\b(?:SET\s+(?:(?:LOCAL|SESSION)\s+)?ROLE|RESET\s+ROLE|SET\s+SESSION\s+AUTHORIZATION)\b/i.test(sql));a.ok(!/\bALTER\s+[^;]*\bOWNER\s+TO\b/i.test(sql));a.ok(!/\bALTER\s+ROLE\b/i.test(sql));const grants=[...sql.matchAll(/\bGRANT\s+[^;]+;/gi)].map(x=>x[0].replace(/\s+/g,' ').trim());a.deepEqual(grants,['GRANT EXECUTE ON FUNCTION public.leggi_nota_credito_fornitore(uuid),public.applica_nota_credito_fornitore(uuid,uuid,jsonb,uuid),public.leggi_costi_fornitori_rettificati(uuid,date,date) TO authenticated;'])});

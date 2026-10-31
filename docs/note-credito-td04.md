@@ -141,11 +141,35 @@ Con registro vuoto, il cleanup segue l'ordine precedente. Restano invariati i
 blocchi storici su Materiali/Fatture, attribuzioni clienti, risorse condivise,
 Quaderni e dipendenze strutturate. Non sono introdotti cascade o bypass.
 
-La correzione è nella medesima migrazione TD04, mai installata: una sola transazione
-crea il delta e sostituisce due corpi esistenti, preservando firma, owner e ACL.
-Il SQL verifica prima le definizioni baseline e i permessi dell'installatore.
-Per la RPC posseduta da `artecna_cantieri_delete_rpc` richiede SET sul ruolo owner e
-CREATE di quel ruolo sullo schema public; non li concede. Usa SET LOCAL ROLE e
-RESET ROLE solo per la sostituzione. Un prerequisito mancante interrompe prima del
-DDL. Questo è un requisito del futuro precheck, non un'autorizzazione a modificare
-privilegi o installare la migrazione.
+La correzione è nella medesima migrazione TD04 mai installata, in una sola
+transazione. La RPC di distruzione originale, posseduta dal ruolo NOLOGIN,
+non viene sostituita: firma, corpo, owner, ACL e guard restano intatti.
+
+Il punto di compatibilità esterna già invocato dalla RPC è
+`artecna_rapportini.compat_foto_fk_allegati(oid)`, posseduto da postgres.
+Conserva esattamente il ramo Allegati e delega soltanto gli OID delle FK del
+registro al nuovo helper privato
+`artecna_distruzione.fk_rettifiche_td04_certificata(oid)`. Quest'ultimo ricontrolla
+nome, schema, colonne, parent, RESTRICT, NO ACTION, MATCH, validazione e
+non differibilità delle cinque FK, quindi richiede il contesto valido per
+transazione/backend/UID. Senza contesto restituisce false. FK estranee o alterate
+continuano a fallire; il controllo iniziale sulle 53 voci resta obbligatorio.
+
+Il nome storico del punto di compatibilità Foto è mantenuto per non modificare
+la RPC di altro owner. Il suo percorso Allegati e i controlli Foto restano
+invariati. Non è una delega generica delle dipendenze: nessun record TD04 entra
+nel manifest o nell'ordine di DELETE. Lo storico pertinente è rifiutato prima
+di attivare il contesto e resta protetto da FK e trigger.
+
+Entrambi gli helper sostituiti sono già posseduti da postgres; si conservano ACL,
+SECURITY DEFINER e search_path. Il nuovo certificatore è SECURITY INVOKER e
+revocato a PUBLIC/anon/authenticated/service_role; viene chiamato dal punto di
+compatibilità SECURITY DEFINER preesistente. Nessun helper esegue DDL o cambia
+ruolo per l'installatore. Nessun nuovo diritto di membership/CREATE è concesso.
+
+Il SQL non contiene cambi ruolo, autenticazione di sessione o owner. L'unico
+GRANT riguarda EXECUTE sulle tre nuove RPC applicative con guard del titolare,
+non i privilegi dell'installatore. Le REVOKE proteggono registro e helper.
+I prerequisiti fail-fast controllano principal, owner/corpi baseline e CREATE
+sui due schemi privati. L'installazione deve essere verificata in un nuovo
+precheck READ ONLY, che questo step locale non esegue.
