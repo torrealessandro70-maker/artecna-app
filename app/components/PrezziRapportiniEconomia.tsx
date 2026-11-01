@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { confermaTariffeSequenziali, leggiTariffeManodopera, prezzoClienteManodopera, totaleValorizzazione, type TariffaManodopera } from '../engines/economia/valorizzaManodopera'
 
-type Riga = { id: string; ordine: number; descrizione: string; um: string; quantita: number; prezzo: number | null; note: string | null; origine: string }
+import { identitaPrezziRapportino, idOperaioPrezzi, prezziPerOperaio, type RigaPrezziRapportino as Riga } from '../engines/economia/prezziRapportiniIdentita'
 export default function PrezziRapportiniEconomia({ raccolta, righe, onRileggi, onEsito, onInvio, solaLettura = false }: {
   raccolta: { id: string; revisione: number; stato: string }; righe: Riga[]; onRileggi: () => Promise<void>
   onEsito?: (messaggio: string) => void; onInvio?: (busy: boolean) => void; solaLettura?: boolean
@@ -67,19 +67,30 @@ export default function PrezziRapportiniEconomia({ raccolta, righe, onRileggi, o
       setPrezzi(p => ({ ...p, ...Object.fromEntries(sorgenti.filter(r => r.prezzo === null).map(r => [r.id, tariffaTutte])) })); setConferma(false)
     }}>Applica a tutte</button>
     <p>Applica solo alle righe ancora senza prezzo; nessun salvataggio automatico.</p>
-    {sorgenti.map((r, i) => <div key={r.id} style={{ marginTop: 10 }}>
-      <label style={{ display: 'block' }}>{r.descrizione} · {r.quantita} ore · Prezzo €/h
-        <input aria-label={'Prezzo fatturabile ' + r.id} inputMode="decimal" disabled={invio || bloccata} value={testoPrezzo(r)}
+    {sorgenti.map((r, i) => {
+      const identita = identitaPrezziRapportino(r)
+      const stessoOperaio = idOperaioPrezzi(r)
+      return <article key={r.id} aria-label={'Tariffa registrazione ' + r.id} style={{ marginTop: 10, padding: 12, border: '1px solid #cbd5e1', borderRadius: 8, minWidth: 0, overflowWrap: 'anywhere' }}>
+      <strong>{identita.data} · {identita.operaio}</strong>
+      {identita.qualifica && <div style={{ fontSize: 13, color: '#475569' }}>{identita.qualifica}</div>}
+      <p style={{ margin: '6px 0' }}>{r.descrizione}</p>
+      <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>{r.quantita.toLocaleString('it-IT')} ore · Prezzo €/h
+        <input style={{ minHeight: 44, width: 140, maxWidth: '100%', boxSizing: 'border-box', fontSize: 16 }} aria-label={'Prezzo fatturabile ' + r.id} inputMode="decimal" disabled={invio || bloccata} value={testoPrezzo(r)}
           onChange={e => modifica(r.id, e.target.value)} onFocus={() => { void suggerisci(r.id) }} />
       </label>
       <p>{r.quantita.toLocaleString('it-IT')} h × {prezzoClienteManodopera(testoPrezzo(r)) ? Number(testoPrezzo(r).replace(',', '.')).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) + ' €/h' : '—'} = {totali[i] === null ? 'Da valorizzare' : euro(totali[i]!)}</p>
+      {stessoOperaio && <button type="button" style={{ minHeight: 44, maxWidth: '100%', whiteSpace: 'normal', textAlign: 'left' }}
+        disabled={invio || bloccata || !prezzoClienteManodopera(testoPrezzo(r)) || !sorgenti.some(v => idOperaioPrezzi(v) === stessoOperaio && v.prezzo === null)}
+        onClick={() => { setPrezzi(p => prezziPerOperaio(sorgenti, r.id, testoPrezzo(r), p)); setConferma(false) }}>
+        Applica a tutte le ore di questo operaio
+      </button>}
       {campoSuggerimenti === r.id && <div aria-label={'Suggerimenti ' + r.id}><strong>Suggerimenti</strong>
         {caricaTariffe ? <p role="status">Caricamento tariffe…</p> : erroreTariffe ? <p role="status">{erroreTariffe}</p> : !tariffe.length ? <p>Nessuna tariffa confermata.</p> : <ul>{tariffe.map((t, index) => <li key={t.prezzo}>
           <button type="button" disabled={invio || bloccata} onClick={() => modifica(r.id, t.prezzo.replace('.', ','))}>{Number(t.prezzo).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 6 })} €/h</button>{' '}
           {index === 0 ? 'Ultimo utilizzato' : `Usato ${t.numeroUtilizzi} ${t.numeroUtilizzi === 1 ? 'volta' : 'volte'}`}
         </li>)}</ul>}
       </div>}
-    </div>)}
+    </article>})}
     <p aria-live="polite">Totale da contabilizzare: <strong>{incompleto ? 'Totale incompleto' : euro(sommaCentesimi / 100)}</strong>{incompleto && Number.isSafeInteger(sommaCentesimi) ? ` · Subtotale righe valorizzate: ${euro(sommaCentesimi / 100)}` : ''}</p>
     {messaggio && <p role="status">{messaggio}</p>}
     {bloccata ? <button type="button" disabled={invio} onClick={() => void onRileggi()}>Rileggi raccolta</button>

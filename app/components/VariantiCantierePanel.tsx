@@ -631,7 +631,7 @@ async function arricchisciOriginiRapportino(sorgenti: Record<string, unknown>[],
   }
 }
 
-type RigaConsultazioneEconomia = { id: string; ordine: number; tipo: 'generica' | 'manodopera' | 'materiale'; descrizione: string; um: string; quantita: number; prezzo: number | null; prezzoOrigine: number | null; totale: number | null; note: string | null; origine: string; operativo: Record<string, unknown>; provenienzaFattura: string | null; esclusa_proposta: boolean; motivo_esclusione: string | null; storicoEsclusione: { esclusa: boolean; motivo: string; at: string; utente: string }[] }
+type RigaConsultazioneEconomia = { id: string; ordine: number; tipo: 'generica' | 'manodopera' | 'materiale'; descrizione: string; um: string; quantita: number; prezzo: number | null; prezzoOrigine: number | null; totale: number | null; note: string | null; origine: string; operaioId: string | null; operativo: Record<string, unknown>; provenienzaFattura: string | null; esclusa_proposta: boolean; motivo_esclusione: string | null; storicoEsclusione: { esclusa: boolean; motivo: string; at: string; utente: string }[] }
 type DettaglioConsultazioneEconomia = { raccolta: RaccoltaConsultazioneEconomia; righe: RigaConsultazioneEconomia[] }
 
 function numeroConsultazioneEconomia(v: unknown, nullable = false): number | null {
@@ -674,7 +674,7 @@ function dettaglioConsultazioneEconomia(v: unknown, cantiereId: string, raccolta
     if (r.esclusa_proposta !== undefined && typeof r.esclusa_proposta !== 'boolean') throw new Error('Esclusione non verificabile.')
     const meta = recordSorgente(r.dettagli_analitici) && recordSorgente(r.dettagli_analitici.proposta_non_economica) ? r.dettagli_analitici.proposta_non_economica : null
     const storicoEsclusione = meta && Array.isArray(meta.storico) ? meta.storico.map((h: unknown) => { if (!recordSorgente(h) || typeof h.esclusa !== 'boolean' || typeof h.motivo !== 'string' || typeof h.at !== 'string' || typeof h.utente !== 'string') throw new Error('Storico esclusione non verificabile.'); return { esclusa:h.esclusa, motivo:h.motivo, at:h.at, utente:h.utente } }) : []
-    return { esclusa_proposta:r.esclusa_proposta === true, motivo_esclusione: typeof r.motivo_esclusione === 'string' ? r.motivo_esclusione : null, storicoEsclusione, id: r.id, ordine: Number(r.ordine), tipo: r.tipo_riga as RigaConsultazioneEconomia['tipo'], descrizione: r.descrizione, um: r.unita_misura, quantita, prezzo, prezzoOrigine: numeroRigaProposta(r.prezzo_unitario_origine), totale, note: r.note as string | null, origine: String(r.origine), operativo, provenienzaFattura: r.origine === 'fattura_fornitore' ? provenienzaFatturaEconomia(r) : null }
+    return { esclusa_proposta:r.esclusa_proposta === true, motivo_esclusione: typeof r.motivo_esclusione === 'string' ? r.motivo_esclusione : null, storicoEsclusione, id: r.id, ordine: Number(r.ordine), tipo: r.tipo_riga as RigaConsultazioneEconomia['tipo'], descrizione: r.descrizione, um: r.unita_misura, quantita, prezzo, prezzoOrigine: numeroRigaProposta(r.prezzo_unitario_origine), totale, note: r.note as string | null, origine: String(r.origine), operaioId: r.origine === 'rapportino' && typeof operativo.operaio === 'string' ? operativo.operaio : null, operativo, provenienzaFattura: r.origine === 'fattura_fornitore' ? provenienzaFatturaEconomia(r) : null }
   }).sort((a,b) => a.ordine-b.ordine)
   if (raccolta.nonValorizzate !== righe.filter(r => r.prezzo === null).length) throw new Error('Riepilogo Economia non coerente.')
   return { raccolta, righe }
