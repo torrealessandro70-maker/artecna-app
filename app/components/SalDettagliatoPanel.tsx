@@ -1,3 +1,5 @@
+import { leggiOriginiExport, riconciliaOriginiEconomia, type IdentitaEconomia } from '../utils/originiEconomiaExport'
+import { preparaAggiornamentiContrattuali, documentoAggiornamentiContrattuali, excelAggiornamentiContrattuali, nomeFileAggiornamenti } from '../utils/exportAggiornamentiContrattuali'
 import ImportaPreventivoSalPanel from './ImportaPreventivoSalPanel'
 import ScomposizioneContrattuale from './ScomposizioneContrattuale'
 import type { ScomposizioneVarianti } from '../engines/economia/riepilogoEconomico'
@@ -80,13 +82,49 @@ export function totaliContrattualiSal(originario: number, incrementi: number, ri
   return { aggiornato, residuo }
 }
 
-export function AggiornamentiContrattualiSal({ lavori, righe, verificabile, formatMoney, excelTable = {}, excelTh = {}, excelTd = {}, totali, scomposizione }: {
+export function AggiornamentiContrattualiSal({ lavori, righe, verificabile, formatMoney, excelTable = {}, excelTh = {}, excelTd = {}, totali, scomposizione, nomeCantiere = '', caricaOrigini }: {
   lavori: any[]; righe: any[]; verificabile: boolean; formatMoney: (value: number) => string
   excelTable?: CSSProperties; excelTh?: CSSProperties; excelTd?: CSSProperties
   totali?: { incrementi: number; riduzioni: number; delta: number }
   scomposizione?: ScomposizioneVarianti | null
+  nomeCantiere?: string
+  caricaOrigini?: () => Promise<IdentitaEconomia[]>
 }) {
   const [dettaglioAperto, setDettaglioAperto] = useState(false)
+  const [erroreExport, setErroreExport] = useState('')
+  const [esportazione, setEsportazione] = useState(false)
+  const exportLock = useRef(false)
+  const stileComando: CSSProperties = { minHeight: 44, padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 6, background: '#f8fafc', cursor: 'pointer', maxWidth: '100%' }
+  const dettaglio = () => preparaAggiornamentiContrattuali(nomeCantiere, lavori, righe, verificabile, totali)
+  const stampa = () => {
+    setErroreExport('')
+    let finestra: Window | null = null
+    try {
+      const documento = documentoAggiornamentiContrattuali(dettaglio())
+      finestra = window.open('', '_blank')
+      if (!finestra) { setErroreExport('Consenti la finestra di stampa e riprova.'); return }
+      finestra.opener = null
+      finestra.document.open(); finestra.document.write(documento); finestra.document.close(); finestra.focus(); finestra.print()
+    } catch { finestra?.close(); setErroreExport('Stampa non disponibile: verifica il dettaglio degli aggiornamenti contrattuali.') }
+  }
+  const esporta = async () => {
+    if (exportLock.current) return
+    exportLock.current = true; setEsportazione(true); setErroreExport('')
+    let url: string | null = null
+    try {
+      const dati = dettaglio()
+      if (caricaOrigini) {
+        const origini = await caricaOrigini()
+        dati.righe = dati.righe.map((r, i) => ({ ...r, ...(origini.length === dati.righe.length ? origini[i] : { economiaStato: 'origine Economia non verificata' as const }) }))
+      }
+      const buffer = await excelAggiornamentiContrattuali(dati)
+      url = URL.createObjectURL(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
+      const link = document.createElement('a')
+      link.href = url; link.download = nomeFileAggiornamenti(dati.cantiere)
+      document.body.appendChild(link); link.click(); link.remove()
+    } catch { setErroreExport('Esportazione Excel non disponibile. Riprova dal dettaglio verificato.') }
+    finally { if (url) { const creato = url; setTimeout(() => URL.revokeObjectURL(creato), 1000) } exportLock.current = false; setEsportazione(false) }
+  }
   const tipi: Record<string, string> = { nuova: 'Incremento', aumento: 'Incremento', riduzione_residua: 'Riduzione', eliminazione_residua: 'Eliminazione' }
   const data = (value: string | null | undefined) => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleDateString('it-IT') : 'Data non disponibile'
   const conSegno = (value: number) => `${value >= 0 ? '+' : '-'}${formatMoney(Math.abs(value))}`
@@ -98,11 +136,15 @@ export function AggiornamentiContrattualiSal({ lavori, righe, verificabile, form
     {!verificabile ? <p role="alert">Non verificabile: letture incomplete o delta contrattuali incoerenti.</p> : lavori.length === 0 ? <p>Nessun aggiornamento contrattuale approvato.</p> :
       <><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
         <span>{lavori.length} righe{totali && <> — {conSegno(totali.delta)}</>}</span>
-        <button type="button" aria-expanded={dettaglioAperto} onClick={() => setDettaglioAperto(aperto => !aperto)}
-          style={{ minHeight: 44, padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 6, background: '#f8fafc', cursor: 'pointer' }}>
-          {dettaglioAperto ? 'Nascondi dettaglio' : 'Mostra dettaglio'}
-        </button>
+        <div role="group" aria-label="Comandi aggiornamenti contrattuali" style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, marginLeft: 'auto', minWidth: 0, maxWidth: '100%' }}>
+          <button type="button" style={stileComando} onClick={stampa}>Stampa dettaglio</button>
+          <button type="button" style={stileComando} disabled={esportazione} onClick={() => void esporta()}>{esportazione ? 'Esportazione…' : 'Esporta Excel'}</button>
+          <button type="button" aria-expanded={dettaglioAperto} onClick={() => setDettaglioAperto(aperto => !aperto)} style={stileComando}>
+            {dettaglioAperto ? 'Nascondi dettaglio' : 'Mostra dettaglio'}
+          </button>
+        </div>
       </div>
+      {erroreExport && <p role="alert">{erroreExport}</p>}
       {dettaglioAperto && <div style={{ overflowX: 'auto' }}><table style={{ ...excelTable, width: '100%', minWidth: 850, borderCollapse: 'collapse' }}>
         <thead><tr>{['N.', 'Data', 'Variante', 'Lavorazione', 'Tipo', 'Importo'].map(t => <th key={t} scope="col"
           style={{ ...excelTh, padding: '10px 12px', textAlign: t === 'Importo' ? 'right' : 'left' }}>{t}</th>)}</tr></thead>
@@ -1120,6 +1162,12 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
  </section>
  <section aria-label="SAL operativo"><h3>SAL operativo</h3>{renderTabellaSal(righeOperative)}</section>
  <AggiornamentiContrattualiSal lavori={letturaRettificheValida ? rettificheSal!.lavori : []} righe={lavorazioniCantiere} verificabile={letturaRettificheValida} formatMoney={formatMoney}
+   nomeCantiere={salCantiere}
+   caricaOrigini={async () => {
+     const lavori = letturaRettificheValida ? rettificheSal!.lavori : []
+     const letture = await leggiOriginiExport(clientOriginale, lavori.map(l => l.variante.id))
+     return riconciliaOriginiEconomia(lavori, letture, cantiereSalId || '')
+   }}
    scomposizione={scomposizioneEconomiaApprovata}
    excelTable={excelTable} excelTh={excelTh} excelTd={excelTd}
    totali={letturaRettificheValida ? { incrementi: rettificheSal!.incrementi, riduzioni: rettificheSal!.riduzioni, delta: rettificheSal!.delta } : undefined} />
