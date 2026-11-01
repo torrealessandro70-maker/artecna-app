@@ -1,0 +1,42 @@
+{
+  "migrationSHA256": "72074f7bc9f4188729d91f956c62041e5019843a918e99858480aebec62b7fd1",
+  "catalogSHA256": "a47f3ae97cf51374576ac56273e3108ed2761cc412ccd9681528852efde83cba",
+  "rpcDefinitionSHA256": "6141267de82b9c196fd891a7461261a05cdac7f97d364d6de3dcaeeeecb18ed1",
+  "routine": {
+    "acl": [
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ],
+    "args": "p_variante_id uuid",
+    "name": "leggi_identita_lavorazioni_variante",
+    "owner": "postgres",
+    "config": [
+      "search_path=pg_catalog, pg_temp"
+    ],
+    "schema": "public",
+    "volatility": "s",
+    "definition_md5": "7d2af1aafe3cf8bb987288512281a215",
+    "security_definer": true
+  },
+  "definition": "CREATE OR REPLACE FUNCTION public.leggi_identita_lavorazioni_variante(p_variante_id uuid)\n RETURNS TABLE(id bigint, variante_id uuid, variante_sorgente_id uuid, indice_voce_sorgente integer)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'pg_temp'\nAS $function$\nDECLARE v_user_id uuid; v_cantiere_id uuid; v_claim_sub uuid;\nBEGIN\n IF current_user <> 'postgres' THEN\n  RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Contesto interno RPC Varianti non valido';\n END IF;\n BEGIN\n  v_user_id := artecna_guardie.utente_jwt_corrente();\n  -- Il guard resta autorevole; due rappresentazioni JWT presenti devono concordare.\n  v_claim_sub := nullif(nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub','')::uuid;\n  IF v_claim_sub IS NOT NULL AND v_claim_sub IS DISTINCT FROM v_user_id THEN\n   RAISE EXCEPTION USING ERRCODE='P2022',MESSAGE='Identità JWT incoerente';\n  END IF;\n EXCEPTION WHEN invalid_text_representation THEN\n  RAISE EXCEPTION USING ERRCODE='P2022',MESSAGE='Identità utente non valida';\n END;\n IF v_user_id IS NULL OR p_variante_id IS NULL THEN\n  RAISE EXCEPTION USING ERRCODE='P2022',MESSAGE='Identità utente e variante sono obbligatorie';\n END IF;\n SELECT v.cantiere_id INTO v_cantiere_id FROM public.varianti_cantiere v WHERE v.id=p_variante_id;\n IF NOT FOUND OR artecna_guardie.utente_puo_modificare_cantiere(v_user_id,v_cantiere_id) IS DISTINCT FROM TRUE THEN\n  RAISE EXCEPTION USING ERRCODE='P2024',MESSAGE='Variante non disponibile o non autorizzata';\n END IF;\n RETURN QUERY SELECT l.id,l.variante_id,l.variante_sorgente_id,l.indice_voce_sorgente\n FROM public.variante_lavorazioni l WHERE l.variante_id=p_variante_id ORDER BY l.id;\nEND $function$\n",
+  "dependencies": [
+    {
+      "type": "n",
+      "reference": "language plpgsql"
+    },
+    {
+      "type": "n",
+      "reference": "schema public"
+    }
+  ]
+}

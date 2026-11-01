@@ -1,0 +1,3 @@
+# Byte stabili per i fingerprint di questa sola migrazione e del relativo validator.
+migrations/20261101_export_identita_economia.sql text eol=lf
+validators/export-identita-economia/** text eol=lf
