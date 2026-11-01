@@ -1,22 +1,26 @@
 'use client'
+import type { CSSProperties } from 'react'
+import { selezionaAcconti, type RigaAcconto } from '../engines/economia/accontiCantiere'
 
 type AccontiTableProps = {
-  acconti: any[]
+  acconti: RigaAcconto[]
   cantiereScheda: string
+  cantiereId?: string
   economiaDataDa: string
   economiaDataA: string
-  excelTable: any
-  excelTh: any
-  excelTd: any
-  buttonSecondary: any
+  excelTable: CSSProperties
+  excelTh: CSSProperties
+  excelTd: CSSProperties
+  buttonSecondary: CSSProperties
   formatMoney: (value: number) => string
-  onModifica: (acconto: any) => void
-  onElimina: (acconto: any) => void
+  onModifica: (acconto: RigaAcconto) => void
+  onElimina: (acconto: RigaAcconto) => void
 }
 
 export default function AccontiTable({
   acconti,
   cantiereScheda,
+  cantiereId,
   economiaDataDa,
   economiaDataA,
   excelTable,
@@ -27,28 +31,10 @@ export default function AccontiTable({
   onModifica,
   onElimina,
 }: AccontiTableProps) {
-  const righe = acconti.filter((a) => {
-    if (a.cantiere !== cantiereScheda) return false
-
-    if (
-      economiaDataDa &&
-      String(a.data_incasso || '') < economiaDataDa
-    ) {
-      return false
-    }
-
-    if (
-      economiaDataA &&
-      String(a.data_incasso || '') > economiaDataA
-    ) {
-      return false
-    }
-
-    return true
-  })
+  const righe = selezionaAcconti(acconti, cantiereScheda, cantiereId, economiaDataDa, economiaDataA)
 
   if (righe.length === 0) {
-    return <p>Nessun acconto registrato.</p>
+    return <p>{economiaDataDa || economiaDataA ? 'Nessun acconto nel periodo selezionato.' : 'Nessun acconto registrato.'}</p>
   }
 
   return (

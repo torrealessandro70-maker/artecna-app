@@ -8,6 +8,7 @@ import FiltroPeriodoEconomia from './FiltroPeriodoEconomia'
 import RiepilogoCostiEconomiaPanel from './RiepilogoCostiEconomiaPanel'
 import SalDettagliatoPanel from './SalDettagliatoPanel'
 import AccontiEconomiaPanel from './AccontiEconomiaPanel'
+import { accontiCaricati, selezionaAcconti, messaggioAcconti } from '../engines/economia/accontiCantiere'
 import VariantiCantierePanel from './VariantiCantierePanel'
 import ScomposizioneContrattuale from './ScomposizioneContrattuale'
 import ManodoperaEconomiaDettaglio from './ManodoperaEconomiaDettaglio'
@@ -120,14 +121,14 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
   const margineAggiornato = contrattoAggiornato !== null && utileAggiornato !== null
     ? contrattoAggiornato !== 0 ? (utileAggiornato / contrattoAggiornato) * 100 : 0
     : null
-  const accontiCumulativi = p.sal.accontiCantiere
-    .filter(a => a.cantiere === cantiere.nome)
-    .reduce((tot, a) => tot + Number(a.importo || 0), 0)
+  const accontiCumulativi = accontiCaricati(p.acconti.statoAcconti)
+    ? selezionaAcconti(p.acconti.accontiCantiere, cantiere.nome, cantiere.id)
+      .reduce((tot, a) => tot + Number(a.importo || 0), 0) : null
   const salMaturato = p.sal.salLavorazioni
     .filter(s => s.cantiere === cantiere.nome)
     .reduce((tot, s) => tot + Number(s.importo_maturato || 0), 0)
-  const daRichiedere = salMaturato - accontiCumulativi
-  const residuoContrattuale = contrattoAggiornato !== null
+  const daRichiedere = accontiCumulativi !== null ? salMaturato - accontiCumulativi : null
+  const residuoContrattuale = contrattoAggiornato !== null && accontiCumulativi !== null
     ? contrattoAggiornato - accontiCumulativi : null
   const kpiContrattuali: [string, number | null][] = [
     ['Contratto base', contrattoAggiornato !== null ? importoBase! : null],
@@ -163,6 +164,10 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
           </button>
         ))}
       </nav>
+      <div className="economia-cantiere-acconti" style={{ minWidth: 0, overflowX: 'auto', marginBottom: 20 }}>
+        <AccontiEconomiaPanel {...p.acconti} cantiereScheda={cantiere.nome} cantiereId={cantiere.id}
+          totaleAccontiCantiere={accontiCumulativi} residuoDaIncassare={residuoContrattuale} />
+      </div>
       {economiaSezione === 'rapportini' && <VariantiCantierePanel
         key={cantiere.id} cantiereId={cantiere.id} economiaRapportini
         onApprovazione={() => setAggiornamentoKpi(v => v + 1)}
@@ -173,7 +178,9 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
           {kpiContrattuali.map(([label, value]) => <article key={label} style={{ padding: 14, border: '1px solid #e2e8f0', borderRadius: 10 }}>
             <div style={{ fontSize: 13, color: '#64748b' }}>{label}</div>
             {value === null
-              ? <span role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</span>
+              ? ['Acconti ricevuti', 'Da richiedere'].includes(label)
+                ? <span role={p.acconti.statoAcconti === 'errore' ? 'alert' : 'status'}>{messaggioAcconti(p.acconti.statoAcconti)}</span>
+                : <span role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</span>
               : <strong style={{ fontSize: 20 }}>{label === 'Varianti approvate' && value > 0 ? '+' : ''}{p.riepilogo.formatMoney(value)}</strong>}
           </article>)}
           <h4 style={{ gridColumn: '1 / -1', margin: '0' }}>Costi aziendali</h4>
@@ -202,7 +209,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
         {preventivoId && <ManodoperaEconomiaDettaglio key={`${cantiere.id}:${preventivoId}:${aggiornamentoKpi}`} client={supabase} cantiereId={cantiere.id} contrattoId={preventivoId} cantiereNome={cantiere.nome} />}
         <div className="economia-cantiere-grafici">
           {costoMateriali !== null && costoMateriali < 0 && <p>Nel periodo il costo materiali è negativo per le rettifiche: consultare il dettaglio firmato anziché il grafico di ripartizione.</p>}
-          {contrattoAggiornato !== null && utileAggiornato !== null && margineAggiornato !== null && costoMateriali !== null && costoMateriali >= 0 && <EconomiaGraficiPanel {...p.riepilogo} cantiereScheda={cantiere.nome}
+          {contrattoAggiornato !== null && utileAggiornato !== null && margineAggiornato !== null && accontiCumulativi !== null && costoMateriali !== null && costoMateriali >= 0 && <EconomiaGraficiPanel {...p.riepilogo} cantiereScheda={cantiere.nome}
             preventivoCantiere={contrattoAggiornato}
             totaleMaterialiEconomia={costoMateriali}
             totaleCostiCantiere={costiTotali}
@@ -220,13 +227,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
         <RiepilogoCostiEconomiaPanel {...p.costi} cantiereScheda={cantiere.nome} />
       </section>}
       {economiaSezione === 'sal' && <section aria-label="SAL e acconti" style={{ display: 'grid', gap: 20, minWidth: 0, overflowX: 'auto' }}>
-        <div className="economia-cantiere-acconti" style={{ minWidth: 0, overflowX: 'auto' }}>
-          {residuoContrattuale === null
-            ? <p role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</p>
-            : <AccontiEconomiaPanel {...p.acconti} cantiereScheda={cantiere.nome}
-                totaleAccontiCantiere={accontiCumulativi}
-                residuoDaIncassare={residuoContrattuale} />}
-        </div>
+        {contrattoAggiornato === null && <p role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</p>}
         <SalDettagliatoPanel {...p.sal} scomposizioneEconomiaApprovata={variantiCorrenti?.scomposizione ?? null} contestuale cantiereContestuale={cantiere} cantiereScheda={cantiere.nome} />
       </section>}
       <style>{`

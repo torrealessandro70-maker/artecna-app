@@ -24,6 +24,7 @@ import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 import PreventivoManualePanel from './components/PreventivoManualePanel'
 import { supabase } from '../lib/supabaseClient'
+import { useAccontiCantiere } from './hooks/useAccontiCantiere'
 import jsPDF from 'jspdf'
 import * as XLSX from 'xlsx'
 import Tesseract from 'tesseract.js'
@@ -746,7 +747,12 @@ const [geolocalizzazioneFoto, setGeolocalizzazioneFoto] = useState('')
 
   const [operaiAnagrafica, setOperaiAnagrafica] = useState<Operaio[]>([])
   const [timbrature, setTimbrature] = useState<Timbratura[]>([])
+const [utente, setUtente] = useState<any>(null)
+const [authAccontiPronta, setAuthAccontiPronta] = useState(false)
 const [accontiCantiere, setAccontiCantiere] = useState<any[]>([])
+const { statoAcconti, authAccontiDisponibile, caricaAcconti } = useAccontiCantiere(
+  authAccontiPronta, utente?.id ?? null, setAccontiCantiere,
+)
 const [fornitoreScadenza, setFornitoreScadenza] = useState('')
 const [fornitoreImportoTotale, setFornitoreImportoTotale] = useState('')
 const [fornitoreImportoPagato, setFornitoreImportoPagato] = useState('')
@@ -5051,19 +5057,6 @@ useEffect(() => {
 
 
 
-const caricaAcconti = async () => {
-  const { data, error } = await supabase
-    .from('acconti_cantiere')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    alert('Errore caricamento acconti: ' + error.message)
-    return
-  }
-
-  setAccontiCantiere(data || [])
-}
 
 const caricaPagamentiOperai = async () => {
   const { data, error } = await supabase
@@ -5086,12 +5079,14 @@ useEffect(() => {
     if (data.session) {
       setUtente(data.session.user)
     }
+    setAuthAccontiPronta(true)
   }
 
-  checkSession()
+  void checkSession().catch(() => setAuthAccontiPronta(true))
 
   const { data: listener } = supabase.auth.onAuthStateChange(
     (_event, session) => {
+      setAuthAccontiPronta(true)
       if (session?.user) {
         setUtente(session.user)
       } else {
@@ -5113,7 +5108,7 @@ caricaSopralluoghi()
   caricaOperai()
   caricaTimbrature()
   caricaEconomia()
-  caricaAcconti()
+
   caricaPagamentiOperai()
   caricaPagamentiFornitori()
   caricaFattureFornitori()
@@ -10669,7 +10664,7 @@ const salvaImpostazioneSupabase = async (chiave: string, valore: string) => {
 
 const [emailLogin, setEmailLogin] = useState('')
 const [passwordLogin, setPasswordLogin] = useState('')
-const [utente, setUtente] = useState<any>(null)
+
 const [ricordaEmail, setRicordaEmail] = useState(true)
 
 const login = async () => {
@@ -12440,6 +12435,9 @@ WebkitOverflowScrolling: 'touch',
       eliminaSalLavorazione,
     },
     acconti: {
+      statoAcconti,
+      authAccontiDisponibile,
+      caricaAcconti,
       totaleAccontiCantiere,
       residuoDaIncassare,
       mostraAcconti,
@@ -12793,6 +12791,9 @@ onDocumentAction={gestisciAzioneDocumento}
   setEconomiaDataDa={setEconomiaDataDa}
   economiaDataA={economiaDataA}
   setEconomiaDataA={setEconomiaDataA}
+  statoAcconti={statoAcconti}
+  authAccontiDisponibile={authAccontiDisponibile}
+  caricaAcconti={caricaAcconti}
   mostraAcconti={mostraAcconti}
   setMostraAcconti={setMostraAcconti}
   descrizioneAcconto={descrizioneAcconto}

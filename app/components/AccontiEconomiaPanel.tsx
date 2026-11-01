@@ -3,10 +3,14 @@ import type { CSSProperties } from 'react'
 import AccontiSalPanel from './AccontiSalPanel'
 import AccontoForm from './AccontoForm'
 import AccontiTable from './AccontiTable'
+import { accontiCaricati, type StatoAcconti, type RigaAcconto } from '../engines/economia/accontiCantiere'
 
 type Props = {
-  totaleAccontiCantiere: number
-  residuoDaIncassare: number
+  totaleAccontiCantiere: number | null
+  residuoDaIncassare: number | null
+  statoAcconti: StatoAcconti
+  authAccontiDisponibile: boolean
+  caricaAcconti: () => Promise<boolean>
   mostraAcconti: boolean
   setMostraAcconti: (v: boolean) => void
 
@@ -22,8 +26,9 @@ type Props = {
   setNotaAcconto: (v: string) => void
   salvaAcconto: () => void | Promise<void>
 
-  accontiCantiere: any[]
+  accontiCantiere: RigaAcconto[]
   cantiereScheda: string
+  cantiereId?: string
   economiaDataDa: string
   economiaDataA: string
 
@@ -33,13 +38,16 @@ type Props = {
   buttonSecondary: CSSProperties
 
   formatMoney: (n: number) => string
-  modificaAcconto: (a: any) => void
-  eliminaAcconto: (a: any) => void | Promise<void>
+  modificaAcconto: (a: RigaAcconto) => void
+  eliminaAcconto: (a: RigaAcconto) => void | Promise<void>
 }
 
 export default function AccontiEconomiaPanel({
   totaleAccontiCantiere,
   residuoDaIncassare,
+  statoAcconti,
+  authAccontiDisponibile,
+  caricaAcconti,
   mostraAcconti,
   setMostraAcconti,
   descrizioneAcconto,
@@ -55,6 +63,7 @@ export default function AccontiEconomiaPanel({
   salvaAcconto,
   accontiCantiere,
   cantiereScheda,
+  cantiereId,
   economiaDataDa,
   economiaDataA,
   excelTable,
@@ -65,18 +74,28 @@ export default function AccontiEconomiaPanel({
   modificaAcconto,
   eliminaAcconto,
 }: Props) {
+  const caricati = accontiCaricati(statoAcconti)
+  const gestisci = async () => {
+    if (mostraAcconti && caricati) {
+      setMostraAcconti(false)
+      return
+    }
+    if (caricati || await caricaAcconti()) setMostraAcconti(true)
+  }
   return (
-    <div>
+    <section aria-label="Acconti del cantiere">
       <AccontiSalPanel
         totaleAccontiCantiere={totaleAccontiCantiere}
         residuoDaIncassare={residuoDaIncassare}
+        statoAcconti={statoAcconti}
+        authDisponibile={authAccontiDisponibile}
         mostraAcconti={mostraAcconti}
         buttonSecondary={buttonSecondary}
         formatMoney={formatMoney}
-        setMostraAcconti={setMostraAcconti}
+        onGestisci={gestisci}
       />
 
-      {mostraAcconti && (
+      {mostraAcconti && caricati && (
         <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
           <AccontoForm
             descrizione={descrizioneAcconto}
@@ -95,6 +114,7 @@ export default function AccontiEconomiaPanel({
           <AccontiTable
             acconti={accontiCantiere}
             cantiereScheda={cantiereScheda}
+            cantiereId={cantiereId}
             economiaDataDa={economiaDataDa}
             economiaDataA={economiaDataA}
             excelTable={excelTable}
@@ -107,6 +127,6 @@ export default function AccontiEconomiaPanel({
           />
         </div>
       )}
-    </div>
+    </section>
   )
 }
