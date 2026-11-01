@@ -12463,6 +12463,7 @@ strutturaPreventivoEsistente,
     },
     analisi: {
       titolo: 'Carica / Analizza documento',
+      warningsAnalisiDocumento: warningsAnalisiExcel,
       fileAnalisiDocumento, nomeFileAnalisiDocumento, testoEstrattoDocumento,
       importoRilevatoDocumento, vociAnalizzate, caricaFileAnalisiDocumento, inputStyle,
       documentInsights: documentInsightsDocumento, onDocumentAction: gestisciAzioneDocumento,
@@ -13124,6 +13125,7 @@ generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo}
 documentIntelligence={{
   accettaExcel: true,
   warningsAnalisiDocumento: warningsAnalisiExcel,
+  documentInsights: documentInsightsDocumento,
   fileAnalisiDocumento,
   nomeFileAnalisiDocumento,
   testoEstrattoDocumento,

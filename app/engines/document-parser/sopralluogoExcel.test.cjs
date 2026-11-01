@@ -143,12 +143,12 @@ test('G/H UI: totale corretto e warning renderizzati; nessuna azione applicativa
   assert(text(tree).includes((40).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })))
   assert(nodes(tree).some((n) => n.props.role === 'status' && text(n).includes('Nessuna lavorazione riconosciuta')))
 })
-test('totali PDF e altri pannelli invariati: fallback nuovo limitato al Fascicolo XLS/XLSX', () => {
+test('totali PDF invariati: fallback nuovo limitato ai documenti XLS/XLSX', () => {
   const Panel = load(path.join(app, 'components/DocumentIntelligencePanel.tsx'), {
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
     './DocumentDestinationSelector': {}, './DocumentUploadBox': {}, './ui/DocumentUnderstandingCard': {},
   }).default
-  for (const props of [{ nomeFileAnalisiDocumento: 'scan.pdf', accettaExcel: true }, { nomeFileAnalisiDocumento: 'computo.xlsx', accettaExcel: false }]) {
+  for (const props of [{ nomeFileAnalisiDocumento: 'scan.pdf', accettaExcel: true }, { nomeFileAnalisiDocumento: 'scan.pdf', accettaExcel: false }]) {
     const tree = Panel({ ...props, fileAnalisiDocumento: {}, vociAnalizzate: [{ quantita: 2, prezzo: 10 }], inputStyle: {}, caricaFileAnalisiDocumento() {} })
     assert(text(tree).includes((0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })))
   }
@@ -192,4 +192,105 @@ test('integrazione handler reale con Storage simulato: 39 voci, mapping e import
   assert.equal(result.WarningsAnalisiExcel.length, 0)
   assert.equal(result.AnalisiInCorso, false)
   assert(source.includes('warningsAnalisiDocumento: warningsAnalisiExcel'))
+})
+
+// Evaluate the actual JSX props from page.tsx, not a duplicate test-only wiring.
+function propsSuperficie(surface, state) {
+  const source = fs.readFileSync(path.join(app, 'page.tsx'), 'utf8')
+  const ast = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let literal
+  const visit = (node) => {
+    if (ts.isJsxAttribute(node) && node.initializer && ts.isJsxExpression(node.initializer)) {
+      const value = node.initializer.expression
+      if (node.name.getText(ast) === 'documentiPanelProps' && surface === 'cantiere') {
+        literal = value.properties.find((p) => p.name?.getText(ast) === 'analisi').initializer
+      }
+      if (node.name.getText(ast) === 'documentIntelligence' && surface === 'sopralluogo') literal = value
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert(literal, `Props ${surface} presenti`)
+  const sandbox = { ...state, caricaFileAnalisiDocumento() {}, gestisciAzioneDocumento() {}, inputStyle: {} }
+  vm.runInNewContext(`globalThis.result = (${literal.getText(ast)})`, sandbox)
+  return sandbox.result
+}
+const resultJsx = { 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' } }
+function risultato(props) {
+  const Panel = load(path.join(app, 'components/DocumentIntelligencePanel.tsx'), {
+    ...resultJsx,
+    './DocumentDestinationSelector': load(path.join(app, 'components/DocumentDestinationSelector.tsx'), resultJsx),
+    './DocumentUploadBox': load(path.join(app, 'components/DocumentUploadBox.tsx'), resultJsx),
+    './ui/DocumentUnderstandingCard': load(path.join(app, 'components/ui/DocumentUnderstandingCard.tsx'), resultJsx),
+  }).default
+  const resolve = (node) => {
+    if (Array.isArray(node)) return node.map(resolve)
+    if (!node?.props) return node
+    if (typeof node.type === 'function') return resolve(node.type(node.props))
+    return { ...node, props: { ...node.props, children: resolve(node.props.children) } }
+  }
+  return resolve(Panel(props))
+}
+function statoRisultato(voci, warnings = []) {
+  const { buildDocumentProfileFromText } = load(path.join(app, 'engines/document-intelligence/document-profile.ts'))
+  const { buildDocumentInsights } = load(path.join(app, 'engines/document-intelligence/document-insights.ts'))
+  return {
+    fileAnalisiDocumento: { name: 'computo.xlsx' }, nomeFileAnalisiDocumento: 'computo.xlsx',
+    testoEstrattoDocumento: 'Computo metrico - descrizione lavori - quantità', importoRilevatoDocumento: '',
+    vociAnalizzate: voci, warningsAnalisiExcel: warnings,
+    documentInsightsDocumento: buildDocumentInsights(buildDocumentProfileFromText('Computo metrico - descrizione lavori - quantità')),
+  }
+}
+for (const surface of ['cantiere', 'sopralluogo']) {
+  test(`${surface}: props reali, 39 voci, warning e totale coerente nel pannello`, async () => {
+    const doc = await parseExcelDocument(fileFor([[...headers, 'Prezzo unitario €', 'Totale €'],
+      ...Array.from({ length: 39 }, (_, i) => [...example(String(i + 1)), 10, i === 0 ? 25 : ''])]))
+    const voci = doc.rows.map((r) => creaVoceAnalizzataExcel(r))
+    const partial = await parseExcelDocument(fileFor([['U.M.', 'Quantità'], ['mq', 2]]))
+    const state = statoRisultato(voci, partial.warnings)
+    const props = propsSuperficie(surface, state)
+    assert.equal(props.vociAnalizzate, voci)
+    assert.equal(props.warningsAnalisiDocumento, partial.warnings)
+    assert.equal(props.documentInsights, state.documentInsightsDocumento)
+    const tree = risultato({ ...props, mostraUpload: surface !== 'cantiere' })
+    assert(text(tree).includes('Voci analizzate: 39'))
+    assert(text(tree).includes((785).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })))
+    assert(nodes(tree).some((n) => n.props.role === 'status' && text(n).includes('nessuna lavorazione')))
+    assert(text(tree).includes('ARTECNA ha capito questo documento'))
+    assert(text(tree).includes('Destinazione suggerita:'))
+    assert(text(tree).includes('Preventivo AI'))
+  })
+  test(`${surface}: 39 voci senza prezzi, nessun prezzo o totale inventato`, async () => {
+    const doc = await parseExcelDocument(fileFor([headers, ...Array.from({ length: 39 }, () => example())]))
+    const voci = doc.rows.map((r) => creaVoceAnalizzataExcel(r))
+    const before = JSON.stringify(voci)
+    const tree = risultato({ ...propsSuperficie(surface, statoRisultato(voci)), mostraUpload: false })
+    assert(text(tree).includes('Voci analizzate: 39'))
+    assert(text(tree).includes((0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })))
+    assert(voci.every((v) => v.prezzo === undefined && v.totale === undefined))
+    assert.equal(JSON.stringify(voci), before)
+  })
+}
+test('parser/mapping 39/39, PDF/OCR, handler e azioni archiviazione invariati rispetto al commit approvato', () => {
+  const { execFileSync } = require('node:child_process')
+  const root = path.resolve(app, '..')
+  const baseline = (file) => execFileSync('git', ['show', `1de1287cb1d85b91d78de7f2261cb89b74533f36:${file}`], { cwd: root, encoding: 'utf8' }).replace(/\r\n/g, '\n')
+  for (const file of ['app/engines/document-parser/excel.ts', 'app/engines/document-parser/header-detector.ts',
+    'app/engines/document-parser/voci-analizzate.ts', 'app/engines/document-intelligence/pdf-ocr.ts',
+    'app/engines/document-intelligence/pdf-reader.ts', 'app/components/DocumentiCantierePanel.tsx']) {
+    assert.equal(fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\n/g, '\n'), baseline(file), file)
+  }
+  const current = ts.createSourceFile('page.tsx', fs.readFileSync(path.join(app, 'page.tsx'), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const previous = ts.createSourceFile('page.tsx', baseline('app/page.tsx'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const declaration = (ast, name) => {
+    let found
+    const visit = (node) => { if (ts.isVariableDeclaration(node) && node.name.getText(ast) === name) found = node.getText(ast).replace(/\r\n/g, '\n'); ts.forEachChild(node, visit) }
+    visit(ast)
+    assert(found, name)
+    return found
+  }
+  for (const name of ['leggiPdfTesto', 'leggiTestoDaImmagine', 'analizzaDocumentoCantiere',
+    'archiviaPreventivoAnalizzato', 'strutturaPreventivoEsistente', 'generaPreventivoDaDocumentoAnalizzato']) {
+    assert.equal(declaration(current, name), declaration(previous, name), name)
+  }
 })

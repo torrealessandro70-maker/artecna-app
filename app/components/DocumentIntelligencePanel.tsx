@@ -37,7 +37,7 @@ onDocumentAction,
   accettaExcel = false,
   warningsAnalisiDocumento = [],
 }: Props) {
-  const usaTotaliExcel = accettaExcel && /\.xlsx?$/i.test(nomeFileAnalisiDocumento)
+  const usaTotaliExcel = /\.xlsx?$/i.test(nomeFileAnalisiDocumento)
   const totaleVociAnalizzate = (vociAnalizzate || []).reduce(
     (tot: number, voce: any) => tot + (usaTotaliExcel ? totaleVoceAnalizzata(voce) : Number(voce.totale || 0)),
     0
