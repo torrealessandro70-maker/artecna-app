@@ -13,6 +13,7 @@ import type { EsitoArchiviazionePreventivo } from './components/DocumentiCantier
 import { eliminaPreventivoConFile, eliminaFilePreventivi, messaggioEliminazione } from './utils/eliminazionePreventivo'
 
 import { parsePreventivoItems, type VoceAnalizzata } from './engines/document-intelligence/preventivo-items'
+import { creaVoceAnalizzataExcel, totaleVoceAnalizzata } from './engines/document-parser/voci-analizzate'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
 import type { RigaMaterialeFatturaStorico } from './utils/suggerimentiMateriali'
@@ -4829,6 +4830,7 @@ const [graficoTotaliAperto, setGraficoTotaliAperto] =
   useState(false)
 
 const [importoRilevatoDocumento, setImportoRilevatoDocumento] = useState('')
+const [warningsAnalisiExcel, setWarningsAnalisiExcel] = useState<string[]>([])
 
 const [documentInsightsDocumento, setDocumentInsightsDocumento] =
   useState<DocumentInsights | undefined>(undefined)
@@ -8608,6 +8610,7 @@ const analizzaDocumentoCantiere = async (e: React.ChangeEvent<HTMLInputElement>)
   setFilePathAnalisi(null)
   setFileTipoAnalisi(null)
   setVociAnalizzate([])
+  setWarningsAnalisiExcel([])
   setImportoRilevatoDocumento('')
   setFileAnalisiDocumento(file)
   setNomeFileAnalisiDocumento(file ? file.name : '')
@@ -8696,6 +8699,7 @@ let vociExcelStrutturate: VoceAnalizzata[] | null = null
       testo = await leggiTestoDaImmagine(file)
    } else if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) {
   const parsedDocument = await parseExcelDocument(file)
+  setWarningsAnalisiExcel(parsedDocument.warnings)
 
 const priceReferences = prezziarioSicilia.map((prezzo) => ({
   codice: prezzo.codice,
@@ -8733,23 +8737,7 @@ vociExcelStrutturate = righeVoce.map((row) => {
     })
   }
 
-  const prezzo =
-    match.prezzoUnitario ??
-    row.prezzoUnitario
-
-  const unitaMisura = row.unitaMisura || ''
-
-  return {
-    codice: row.codice,
-    descrizione: row.descrizione,
-    quantita: row.quantita,
-
-    unita: unitaMisura,
-    unita_misura: unitaMisura,
-
-    prezzo,
-    prezzo_unitario: prezzo,
-  }
+  return creaVoceAnalizzataExcel(row, match.prezzoUnitario)
 })
   testo = parsedDocument.rows
     .map((row) => row.rawText)
@@ -8799,12 +8787,10 @@ if (testoPulito.trim()) {
     if (vociExcelStrutturate) {
   setVociAnalizzate(vociExcelStrutturate)
 
-  const totaleExcel = vociExcelStrutturate.reduce((totale, voce) => {
-    const quantita = Number(voce.quantita || 0)
-    const prezzo = Number(voce.prezzo || 0)
-
-    return totale + quantita * prezzo
-  }, 0)
+  const totaleExcel = vociExcelStrutturate.reduce(
+    (totale, voce) => totale + totaleVoceAnalizzata(voce),
+    0,
+  )
 
   if (totaleExcel > 0) {
     setImportoRilevatoDocumento(
@@ -13136,6 +13122,8 @@ generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo}
     setNotaFotoSopralluogo={setNotaFotoSopralluogo}
     salvaFotoSopralluogo={salvaFotoSopralluogo}
 documentIntelligence={{
+  accettaExcel: true,
+  warningsAnalisiDocumento: warningsAnalisiExcel,
   fileAnalisiDocumento,
   nomeFileAnalisiDocumento,
   testoEstrattoDocumento,

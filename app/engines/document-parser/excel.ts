@@ -115,10 +115,7 @@ const estraiCodiceEDescrizioneVoce = (
       ? celle[indiceCodice].match(regexCodice)?.[0]
       : undefined
 
- const codiceMappatoValido =
-  regexCodice.test(codiceMappato)
-    ? codiceMappato.match(regexCodice)?.[0]
-    : undefined
+ const codiceMappatoValido = codiceMappato.trim() || undefined
 
 const codice =
   codiceMappatoValido ||
@@ -158,7 +155,7 @@ const codice =
   }
 
   return {
-    codice: codice?.toUpperCase(),
+    codice: codiceMappatoValido || codice?.toUpperCase(),
     descrizione: descrizione.trim(),
   }
 }
@@ -210,6 +207,19 @@ export const parseExcelDocument = async (
     warnings.push(
       'Intestazione colonne non riconosciuta: applicato il mapping testuale di sicurezza',
     )
+  } else {
+    const colonneNecessarie = [
+      ['codice', 'Codice/Tariffa'],
+      ['descrizione', 'Descrizione'],
+      ['unitaMisura', 'U.M.'],
+      ['quantita', 'Quantità'],
+    ] as const
+    const mancanti = colonneNecessarie
+      .filter(([key]) => headerDetection.columns[key] === undefined)
+      .map(([, label]) => label)
+    if (mancanti.length) {
+      warnings.push(`Intestazione riconosciuta solo parzialmente: colonne mancanti o non riconosciute: ${mancanti.join(', ')}. Prezzo e totale sono facoltativi.`)
+    }
   }
 
   const primaRigaDati = headerDetection
@@ -303,6 +313,10 @@ codice: datiVoce.codice,
     .filter(
       (row): row is DocumentRow => row !== null,
     )
+
+  if (documentRows.length > 0 && !documentRows.some((row) => row.rowType === 'voce')) {
+    warnings.push(`Lette ${documentRows.length} righe, ma nessuna lavorazione riconosciuta. Verifica intestazioni e dati del foglio "${firstSheet}".`)
+  }
 
   console.group('=== DOCUMENT PARSER ===')
   console.log('Foglio:', firstSheet)

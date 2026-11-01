@@ -4,6 +4,7 @@ import DocumentDestinationSelector from './DocumentDestinationSelector'
 import DocumentUploadBox from './DocumentUploadBox'
 import type { DocumentInsights } from '@/app/engines/document-intelligence'
 import { DocumentUnderstandingCard } from './ui/DocumentUnderstandingCard'
+import { totaleVoceAnalizzata } from '../engines/document-parser/voci-analizzate'
 
 type Props = {
   mostraUpload?: boolean
@@ -17,6 +18,8 @@ type Props = {
   onDocumentAction?: (actionId: string) => void
   caricaFileAnalisiDocumento: (file: File) => void | Promise<void>
   inputStyle: any
+  accettaExcel?: boolean
+  warningsAnalisiDocumento?: string[]
 }
 
 export default function DocumentIntelligencePanel({
@@ -31,9 +34,12 @@ export default function DocumentIntelligencePanel({
 onDocumentAction,
   caricaFileAnalisiDocumento,
   inputStyle,
+  accettaExcel = false,
+  warningsAnalisiDocumento = [],
 }: Props) {
+  const usaTotaliExcel = accettaExcel && /\.xlsx?$/i.test(nomeFileAnalisiDocumento)
   const totaleVociAnalizzate = (vociAnalizzate || []).reduce(
-    (tot: number, voce: any) => tot + Number(voce.totale || 0),
+    (tot: number, voce: any) => tot + (usaTotaliExcel ? totaleVoceAnalizzata(voce) : Number(voce.totale || 0)),
     0
   )
 
@@ -44,6 +50,7 @@ onDocumentAction,
         nomeFileAnalisiDocumento={nomeFileAnalisiDocumento}
         caricaFileAnalisiDocumento={caricaFileAnalisiDocumento}
         inputStyle={inputStyle}
+        accettaExcel={accettaExcel}
       />}
 
       {fileAnalisiDocumento && (
@@ -57,6 +64,12 @@ onDocumentAction,
           }}
         >
           <h3 style={{ marginTop: 0 }}>Risultato analisi</h3>
+          {warningsAnalisiDocumento.length > 0 && (
+            <div role="status" aria-live="polite">
+              <strong>Avvisi lettura Excel</strong>
+              <ul>{warningsAnalisiDocumento.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+            </div>
+          )}
 
           <p>
             <strong>Importo rilevato:</strong>{' '}

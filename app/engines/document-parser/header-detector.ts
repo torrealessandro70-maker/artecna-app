@@ -23,10 +23,13 @@ const HEADER_ALIASES: Record<DocumentColumnKey, string[]> = {
     'articolo',
     'voce',
     'id',
+    'tariffa',
+    'n',
   ],
 
  descrizione: [
   'descrizione',
+  'descrizione lavori',
   'voce di capitolato',
   'lavorazione',
   'opera',
@@ -50,6 +53,7 @@ const HEADER_ALIASES: Record<DocumentColumnKey, string[]> = {
   prezzoUnitario: [
     'prezzo',
     'prezzo unitario',
+    'prezzo unitario euro',
     'prezzo euro',
     'p u',
     'unitario',
@@ -57,6 +61,7 @@ const HEADER_ALIASES: Record<DocumentColumnKey, string[]> = {
 
   totale: [
     'totale',
+    'totale euro',
     'importo',
     'tot',
     'importo euro',
@@ -121,7 +126,13 @@ export const detectDocumentHeader = (
         return
       }
 
-      if (columns[columnKey] === undefined) {
+      // N° is an ordinal fallback, never preferred over Tariffa/Codice.
+      if (
+        columns[columnKey] === undefined ||
+        (columnKey === 'codice' &&
+          normalizzaIntestazione(row[columns.codice!]) === 'n' &&
+          normalizzaIntestazione(cell) !== 'n')
+      ) {
         columns[columnKey] = columnIndex
       }
     })

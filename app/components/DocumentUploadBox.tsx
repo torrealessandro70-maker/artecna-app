@@ -5,6 +5,7 @@ type Props = {
   nomeFileAnalisiDocumento: string
   caricaFileAnalisiDocumento: (file: File) => void | Promise<void>
   inputStyle: any
+  accettaExcel?: boolean
 }
 
 export default function DocumentUploadBox({
@@ -12,6 +13,7 @@ export default function DocumentUploadBox({
   nomeFileAnalisiDocumento,
   caricaFileAnalisiDocumento,
   inputStyle,
+  accettaExcel = false,
 }: Props) {
   return (
     <div
@@ -27,7 +29,7 @@ export default function DocumentUploadBox({
 
       <input
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png,.webp"
+        accept={accettaExcel ? '.pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx' : '.pdf,.jpg,.jpeg,.png,.webp'}
         style={inputStyle}
         onChange={async (e) => {
           const file = e.target.files?.[0]
@@ -40,7 +42,7 @@ export default function DocumentUploadBox({
       />
 
       <p style={{ marginTop: 10, color: '#64748b' }}>
-        Estrae testo, importi e voci da PDF o immagini. L&apos;analisi non
+        Estrae testo, importi e voci da PDF o immagini{accettaExcel ? ', XLS o XLSX' : ''}. L&apos;analisi non
         modifica automaticamente preventivi, SAL o costi.
       </p>
 
