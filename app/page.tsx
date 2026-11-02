@@ -1649,14 +1649,16 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
 
       const prezzoDocumento = Number(voce.prezzo || 0)
     const prezzoRisolto = Number(risoluzione.prezzoUnitario || 0)
+    const prezzoApplicato = Number.isFinite(prezzoDocumento) && prezzoDocumento > 0
+      ? prezzoDocumento
+      : Number.isFinite(prezzoRisolto) && prezzoRisolto > 0 ? prezzoRisolto : 0
 
     return {
       ...voce,
 
-      prezzo:
-        prezzoDocumento > 0
-          ? prezzoDocumento
-          : prezzoRisolto,
+      prezzo: prezzoApplicato,
+      prezzoUnitario: prezzoApplicato,
+      prezzo_unitario: prezzoApplicato,
 
       unita:
         voce.unita ||
@@ -1673,7 +1675,8 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
         codiceRisolto: risoluzione.codiceRisolto,
         descrizioneRisolta: risoluzione.descrizioneRisolta,
         unitaMisuraRisolta: risoluzione.unitaMisuraRisolta,
-        prezzoUnitarioRisolto: risoluzione.prezzoUnitario,
+        prezzoUnitarioRisolto: prezzoApplicato,
+        prezzoUnitarioCandidato: risoluzione.prezzoUnitario,
 
         reasons: risoluzione.reasons,
       },

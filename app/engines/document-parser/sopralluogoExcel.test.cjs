@@ -290,7 +290,7 @@ test('parser/mapping 39/39, PDF/OCR, handler e azioni archiviazione invariati ri
     return found
   }
   for (const name of ['leggiPdfTesto', 'leggiTestoDaImmagine', 'analizzaDocumentoCantiere',
-    'archiviaPreventivoAnalizzato', 'strutturaPreventivoEsistente', 'generaPreventivoDaDocumentoAnalizzato']) {
+    'archiviaPreventivoAnalizzato', 'strutturaPreventivoEsistente']) {
     assert.equal(declaration(current, name), declaration(previous, name), name)
   }
 })

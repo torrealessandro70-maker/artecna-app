@@ -6,7 +6,7 @@ type VoceDiagnostica = {
   prezzo_unitario?: number
   fonte_prezzo?: string
   priceResolutionInvalidated?: boolean
-  priceResolution?: { matched?: boolean; strategy?: string; confidence?: number }
+  priceResolution?: { matched?: boolean; strategy?: string; confidence?: number; prezzoUnitarioRisolto?: number }
 }
 
 export function modificaVoceDiagnostica<T extends VoceDiagnostica>(
@@ -24,6 +24,12 @@ export function esitoDiagnosticaVoce(voce: VoceDiagnostica): 'resolved' | 'revie
   const esito = voce.priceResolution
   if (!esito) return voce.priceResolutionInvalidated ? 'modified' : 'review'
   if (esito.matched === true) {
+    const prezzoApplicato = Number(voce.prezzo_unitario)
+    const prezzoAtteso = esito.prezzoUnitarioRisolto
+    // Matching and availability are separate: a found reference is not an applied price.
+    if (!Number.isFinite(prezzoApplicato) || prezzoApplicato <= 0 ||
+        (prezzoAtteso !== undefined && (!Number.isFinite(prezzoAtteso) ||
+          Math.abs(prezzoApplicato - prezzoAtteso) > 0.000001))) return 'review'
     const livello = getConfidenceBadge(Number(esito.confidence || 0) * 100).level
     return livello === 'perfect' || livello === 'reliable' ? 'resolved' : 'review'
   }
