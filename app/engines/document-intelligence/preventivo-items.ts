@@ -1,3 +1,5 @@
+import type { ContestoTecnicoDocumento } from '../document-parser/types'
+
 export type VoceAnalizzata = {
   codice?: string
   descrizione: string
@@ -6,6 +8,8 @@ export type VoceAnalizzata = {
   prezzo?: number
   totale?: number
   importoCoerente?: boolean
+  testoOrigine?: string
+  contestoTecnicoDocumento?: ContestoTecnicoDocumento
 }
 
 const unitaPattern = /^(?:mq\/cm|mq|mc|m|m2|m3|m²|m³|ml|cm|mm|kg|g|t|lt|l|cad|cad\.|pz|nr|n\.|h|ora|ore|a corpo|corpo)$/i

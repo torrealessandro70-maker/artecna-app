@@ -1777,7 +1777,7 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
 
  setMessaggioAi('Preparazione della bozza: stime ARTECNA delle voci residue in corso…')
  const vociBozzaDocumento = await completaBozzaConStime(
-   preparaBozzaDocumento(vociDocumento.map((v, i) => ({ ...v, testoOrigine: vociAnalizzate[i]?.testoOrigine })), knowledgeBasePrezzi, memoriaPrezziValidi), knowledgeBasePrezzi,
+   preparaBozzaDocumento(vociDocumento.map((v, i) => ({ ...v, testoOrigine: preventivoRevision.voci[i]?.testoOrigine, contestoTecnicoDocumento: preventivoRevision.voci[i]?.contestoTecnicoDocumento })), knowledgeBasePrezzi, memoriaPrezziValidi), knowledgeBasePrezzi,
    async input => {
      const { data, error } = await supabase.auth.getSession()
      if (error || !data.session?.access_token) throw Error('Sessione non disponibile')

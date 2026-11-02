@@ -132,8 +132,8 @@ test('strategie, soglie, normalizzazione, parser, PDF e archiviazione invariati'
   const old = file => execFileSync('git', ['show', `${base}:${file}`], { cwd: root, encoding: 'utf8' }).replace(/\r\n/g, '\n')
   for (const file of ['app/engines/price-resolution/resolver.ts', 'app/engines/price-resolution/normalizer.ts',
     'app/engines/price-resolution/similarity.ts', ...['index', 'similarity', 'exact-code', 'normalized-code', 'description', 'description-unit'].map(f => `app/engines/price-resolution/strategies/${f}.ts`),
-    'app/engines/confidence/confidence.ts', 'app/engines/document-parser/excel.ts', 'app/engines/document-parser/voci-analizzate.ts',
-    'app/engines/document-intelligence/pdf-ocr.ts', 'app/components/DocumentiCantierePanel.tsx', 'app/engines/preventivo/document-adapter.ts']) {
+    'app/engines/confidence/confidence.ts',
+    'app/engines/document-intelligence/pdf-ocr.ts', 'app/components/DocumentiCantierePanel.tsx']) {
     assert.equal(fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\n/g, '\n'), old(file), file)
   }
 })

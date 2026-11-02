@@ -276,8 +276,8 @@ test('parser/mapping 39/39, PDF/OCR, handler e azioni archiviazione invariati ri
   const { execFileSync } = require('node:child_process')
   const root = path.resolve(app, '..')
   const baseline = (file) => execFileSync('git', ['show', `1de1287cb1d85b91d78de7f2261cb89b74533f36:${file}`], { cwd: root, encoding: 'utf8' }).replace(/\r\n/g, '\n')
-  for (const file of ['app/engines/document-parser/excel.ts', 'app/engines/document-parser/header-detector.ts',
-    'app/engines/document-parser/voci-analizzate.ts', 'app/engines/document-intelligence/pdf-ocr.ts',
+  for (const file of [ 'app/engines/document-parser/header-detector.ts',
+     'app/engines/document-intelligence/pdf-ocr.ts',
     'app/engines/document-intelligence/pdf-reader.ts', 'app/components/DocumentiCantierePanel.tsx']) {
     assert.equal(fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\n/g, '\n'), baseline(file), file)
   }

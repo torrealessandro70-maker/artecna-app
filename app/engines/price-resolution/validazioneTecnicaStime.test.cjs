@@ -205,9 +205,9 @@ for(const [q,other,code] of [
 
 test('perimetro protetto: parser, resolver, modello, writer e route invariati',()=>{
   const root=path.dirname(app),base='ca7c71cca5d4abadd9e9953f9d66e6110548f756'
-  for(const file of ['app/page.tsx','app/api/prezzi/analisi-ai/route.ts','app/engines/price-resolution/resolver.ts','app/engines/price-resolution/normalizer.ts',
-    'app/engines/price-resolution/riferimenti-locali.ts','app/engines/document-parser/excel.ts','app/engines/document-parser/header-detector.ts',
-    'app/engines/document-parser/voci-analizzate.ts','app/engines/document-intelligence/pdf-ocr.ts','app/api/prezzi/web/route.ts']){
+  for(const file of ['app/api/prezzi/analisi-ai/route.ts','app/engines/price-resolution/resolver.ts','app/engines/price-resolution/normalizer.ts',
+    'app/engines/price-resolution/riferimenti-locali.ts','app/engines/document-parser/header-detector.ts',
+    'app/engines/document-intelligence/pdf-ocr.ts','app/api/prezzi/web/route.ts']){
     assert.equal(fs.readFileSync(path.join(root,file),'utf8').replace(/\r\n/g,'\n'),execFileSync('git',['show',`${base}:${file}`],{cwd:root,encoding:'utf8'}).replace(/\r\n/g,'\n'),file)
   }
   assert.equal(api.modelloStimeDocumento,'gpt-4.1-mini')

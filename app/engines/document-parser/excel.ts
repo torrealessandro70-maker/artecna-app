@@ -6,6 +6,7 @@ import type {
   DocumentRow,
   DocumentRowType,
   ParsedDocument,
+  ContestoTecnicoDocumento,
 } from './types'
 
 const normalizzaValoreCella = (value: unknown): string => {
@@ -68,6 +69,24 @@ const creaRawText = (row: unknown[]): string => {
     .map(normalizzaValoreCella)
     .filter((cella) => cella !== '')
     .join(' | ')
+}
+
+const estraiContestoTecnico = (header: unknown[], row: unknown[]): ContestoTecnicoDocumento | undefined => {
+  const alias: [keyof ContestoTecnicoDocumento, string[]][] = [
+    ['numeroVoce', ['n', 'numero', 'numero voce']],
+    ['ubicazioneDimensioni', ['ubicazione dimensioni', 'ubicazione', 'dimensioni', 'misure', 'dettagli tecnici']],
+    ['annotazioni', ['annotazioni', 'note']],
+    ['paginaPdf', ['pagina pdf', 'pagina']],
+  ]
+  const contesto: ContestoTecnicoDocumento = {}
+  header.forEach((cell, i) => {
+    const label = normalizzaValoreCella(cell).toLowerCase().normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+    const key = alias.find(([, nomi]) => nomi.includes(label))?.[0]
+    const value = normalizzaValoreCella(row[i])
+    if (key && value) contesto[key] = contesto[key] ? `${contesto[key]}\n${value}` : value
+  })
+  return Object.keys(contesto).length ? contesto : undefined
 }
 
 const rilevaTipoRiga = (row: unknown[]): DocumentRowType => {
@@ -308,6 +327,7 @@ codice: datiVoce.codice,
   prezzoUnitario,
   totale,
   rawText,
+  contestoTecnicoDocumento: estraiContestoTecnico(excelRows[headerDetection.headerRowIndex], row),
 }
     })
     .filter(

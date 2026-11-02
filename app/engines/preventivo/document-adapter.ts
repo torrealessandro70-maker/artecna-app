@@ -1,4 +1,5 @@
 import type { PreventivoRevision, PreventivoVoce } from './types'
+import type { ContestoTecnicoDocumento } from '../document-parser/types'
 import { buildPreventivoRevisionReview } from './review-builder'
 
 import {
@@ -16,6 +17,8 @@ codice?: string
   unitaMisura?: string
   categoria?: string
   note?: string
+  testoOrigine?: string
+  contestoTecnicoDocumento?: ContestoTecnicoDocumento
 }
 
 type CreatePreventivoRevisionFromDocumentInput = {
@@ -60,6 +63,8 @@ codice: voce.codice?.trim() || undefined,
         unitaMisura: voce.unitaMisura ?? voce.unita_misura ?? 'corpo',
         categoria: voce.categoria,
         note: voce.note,
+        ...(voce.testoOrigine ? { testoOrigine: voce.testoOrigine } : {}),
+        ...(voce.contestoTecnicoDocumento ? { contestoTecnicoDocumento: { ...voce.contestoTecnicoDocumento } } : {}),
       }
     })
 

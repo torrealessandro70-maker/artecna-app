@@ -16,6 +16,8 @@ export const creaVoceAnalizzataExcel = (
     prezzo,
     prezzo_unitario: prezzo,
     totale: row.totale,
+    testoOrigine: row.rawText,
+    ...(row.contestoTecnicoDocumento ? { contestoTecnicoDocumento: { ...row.contestoTecnicoDocumento } } : {}),
   }
 }
 

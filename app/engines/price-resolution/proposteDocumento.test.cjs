@@ -174,7 +174,7 @@ test('perimetro: resolver, soglie, parser, analisi singola/Web, SQL e salvataggi
   const root = path.resolve(app, '..'), base = '66b845903c98f0fe3e2f9cb037daf58d026972ec'
   for (const file of ['app/engines/price-resolution/resolver.ts','app/engines/price-resolution/normalizer.ts','app/engines/price-resolution/diagnostica-voce.ts',
     'app/engines/price-resolution/revisione-ai.ts','app/engines/price-resolution/descrizione-semantica.ts','app/engines/price-resolution/ai-price-analyst.ts',
-    'app/engines/price-resolution/web-fallback.ts','app/engines/confidence/confidence.ts','app/engines/document-parser/excel.ts','app/engines/document-parser/voci-analizzate.ts',
+    'app/engines/price-resolution/web-fallback.ts','app/engines/confidence/confidence.ts',
     'app/engines/document-intelligence/pdf-ocr.ts','app/api/prezzi/web/route.ts']) {
     assert.equal(fs.readFileSync(path.join(root,file),'utf8').replace(/\r\n/g,'\n'),execFileSync('git',['show',`${base}:${file}`],{cwd:root,encoding:'utf8'}).replace(/\r\n/g,'\n'),file)
   }

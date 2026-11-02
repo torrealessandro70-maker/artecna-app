@@ -1,3 +1,5 @@
+import type { ContestoTecnicoDocumento } from '../document-parser/types'
+
 export type PreventivoSourceType =
   | 'document'
   | 'ai'
@@ -21,6 +23,8 @@ export type PreventivoVoce = {
   unitaMisura?: string
   categoria?: string
   note?: string
+  testoOrigine?: string
+  contestoTecnicoDocumento?: ContestoTecnicoDocumento
 }
 export type PreventivoReviewIssueSeverity = 'info' | 'warning' | 'critical'
 
@@ -57,6 +61,8 @@ codice?: string
         unitaMisura?: string
         categoria?: string
         note?: string
+        testoOrigine?: string
+        contestoTecnicoDocumento?: ContestoTecnicoDocumento
       }[]
     }
   | {

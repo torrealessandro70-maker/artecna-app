@@ -10,6 +10,14 @@ export type DocumentRowType =
   | 'sommano'
   | 'altro'
 
+// Documentary text only: dimensions and notes never replace accounting quantity/U.M.
+export type ContestoTecnicoDocumento = {
+  numeroVoce?: string
+  ubicazioneDimensioni?: string
+  annotazioni?: string
+  paginaPdf?: string
+}
+
 export type DocumentRow = {
   id: string
 
@@ -36,6 +44,7 @@ export type DocumentRow = {
   note?: string
 
   rawText: string
+  contestoTecnicoDocumento?: ContestoTecnicoDocumento
 }
 
 export type ParsedDocument = {
