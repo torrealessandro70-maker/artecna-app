@@ -93,9 +93,11 @@ test('computo reale: 39/39, tutte le colonne documentali e i sei casi fino al pr
 
 test('classificazione della bozza, matching, route e algoritmi chunk restano identici al parent approvato',()=>{
  const cp=require('node:child_process'),root=path.dirname(app),base='caae926e80a550fa3a4427caf4f96f9bad6c270c',old=f=>cp.execFileSync('git',['show',base+':'+f],{cwd:root,encoding:'utf8'}).replace(/\r\n/g,'\n'),now=f=>fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n/g,'\n')
- for(const f of ['app/engines/price-resolution/proposte-documento.ts','app/engines/price-resolution/resolver.ts','app/engines/price-resolution/normalizer.ts','app/engines/price-resolution/similarity.ts','app/engines/document-parser/header-detector.ts','app/api/prezzi/analisi-ai/route.ts','app/engines/document-intelligence/pdf-ocr.ts'])assert.equal(now(f),old(f),f)
+ for(const f of ['app/engines/price-resolution/proposte-documento.ts','app/engines/price-resolution/resolver.ts','app/engines/price-resolution/normalizer.ts','app/engines/price-resolution/similarity.ts','app/engines/document-parser/header-detector.ts','app/engines/document-intelligence/pdf-ocr.ts'])assert.equal(now(f),old(f),f)
  const before='preparaBozzaDocumento(vociDocumento.map((v, i) => ({ ...v, testoOrigine: vociAnalizzate[i]?.testoOrigine })), knowledgeBasePrezzi, memoriaPrezziValidi)',after='preparaBozzaDocumento(vociDocumento.map((v, i) => ({ ...v, testoOrigine: preventivoRevision.voci[i]?.testoOrigine, contestoTecnicoDocumento: preventivoRevision.voci[i]?.contestoTecnicoDocumento })), knowledgeBasePrezzi, memoriaPrezziValidi)'
- assert(now('app/page.tsx').includes(after));assert.equal(now('app/page.tsx').replace(after,before),old('app/page.tsx'),'entire page including persistence unchanged except allowed pass-through')
+ const generatore=src=>src.slice(src.indexOf('const generaPreventivoDaDocumentoAnalizzato ='),src.indexOf('const miglioraVocePreventivoAi ='))
+ const attuale=generatore(now('app/page.tsx'));assert(attuale.includes(after))
+ assert.equal(attuale.replace(after,before).replace(', [headerModelloAi]: modelloAiPredefinito',''),generatore(old('app/page.tsx')),'generatore, persistenza e corpo dei chunk invariati salvo contesto tecnico e header del modello')
  const declaration=(src,name)=>{const ast=ts.createSourceFile('source.ts',src,ts.ScriptTarget.Latest,true);let found;function visit(node){if((ts.isVariableDeclaration(node)||ts.isFunctionDeclaration(node))&&node.name?.getText(ast)===name)found=node.getText(ast);ts.forEachChild(node,visit)}visit(ast);assert(found,name);return found}
  const pricing='app/engines/price-resolution/validazione-tecnica-stime.ts'
  for(const name of ['classificaRiferimento','scorporoVerificato','sovrapposizioniEconomiche']){

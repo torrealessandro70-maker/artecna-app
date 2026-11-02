@@ -203,12 +203,17 @@ for(const [q,other,code] of [
   assert(giudica(r,s,ctx).codici.includes('sovrapposizione_'+code))
 })
 
-test('perimetro protetto: parser, resolver, modello, writer e route invariati',()=>{
+test('perimetro protetto: parser, resolver, writer e route invariati salvo il selettore batch',()=>{
   const root=path.dirname(app),base='ca7c71cca5d4abadd9e9953f9d66e6110548f756'
   for(const file of ['app/api/prezzi/analisi-ai/route.ts','app/engines/price-resolution/resolver.ts','app/engines/price-resolution/normalizer.ts',
     'app/engines/price-resolution/riferimenti-locali.ts','app/engines/document-parser/header-detector.ts',
     'app/engines/document-intelligence/pdf-ocr.ts','app/api/prezzi/web/route.ts']){
-    assert.equal(fs.readFileSync(path.join(root,file),'utf8').replace(/\r\n/g,'\n'),execFileSync('git',['show',`${base}:${file}`],{cwd:root,encoding:'utf8'}).replace(/\r\n/g,'\n'),file)
+    let atteso=execFileSync('git',['show',`${base}:${file}`],{cwd:root,encoding:'utf8'}).replace(/\r\n/g,'\n')
+    if(file==='app/api/prezzi/analisi-ai/route.ts') atteso=atteso
+      .replace('istruzioniStimeDocumento, modelloStimeDocumento,','istruzioniStimeDocumento,')
+      .replace("from '../../../engines/price-resolution/stima-documento-ai'", "from '../../../engines/price-resolution/stima-documento-ai'\nimport { headerModelloAi, normalizzaModelloAi } from '../../../lib/modelloAi'")
+      .replace('model: modelloStimeDocumento,','model: normalizzaModelloAi(req.headers.get(headerModelloAi)),')
+    assert.equal(fs.readFileSync(path.join(root,file),'utf8').replace(/\r\n/g,'\n'),atteso,file)
   }
   assert.equal(api.modelloStimeDocumento,'gpt-4.1-mini')
 })

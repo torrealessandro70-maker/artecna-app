@@ -22,6 +22,7 @@ function load(file) {
   return m.exports
 }
 const api = load(path.join(__dirname, 'stima-documento-ai.ts'))
+const modelli = load(path.join(app, 'lib/modelloAi.ts'))
 const { statoPrezzoDocumento, riepilogoPrezziDocumento, preparaBozzaDocumento } = load(path.join(__dirname, 'proposte-documento.ts'))
 const { modificaVoceDiagnostica } = load(path.join(__dirname, 'diagnostica-voce.ts'))
 const voce = (descrizione = 'Posa pavimento con collante', quantita = 10, unita_misura = 'mq') => ({ codice: '38.21', descrizione, unita_misura,
@@ -193,14 +194,89 @@ test('perimetro: vecchio percorso singolo e modello conservati, nessun Web/write
   assert(ui.includes('(voce.propostaPrezzoDocumento || voce.stimaPrezzoArtecna) && !voce.priceResolutionInvalidated'))
 })
 
-test('route batch autenticata: un solo provider, schema strutturato, modello invariato e nessun retry', async () => {
+// Esegue gli handler effettivi della pagina in isolamento: niente mount di Home,
+// letture di altre sezioni o credenziali reali.
+function partiSelettore() {
+  const src = fs.readFileSync(path.join(app, 'page.tsx'), 'utf8')
+  const ast = ts.createSourceFile('page.tsx', src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const parti = {}
+  function visita(n) {
+    if (ts.isVariableDeclaration(n) && ['caricaImpostazioniSupabase','salvaImpostazioneSupabase'].includes(n.name.getText(ast))) {
+      parti[n.name.getText(ast)] = n.initializer.getText(ast)
+    }
+    if (ts.isJsxElement(n) && n.openingElement.tagName.getText(ast) === 'select' &&
+        n.openingElement.attributes.properties.some(a => a.name?.getText(ast) === 'value' && a.initializer?.expression?.getText(ast) === 'modelloAiPredefinito')) {
+      parti.select = n.getText(ast)
+    }
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'completaBozzaConStime') {
+      parti.invia = n.arguments[2].getText(ast)
+    }
+    ts.forEachChild(n, visita)
+  }
+  visita(ast)
+  for (const nome of ['select','invia','caricaImpostazioniSupabase','salvaImpostazioneSupabase']) assert(parti[nome], nome)
+  return parti
+}
+const parti = partiSelettore()
+function eseguiParte(nome, contesto) {
+  const js = ts.transpileModule('(' + parti[nome] + ')', { fileName: 'estratto.tsx',
+    compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } }).outputText
+  return vm.runInContext(js, contesto)
+}
+
+test('menu Modello predefinito: salva, ripristina e normalizza con il reader e il writer esistenti', async () => {
+  const archivio = new Map(), scritture = [], errori = []
+  let erroreScrittura = null
+  const supabase = { from(tabella) {
+    assert.equal(tabella, 'impostazioni_app')
+    return {
+      select: async () => ({data:[...archivio].map(([chiave,valore]) => ({chiave,valore})),error:null}),
+      upsert: async ({chiave,valore}, {onConflict}) => {
+        assert.equal(onConflict, 'chiave'); assert.equal(chiave, 'modelloAiPredefinito')
+        scritture.push(valore)
+        if (!erroreScrittura) archivio.set(chiave, valore)
+        return {error:erroreScrittura}
+      },
+    }
+  } }
+  function apertura() {
+    const c = vm.createContext({React, supabase, ...modelli, modelloAiInAggiornamento:false, modelloAiPredefinito:modelli.normalizzaModelloAi(),
+      setModelloAiPredefinito: v => { c.modelloAiPredefinito=v }, setSalvataggioModelloAi: v => { c.modelloAiInAggiornamento=v },
+      alert: msg => errori.push(msg) })
+    c.salvaImpostazioneSupabase = eseguiParte('salvaImpostazioneSupabase', c)
+    return {select:()=>eseguiParte('select',c), carica:()=>eseguiParte('caricaImpostazioniSupabase',c)(()=>true)}
+  }
+  let ui = apertura()
+  await ui.carica()
+  assert.equal(ui.select().props.value, 'gpt-4.1-mini')
+  assert.deepEqual(Array.from(ui.select().props.children, o=>[o.props.value,o.props.children]),
+    [['gpt-4.1-mini','GPT-4.1 Mini'],['gpt-6.1-sol','GPT-6.1 Sol']])
+  for (const id of ['gpt-6.1-sol','gpt-4.1-mini']) {
+    const salvataggio=ui.select().props.onChange({target:{value:id}})
+    assert.equal(ui.select().props.disabled,true)
+    await salvataggio
+    assert.equal(ui.select().props.value,id)
+    ui=apertura(); await ui.carica(); assert.equal(ui.select().props.value,id)
+  }
+  for (const invalido of [null,'modello-inesistente','gpt-4.1-mini-2025-04-14']) {
+    archivio.set('modelloAiPredefinito', invalido); ui=apertura(); await ui.carica()
+    assert.equal(ui.select().props.value,'gpt-4.1-mini')
+  }
+  assert.deepEqual(scritture,['gpt-6.1-sol','gpt-4.1-mini'])
+  erroreScrittura={ message:'errore simulato' }
+  await ui.select().props.onChange({target:{value:'gpt-6.1-sol'}})
+  assert.equal(ui.select().props.value,'gpt-4.1-mini'); assert.equal(ui.select().props.disabled,false); assert.equal(errori.length,1)
+})
+
+test('Preventivo da Documento: dal callback dei chunk al provider cambia solo model', async () => {
   const source = fs.readFileSync(path.join(app, 'api/prezzi/analisi-ai/route.ts'), 'utf8')
-  const calls = { provider: 0, auth: 0 }, batch = api.preparaInputStimeDocumento([voce()], [])
+  const calls = { provider: 0, auth: 0 }, richieste = [], batch = api.preparaInputStimeDocumento([voce()], [])
   class Provider {
-    constructor(options) { assert.equal(options.maxRetries, 0) }
+    constructor(options) { assert.equal(options.maxRetries, 0); assert.equal(options.timeout,150000) }
     responses = { create: async request => {
       calls.provider++
-      assert.equal(request.model, 'gpt-4.1-mini'); assert.equal(request.store, false)
+      richieste.push(JSON.parse(JSON.stringify(request)))
+      assert.equal(request.store, false); assert.equal(request.max_output_tokens,16000)
       assert.equal(request.tools, undefined); assert.equal(request.text.format.strict, true)
       assert.equal(request.text.format.schema.properties.stime.maxItems, batch.righe.length)
       assert.equal(JSON.stringify(request.text.format.schema.properties.stime.items.properties.id.enum), JSON.stringify(batch.righe.map(r => r.id)))
@@ -212,6 +288,7 @@ test('route batch autenticata: un solo provider, schema strutturato, modello inv
     if (id === 'openai') return { default: Provider }
     if (id.endsWith('supabaseClient')) return { supabase: { auth: { getUser: async token => { calls.auth++; return { data: { user: token === 'valid' ? { id: 'test-user' } : null }, error: null } } } } }
     if (id.endsWith('stima-documento-ai')) return api
+    if (id.endsWith('lib/modelloAi')) return modelli
     if (id.endsWith('ai-price-analyst')) return { daVerificare: motivazione => ({ esito: 'da_verificare', motivazione }) }
     throw Error(id)
   }
@@ -225,9 +302,40 @@ test('route batch autenticata: un solo provider, schema strutturato, modello inv
   const success = await m.exports.POST(request('valid'))
   assert.equal(success.status, 200); assert.equal((await success.json()).stime[0].prezzo_unitario_proposto, 25)
   assert.equal(calls.provider, 1)
+  const invia = modelloAiPredefinito => eseguiParte('invia', vm.createContext({
+    modelloAiPredefinito, ...modelli, AbortSignal,
+    supabase:{auth:{getSession:async()=>({data:{session:{access_token:'valid'}}})}},
+    fetch:(url,options)=>{
+      assert.equal(url,'/api/prezzi/analisi-ai'); assert.equal(options.body,JSON.stringify(batch))
+      return m.exports.POST(new Request('http://local'+url,options))
+    },
+  }))(batch)
+  for (const [scelta, atteso] of [['gpt-4.1-mini','gpt-4.1-mini'],['gpt-6.1-sol','gpt-6.1-sol'],['modello-inesistente','gpt-4.1-mini']]) {
+    const result=await invia(scelta); assert.equal(result.stime.length,1)
+    assert.deepEqual(richieste.at(-1),{...richieste[0],model:atteso})
+  }
+  assert.equal(richieste[0].model,'gpt-4.1-mini')
+  assert.deepEqual(Object.keys(richieste[0]).sort(),['input','instructions','max_output_tokens','model','store','text'])
+  assert.equal(richieste[0].input, JSON.stringify(batch))
+  assert.equal(richieste[0].instructions,api.istruzioniStimeDocumento)
   delete env.OPENAI_API_KEY
   const failed = await (await m.exports.POST(request('valid'))).json()
-  assert(failed.errore); assert.equal(failed.stime.length, 0); assert.equal(calls.provider, 1)
+  assert(failed.errore); assert.equal(failed.stime.length, 0); assert.equal(calls.provider, 4)
+})
+
+test('selettore: orchestrazione, validator e altri percorsi AI restano quelli del candidato A/B', () => {
+  const parent = 'ab49e7b0e9290cd670b5284a6cc693810d8ed7df', root = path.dirname(app)
+  for (const f of [
+    'api/analizza-rapportino/route.ts', 'api/analizza-nota-ai/route.ts', 'api/varianti/osservatore/route.ts',
+    'api/genera-preventivo-ai/route.ts', 'api/migliora-voce-ai/route.ts', 'api/prezzi/web/route.ts',
+    'engines/osservatore/analizza.ts', 'engines/preventivo-generation/richiesta.ts', 'engines/preventivo-generation/servizio.ts',
+    'engines/price-resolution/stima-documento-ai.ts', 'engines/price-resolution/validazione-tecnica-stime.ts',
+    'engines/price-resolution/perimetro-prestazione.ts', 'engines/price-resolution/negazioni-prestazione.ts',
+    'engines/price-resolution/coerenza-semantica.ts',
+  ]) {
+    const prima = execFileSync('git', ['show', parent + ':app/' + f], {cwd:root,encoding:'utf8'})
+    assert.equal(fs.readFileSync(path.join(app, f), 'utf8').replace(/\r\n/g,'\n'), prima.replace(/\r\n/g,'\n'), f)
+  }
 })
 
 test('risposta HTTP malformata non interrompe la bozza e non inventa prezzi', async () => {

@@ -36,7 +36,7 @@ export default function SopralluogoDettaglio(props: Props) {
   const [generazioneDocumento, setGenerazioneDocumento] = useState(false)
   const [erroreGenerazioneDocumento, setErroreGenerazioneDocumento] = useState('')
   const generaDocumento = async () => {
-    if (generazioneDocumentoRef.current) return
+    if (generazioneDocumentoRef.current || !props.generaPreventivoDaDocumentoAnalizzato) return
     generazioneDocumentoRef.current = true
     setGenerazioneDocumento(true)
     setErroreGenerazioneDocumento('')
@@ -279,7 +279,7 @@ onChiudiFascicolo={() =>
           <button
             type="button"
             onClick={generaDocumento}
-            disabled={generazioneDocumento}
+            disabled={generazioneDocumento || !props.generaPreventivoDaDocumentoAnalizzato}
             aria-busy={generazioneDocumento}
             style={buttonPrimary}
           >

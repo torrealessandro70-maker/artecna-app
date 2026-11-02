@@ -1,7 +1,8 @@
 import OpenAI from 'openai'
 import { supabase } from '../../../../lib/supabaseClient'
 import { daVerificare, eseguiAnalisiPrezzo, schemaAnalisiPrezzo, validaInputAnalisi } from '../../../engines/price-resolution/ai-price-analyst'
-import { eseguiStimeDocumento, istruzioniStimeDocumento, modelloStimeDocumento, schemaStimeDocumentoPerInput, validaInputStimeDocumento } from '../../../engines/price-resolution/stima-documento-ai'
+import { eseguiStimeDocumento, istruzioniStimeDocumento, schemaStimeDocumentoPerInput, validaInputStimeDocumento } from '../../../engines/price-resolution/stima-documento-ai'
+import { headerModelloAi, normalizzaModelloAi } from '../../../lib/modelloAi'
 
 export const runtime = 'nodejs'
 export const maxDuration = 180
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
         if (!process.env.OPENAI_API_KEY) throw Error('Servizio non disponibile')
         const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 150000 })
         const response = await client.responses.create({
-          model: modelloStimeDocumento, store: false, max_output_tokens: 16000,
+          model: normalizzaModelloAi(req.headers.get(headerModelloAi)), store: false, max_output_tokens: 16000,
           instructions: istruzioniStimeDocumento, input: JSON.stringify(context),
           text: { format: { type: 'json_schema', name: 'stime_documento', strict: true, schema: schemaStimeDocumentoPerInput(context) } },
         })

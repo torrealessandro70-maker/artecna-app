@@ -64,6 +64,7 @@ import { mediaMemoriaCompatibile } from './engines/price-resolution/revisione-ai
 import { leggiStoricoPrezzi, risolviPrezzoPrioritario } from './engines/price-resolution/storico-prezzi'
 import { preparaBozzaDocumento } from './engines/price-resolution/proposte-documento'
 import { completaBozzaConStime } from './engines/price-resolution/stima-documento-ai'
+import { headerModelloAi, modelliAiSelezionabili, normalizzaModelloAi } from './lib/modelloAi'
 
 
 import PopupModificaOperaio from './components/PopupModificaOperaio'
@@ -586,7 +587,9 @@ const [mostraFotoPreventivoSopralluogo, setMostraFotoPreventivoSopralluogo] =
   useState(false)
 const [mostraStoricoAi, setMostraStoricoAi] = useState(false)
 const [modelloAiPredefinito, setModelloAiPredefinito] =
-  useState('gpt-4.1-mini')
+  useState(() => normalizzaModelloAi())
+const [salvataggioModelloAi, setSalvataggioModelloAi] = useState(false)
+const [impostazioniLettePer, setImpostazioniLettePer] = useState<string | null>(null)
 const [coloreFirma, setColoreFirma] = useState('black')
 const [spessoreFirma, setSpessoreFirma] = useState(2)
 const [cercaMaterialeManuale, setCercaMaterialeManuale] =
@@ -751,6 +754,8 @@ const [geolocalizzazioneFoto, setGeolocalizzazioneFoto] = useState('')
   const [operaiAnagrafica, setOperaiAnagrafica] = useState<Operaio[]>([])
   const [timbrature, setTimbrature] = useState<Timbratura[]>([])
 const [utente, setUtente] = useState<any>(null)
+const idUtenteImpostazioni: string | null = utente?.id ?? null
+const modelloAiInAggiornamento = impostazioniLettePer !== idUtenteImpostazioni || salvataggioModelloAi
 const [authAccontiPronta, setAuthAccontiPronta] = useState(false)
 const [accontiCantiere, setAccontiCantiere] = useState<any[]>([])
 const { statoAcconti, authAccontiDisponibile, caricaAcconti } = useAccontiCantiere(
@@ -1782,7 +1787,7 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
      const { data, error } = await supabase.auth.getSession()
      if (error || !data.session?.access_token) throw Error('Sessione non disponibile')
      const response = await fetch('/api/prezzi/analisi-ai', {
-       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` },
+       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}`, [headerModelloAi]: modelloAiPredefinito },
        body: JSON.stringify(input), signal: AbortSignal.timeout(170000),
      })
      if (!response.ok) throw Error('Richiesta stime fallita')
@@ -5160,8 +5165,17 @@ useEffect(() => {
 }, [])
 
 useEffect(() => {
-  caricaImpostazioniSupabase()
-}, [])
+  let attiva = true
+  void caricaImpostazioniSupabase(() => attiva).catch(() => {
+    if (attiva) {
+      console.error('Lettura delle impostazioni non riuscita')
+      setModelloAiPredefinito(normalizzaModelloAi())
+    }
+  }).finally(() => {
+    if (attiva) setImpostazioniLettePer(idUtenteImpostazioni)
+  })
+  return () => { attiva = false }
+}, [idUtenteImpostazioni])
 
 useEffect(() => {
   localStorage.setItem('artecna_fontFamily', fontFamily)
@@ -10640,11 +10654,13 @@ const voceSinistra = {
   gap: 8,
 }
 
-const caricaImpostazioniSupabase = async () => {
+const caricaImpostazioniSupabase = async (attiva: () => boolean) => {
   const { data, error } = await supabase
     .from('impostazioni_app')
     .select('*')
 
+  if (!attiva()) return
+  setModelloAiPredefinito(normalizzaModelloAi(data?.find(item => item.chiave === 'modelloAiPredefinito')?.valore))
   if (error) {
     console.error('Errore caricamento impostazioni:', error.message)
     return
@@ -10669,6 +10685,7 @@ const salvaImpostazioneSupabase = async (chiave: string, valore: string) => {
   if (error) {
     alert('Errore salvataggio impostazione: ' + error.message)
   }
+  return !error
 }
 
 const [emailLogin, setEmailLogin] = useState('')
@@ -11970,12 +11987,17 @@ textarea:not(.impostazioni-input) {
 
     <select
       value={modelloAiPredefinito}
-      onChange={(e) => {
-        setModelloAiPredefinito(e.target.value)
-        salvaImpostazioneSupabase(
-          'modelloAiPredefinito',
-          e.target.value
-        )
+      disabled={modelloAiInAggiornamento}
+      onChange={async (e) => {
+        const modello = normalizzaModelloAi(e.target.value)
+        setSalvataggioModelloAi(true)
+        try {
+          if (await salvaImpostazioneSupabase('modelloAiPredefinito', modello)) setModelloAiPredefinito(modello)
+        } catch {
+          alert('Salvataggio del modello AI non riuscito.')
+        } finally {
+          setSalvataggioModelloAi(false)
+        }
       }}
       style={{
         marginTop: 6,
@@ -11987,11 +12009,9 @@ textarea:not(.impostazioni-input) {
         border: '1px solid #334155',
       }}
     >
-      <option value="gpt-4.1-mini">
-        GPT-4.1 Mini
-      </option>
-
-    
+      {modelliAiSelezionabili.map(modello => (
+        <option key={modello.id} value={modello.id}>{modello.nome}</option>
+      ))}
     </select>
   </label>
 
@@ -13128,7 +13148,7 @@ sopralluogoModificaId={sopralluogoModificaId}
     caricaFotoSopralluoghi={caricaFotoSopralluoghi}
     preventivoAiGenerato={preventivoAiGenerato}
     generaPreventivoAiDaSopralluogo={generaPreventivoAiDaSopralluogo}
-generaPreventivoDaDocumentoAnalizzato={generaPreventivoDaDocumentoAnalizzato}
+generaPreventivoDaDocumentoAnalizzato={modelloAiInAggiornamento ? undefined : generaPreventivoDaDocumentoAnalizzato}
 generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo}
     apriPreventivoAiGeneratoInModifica={apriPreventivoAiGeneratoInModifica}
     convertiSopralluogoInCantiere={convertiSopralluogoInCantiere}
