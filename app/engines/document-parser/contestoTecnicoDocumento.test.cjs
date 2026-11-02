@@ -105,7 +105,18 @@ test('classificazione della bozza, matching, route e algoritmi chunk restano ide
  const shape=schema=>JSON.parse(JSON.stringify(schema,(key,value)=>key==='description'?undefined:value))
  const expected=shape(oldSchema);delete expected.properties.stime.items.properties.esclusioni_componenti.items.properties.componente.enum
  assert.deepEqual(shape(api.schemaStimeDocumento),expected,'solo documentazione e nomi generici di componenti esclusi dal confronto')
- for(const name of ['creaChunkStimeDocumento','orchestraChunkStimeDocumento','completaBozzaConStime','validaOutputStimeDocumento','modelloStimeDocumento'])assert.equal(declaration(now('app/engines/price-resolution/stima-documento-ai.ts'),name),declaration(old('app/engines/price-resolution/stima-documento-ai.ts'),name),name)
+ for(const name of ['creaChunkStimeDocumento','orchestraChunkStimeDocumento','completaBozzaConStime','validaOutputStimeDocumento','modelloStimeDocumento']){
+   let atteso=declaration(old(schemaFile),name)
+   // Sono cambiati soltanto il gate sul testo decodificato e il trasporto
+   // degli scarti. Il resto di orchestrazione e validazione resta protetto.
+   if(name==='validaOutputStimeDocumento') atteso=atteso
+     .replace('input: InputStimeDocumento)', 'input: InputStimeDocumento, scarti?: RigaInvalida[])')
+     .replace('return raw.stime.map(entry => {', 'return raw.stime.map(entry => {\n    const esclusa = isolaTestoCorrotto(entry, input, scarti)\n    if (esclusa) return esclusa')
+   if(name==='orchestraChunkStimeDocumento') atteso=atteso
+     .replace('const stime = validaOutputStimeDocumento({ stime: risposta.stime }, chunk.input)', 'const scarti = Array.isArray(risposta.righe_invalide) ? [...risposta.righe_invalide] : []\n        const stime = validaOutputStimeDocumento({ stime: risposta.stime }, chunk.input, scarti)')
+     .replace('esito = { ...risposta, stime }','esito = { ...risposta, stime, ...(scarti.length ? { righe_invalide: scarti } : {}) }')
+   assert.equal(declaration(now(schemaFile),name),atteso,name)
+ }
  for(const name of ['normalizzaValoreCella','convertiNumeroExcel','creaRawText','rilevaTipoRiga','estraiCodiceEDescrizioneVoce'])assert.equal(declaration(now('app/engines/document-parser/excel.ts'),name),declaration(old('app/engines/document-parser/excel.ts'),name),name)
  assert.equal(declaration(now('app/engines/document-intelligence/preventivo-items.ts'),'parsePreventivoItems'),declaration(old('app/engines/document-intelligence/preventivo-items.ts'),'parsePreventivoItems'))
 })

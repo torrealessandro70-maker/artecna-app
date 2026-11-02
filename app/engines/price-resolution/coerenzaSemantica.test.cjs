@@ -59,6 +59,106 @@ function astensione(s, motivo) {
     totale_riga_previsto: null, componenti_economiche: [], motivazione: motivo })
 }
 
+const integrita = 'integrita_testo_ai_non_valida'
+
+for (const [campo, corrompi] of [
+  ['motivazione', s => { s.motivazione = 'Quantit\u0000a0 non indicata.' }],
+  ['avvisi[0]', s => { s.avvisi = ['Dato\u0001illeggibile'] }],
+  ['unita_economica.descrizione', s => { s.unita_economica.descrizione += '\u001b' }],
+  ['unita_economica.base_documentale', s => { s.unita_economica.base_documentale += '\u0000' }],
+  ['componenti_economiche[0].descrizione', s => { s.componenti_economiche[0].descrizione += '\u0000' }],
+  ['componenti_economiche[0].origine_costo.base_documentale', s => { s.componenti_economiche[0].origine_costo.base_documentale = 'Prezzo\u001f' }],
+  ['esclusioni_componenti[0].motivazione', s => { s.esclusioni_componenti = [{ componente: 'nolo', voce_copertura_id: 'altra', motivazione: 'Escluso\u0007 dal prezzo' }] }],
+  ['unita_interpretata', s => { s.unita_interpretata += '\u0000' }],
+]) test('integrità prima del prezzo: ' + campo, async () => {
+  const voci = [voce, voce], input = api.preparaInputStimeDocumento(voci, [])
+  const proposte = input.righe.map(r => risposta(r))
+  corrompi(proposte[0])
+  const originale = JSON.stringify({ stime: proposte })
+  assert.throws(() => api.validaOutputStimeDocumento({ stime: proposte }, input), /caratteri di controllo/)
+  const ricevuto = await api.eseguiStimeDocumento(input, async () => originale)
+  assert.equal(ricevuto.righe_invalide.length, 1)
+  const [scarto] = ricevuto.righe_invalide
+  assert.equal(scarto.codice, integrita)
+  assert(scarto.motivo.includes(campo))
+  assert.deepEqual(JSON.parse(scarto.originaleJson), proposte[0])
+  // Anche la revisione che riceve una risposta non verificata isola la sola riga.
+  for (const esito of [ricevuto, { stime: proposte }]) {
+    const [corrotta, sana] = api.applicaStimeDocumento(voci, input, esito)
+    assert.equal(corrotta.prezzo_unitario, 0)
+    assert.equal(corrotta.diagnosticaStimaDocumento.motivo, 'stima_ai_scartata')
+    assert.deepEqual(Array.from(corrotta.diagnosticaStimaDocumento.codici), [integrita])
+    assert.deepEqual(JSON.parse(corrotta.diagnosticaStimaDocumento.originaleJson), proposte[0])
+    assert.equal(sana.prezzo_unitario, 30)
+  }
+  assert.equal(JSON.stringify({ stime: proposte }), originale)
+})
+
+test('tutti i C0 vietati sono intercettati; TAB, LF, CR, accenti e punteggiatura restano integri', async () => {
+  const input = api.preparaInputStimeDocumento([voce], [])
+  for (let code = 0; code < 32; code++) {
+    const s = risposta(input.righe[0], { motivazione: 'È l’unità scelta.' + String.fromCharCode(code) + 'Prezzo 30 €.' })
+    const esito = await api.eseguiStimeDocumento(input, async () => JSON.stringify({ stime: [s] }))
+    const [v] = api.applicaStimeDocumento([voce], input, esito)
+    if ([9, 10, 13].includes(code)) {
+      assert.equal(v.stimaPrezzoArtecna.motivazione, s.motivazione)
+      assert.equal(v.prezzo_unitario, 30)
+    } else {
+      assert.equal(v.prezzo_unitario, 0, 'C0 ' + code)
+      assert(v.diagnosticaStimaDocumento.codici.includes(integrita))
+    }
+  }
+})
+
+test('Quantità non indicata: il testo integro arriva alla semantica, il testo corrotto non applica 300 euro', async () => {
+  const v = { ...voce, quantita: 2 }
+  const stima150 = frase => applica(v, s => {
+    Object.assign(s, { prezzo_unitario_proposto: 150, prezzo_unitario_derivato: 150, totale_componenti: 150,
+      totale_riga_proposto: 300, totale_riga_previsto: 300, motivazione: s.motivazione + ' ' + frase })
+    for (const c of s.componenti_economiche) {
+      c.importo_unitario *= 5; c.subtotale *= 5; c.costo_unitario *= 5
+    }
+  })
+  assert.equal((await stima150('')).prezzo_unitario * v.quantita, 300)
+  for (const [frase, codice] of [['Quantità non indicata.', 'contraddizione_input_output'], ['Quantit\u0000a0 non indicata.', integrita]]) {
+    const dopo = await stima150(frase)
+    assert.equal(dopo.prezzo_unitario * v.quantita, 0)
+    assert((dopo.stimaPrezzoArtecna?.validazione_tecnica.codici || dopo.diagnosticaStimaDocumento.codici).includes(codice))
+  }
+})
+
+test('astensione corrotta viene scartata; ID corrotto mantiene lo stop per identità batch', async () => {
+  const v = await applica(voce, s => astensione(s, 'Dati\u0000 mancanti'))
+  assert.equal(v.diagnosticaStimaDocumento.motivo, 'stima_ai_scartata')
+  assert(v.diagnosticaStimaDocumento.codici.includes(integrita))
+  const input = api.preparaInputStimeDocumento([voce, voce], [])
+  const stime = input.righe.map(r => risposta(r))
+  stime[0].id += '\u0000'
+  const esito = await api.eseguiStimeDocumento(input, async () => JSON.stringify({ stime }))
+  assert(esito.diagnostica_identita.invalid_positions.includes(1))
+  assert(esito.diagnostica_identita.unexpected_ids.includes(stime[0].id))
+  assert(api.applicaStimeDocumento([voce, voce], input, esito).every(r => r.diagnosticaStimaDocumento.motivo === 'batch_identity_invalid'))
+})
+
+test('il testo respinto non entra nel catalogo tra chunk; prezzi affidabili e locali restano intatti', async () => {
+  const affidabile = { ...voce, prezzo_unitario: 9, priceResolution: { strategy: 'similarity', matched: true } }
+  const locale = { ...voce, prezzo_unitario: 11, propostaPrezzoDocumento: { prezzo_proposto: 11 } }
+  const voci = [affidabile, locale, { ...voce, descrizione: 'Fornitura e posa ringhiera in ferro' },
+    ...Array(5).fill(voce), { ...voce, descrizione: 'Pittura della ringhiera' }]
+  const input = api.preparaInputStimeDocumento(voci, [])
+  const dopo = await api.orchestraChunkStimeDocumento(voci, input, async chunk => ({ stime: chunk.righe.map(r =>
+    risposta(r, r.id === 'riga-3' ? { motivazione: 'Verniciatura finale inclusa.\u0000' } : {})) }))
+  assert.equal(dopo[0], affidabile)
+  assert.equal(dopo[1], locale)
+  assert(dopo[2].diagnosticaStimaDocumento.codici.includes(integrita))
+  assert.equal(dopo[8].prezzo_unitario, 30)
+  assert(!dopo[8].stimaPrezzoArtecna.validazione_tecnica.codici.includes('sovrapposizione_verniciatura'))
+  const [, ultimo] = api.creaChunkStimeDocumento(input)
+  const isolata = api.applicaStimeDocumento(voci, ultimo.input, { stime: ultimo.input.righe.map(r => risposta(r)) },
+    [risposta(input.righe[0], { motivazione: 'Verniciatura finale inclusa.\u0000' })])
+  assert.equal(isolata[8].prezzo_unitario, 30)
+})
+
 test('due componenti positive con la stessa base di costo sospendono l’intera proposta', async () => {
   const v = await applica(voce, s => {
     const [opera, fornitura] = s.componenti_economiche

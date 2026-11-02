@@ -34,9 +34,10 @@ export type StimaApplicata = StimaDocumento & { descrizione: string; quantita: n
   affidabilita_ai: StimaDocumento['affidabilita']; validazione_tecnica: ValidazioneTecnica }
 export type DiagnosticaIdentitaBatch = { duplicate_ids: string[]; missing_ids: string[]; unexpected_ids: string[]; expected_count: number; received_count: number; invalid_positions: number[] }
 export type DiagnosticaStimaDocumento = { motivo: 'stima_ai_supportata' | 'stima_ai_da_controllare' | 'stima_ai_sospesa' | 'stima_ai_scartata' | 'astensione_ai' | 'batch_identity_invalid' | 'prezzo_non_determinabile'
-  messaggio: string; codici?: string[]; chunk_id?: string; identita?: DiagnosticaIdentitaBatch }
+  messaggio: string; codici?: string[]; chunk_id?: string; identita?: DiagnosticaIdentitaBatch; originaleJson?: string }
 export type EsitoStimeDocumento = { stime: StimaDocumento[]; errore?: string; diagnostica_identita?: DiagnosticaIdentitaBatch
-  righe_invalide?: { id: string; motivo: string }[] }
+  righe_invalide?: RigaInvalida[] }
+type RigaInvalida = { id: string; motivo: string; codice?: 'integrita_testo_ai_non_valida'; originaleJson?: string }
 type VoceConStima<T> = T & Pick<VoceStimabile, 'stimaPrezzoArtecna' | 'erroreStimaDocumento' | 'diagnosticaStimaDocumento'>
 
 // One request, no tools, same model as the existing single-row analysis.
@@ -224,12 +225,46 @@ export class ErroreIdentitaBatch extends Error {
     super('Identità batch non verificabile: ' + JSON.stringify(diagnostica))
   }
 }
+// C0 salvo TAB, LF e CR. Si verifica la stringa decodificata da JSON.parse.
+const controlloVietato = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/
+
+function campiConTestoCorrotto(valore: unknown, percorso = ''): string[] {
+  if (typeof valore === 'string') return controlloVietato.test(valore) ? [percorso] : []
+  if (Array.isArray(valore)) return valore.flatMap((v, i) => campiConTestoCorrotto(v, percorso + '[' + i + ']'))
+  if (!oggetto(valore)) return []
+  return Object.entries(valore).flatMap(([k, v]) => campiConTestoCorrotto(v, percorso ? percorso + '.' + k : k))
+}
+
+function stimaScartata(r: RigaBatch, motivo: string): StimaDocumento {
+  return {
+    id: r.id, prezzo_unitario_proposto: null, unita_interpretata: r.unita, tipo: 'stima_artecna_ai',
+    affidabilita: 'bassa', motivazione: 'Stima scartata: ' + motivo + '.',
+    riferimenti_utilizzati: [], avvisi: ['Nessun prezzo applicato a questa voce; le altre stime verificate restano disponibili.'],
+    lavorazione_composita: r.composita, quantita_coperta_dal_prezzo: null, totale_riga_proposto: null,
+  }
+}
+
+function isolaTestoCorrotto(entry: Record<string, unknown>, input: InputStimeDocumento, scarti?: RigaInvalida[]) {
+  const campi = campiConTestoCorrotto(entry)
+  if (!campi.length) return
+  const motivo = 'Testo AI con caratteri di controllo non ammessi nei campi: ' + campi.join(', ')
+  if (!scarti) throw Error(motivo)
+  // L'identità è già verificata. L'originale resta per audit; al catalogo
+  // tra chunk arriva soltanto un esito neutro, anche per un'astensione.
+  const riga = input.righe.find(r => r.id === entry.id)!
+  scarti.push({ id: riga.id, codice: 'integrita_testo_ai_non_valida', motivo, originaleJson: JSON.stringify(entry) })
+  return stimaScartata(riga, 'Integrità del testo AI non valida')
+}
+
 export function verificaIdentitaBatch(raw: unknown, input: InputStimeDocumento): DiagnosticaIdentitaBatch {
   const rows = oggetto(raw) && Array.isArray(raw.stime) ? raw.stime : []
   const expected = new Set(input.righe.map(r => r.id)), counts = new Map<string, number>(), invalid: number[] = []
   rows.forEach((s, i) => {
     if (!oggetto(s) || typeof s.id !== 'string' || !s.id.trim()) invalid.push(i + 1)
-    else counts.set(s.id, (counts.get(s.id) || 0) + 1)
+    else {
+      counts.set(s.id, (counts.get(s.id) || 0) + 1)
+      if (controlloVietato.test(s.id)) invalid.push(i + 1)
+    }
   })
   const d: DiagnosticaIdentitaBatch = {
     duplicate_ids: [...counts].filter(([, count]) => count > 1).map(([id]) => id),
@@ -241,11 +276,13 @@ export function verificaIdentitaBatch(raw: unknown, input: InputStimeDocumento):
   return d
 }
 
-export function validaOutputStimeDocumento(raw: unknown, input: InputStimeDocumento): StimaDocumento[] {
+export function validaOutputStimeDocumento(raw: unknown, input: InputStimeDocumento, scarti?: RigaInvalida[]): StimaDocumento[] {
   verificaIdentitaBatch(raw, input)
   if (!oggetto(raw) || !chiavi(raw, ['stime']) || !Array.isArray(raw.stime)) throw Error('Risposta batch incompleta')
   const ids = new Set<string>()
   return raw.stime.map(entry => {
+    const esclusa = isolaTestoCorrotto(entry, input, scarti)
+    if (esclusa) return esclusa
     // An explicit abstention can arrive as zero with both calculation fields null.
     // Normalize to absence, never to a priced estimate. Zero with a unit basis remains invalid.
     const s = oggetto(entry) && entry.prezzo_unitario_proposto === 0 &&
@@ -289,15 +326,12 @@ export async function eseguiStimeDocumento(input: InputStimeDocumento, genera: (
     const righe_invalide: NonNullable<EsitoStimeDocumento['righe_invalide']> = []
     const stime = output.stime.map(s => {
       const r = input.righe.find(r => r.id === s.id)!
-      try { return validaOutputStimeDocumento({ stime: [s] }, { ...input, righe: [r] })[0] }
+      try { return validaOutputStimeDocumento({ stime: [s] }, { ...input, righe: [r] }, righe_invalide)[0] }
       catch (error) {
-        righe_invalide.push({ id: r.id, motivo: error instanceof Error ? error.message : 'Dati non coerenti con la registrazione originale' })
-        return {
-        id: r.id, prezzo_unitario_proposto: null, unita_interpretata: r.unita, tipo: 'stima_artecna_ai' as const,
-        affidabilita: 'bassa' as const, motivazione: `Stima scartata: ${error instanceof Error ? error.message : 'Dati non coerenti con la registrazione originale'}.`,
-        riferimenti_utilizzati: [], avvisi: ['Nessun prezzo applicato a questa voce; le altre stime verificate restano disponibili.'],
-        lavorazione_composita: r.composita, quantita_coperta_dal_prezzo: null, totale_riga_proposto: null,
-      } }
+        const motivo = error instanceof Error ? error.message : 'Dati non coerenti con la registrazione originale'
+        righe_invalide.push({ id: r.id, motivo })
+        return stimaScartata(r, motivo)
+      }
     })
     return { stime, ...(righe_invalide.length ? { righe_invalide } : {}) }
   } catch (error) {
@@ -316,12 +350,13 @@ export function applicaStimeDocumento<T extends VoceStimabile>(voci: readonly T[
   let identita = esito.diagnostica_identita
   const righeInvalide = Array.isArray(esito.righe_invalide) ? esito.righe_invalide.filter(x => oggetto(x) && typeof x.id === 'string' && typeof x.motivo === 'string') : []
   if (!errore) {
-    try { stime = validaOutputStimeDocumento({ stime: esito.stime }, input) }
+    try { stime = validaOutputStimeDocumento({ stime: esito.stime }, input, righeInvalide) }
     catch (error) {
       if (error instanceof ErroreIdentitaBatch) identita = error.diagnostica
       errore = error instanceof ErroreIdentitaBatch ? error.message : 'Risposta stime incompleta o non coerente: nessun prezzo applicato.'
     }
   }
+  const catalogoStime = [...stime, ...stimeAltriChunk.filter(s => !campiConTestoCorrotto(s).length)]
   return voci.map((v, i) => {
     if (!residua(v)) return v
     const r = input.righe.find(r => r.id === `riga-${i + 1}`)
@@ -329,6 +364,11 @@ export function applicaStimeDocumento<T extends VoceStimabile>(voci: readonly T[
     const s = stime.find(s => s.id === r.id)
     if (!s || s.prezzo_unitario_proposto === null) {
       const invalida = righeInvalide.find(x => x.id === r.id)
+      if (!errore && invalida?.codice === 'integrita_testo_ai_non_valida') {
+        return { ...v, prezzo_unitario: 0, erroreStimaDocumento: invalida.motivo, diagnosticaStimaDocumento: {
+          motivo: 'stima_ai_scartata' as const, codici: [invalida.codice], messaggio: invalida.motivo, originaleJson: invalida.originaleJson,
+        } }
+      }
       if (!errore && !invalida && s?.stato_stima === 'astensione') {
         const rilievi = verificaAstensione(r, s)
         if (rilievi.length) {
@@ -350,7 +390,7 @@ export function applicaStimeDocumento<T extends VoceStimabile>(voci: readonly T[
       avvisiUm.push('U.M. a corpo con quantità diversa da 1: verificare il significato della quantità e il costo per singolo corpo prima del salvataggio.')
     }
     const perimetro = voci.map((v, n) => ({ id: `riga-${n + 1}`, descrizione: v.descrizione || '', unita: v.unita_misura || '',
-      quantita: Number(v.quantita || 0), testo_stima: [...stime, ...stimeAltriChunk].find(s => s.id === `riga-${n + 1}`)?.motivazione }))
+      quantita: Number(v.quantita || 0), testo_stima: catalogoStime.find(s => s.id === `riga-${n + 1}`)?.motivazione }))
     const validazione = validaTecnicamenteStima(r, s, perimetro)
     return { ...v, prezzo_unitario: validazione.stato === 'accettata' ? s.prezzo_unitario_proposto : 0, erroreStimaDocumento: undefined,
       diagnosticaStimaDocumento: { motivo: validazione.stato === 'accettata' ? (validazione.supporto_economico === 'autonomo' ? 'stima_ai_da_controllare' : 'stima_ai_supportata') : validazione.stato === 'scartata' ? 'stima_ai_scartata' : 'stima_ai_sospesa', messaggio: validazione.motivi.join(' ') },
@@ -405,8 +445,9 @@ export async function orchestraChunkStimeDocumento<T extends VoceStimabile>(voci
       if (risposta.errore) esito = risposta
       else {
         // Recheck identity at the aggregation boundary, including forged HTTP results.
-        const stime = validaOutputStimeDocumento({ stime: risposta.stime }, chunk.input)
-        esito = { ...risposta, stime }
+        const scarti = Array.isArray(risposta.righe_invalide) ? [...risposta.righe_invalide] : []
+        const stime = validaOutputStimeDocumento({ stime: risposta.stime }, chunk.input, scarti)
+        esito = { ...risposta, stime, ...(scarti.length ? { righe_invalide: scarti } : {}) }
       }
     } catch (error) {
       esito = error instanceof ErroreIdentitaBatch
