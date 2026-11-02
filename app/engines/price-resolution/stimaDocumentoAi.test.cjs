@@ -34,8 +34,9 @@ const output = (input, price = 25) => ({ stime: input.righe.map(r => ({ id: r.id
   unita_economica: { descrizione: 'Pacchetto unitario originale', base_documentale: r.descrizione }, riferimenti_ancoraggio: [],
   componenti_economiche: price === null ? [] : [{ categoria: 'posa', descrizione: 'Attività di posa', importo_unitario: price * 0.8, riferimento_id: null },
     { categoria: 'opere_accessorie', descrizione: 'Preparazione e accessori', importo_unitario: price * 0.2, riferimento_id: null }],
+  metodo_calcolo: 'analisi_unitaria', totale_componenti: price, prezzo_unitario_derivato: price,
   scorporo_fornitura: null, esclusioni_componenti: [],
-})) })
+})).map(s=>({...s,componenti_economiche:s.componenti_economiche.map(c=>({...c,quantita_tecnica:0.5,unita_tecnica:'h',costo_unitario:c.importo_unitario/0.5,subtotale:c.importo_unitario,metodo_calcolo:'ore_uomo',origine_costo:{tipo:'ipotesi_tecnica_esplicita',descrizione:'Fixture: costo orario tecnico ipotizzato, non prezzo certificato',base_documentale:null}}))})) })
 
 test('batch unico per residui: conserva tre affidabili e due proposte locali, nessuna scrittura', async () => {
   const affidabili = [30.3, 21.71, 8.18].map(p => ({ ...voce(), prezzo_unitario: p, priceResolution: { matched: true, confidence: 1, strategy: 'description_unit', prezzoUnitarioRisolto: p } }))

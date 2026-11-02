@@ -13,6 +13,9 @@ export type RigaTecnica = PerimetroLavorazione & { contesto_riga: string; compos
 export type ComponenteEconomica = {
   categoria: 'demolizione_rimozione' | 'materiale' | 'posa' | 'opere_accessorie' | 'smaltimento' | 'sicurezza_noli'
   descrizione: string; importo_unitario: number; riferimento_id: string | null
+  quantita_tecnica?: number; unita_tecnica?: string; costo_unitario?: number; subtotale?: number
+  metodo_calcolo?: 'ore_uomo' | 'ore_squadra' | 'materiale' | 'nolo' | 'riferimento_locale' | 'altro_documentato'
+  origine_costo?: { tipo: 'riferimento_locale' | 'ipotesi_tecnica_esplicita' | 'documento'; descrizione: string; base_documentale: string | null }
 }
 export type BaseEconomicaStima = {
   quantita_strutturata?: number; totale_riga_previsto?: number | null
@@ -21,6 +24,7 @@ export type BaseEconomicaStima = {
   componenti_economiche?: ComponenteEconomica[]
   scorporo_fornitura?: { riferimento_completo_id: string; riferimento_materiale_id: string; costo_posa_unitario: number } | null
   esclusioni_componenti?: { componente: 'ponteggio' | 'ringhiera' | 'verniciatura'; voce_copertura_id: string; motivazione: string }[]
+  metodo_calcolo?: 'analisi_unitaria'; totale_componenti?: number | null; prezzo_unitario_derivato?: number | null
 }
 export type StimaTecnica = BaseEconomicaStima & {
   prezzo_unitario_proposto: number | null; unita_interpretata: string; quantita_coperta_dal_prezzo: number | null
@@ -144,6 +148,56 @@ export function sovrapposizioniEconomiche(r: RigaTecnica, s: StimaTecnica, tutte
   return sovrapposizioni
 }
 
+// Quantities/costs are per ONE original unit, never per whole bill row.
+// An explicit technical assumption is auditable arithmetic, not a certified market price.
+export function verificaProvaEconomica(r: RigaTecnica, s: StimaTecnica): { codici: string[]; avvisi: string[] } {
+  const codici: string[] = [], avvisi: string[] = [], componenti = s.componenti_economiche || []
+  const positivo = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0
+  const pari = (a: number, b: number) => Math.abs(a - b) < 0.005
+  if (s.metodo_calcolo !== 'analisi_unitaria' || !positivo(s.totale_componenti) || !positivo(s.prezzo_unitario_derivato) || !componenti.length) {
+    return { codici: ['prova_economica_assente'], avvisi }
+  }
+  let somma = 0
+  for (const c of componenti) {
+    if (!positivo(c.quantita_tecnica) || !positivo(c.costo_unitario) || !positivo(c.subtotale) ||
+        !c.unita_tecnica?.trim() || !c.metodo_calcolo || !c.origine_costo?.descrizione?.trim()) {
+      codici.push('base_componente_assente'); continue
+    }
+    somma += c.subtotale
+    if (!pari(c.quantita_tecnica * c.costo_unitario, c.subtotale) || !pari(c.subtotale, c.importo_unitario)) codici.push('calcolo_componente_incoerente')
+    const origine = c.origine_costo, unit = n(c.unita_tecnica)
+    const costo = c.costo_unitario
+    if (c.metodo_calcolo === 'riferimento_locale') {
+      const ref = r.riferimenti.find(ref => ref.id === c.riferimento_id)
+      if (origine.tipo !== 'riferimento_locale' || !ref || !classificaRiferimento({ descrizione: c.descrizione, unita: c.unita_tecnica }, ref).utilizzabile_come_ancoraggio ||
+          !pari(c.costo_unitario, ref.prezzo)) codici.push('origine_costo_non_verificata')
+    } else {
+      if (c.riferimento_id !== null || origine.tipo === 'riferimento_locale') codici.push('origine_costo_non_verificata')
+      if (origine.tipo === 'documento') {
+        const quote = n(origine.base_documentale || '')
+        const numeri = (origine.base_documentale || '').match(/\d+(?:[.,]\d+)?/g) || []
+        if (quote.length < 8 || !/€|euro|eur\b|prezzo|costo|tariffa/i.test(origine.base_documentale || '') || !n(r.contesto_riga).includes(quote) ||
+            !numeri.some(x => pari(Number(x.replace(',', '.')), costo))) codici.push('origine_costo_non_verificata')
+      } else if (origine.tipo === 'ipotesi_tecnica_esplicita' && origine.descrizione.trim().length >= 20) {
+        avvisi.push('Costo autonomo dichiarato come ipotesi tecnica: calcolo verificato, prezzo di mercato non certificato.')
+      } else codici.push('origine_costo_non_verificata')
+      const ore = /^(?:h|ora|ore|ore uomo|ore squadra)$/.test(unit)
+      const durata = ore || /^(?:giorno|giorni|gg|mese|mesi)$/.test(unit)
+      const lavoro = c.metodo_calcolo === 'ore_uomo' || c.metodo_calcolo === 'ore_squadra'
+      if ((lavoro && (!ore || !['posa', 'demolizione_rimozione', 'opere_accessorie'].includes(c.categoria))) ||
+          (c.metodo_calcolo === 'nolo' && (!durata || c.categoria !== 'sicurezza_noli')) ||
+          (c.metodo_calcolo === 'materiale' && (!['materiale', 'smaltimento'].includes(c.categoria) || ore || /euro|eur|€/.test(unit) || /posa|prestazione|pacchetto/.test(n(c.descrizione)))) ||
+          (c.metodo_calcolo === 'altro_documentato' && origine.tipo !== 'documento') ||
+          !['ore_uomo', 'ore_squadra', 'materiale', 'nolo', 'altro_documentato'].includes(c.metodo_calcolo)) codici.push('componente_circolare_o_metodo_incoerente')
+    }
+  }
+  if (!pari(somma, s.totale_componenti) || !pari(s.totale_componenti, s.prezzo_unitario_derivato) ||
+      !pari(s.prezzo_unitario_derivato, Number(s.prezzo_unitario_proposto)) ||
+      !pari(Math.round(s.prezzo_unitario_derivato * r.quantita * 100) / 100, Number(s.totale_riga_proposto)) ||
+      (s.totale_riga_previsto !== undefined && s.totale_riga_previsto !== s.totale_riga_proposto)) codici.push('totale_analisi_incoerente')
+  return { codici: [...new Set(codici)], avvisi: [...new Set(avvisi)] }
+}
+
 export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, tutte: readonly PerimetroLavorazione[]): ValidazioneTecnica {
   const result: ValidazioneTecnica = { stato: 'accettata', codici: [], motivi: [], avvisi: [], riferimenti_ancoraggio: [] }
   const blocca = (stato: Exclude<StatoTecnico, 'accettata'>, codice: string, motivo: string) => {
@@ -193,6 +247,11 @@ export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, 
   if (stima.quantita_coperta_dal_prezzo !== 1) blocca('sospesa_da_verificare', 'base_multipla', 'Prezzo riferito a una quantità diversa da una singola unità originale.')
   const componenti = stima.componenti_economiche || []
   const composita = r.composita || stima.lavorazione_composita || ['facciata', 'apertura_portante', 'tetto', 'imhoff', 'muro_confine', 'impianto_elettrico', 'impianto_idrico', 'condizionamento', 'fotovoltaico', 'assistenza_muraria', 'antifurto', 'videosorveglianza', 'vespaio', 'scala'].includes(famigliaTecnica(r.descrizione))
+  if ((!result.riferimenti_ancoraggio.length && !scorporo) || composita || stima.metodo_calcolo !== undefined) {
+    const prova = verificaProvaEconomica(r, stima)
+    for (const codice of prova.codici) blocca('sospesa_da_verificare', codice, 'Prova economica insufficiente: quantità tecnica × costo, origine del costo e derivazione unitaria devono essere verificabili (' + codice + ').')
+    result.avvisi.push(...prova.avvisi)
+  }
   if (composita) {
     if (componenti.length < 2 || new Set(componenti.map(c => c.categoria)).size < 2) blocca('sospesa_da_verificare', 'scomposizione_assente', 'Lavorazione composita senza scomposizione economica verificabile.')
   }
@@ -214,8 +273,8 @@ export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, 
     }
     for (const c of componenti) {
       const ref = r.riferimenti.find(ref => ref.id === c.riferimento_id)
-      if (c.riferimento_id && (!ref || !classificaRiferimento({ descrizione: c.descrizione, unita: r.unita }, ref).utilizzabile_come_ancoraggio ||
-          Math.abs(c.importo_unitario - ref.prezzo) > 0.005) && !scorporo) blocca('sospesa_da_verificare', 'componente_non_dimostrata', 'Una componente usa un riferimento assente, non equivalente o con importo non giustificato.')
+      if (c.riferimento_id && (!ref || !classificaRiferimento({ descrizione: c.descrizione, unita: c.unita_tecnica || r.unita }, ref).utilizzabile_come_ancoraggio ||
+          Math.abs((c.costo_unitario ?? c.importo_unitario) - ref.prezzo) > 0.005) && !scorporo) blocca('sospesa_da_verificare', 'componente_non_dimostrata', 'Una componente usa un riferimento assente, non equivalente o con importo non giustificato.')
       if (solaPosa(r.descrizione) && c.categoria === 'materiale' && !/collant|stucc|sigillant/.test(n(c.descrizione))) blocca('sospesa_da_verificare', 'materiale_principale_incluso', 'La stima di sola posa include una componente materiale non dimostrata come consumabile.')
     }
   }
