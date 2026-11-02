@@ -42,9 +42,7 @@ const um = (s: string) => normalizeUnitOfMeasure(s)
 const soggetto = (s: string) => n(s).split(/\b(?:compres[oaie]|esclus[oaie]|sono compres[ie]|sono esclus[ie])\b/)[0].slice(0, 450)
 
 // Technical object and scope, never prices/codes/row numbers from a particular bill.
-export function famigliaTecnica(descrizione: string): string {
-  const d = soggetto(descrizione)
-  const regole: [string, RegExp][] = [
+const regoleFamiglia: [string, RegExp][] = [
     ['accessori_porta', /chiudiporta|maggior prezzo alla porta/],
     ['accessori', /^accessori\b|^maggior prezzo\b/],
     ['telaio_scomparsa', /telaio a scomparsa|controtelaio.*scomparsa/],
@@ -67,7 +65,9 @@ export function famigliaTecnica(descrizione: string): string {
     ['sanitari', /sanitari|apparecchi igienico/], ['infissi', /infiss|serrament|porte interne|porta interna/],
     ['muratura', /muratura|tramezz/], ['tubazioni', /tubazion|pluvial|grondaie/],
   ]
-  return regole.find(([, re]) => re.test(d))?.[0] || 'non_identificata'
+export function famigliaTecnica(descrizione: string): string {
+  const d = soggetto(descrizione)
+  return regoleFamiglia.find(([, re]) => re.test(d))?.[0] || 'non_identificata'
 }
 const rimozione = (d: string) => /^(?:demolizion|eliminazion|rimozion|svelliment|dismission)/.test(soggetto(d))
 export const solaPosa = (d: string) => /^posa\b/.test(n(d)) && !/fornitur/.test(soggetto(d))
@@ -81,6 +81,14 @@ const parziali: Record<string, string[]> = {
 }
 function oggettiCompatibili(q: string, r: string) {
   return q === r || (q === 'rivestimento' && r === 'pavimento')
+}
+
+// Per un riferimento sono ammessi confronti parziali. Per l'unità economica
+// quotata confrontiamo invece il bene principale, senza materiali accessori.
+function famiglieOggettoPrezzato(descrizione: string) {
+  const nucleo = descrizione.split(/[,;:(\n]|\bin (?!opera\b)|\b(?:con|su|sul|sulla|mediante|per (?:il|la|i|le)|compres[oaie]|inclus[oaie]|esclus[oaie]|comprendente|escludendo|senza|come da|come descritt[oaie])\b/i)[0]
+  const testo = ' ' + soggetto(nucleo) + ' '
+  return regoleFamiglia.filter(([nome, re]) => re.test(testo.trim()) || testo.includes(' ' + nome.replaceAll('_', ' ') + ' ')).map(([nome]) => nome)
 }
 const materialiEspliciti = (d: string) => ['ceramic', 'cotto', 'legno', 'pvc', 'alluminio', 'acciaio', 'pietra lavica', 'laminato']
   .filter(m => soggetto(d).includes(m))
@@ -273,6 +281,22 @@ export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, 
   if (stima.quantita_strutturata !== undefined && stima.quantita_strutturata !== r.quantita) blocca('scartata', 'quantita_modificata', 'La risposta non conserva la quantità strutturata.')
   if (stima.quantita_coperta_dal_prezzo !== 1) blocca('sospesa_da_verificare', 'base_multipla', 'Prezzo riferito a una quantità diversa da una singola unità originale.')
   const componenti = stima.componenti_economiche || []
+  const target = famiglieOggettoPrezzato(r.descrizione)
+  const confrontaOggetto = (famiglie: string[], campo: string) => {
+    if (target.length && famiglie.length === 1 && !target.includes(famiglie[0])) {
+      const motivo = 'Il documento richiede «' + target.join(', ') + '». ' + campo + ': «' + famiglie[0] + '».'
+      result.coerenza_perimetro = 'incompatibile'
+      result.differenze_perimetro.push(motivo)
+      blocca('sospesa_da_verificare', 'oggetto_economico_non_coerente', motivo)
+    }
+  }
+  if (stima.unita_economica) confrontaOggetto(famiglieOggettoPrezzato(stima.unita_economica.descrizione), 'Oggetto dell’unità economica')
+  // Una singola parte di un pacchetto può avere una famiglia diversa. Solo se
+  // tutta la scomposizione identifica lo stesso bene costituisce una seconda
+  // dichiarazione dell'oggetto prezzato. La somma è verificata più sotto.
+  const oggetti = componenti.filter(c => c.importo_unitario > 0).map(c => famiglieOggettoPrezzato(c.descrizione))
+  if (oggetti.length && oggetti.every(f => f.length === 1 && f[0] === oggetti[0][0]) &&
+      !target.some(t => parziali[t]?.includes(oggetti[0][0]))) confrontaOggetto(oggetti[0], 'Oggetto dell’intera scomposizione')
   const composita = r.composita || stima.lavorazione_composita || ['facciata', 'apertura_portante', 'tetto', 'imhoff', 'muro_confine', 'impianto_elettrico', 'impianto_idrico', 'condizionamento', 'fotovoltaico', 'assistenza_muraria', 'antifurto', 'videosorveglianza', 'vespaio', 'scala'].includes(famigliaTecnica(r.descrizione))
   if ((!result.riferimenti_ancoraggio.length && !scorporo) || composita || stima.metodo_calcolo !== undefined) {
     const prova = verificaProvaEconomica(r, stima)

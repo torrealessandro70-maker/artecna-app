@@ -1,4 +1,5 @@
-import type { PerimetroLavorazione, RigaTecnica, StimaTecnica } from './validazione-tecnica-stime'
+import type { ComponenteEconomica, PerimetroLavorazione, RigaTecnica, StimaTecnica } from './validazione-tecnica-stime'
+import { clausoleAffermative } from './perimetro-prestazione'
 
 export type RilievoSemantico = { codice: string; motivo: string; soloAvviso?: true }
 
@@ -12,6 +13,89 @@ function etichetta(testo: string) {
 function nomeComponente(testo: string) {
   return etichetta(testo)
     .replace(/[:_]/g, ' ').replace(/([cg])io\b/g, '$1i').replace(/([a-z]{2})[aeio]\b/g, '$1').trim()
+}
+
+// Confronta oggetti addebitati, non parole in comune. In "posa di X" il
+// materiale X è l'oggetto della posa; "il prezzo include X" lo addebita.
+type NaturaQuota = 'materiale' | 'lavoro' | undefined
+type Quota = { chiave: string; nome: string; destinazione: string; soloBase: boolean; natura: NaturaQuota }
+
+function quoteAddebitate(c: ComponenteEconomica) {
+  const quote: Quota[] = []
+  function elenco(testo: string, soloBase = false, naturaTitolo?: NaturaQuota) {
+    if (/\b(?:esclus[oaie]|non (?:inclus[oaie]|compres[oaie])|a carico (?:del cliente|della committenza))\b/i.test(testo)) return
+    const termini = piano(testo).replace(/mano\s+d['’ ]opera/g, 'manodopera').replace(/\bnoleggio\b/g, 'nolo')
+      .replace(/\s+(?:sono\s+)?(?:inclus[oaie]|compres[oaie])(?: nel prezzo)?\s*$/, '')
+    // Il ruolo regge l'intera enumerazione: materiali per A e B sono
+    // distinti dalla manodopera per A e B, anche sul medesimo manufatto.
+    const ruolo = /^(manodopera|material[ei])\s+(?:(?:per|di)\s+)?/.exec(termini.trim())
+    const oggetti = ruolo ? termini.trim().slice(ruolo[0].length) : termini
+    const parti = oggetti.split(/[,;+]|(?<!\bfornitura )\bed?\b/)
+    const contestoFinale = /\s+per (.+)$/.exec(parti[parti.length - 1])?.[1] || ''
+    for (const parte of parti) {
+      const [bene, destinazione = contestoFinale] = parte.trim().split(/\s+per (.+)/)
+      const combinata = /^fornitura (?:e|con) (posa(?: in opera)?|montaggio|installazione) (.+)$/.exec(bene)
+      const addebiti = combinata ? ['fornitura ' + combinata[2], combinata[1] + ' ' + combinata[2]] : [bene]
+      for (const addebito of addebiti) {
+        const nome = etichetta(addebito.replace(/^(?:la )?fornitura\s+(?:(?:di|dei|del|delle|della|degli)\s+)?/, ''))
+        if (nome.length < 3 || /^(?:per|con|da|su|nel|al)\b|^(?:prezzo|importo|pacchetto|stima|forfait)(?: unitari[oa])?$/.test(nome)) continue
+        const voce = ruolo?.[1] === 'manodopera' ? 'manodopera ' + nome : nome
+        const natura = /^fornitura\b/.test(addebito) || ruolo?.[1].startsWith('material') ? 'materiale'
+          : ruolo?.[1] === 'manodopera' || /^posa\b/.test(addebito) ? 'lavoro' : naturaTitolo
+        quote.push({ chiave: nomeComponente(voce), nome: voce, destinazione, soloBase, natura })
+      }
+    }
+  }
+  function leggi(testo: string, baseCosto: boolean) {
+    for (const frase of clausoleAffermative(testo.replace(/\bcome da (?:listino|riferimento)\b[^.;]*/gi, ''))) {
+      if (/\bnon (?:(?:sono|[èe]) )?(?:compres[oaie]|inclus[oaie])\b/i.test(frase)) continue
+      const [principale, ...incluse] = frase.split(/\b(?:include|comprende|copre|comprensiv[oaie] (?:di|del|della|dei|degli|delle)|(?:inclus[oaie]|compres[oaie])(?! nel prezzo))\b\s+/i)
+      if (!baseCosto) elenco(principale, false, /^\s*(?:posa|montaggio|installazione|manodopera)\b/i.test(principale) ? 'lavoro' : undefined)
+      else {
+        // Una citazione o una tariffa oraria comune non è una seconda quota.
+        const costo = /\bcost[oi]\s+(?!(?:orar[io]+|unitari[oi]|medi[oi]|di mercato|per ora)\b)(?:(?:per|di|del|della|dei|delle|degli)\s+)?(.+)/i.exec(principale)
+        if (costo && !/\b(?:per|a|all['’])\s*(?:ogni |singola )?ora\b|\b(?:tariffa|costo) orari[oa]\b/i.test(principale)) {
+          // Una motivazione di costo generica uguale per due lavorazioni non
+          // identifica una spesa. Deve riscontrarsi in una copertura addebitata.
+          elenco(costo[1], !/\bcost[oi] (?:del(?:la|lo|le)?|dei|degli|di)\b/i.test(principale))
+        }
+      }
+      for (const inclusa of incluse) elenco(inclusa)
+    }
+  }
+  leggi(c.descrizione, false)
+  if (c.origine_costo) leggi(c.origine_costo.descrizione, true)
+  return quote
+}
+
+function verificaQuoteEconomiche(r: RigaTecnica, componenti: ComponenteEconomica[]): RilievoSemantico[] {
+  const documento = ' ' + piano([r.descrizione, r.contesto_riga, r.contesto_tecnico?.ubicazioneDimensioni, r.contesto_tecnico?.annotazioni].join(' ')).replace(/\W+/g, ' ') + ' '
+  // Solo destinazioni distinte dello stesso tipo e identificate nel documento
+  // dimostrano una ripartizione. Due importi o due riferimenti diversi non bastano.
+  function partizione(destinazione: string) {
+    const id = /^(?:(?:la|il|lo|l['’])\s*)?(zona|fase|strato|lotto|piano|settore|ambiente|unita)\s+([a-z]|\d+)$/.exec(destinazione)
+    return id && documento.includes(' ' + id[1] + ' ' + id[2] + ' ') ? id : null
+  }
+  const precedenti = new Map<string, (Quota & { indice: number })[]>()
+  const rilievi: RilievoSemantico[] = []
+  for (const [indice, c] of componenti.entries()) {
+    if (c.importo_unitario <= 0) continue
+    for (const addebito of quoteAddebitate(c)) {
+      const { chiave, nome, destinazione, soloBase, natura } = addebito
+      const voci = precedenti.get(chiave) || []
+      const quota = partizione(destinazione)
+      const duplicata = voci.find(v => {
+        if (v.indice === indice || (soloBase && v.soloBase) || (natura && v.natura && natura !== v.natura)) return false
+        const altra = partizione(v.destinazione)
+        return !quota || !altra || altra[1] !== quota[1] || altra[2] === quota[2]
+      })
+      if (duplicata) rilievi.push({ codice: 'sovrapposizione_componenti_economiche',
+        motivo: 'Le componenti ' + (duplicata.indice + 1) + ' e ' + (indice + 1) + ' addebitano entrambe «' + nome + '» senza distinguere le rispettive quote.' })
+      voci.push({ ...addebito, indice })
+      precedenti.set(chiave, voci)
+    }
+  }
+  return rilievi
 }
 
 function perimetroDichiarato(stima: StimaTecnica) {
@@ -111,7 +195,7 @@ export function verificaSemanticaProposta(r: RigaTecnica, s: StimaTecnica, catal
   // Exact component name only; general mentions elsewhere in the catalogue are insufficient.
   const doppie = catalogo.filter(altra => altra.id !== r.id && altra.quantita > 0 && incluse.has(nomeComponente(altra.descrizione)))
     .map(altra => ({ codice: 'sovrapposizione_componente', soloAvviso: true as const, motivo: 'Verificare possibile doppio conteggio con la voce autonoma ' + altra.id + ': ' + altra.descrizione }))
-  return [...contraddizioniDocumento(r, s), ...doppie, ...conflitti.map(([, componente]) => ({
+  return [...contraddizioniDocumento(r, s), ...verificaQuoteEconomiche(r, s.componenti_economiche || []), ...doppie, ...conflitti.map(([, componente]) => ({
     codice: 'contraddizione_inclusione_esclusione', motivo: 'La risposta include ed esclude la stessa componente (' + componente + ').',
   }))]
 }

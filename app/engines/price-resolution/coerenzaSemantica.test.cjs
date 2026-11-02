@@ -59,6 +59,100 @@ function astensione(s, motivo) {
     totale_riga_previsto: null, componenti_economiche: [], motivazione: motivo })
 }
 
+test('due componenti positive con la stessa base di costo sospendono l’intera proposta', async () => {
+  const v = await applica(voce, s => {
+    const [opera, fornitura] = s.componenti_economiche
+    opera.descrizione = 'Installazione dei supporti'
+    opera.origine_costo.descrizione = 'Stima costo ancoraggi metallici, minuteria e manodopera per installazione'
+    fornitura.descrizione = 'Fornitura di ancoraggio metallico'
+  })
+  assert.equal(v.prezzo_unitario, 0)
+  assert.equal(v.stimaPrezzoArtecna.prezzo_unitario_proposto, 30)
+  const val = v.stimaPrezzoArtecna.validazione_tecnica
+  assert.equal(val.stato, 'sospesa_da_verificare')
+  assert(val.codici.includes('sovrapposizione_componenti_economiche'))
+  assert(val.motivi.some(m => m.includes('componenti 1 e 2') && m.includes('ancoraggio metallico')))
+})
+
+function sovrappone(titoli, testo = '', basi = []) {
+  const r = api.preparaInputStimeDocumento([voce], []).righe[0]
+  const s = risposta(r)
+  s.componenti_economiche = titoli.map((descrizione, i) => ({
+    ...s.componenti_economiche[i % 2], descrizione,
+    origine_costo: { tipo: 'ipotesi_tecnica_esplicita', descrizione: basi[i] || 'Tariffa di prova', base_documentale: null },
+  }))
+  return sem.verificaSemanticaProposta({ ...r, contesto_riga: testo }, s, [])
+    .some(x => x.codice === 'sovrapposizione_componenti_economiche')
+}
+test('inclusioni trasversali tra categorie, anche per noli, servizi e manodopera', () => {
+  for (const [a, b] of [
+    ['Pacchetto comprensivo di allestimento e noleggio gru', 'Nolo gru'],
+    ['Smontaggio, incluso il trasporto alla discarica', 'Trasporto alla discarica'],
+    ["Il prezzo include mano d'opera per collaudo", 'Manodopera per collaudo'],
+    ['Riparazione', 'Collaudo e riparazioni'],
+    ['Fornitura e posa di mensole', 'Fornitura delle mensole'],
+  ]) assert(sovrappone([a, b]), a)
+  assert(sovrappone(['Montaggio del pannello','Verifica impianto','Tasselli inox'], '', ['Il costo include i tasselli inox']))
+})
+test('ruoli distinti, esclusioni e unità di tariffa condivisa non sono duplicati', () => {
+  for (const [a, b] of [
+    ['Fornitura di membrane', 'Posa delle membrane'],
+    ['Fornitura e posa delle finestre', 'Fornitura e posa delle porte'],
+    ['Il prezzo include tasselli inox', 'Il prezzo include la verniciatura'],
+    ['Manodopera per intonaco e stuccatura', 'Materiali per intonaco e stuccatura'],
+    ['Materiali per intonaco e finiture', 'Posa intonaco e finitura'],
+    ['Preparazione senza trasporto', 'Trasporto'],
+    ['Montaggio, fissaggi non compresi', 'Fissaggi'],
+    ['Montaggio, non includendo la fornitura dei fissaggi', 'Fissaggi'],
+  ]) assert.equal(sovrappone([a,b], '', ['Costo orario della squadra', 'Costo orario della squadra']), false, a)
+})
+test('stesso materiale per due destinazioni richiede una separazione documentata', () => {
+  const parti = ['Primer e tasselli per zona A', 'Fornitura di primer per zona B']
+  assert.equal(sovrappone(parti, 'Zone separate: zona A, zona B.'), false)
+  assert.equal(sovrappone(parti, 'Trattamento della zona A.'), true)
+  assert.equal(sovrappone(['Primer', parti[1]], 'Zona A, zona B.'), true)
+})
+test('l’oggetto che rappresenta una unità economica deve coincidere con quello da prezzare', async () => {
+  const opera = { ...voce, descrizione: 'Posa in opera di maiolica rivestimento' }
+  const esito = unita => applica(opera, s => { s.unita_economica.descrizione = unita })
+  const errata = await esito('1 metro quadrato di pavimentazione con posa completa, esclusa la maiolica')
+  assert.equal(errata.prezzo_unitario, 0)
+  const val = errata.stimaPrezzoArtecna.validazione_tecnica
+  assert(val.codici.includes('oggetto_economico_non_coerente'))
+  assert.equal(val.coerenza_perimetro, 'incompatibile')
+  assert(val.differenze_perimetro.some(m => m.includes('rivestimento') && m.includes('pavimento')))
+  assert.equal((await esito('1 metro quadrato di maiolica su intonaco esistente')).prezzo_unitario, 30)
+  const altra = await applica({ ...voce, descrizione: 'Rimozione di tubazioni' }, s => {
+    s.unita_economica.descrizione = 'Rimozione di un infisso'
+  })
+  assert(altra.stimaPrezzoArtecna.validazione_tecnica.codici.includes('oggetto_economico_non_coerente'))
+})
+test('componente che valorizza l’intero prezzo per un altro bene è bloccata anche con unità nominalmente corretta', async () => {
+  const v = await applica({ ...voce, descrizione: 'Posa di zoccoletto' }, s => {
+    s.unita_economica.descrizione = 'Un metro di battiscopa'
+    s.componenti_economiche = [{ ...s.componenti_economiche[0], descrizione: 'Posa di serramenti',
+      importo_unitario: 30, quantita_tecnica: 1, costo_unitario: 30, subtotale: 30 }]
+  })
+  assert.equal(v.prezzo_unitario, 0)
+  assert(v.stimaPrezzoArtecna.validazione_tecnica.codici.includes('oggetto_economico_non_coerente'))
+  const altroBene = await applica({ ...voce, descrizione: 'Posa di rivestimento' }, s => {
+    s.unita_economica.descrizione = 'Un metro quadrato di rivestimento'
+    s.componenti_economiche[0].descrizione = 'Installazione dei serramenti'
+    s.componenti_economiche[1].descrizione = 'Collaudo dei serramenti'
+  })
+  assert.equal(altroBene.prezzo_unitario, 0)
+  assert(altroBene.stimaPrezzoArtecna.validazione_tecnica.codici.includes('oggetto_economico_non_coerente'))
+})
+test('escludendo, includendo e doppia negazione rispettano la polarità della singola clausola', () => {
+  const doc = 'Sola posa di pavimento'
+  for (const testo of ['Posa escludendo la fornitura del materiale principale', 'Posa non includendo la fornitura']) {
+    assert.equal(giudizio(doc, doc, testo).coerenza_perimetro, 'compatibile', testo)
+  }
+  for (const testo of ['Posa escludendo il trasporto e includendo la fornitura del pavimento', 'Posa non escludendo la fornitura del pavimento']) {
+    assert.equal(giudizio(doc, doc, testo).coerenza_perimetro, 'incompatibile', testo)
+  }
+})
+
 for (const nome of ['smaltimento','nolo','verniciatura','ringhiera','trasporto','gru mobile']) {
   test('inclusione ed esclusione della componente ' + nome, async () => {
     const v = await applica(voce, s => { s.motivazione = 'Il prezzo comprende ' + nome; s.avvisi = [nome + ' escluso'] })
@@ -220,6 +314,43 @@ test('un rifacimento locale ammesso come componente non autorizza il rifacimento
 })
 
 const archivioPerimetro = process.env.ARTECNA_REPLAY_PERIMETRO
+const archivioComponenti = process.env.ARTECNA_REPLAY_COMPONENTI
+test('replay scomposizione: 39 righe, restano fuori i costi sovrapposti e il bene diverso', { skip: !archivioComponenti }, async () => {
+  const leggi = nome => JSON.parse(fs.readFileSync(path.join(archivioComponenti, nome), 'utf8'))
+  const prima = leggi('report-after-validator.json')
+  assert.equal(prima.candidate, '12b0fb0c7212dcfb6c3619e138b5b3d0ebe25a37')
+  assert.equal(prima.subtotale, 28094.74)
+  let chunk = 0
+  const finale = await api.orchestraChunkStimeDocumento(leggi('baseline.json'), leggi('input.json'), target => {
+    const id = 'chunk-' + (++chunk)
+    assert.deepEqual(JSON.parse(JSON.stringify(target)), leggi(id + '-input.json'))
+    return api.eseguiStimeDocumento(target, async () => leggi(id + '-response-original.json').output_text)
+  })
+  const bozza = load(path.join(__dirname, 'proposte-documento.ts'))
+  assert.equal(chunk, 6)
+  assert.equal(finale.length, 39)
+  const nuoviBlocchi = new Map([[20, 'sovrapposizione_componenti_economiche'], [22, 'oggetto_economico_non_coerente']])
+  for (const [i, v] of finale.entries()) {
+    const vecchia = prima.voci[i]
+    assert.equal(v.quantita, vecchia.quantita)
+    assert.equal(v.unita_misura, vecchia.unita_misura)
+    const nuovo = nuoviBlocchi.get(i + 1)
+    if (nuovo) {
+      assert.equal(bozza.statoPrezzoDocumento(v), 'stima_ai_sospesa')
+      assert.equal(v.prezzo_unitario, 0)
+      assert(v.stimaPrezzoArtecna.validazione_tecnica.codici.includes(nuovo))
+    } else {
+      assert.equal(bozza.statoPrezzoDocumento(v), vecchia.stato)
+      assert.equal(v.prezzo_unitario, vecchia.prezzo_unitario)
+    }
+  }
+  for (const n of [12, 27]) assert(finale[n-1].stimaPrezzoArtecna.validazione_tecnica.codici.includes('perimetro_prestazione_non_coerente'))
+  const lavica = finale[35].stimaPrezzoArtecna.validazione_tecnica
+  assert.deepEqual(Array.from(lavica.codici), ['conteggio_unita_non_documentato'])
+  assert.equal(finale.filter(v => v.prezzo_unitario > 0).length, 11)
+  assert.equal(Number(finale.reduce((somma, v) => somma + v.quantita * v.prezzo_unitario, 0).toFixed(2)), 23115.74)
+})
+
 test('sei risposte reali: la sola videosorveglianza perde 8.000 euro, le altre 38 righe sono conservate', { skip: !archivioPerimetro }, async () => {
   const leggi = nome => JSON.parse(fs.readFileSync(path.join(archivioPerimetro, nome), 'utf8'))
   const prima = leggi('report-after-validator.json')

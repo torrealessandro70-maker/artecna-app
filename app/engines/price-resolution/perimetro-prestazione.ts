@@ -83,11 +83,17 @@ const contrasti: [Tipo[], Tipo[]][] = [
 
 // Solo affermazioni sulla stima. Esclusioni, ipotesi condizionali e tariffe
 // citate a confronto non costituiscono lavorazioni incluse nel prezzo.
-function affermazioni(testo: string): string[] {
+export function clausoleAffermative(testo: string): string[] {
   return testo.split(/[.;!?\n]|(?=\b(?:il prezzo|(?:la|questa) stima) (?:comprende|include|copre|riguarda)|\bqui si (?:stima|quota))/i)
     .filter(frase => !/\b(?:riferiment[oi]|listin[oi]|tariffari[oi]|qualora|ipotetic[oa]|se|sarebbe|potrebbe)\b/i.test(frase))
     .flatMap(frase => frase.split(/\b(?:mentre|invece|tuttavia|ma)\b/i))
+    .flatMap(frase => frase.replace(/\b(non\s+)?(escludendo|includendo|comprendendo)\b/gi,
+      (_, negato, verbo: string) => (verbo.toLowerCase() === 'escludendo') !== Boolean(negato) ? ' senza ' : ';include ').split(';'))
     .map(frase => frase.split(/\b(?:senza|non (?:si )?(?:include|comprende|copre|prevede|stima|quota|tratta di)|esclus[oaie] (?:(?:la|il|lo|le|gli|i) |l['’]|fornitura\b|posa\b))\b/i)[0])
+}
+
+function affermazioni(testo: string): string[] {
+  return clausoleAffermative(testo)
     .flatMap(frase => frase.split(/,|\b(?:include|comprende|copre) (?:anche )?/i))
     .filter(frase => !/\b(?:esclus[oaie]|non (?:[èe] |sono )?(?:un|una|inclus[oaie]|compres[oaie]|previst[oaie]|present[ei])|manca(?:no)?|insufficient[ei])\b/i.test(frase))
     .map(frase => frase.trim()).filter(Boolean)
