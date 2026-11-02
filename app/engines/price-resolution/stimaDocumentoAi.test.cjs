@@ -38,16 +38,16 @@ const output = (input, price = 25) => ({ stime: input.righe.map(r => ({ id: r.id
   scorporo_fornitura: null, esclusioni_componenti: [],
 })).map(s=>({...s,componenti_economiche:s.componenti_economiche.map(c=>({...c,quantita_tecnica:0.5,unita_tecnica:'h',costo_unitario:c.importo_unitario/0.5,subtotale:c.importo_unitario,metodo_calcolo:'ore_uomo',origine_costo:{tipo:'ipotesi_tecnica_esplicita',descrizione:'Fixture: costo orario tecnico ipotizzato, non prezzo certificato',base_documentale:null}}))})) })
 
-test('batch unico per residui: conserva tre affidabili e due proposte locali, nessuna scrittura', async () => {
+test('chunk automatici per residui: conserva tre affidabili e due proposte locali, nessuna scrittura', async () => {
   const affidabili = [30.3, 21.71, 8.18].map(p => ({ ...voce(), prezzo_unitario: p, priceResolution: { matched: true, confidence: 1, strategy: 'description_unit', prezzoUnitarioRisolto: p } }))
   const proposte = [22.2, 31.5].map(p => ({ ...voce(), prezzo_unitario: p, propostaPrezzoDocumento: { prezzo_proposto: p, descrizione: voce().descrizione, unita_misura: 'mq' } }))
   const voci = [...affidabili, ...proposte, ...Array.from({ length: 34 }, () => voce())], snapshot = JSON.stringify(voci)
   let calls = 0
   const result = await api.completaBozzaConStime(voci, [], async input => {
-    calls++; assert.equal(input.righe.length, 34)
+    calls++; assert.equal(input.righe.length, calls === 6 ? 4 : 6)
     return api.eseguiStimeDocumento(input, async () => JSON.stringify(output(input)))
   })
-  assert.equal(calls, 1); assert.equal(JSON.stringify(voci), snapshot)
+  assert.equal(calls, 6); assert.equal(JSON.stringify(voci), snapshot)
   assert.equal(JSON.stringify(result.slice(0, 5)), JSON.stringify(voci.slice(0, 5)))
   const counts = riepilogoPrezziDocumento(result)
   assert.deepEqual({ ...counts }, { prezzo_affidabile: 3, prezzo_proposto: 2, stima_artecna_ai: 34, stima_ai_sospesa: 0, stima_ai_scartata: 0, prezzo_non_determinabile: 0, modificato_utente: 0 })

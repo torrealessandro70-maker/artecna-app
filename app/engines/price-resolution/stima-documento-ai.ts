@@ -1,5 +1,5 @@
 import { normalizeUnitOfMeasure } from './normalizer'
-import { prestazioneComposita } from './proposte-documento'
+import { prestazioneComposita, statoPrezzoDocumento } from './proposte-documento'
 import { creaIndiceRiferimentiLocali, riferimentiLocaliDaVerificare } from './riferimenti-locali'
 import type { PriceKnowledgeItem } from './types'
 import { classificaRiferimento, validaTecnicamenteStima } from './validazione-tecnica-stime'
@@ -10,6 +10,7 @@ export type VoceStimabile = {
   bozzaDocumento?: boolean; propostaPrezzoDocumento?: unknown; stimaPrezzoArtecna?: StimaApplicata
   testoOrigine?: string
   priceResolutionInvalidated?: boolean; erroreStimaDocumento?: string
+  diagnosticaStimaDocumento?: DiagnosticaStimaDocumento
   priceResolution?: { strategy?: string; matched?: boolean }
 }
 type Riferimento = RiferimentoTecnico
@@ -28,8 +29,11 @@ export type StimaDocumento = BaseEconomicaStima & {
 export type StimaApplicata = StimaDocumento & { descrizione: string; quantita: number; unita_originale: string; riferimenti_locali: Riferimento[];
   affidabilita_ai: StimaDocumento['affidabilita']; validazione_tecnica: ValidazioneTecnica }
 export type DiagnosticaIdentitaBatch = { duplicate_ids: string[]; missing_ids: string[]; unexpected_ids: string[]; expected_count: number; received_count: number; invalid_positions: number[] }
-export type EsitoStimeDocumento = { stime: StimaDocumento[]; errore?: string; diagnostica_identita?: DiagnosticaIdentitaBatch }
-type VoceConStima<T> = T & Pick<VoceStimabile, 'stimaPrezzoArtecna' | 'erroreStimaDocumento'>
+export type DiagnosticaStimaDocumento = { motivo: 'stima_ai_accettata' | 'stima_ai_sospesa' | 'stima_ai_scartata' | 'astensione_ai' | 'batch_identity_invalid' | 'prezzo_non_determinabile'
+  messaggio: string; chunk_id?: string; identita?: DiagnosticaIdentitaBatch }
+export type EsitoStimeDocumento = { stime: StimaDocumento[]; errore?: string; diagnostica_identita?: DiagnosticaIdentitaBatch
+  righe_invalide?: { id: string; motivo: string }[] }
+type VoceConStima<T> = T & Pick<VoceStimabile, 'stimaPrezzoArtecna' | 'erroreStimaDocumento' | 'diagnosticaStimaDocumento'>
 
 // One request, no tools, same model as the existing single-row analysis.
 export const modelloStimeDocumento = 'gpt-4.1-mini'
@@ -42,6 +46,7 @@ const istruzioniBaseStimeDocumento = `Prepara una bozza tecnica di prezzi unitar
 const istruzioniContrattoBatch = ` IDENTITÀ OBBLIGATORIA: voce_id è il campo JSON id già ricevuto. Copia esattamente ogni id: restituisci esattamente N oggetti per N input, ciascun id UNA SOLA VOLTA, nessun duplicato, omissione o id estraneo. Non inventare un campo voce_id alternativo. Prima di rispondere controlla l'insieme completo degli id. Anche se non stimabile restituisci l'oggetto con lo stesso id, stato_stima=astensione, prezzo_unitario_proposto=null, motivazione, quantità originale, totali/prezzo derivato null e componenti vuote. Mai omettere una voce o sostituirla con un'altra. Per proposta usa stato_stima=proposta. PROVA ECONOMICA: metodo_calcolo=analisi_unitaria; tutte le componenti sono riferite a UNA unità originale. Per ogni componente dichiara quantita_tecnica, unita_tecnica, costo_unitario, subtotale=quantita_tecnica*costo_unitario=importo_unitario, metodo_calcolo e origine_costo. La somma è totale_componenti=prezzo_unitario_derivato=prezzo_unitario_proposto; totale_riga_previsto=totale_riga_proposto=prezzo_unitario_derivato*quantità strutturata, anche zero. Non dividere/moltiplicare nuovamente i totali. Una componente posa pavimento=80 che ripete il prezzo finale NON è prova: usa ore uomo/squadra per unità originale e costo orario esplicito, materiali per quantità e prezzo o nolo per durata. origine_costo distingue riferimento_locale realmente ricevuto, documento con citazione esatta del dato economico, oppure ipotesi_tecnica_esplicita motivata, mai presentata come listino verificato. metodo altro_documentato richiede un dato economico realmente presente nel documento. Un riferimento locale deve avere costo unitario e U.M. identici al riferimento, pertinente alla componente. Non dichiarare riferimenti non utilizzati negli array mentre li usi narrativamente come base economica. Per sola posa nessun costo del materiale principale: ricostruisci quantitativamente il costo del lavoro senza usare implicitamente fornitura+posa. Una scomposizione autonoma deve spiegare quantità tecniche e origine dei costi, non soltanto dividere arbitrariamente il prezzo. Affidabilità AI alta non sostituisce questi controlli.`
 
 export const istruzioniStimeDocumento = istruzioniBaseStimeDocumento + istruzioniContrattoBatch
+  + ` La richiesta è un singolo chunk: stima ESCLUSIVAMENTE gli id presenti in righe. perimetro_lavorazioni è un catalogo globale compatto per verificare sovrapposizioni: NON generare risposte o prezzi per i suoi id se non sono anche target in righe. Stato/prezzo indicano soltanto quanto già definito; richiami_componenti segnala menzioni nel testo, non prova inclusioni economiche. Il contesto dettagliato e i riferimenti appartengono solo alle voci target. Conserva gli id globali originali, senza rinumerarli da uno per ogni chunk.`
 
 export const schemaStimeDocumento = {
   type: 'object', additionalProperties: false, required: ['stime'], properties: {
@@ -98,7 +103,8 @@ const residua = (v: VoceStimabile) => v.bozzaDocumento === true && !v.priceResol
 export function preparaInputStimeDocumento(voci: readonly VoceStimabile[], prezzi: readonly PriceKnowledgeItem[], contestoDocumento = ''): InputStimeDocumento {
   const indice = creaIndiceRiferimentiLocali(prezzi)
   return { tipo: 'stima_documento_batch', contesto_documento: contestoDocumento.slice(0, 80000),
-    perimetro_lavorazioni: voci.map((v, i) => ({ id: `riga-${i + 1}`, descrizione: v.descrizione || '', unita: v.unita_misura || '', quantita: Number(v.quantita || 0) })), righe: voci.flatMap((v, i) => {
+    perimetro_lavorazioni: voci.map((v, i) => ({ id: `riga-${i + 1}`, descrizione: v.descrizione || '', unita: v.unita_misura || '', quantita: Number(v.quantita || 0),
+      stato_prezzo: statoPrezzoDocumento({ ...v, propostaPrezzoDocumento: undefined }), prezzo_unitario: Number(v.prezzo_unitario || 0) })), righe: voci.flatMap((v, i) => {
     if (!residua(v)) return []
     const riferimenti = riferimentiLocaliDaVerificare(v, indice)
       // A different plant technology is not evidence for a photovoltaic package.
@@ -125,9 +131,14 @@ export function validaInputStimeDocumento(raw: unknown): InputStimeDocumento {
     if (!Array.isArray(raw.perimetro_lavorazioni) || raw.perimetro_lavorazioni.length > 500) return erroreInput()
     const ids = new Set<string>()
     for (const v of raw.perimetro_lavorazioni) {
-      if (!oggetto(v) || !chiavi(v, ['id', 'descrizione', 'unita', 'quantita']) || !testo(v.id, 80) || ids.has(v.id) ||
+      if (!oggetto(v) || !['id', 'descrizione', 'unita', 'quantita'].every(k => k in v) ||
+          Object.keys(v).some(k => !['id', 'descrizione', 'unita', 'quantita', 'stato_prezzo', 'prezzo_unitario', 'richiami_componenti'].includes(k)) || !testo(v.id, 80) || ids.has(v.id) ||
           typeof v.descrizione !== 'string' || v.descrizione.length > 10000 || typeof v.unita !== 'string' || v.unita.length > 60 ||
-          typeof v.quantita !== 'number' || !Number.isFinite(v.quantita) || v.quantita < 0) return erroreInput()
+          typeof v.quantita !== 'number' || !Number.isFinite(v.quantita) || v.quantita < 0 ||
+          (v.stato_prezzo !== undefined && !testo(v.stato_prezzo, 60)) ||
+          (v.prezzo_unitario !== undefined && (typeof v.prezzo_unitario !== 'number' || !Number.isFinite(v.prezzo_unitario) || v.prezzo_unitario < 0)) ||
+          (v.richiami_componenti !== undefined && (!Array.isArray(v.richiami_componenti) || v.richiami_componenti.length > 3 ||
+            v.richiami_componenti.some(x => !['ponteggio', 'ringhiera', 'verniciatura'].includes(String(x)))))) return erroreInput()
       ids.add(v.id)
     }
   }
@@ -239,6 +250,7 @@ export function validaOutputStimeDocumento(raw: unknown, input: InputStimeDocume
         !Array.isArray(s.avvisi) || s.avvisi.length > 10 || s.avvisi.some(a => !testo(a, 1000)) ||
         (s.prezzo_unitario_proposto !== null && (typeof s.prezzo_unitario_proposto !== 'number' || !Number.isFinite(s.prezzo_unitario_proposto) || Math.round(s.prezzo_unitario_proposto * 100) <= 0 || s.prezzo_unitario_proposto > 10000000))) throw Error('Stima non coerente con la voce originale')
     ids.add(r.id)
+    if (entry.stato_stima === 'astensione' && entry.prezzo_unitario_proposto !== null) throw Error('Astensione con prezzo: proposta invalida, nessuna correzione implicita')
     if (s.stato_stima !== undefined && s.stato_stima !== (s.prezzo_unitario_proposto === null ? 'astensione' : 'proposta')) throw Error('Stato di astensione non coerente con il prezzo')
     if (normalizeUnitOfMeasure(r.unita) === 'a_corpo' && !Number.isInteger(r.quantita) &&
         s.riferimenti_utilizzati.some(id => r.riferimenti.some(ref => ref.id === id && normalizeUnitOfMeasure(ref.unita) !== 'a_corpo'))) {
@@ -262,40 +274,54 @@ export async function eseguiStimeDocumento(input: InputStimeDocumento, genera: (
     // invalidates only that identified row; no retry, conversion or price repair.
     verificaIdentitaBatch(output, input)
     if (!oggetto(output) || !Array.isArray(output.stime)) throw Error('Risposta batch non valida')
+    const righe_invalide: NonNullable<EsitoStimeDocumento['righe_invalide']> = []
     const stime = output.stime.map(s => {
       const r = input.righe.find(r => r.id === s.id)!
       try { return validaOutputStimeDocumento({ stime: [s] }, { ...input, righe: [r] })[0] }
-      catch (error) { return {
+      catch (error) {
+        righe_invalide.push({ id: r.id, motivo: error instanceof Error ? error.message : 'Dati non coerenti con la registrazione originale' })
+        return {
         id: r.id, prezzo_unitario_proposto: null, unita_interpretata: r.unita, tipo: 'stima_artecna_ai' as const,
         affidabilita: 'bassa' as const, motivazione: `Stima scartata: ${error instanceof Error ? error.message : 'Dati non coerenti con la registrazione originale'}.`,
         riferimenti_utilizzati: [], avvisi: ['Nessun prezzo applicato a questa voce; le altre stime verificate restano disponibili.'],
         lavorazione_composita: r.composita, quantita_coperta_dal_prezzo: null, totale_riga_proposto: null,
       } }
     })
-    return { stime }
+    return { stime, ...(righe_invalide.length ? { righe_invalide } : {}) }
   } catch (error) {
     if (error instanceof ErroreIdentitaBatch) return { stime: [], errore: error.message, diagnostica_identita: error.diagnostica }
     return { stime: [], errore: 'Stime ARTECNA non disponibili o risposta non verificabile. I prezzi esistenti sono conservati; le voci residue restano senza prezzo.' }
   }
 }
 
-export function applicaStimeDocumento<T extends VoceStimabile>(voci: readonly T[], input: InputStimeDocumento, esito: EsitoStimeDocumento): VoceConStima<T>[] {
+export function applicaStimeDocumento<T extends VoceStimabile>(voci: readonly T[], input: InputStimeDocumento, esito: EsitoStimeDocumento, stimeAltriChunk: readonly StimaDocumento[] = []): VoceConStima<T>[] {
   input = validaInputStimeDocumento(input)
   if (!oggetto(esito) || !Array.isArray(esito.stime) || (esito.errore !== undefined && typeof esito.errore !== 'string')) {
     esito = { stime: [], errore: 'Risposta del servizio stime non valida. Nessun prezzo applicato.' }
   }
   let stime: StimaDocumento[] = []
   let errore = esito.errore
+  let identita = esito.diagnostica_identita
+  const righeInvalide = Array.isArray(esito.righe_invalide) ? esito.righe_invalide.filter(x => oggetto(x) && typeof x.id === 'string' && typeof x.motivo === 'string') : []
   if (!errore) {
     try { stime = validaOutputStimeDocumento({ stime: esito.stime }, input) }
-    catch (error) { errore = error instanceof ErroreIdentitaBatch ? error.message : 'Risposta stime incompleta o non coerente: nessun prezzo applicato.' }
+    catch (error) {
+      if (error instanceof ErroreIdentitaBatch) identita = error.diagnostica
+      errore = error instanceof ErroreIdentitaBatch ? error.message : 'Risposta stime incompleta o non coerente: nessun prezzo applicato.'
+    }
   }
   return voci.map((v, i) => {
     if (!residua(v)) return v
     const r = input.righe.find(r => r.id === `riga-${i + 1}`)
     if (!r || r.descrizione !== v.descrizione || r.unita !== v.unita_misura || r.quantita !== v.quantita || r.codice !== (v.codice || null)) return v
     const s = stime.find(s => s.id === r.id)
-    if (!s || s.prezzo_unitario_proposto === null) return { ...v, erroreStimaDocumento: errore || s?.motivazione || 'Prezzo non determinabile.' }
+    if (!s || s.prezzo_unitario_proposto === null) {
+      const invalida = righeInvalide.find(x => x.id === r.id)
+      const motivo: DiagnosticaStimaDocumento['motivo'] = identita ? 'batch_identity_invalid' : invalida ? 'stima_ai_scartata' :
+        !errore && s?.stato_stima === 'astensione' ? 'astensione_ai' : 'prezzo_non_determinabile'
+      const messaggio = errore || s?.motivazione || invalida?.motivo || 'Prezzo non determinabile.'
+      return { ...v, erroreStimaDocumento: messaggio, diagnosticaStimaDocumento: { motivo, messaggio, ...(identita ? { identita } : {}) } }
+    }
     const utilizzati = r.riferimenti.filter(ref => s.riferimenti_utilizzati.includes(ref.id))
     const avvisiUm = utilizzati.some(ref => normalizeUnitOfMeasure(ref.unita) !== normalizeUnitOfMeasure(r.unita))
       ? ['U.M. dei riferimenti diversa da quella del documento: questa è una stima autonoma, non una conversione certificata.'] : []
@@ -303,21 +329,92 @@ export function applicaStimeDocumento<T extends VoceStimabile>(voci: readonly T[
       avvisiUm.push('U.M. a corpo con quantità diversa da 1: verificare il significato della quantità e il costo per singolo corpo prima del salvataggio.')
     }
     const perimetro = voci.map((v, n) => ({ id: `riga-${n + 1}`, descrizione: v.descrizione || '', unita: v.unita_misura || '',
-      quantita: Number(v.quantita || 0), testo_stima: stime.find(s => s.id === `riga-${n + 1}`)?.motivazione }))
+      quantita: Number(v.quantita || 0), testo_stima: [...stime, ...stimeAltriChunk].find(s => s.id === `riga-${n + 1}`)?.motivazione }))
     const validazione = validaTecnicamenteStima(r, s, perimetro)
     return { ...v, prezzo_unitario: validazione.stato === 'accettata' ? s.prezzo_unitario_proposto : 0, erroreStimaDocumento: undefined,
+      diagnosticaStimaDocumento: { motivo: validazione.stato === 'accettata' ? 'stima_ai_accettata' : validazione.stato === 'scartata' ? 'stima_ai_scartata' : 'stima_ai_sospesa', messaggio: validazione.motivi.join(' ') },
       stimaPrezzoArtecna: { ...s, descrizione: r.descrizione, quantita: r.quantita, unita_originale: r.unita,
         affidabilita_ai: s.affidabilita, validazione_tecnica: validazione, riferimenti_locali: r.riferimenti,
         avvisi: [...s.avvisi, ...avvisiUm, 'Stima AI provvisoria, non prezzo di listino certificato. Controllare prima del salvataggio finale.'] } }
   })
 }
 
-// Dependency injection also permits a real batch test without DB/auth or persistence.
-export async function completaBozzaConStime<T extends VoceStimabile>(voci: readonly T[], prezzi: readonly PriceKnowledgeItem[], richiedi: (input: InputStimeDocumento) => Promise<EsitoStimeDocumento>, contestoDocumento = ''): Promise<VoceConStima<T>[]> {
+export const massimoVociChunkStime = 6
+export type ProgressoStimeDocumento = { completati: number; totale: number; in_corso: number | null; fase: 'analisi' | 'aggregazione' | 'completata' }
+export type ChunkStimeDocumento = { id: string; input: InputStimeDocumento }
+
+export function creaChunkStimeDocumento(input: InputStimeDocumento): ChunkStimeDocumento[] {
+  if (!input.righe.length) return []
+  input = validaInputStimeDocumento(input)
+  const catalogo = (input.perimetro_lavorazioni || input.righe).map(v => ({
+    id: v.id, descrizione: v.descrizione.slice(0, 320), unita: v.unita, quantita: v.quantita,
+    ...('stato_prezzo' in v ? { stato_prezzo: v.stato_prezzo } : {}),
+    ...('prezzo_unitario' in v ? { prezzo_unitario: v.prezzo_unitario } : {}),
+    // Mentions, not inferred inclusions. Preserve hints beyond the short description.
+    richiami_componenti: (['ponteggio', 'ringhiera', 'verniciatura'] as const).filter(c =>
+      new RegExp(c === 'verniciatura' ? 'verniciatur|pittur' : c === 'ponteggio' ? 'ponteggi' : 'ringhier', 'i').test(v.descrizione)),
+  }))
+  const chunks: ChunkStimeDocumento[] = []
+  for (let i = 0; i < input.righe.length; i += massimoVociChunkStime) {
+    const righe = input.righe.slice(i, i + massimoVociChunkStime)
+    chunks.push({ id: `chunk-${chunks.length + 1}`, input: validaInputStimeDocumento({
+      tipo: input.tipo, righe, perimetro_lavorazioni: catalogo,
+      // No full-document repetition: original detailed text belongs to targets only.
+      contesto_documento: righe.map(r => r.contesto_riga || r.descrizione).join('\n').slice(0, 80000),
+    }) })
+  }
+  return chunks
+}
+
+// One user action; sequential requests without retries, one final revision value.
+export async function orchestraChunkStimeDocumento<T extends VoceStimabile>(voci: readonly T[], input: InputStimeDocumento,
+  richiedi: (input: InputStimeDocumento) => Promise<EsitoStimeDocumento>, onProgress?: (p: ProgressoStimeDocumento) => void): Promise<VoceConStima<T>[]> {
+  const chunks = creaChunkStimeDocumento(input)
+  const raccolti: { chunk: ChunkStimeDocumento; esito: EsitoStimeDocumento }[] = []
+  const progress = (completati: number, fase: ProgressoStimeDocumento['fase'], in_corso: number | null = null) => {
+    // Observers receive counters only, never a partially applied revision.
+    try { onProgress?.({ completati, totale: chunks.length, in_corso, fase }) } catch { /* Observer cannot invalidate prices. */ }
+  }
+  for (const chunk of chunks) {
+    progress(raccolti.length, 'analisi', raccolti.length + 1)
+    let esito: EsitoStimeDocumento
+    try {
+      const risposta = await richiedi(chunk.input)
+      if (!oggetto(risposta) || !Array.isArray(risposta.stime)) throw Error('Risposta non valida')
+      if (risposta.errore) esito = risposta
+      else {
+        // Recheck identity at the aggregation boundary, including forged HTTP results.
+        const stime = validaOutputStimeDocumento({ stime: risposta.stime }, chunk.input)
+        esito = { ...risposta, stime }
+      }
+    } catch (error) {
+      esito = error instanceof ErroreIdentitaBatch
+        ? { stime: [], errore: error.message, diagnostica_identita: error.diagnostica }
+        : { stime: [], errore: 'Caricamento o validazione del chunk falliti. Nessuna stima applicata a questo gruppo.' }
+    }
+    raccolti.push({ chunk, esito })
+    progress(raccolti.length, 'analisi')
+  }
+  progress(chunks.length, 'aggregazione')
+  const tutteStime = raccolti.flatMap(({ esito }) => esito.errore ? [] : esito.stime)
+  const risultato: VoceConStima<T>[] = [...voci]
+  for (const { chunk, esito } of raccolti) {
+    const applicate = applicaStimeDocumento(voci, chunk.input, esito, tutteStime)
+    const target = new Set(chunk.input.righe.map(r => r.id))
+    for (let i = 0; i < risultato.length; i++) {
+      if (target.has(`riga-${i + 1}`)) {
+        const v = applicate[i]
+        risultato[i] = v.diagnosticaStimaDocumento
+          ? { ...v, diagnosticaStimaDocumento: { ...v.diagnosticaStimaDocumento, chunk_id: chunk.id } } : v
+      }
+    }
+  }
+  progress(chunks.length, 'completata')
+  return risultato
+}
+
+// Dependency injection permits offline orchestration tests without DB/auth/persistence.
+export async function completaBozzaConStime<T extends VoceStimabile>(voci: readonly T[], prezzi: readonly PriceKnowledgeItem[], richiedi: (input: InputStimeDocumento) => Promise<EsitoStimeDocumento>, contestoDocumento = '', onProgress?: (p: ProgressoStimeDocumento) => void): Promise<VoceConStima<T>[]> {
   const input = preparaInputStimeDocumento(voci, prezzi, contestoDocumento)
-  if (!input.righe.length) return [...voci]
-  let esito: EsitoStimeDocumento
-  try { esito = await richiedi(validaInputStimeDocumento(input)) }
-  catch { esito = { stime: [], errore: 'Caricamento stime ARTECNA fallito. Nessun prezzo residuo applicato.' } }
-  return applicaStimeDocumento(voci, input, esito)
+  return orchestraChunkStimeDocumento(voci, input, richiedi, onProgress)
 }

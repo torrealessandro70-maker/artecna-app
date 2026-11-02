@@ -8,7 +8,8 @@ export type RiferimentoTecnico = {
   comprende_fornitura?: boolean; sola_posa_non_equivalente?: boolean; classificazione?: ClasseRiferimento
   utilizzabile_come_ancoraggio?: boolean; solo_informativo_non_trasferibile?: boolean
 }
-export type PerimetroLavorazione = { id: string; descrizione: string; unita: string; quantita: number; testo_stima?: string }
+export type PerimetroLavorazione = { id: string; descrizione: string; unita: string; quantita: number; testo_stima?: string
+  stato_prezzo?: string; prezzo_unitario?: number; richiami_componenti?: ('ponteggio' | 'ringhiera' | 'verniciatura')[] }
 export type RigaTecnica = PerimetroLavorazione & { contesto_riga: string; composita: boolean; ambito: string; riferimenti: RiferimentoTecnico[] }
 export type ComponenteEconomica = {
   categoria: 'demolizione_rimozione' | 'materiale' | 'posa' | 'opere_accessorie' | 'smaltimento' | 'sicurezza_noli'
