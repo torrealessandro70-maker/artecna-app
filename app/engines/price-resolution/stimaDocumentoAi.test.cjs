@@ -263,6 +263,8 @@ test('computo reale: replay risposta batch acquisita, prezzi/totali e metadati n
     excelTable: {}, excelTh: {}, excelTd: {}, buttonPrimary: {}, buttonSecondary: {},
   }))
   assert(html.includes(report.subtotale.toFixed(2)))
-  assert(html.includes('Stime AI accettate')); assert(html.includes('Validazione tecnica:'))
+  for (const label of ['Stime AI supportate', 'Stime AI da controllare', 'Stime AI sospese', 'Validazione tecnica:']) {
+    assert(html.includes(label), label)
+  }
   for (const v of voci) assert(html.includes(`value="${v.prezzo_unitario}"`))
 })

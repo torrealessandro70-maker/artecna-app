@@ -2,6 +2,7 @@ import { normalizePriceDescription, normalizeUnitOfMeasure } from './normalizer'
 
 import type { ContestoTecnicoDocumento } from '../document-parser/types'
 import { verificaSemanticaProposta, coperturaPacchetto } from './coerenza-semantica'
+import { confrontaPerimetroPrestazione, type ConfrontoPerimetro } from './perimetro-prestazione'
 
 export type ClasseRiferimento = 'trasferibile' | 'comparabile' | 'solo_informativo' | 'incompatibile'
 export type StatoTecnico = 'accettata' | 'sospesa_da_verificare' | 'scartata'
@@ -34,7 +35,7 @@ export type StimaTecnica = BaseEconomicaStima & {
   prezzo_unitario_proposto: number | null; unita_interpretata: string; quantita_coperta_dal_prezzo: number | null
   totale_riga_proposto: number | null; motivazione: string; avvisi?: string[]; riferimenti_utilizzati: string[]; lavorazione_composita: boolean
 }
-export type ValidazioneTecnica = { stato: StatoTecnico; codici: string[]; motivi: string[]; avvisi: string[]; riferimenti_ancoraggio: string[]; supporto_economico: 'supportato' | 'autonomo' }
+export type ValidazioneTecnica = ConfrontoPerimetro & { stato: StatoTecnico; codici: string[]; motivi: string[]; avvisi: string[]; riferimenti_ancoraggio: string[]; supporto_economico: 'supportato' | 'autonomo' }
 
 const n = (s: string) => normalizePriceDescription(s)
 const um = (s: string) => normalizeUnitOfMeasure(s)
@@ -204,12 +205,16 @@ export function verificaProvaEconomica(r: RigaTecnica, s: StimaTecnica): { codic
 }
 
 export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, tutte: readonly PerimetroLavorazione[]): ValidazioneTecnica {
-  const result: ValidazioneTecnica = { stato: 'accettata', codici: [], motivi: [], avvisi: [], riferimenti_ancoraggio: [], supporto_economico: 'supportato' }
+  const perimetro = confrontaPerimetroPrestazione(riga, stima)
+  const result: ValidazioneTecnica = { ...perimetro, stato: 'accettata', codici: [], motivi: [], avvisi: [], riferimenti_ancoraggio: [], supporto_economico: 'supportato' }
   const blocca = (stato: Exclude<StatoTecnico, 'accettata'>, codice: string, motivo: string) => {
     if (result.stato !== 'scartata') result.stato = stato
     result.codici.push(codice); result.motivi.push(motivo)
   }
   const r = { ...riga, riferimenti: riga.riferimenti.map(ref => classificaRiferimento(riga, ref)) }
+  if (perimetro.coerenza_perimetro === 'incompatibile') {
+    blocca('sospesa_da_verificare', 'perimetro_prestazione_non_coerente', perimetro.differenze_perimetro.join(' '))
+  }
   for (const rilievo of verificaSemanticaProposta(r, stima, tutte)) {
     if (rilievo.soloAvviso) result.avvisi.push(rilievo.motivo)
     else blocca('sospesa_da_verificare', rilievo.codice, rilievo.motivo)

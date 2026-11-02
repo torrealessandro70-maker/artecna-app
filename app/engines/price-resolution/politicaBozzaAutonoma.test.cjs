@@ -49,6 +49,8 @@ for(const [name,mutate]of [
 test('composito con costi autonomi e componenti complete entra arancione',()=>{
  const r=riga();r.descrizione='Fornitura e posa fossa Imhoff';r.composita=true;const s=stima(r);s.lavorazione_composita=true
  s.componenti_economiche=[['materiale','Vasca',20],['posa','Installazione',10]].map(([categoria,descrizione,importo_unitario])=>({...stima(r).componenti_economiche[0],categoria,descrizione,importo_unitario,quantita_tecnica:1,unita_tecnica:'mq',costo_unitario:importo_unitario,subtotale:importo_unitario,metodo_calcolo:'altro_documentato'}))
+ assert(valida(r,s).codici.includes('perimetro_prestazione_non_coerente')) // La motivazione base dichiara sola posa.
+ s.motivazione='Stima autonoma per la fornitura della vasca e la sua posa in opera.'
  assert.equal(valida(r,s).stato,'accettata');assert.equal(valida(r,s).supporto_economico,'autonomo')
  s.componenti_economiche.pop();assert.notEqual(valida(r,s).stato,'accettata')
 })

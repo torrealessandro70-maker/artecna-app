@@ -23,6 +23,7 @@ function load(file) {
 }
 const api = load(path.join(__dirname, 'stima-documento-ai.ts'))
 const sem = load(path.join(__dirname, 'coerenza-semantica.ts'))
+const { confrontaPerimetroPrestazione } = load(path.join(__dirname, 'perimetro-prestazione.ts'))
 const voce = { descrizione: 'Posa sola finitura', unita_misura: 'mq', quantita: 2,
   prezzo_unitario: 0, bozzaDocumento: true, priceResolution: { matched: false, strategy: 'no_match' } }
 
@@ -135,6 +136,122 @@ test('forfait di quattro punti: richiede evidenza di quattro pacchetti distinti'
 })
 
 const archivio = process.env.ARTECNA_REPLAY_SEMANTICO
+const motivoPerimetro = 'perimetro_prestazione_non_coerente'
+
+for (const [input, stimato] of [
+  ['Predisposizione di un impianto di controllo', 'Un impianto di controllo esterno completo'],
+  ['Sola posa di un rivestimento', 'Fornitura e posa del rivestimento'],
+  ['Rimozione di porta esistente', 'Fornitura della nuova porta'],
+  ['Ripristino del pavimento', 'Rifacimento completo del pavimento'],
+  ['Revisione caldaia a gas', 'Sostituzione integrale della caldaia'],
+  ['Fornitura e posa di un controtelaio per serramenti', 'Fornitura e posa del serramento completo'],
+  ['Assistenza muraria per impianto idraulico', 'Realizzazione impianto idraulico'],
+  ['Verniciatura parapetto', 'Fornitura del parapetto e vernice'],
+  ['Fornitura del modulo per il gruppo di misura', 'Un pacchetto completo chiavi in mano'],
+  ['Fornitura e posa della valvola', 'Sola posa della valvola'],
+  ['Impianto di controllo completo', 'Predisposizione per il futuro impianto'],
+  ['Fornitura del sistema completo', 'Fornitura del solo componente di ricambio'],
+]) {
+  test('perimetro incompatibile: ' + input + ' / ' + stimato, async () => {
+    const v = await applica({ ...voce, descrizione: input }, s => { s.unita_economica.descrizione = stimato })
+    assert.equal(v.prezzo_unitario, 0)
+    const val = v.stimaPrezzoArtecna.validazione_tecnica
+    assert.equal(val.stato, 'sospesa_da_verificare')
+    assert(val.codici.includes(motivoPerimetro))
+    assert.equal(val.coerenza_perimetro, 'incompatibile')
+    assert(val.differenze_perimetro.some(d => d.includes(stimato)))
+  })
+}
+
+function giudizio(descrizione, unita, motivazione = '', componenti = [], avvisi = []) {
+  return confrontaPerimetroPrestazione({ descrizione }, { unita_economica: { descrizione: unita }, motivazione,
+    componenti_economiche: componenti.map(([descrizione, importo_unitario]) => ({ descrizione, importo_unitario })), avvisi })
+}
+test('unità nominalmente corretta: anche motivazione, avviso e componente valorizzata possono smentirla', () => {
+  const doc = 'Predisposizione di un impianto di allarme'
+  const eccesso = 'Il prezzo include un impianto completo'
+  for (const g of [giudizio(doc, doc, eccesso), giudizio(doc, doc, '', [], [eccesso]),
+    giudizio(doc, doc, '', [['Fornitura e posa di impianto completo', 40]])]) {
+    assert.equal(g.coerenza_perimetro, 'incompatibile')
+  }
+  assert.equal(giudizio(doc, doc, '', [['Fornitura e posa di impianto completo', 0]]).coerenza_perimetro, 'compatibile')
+})
+test('riferimenti, esclusioni, ipotesi, beni accessori e costi parziali non ampliano il prezzo', () => {
+  const posa = 'Sola posa di pavimento'
+  const predisposizione = 'Predisposizione di tubazioni per un impianto completo'
+  for (const g of [
+    giudizio(posa, posa, 'Il listino comprende fornitura e posa. Il prezzo non include la fornitura.'),
+    giudizio(posa, posa, 'I riferimenti mostrano prezzi superiori ma comprendono fornitura e posa.'),
+    giudizio(posa, posa, 'Fornitura del materiale principale esclusa. Se si richiede fornitura e posa il prezzo cambia.'),
+    giudizio(posa, posa, '', [['Fornitura del collante', 3]]),
+    giudizio(predisposizione, predisposizione, 'Impianto completo escluso.'),
+    giudizio('Fornitura e posa di controtelaio per serramento completo', 'Un controtelaio completo per serramento'),
+    giudizio('Fornitura e posa di impianto completo', 'Un impianto completo', '', [['Fornitura del modulo di controllo', 180]]),
+    giudizio('Fornitura e posa di impianto completo', 'Un impianto completo', 'La stima comprende moduli e componenti di controllo.'),
+    giudizio('Ripristino della scala', 'Ripristino completo della scala', 'Rifacimento di intonaco.'),
+    giudizio('Verniciatura parapetto', 'Verniciatura del parapetto', '', [['Fornitura della vernice', 12]]),
+  ]) assert.notEqual(g.coerenza_perimetro, 'incompatibile', g.differenze_perimetro.join(' '))
+})
+test('prompt circoscrive la stima; il giudizio è derivato e ignora autovalutazioni o citazioni del documento', () => {
+  assert.match(api.istruzioniStimeDocumento, /Non ampliare la prestazione richiesta/)
+  const g = confrontaPerimetroPrestazione({ descrizione: 'Predisposizione impianto' }, {
+    coerenza_perimetro: 'compatibile', unita_economica: { descrizione: 'Intero impianto nuovo completo', base_documentale: 'Predisposizione impianto' },
+    motivazione: 'Stima per la predisposizione',
+  })
+  assert.equal(g.coerenza_perimetro, 'incompatibile')
+  assert.equal(giudizio('Opera speciale', 'Unità contabile').coerenza_perimetro, 'non_determinabile')
+})
+test('azioni coordinate, destinazioni future e note limitative mantengono il loro significato', () => {
+  assert.equal(giudizio('Predisposizione impianto', 'Predisposizione e installazione di un impianto completo').coerenza_perimetro, 'incompatibile')
+  assert.equal(giudizio('Predisposizione impianto', 'Impianto completo con predisposizione per futuri ampliamenti, esclusa la programmazione').coerenza_perimetro, 'incompatibile')
+  assert.equal(giudizio('Rimozione e fornitura di porte', 'Rimozione e fornitura di porte', '', [['Fornitura di porte', 100]]).coerenza_perimetro, 'compatibile')
+  assert.equal(giudizio('Predisposizione per impianto', 'Predisposizione', 'Non si tratta di un impianto completo.',
+    [['Installazione tubazioni per il futuro impianto', 50]]).coerenza_perimetro, 'compatibile')
+  const scope = confrontaPerimetroPrestazione({ descrizione: 'Impianto dati', contesto_tecnico: { annotazioni: 'Solo predisposizione' } },
+    { unita_economica: { descrizione: 'Un impianto completo' }, motivazione: '' })
+  assert.equal(scope.coerenza_perimetro, 'incompatibile')
+})
+test('un rifacimento locale ammesso come componente non autorizza il rifacimento di tutta la struttura', () => {
+  const doc = 'Ripristino del muro, compreso il rifacimento completo del rivestimento'
+  const parte = 'Rifacimento completo del rivestimento'
+  assert.equal(giudizio(doc, 'Ripristino del muro', '', [[parte, 100]]).coerenza_perimetro, 'compatibile')
+  assert.equal(giudizio(doc, 'Rifacimento completo del muro').coerenza_perimetro, 'incompatibile')
+  assert.equal(giudizio(doc.replace('compreso', 'escluso'), 'Ripristino del muro', '', [[parte, 100]]).coerenza_perimetro, 'incompatibile')
+})
+
+const archivioPerimetro = process.env.ARTECNA_REPLAY_PERIMETRO
+test('sei risposte reali: la sola videosorveglianza perde 8.000 euro, le altre 38 righe sono conservate', { skip: !archivioPerimetro }, async () => {
+  const leggi = nome => JSON.parse(fs.readFileSync(path.join(archivioPerimetro, nome), 'utf8'))
+  const prima = leggi('report-after-validator.json')
+  assert.equal(prima.candidate, '9fb359b5d542621fd2434b62e0e2c3360102dfc1')
+  const bozza = load(path.join(__dirname, 'proposte-documento.ts'))
+  let chunk = 0
+  const voci = await api.orchestraChunkStimeDocumento(leggi('baseline.json'), leggi('input.json'), target => {
+    const prefisso = 'chunk-' + (++chunk)
+    assert.deepEqual(JSON.parse(JSON.stringify(target)), leggi(prefisso + '-input.json'))
+    return api.eseguiStimeDocumento(target, async () => leggi(prefisso + '-response-original.json').output_text)
+  })
+  assert.equal(chunk, 6)
+  assert.equal(voci.length, 39)
+  for (const [i, v] of voci.entries()) {
+    const vecchia = prima.voci[i]
+    assert.equal(v.unita_misura, vecchia.unita_misura)
+    assert.equal(v.quantita, vecchia.quantita)
+    if (i === 26) {
+      assert.equal(vecchia.stato, 'stima_ai_da_controllare')
+      assert.equal(vecchia.prezzo_unitario, 8000)
+      assert.equal(bozza.statoPrezzoDocumento(v), 'stima_ai_sospesa')
+      assert(v.stimaPrezzoArtecna.validazione_tecnica.codici.includes(motivoPerimetro))
+      assert.equal(v.prezzo_unitario, 0)
+    } else {
+      assert.equal(bozza.statoPrezzoDocumento(v), vecchia.stato)
+      assert.equal(v.prezzo_unitario, vecchia.prezzo_unitario)
+    }
+  }
+  assert.equal(voci.filter(v => v.prezzo_unitario > 0).length, 11)
+  assert.equal(Number(voci.reduce((tot, v) => tot + v.prezzo_unitario * v.quantita, 0).toFixed(2)), 39870.74)
+})
+
 test('sei risposte archiviate: solo la facciata perde il prezzo della bozza', { skip: !archivio }, async () => {
   const leggi = nome => JSON.parse(fs.readFileSync(path.join(archivio, nome), 'utf8'))
   const prima = leggi('summary.json').rows
