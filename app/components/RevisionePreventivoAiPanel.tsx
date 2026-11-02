@@ -1,6 +1,8 @@
 ﻿'use client'
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import RiferimentiLocaliPrezzo from './RiferimentiLocaliPrezzo'
+import { creaIndiceRiferimentiLocali, riferimentiLocaliDaVerificare } from '../engines/price-resolution/riferimenti-locali'
 import RicercaPrezziPreventivo from './RicercaPrezziPreventivo'
 import { voceLibera } from '../engines/preventivo-generation/manuale'
 import PriceResolutionSummary from './PriceResolutionSummary'
@@ -267,6 +269,10 @@ useEffect(() => {
   }, { resolved: 0, review: 0, unresolved: 0, modified: 0 })
 
   const mostraPriceResolutionSummary = vociPreventivoAi.length > 0
+  const indiceRiferimentiLocali = useMemo(() => creaIndiceRiferimentiLocali(prezziRiferimento), [prezziRiferimento])
+  const riferimentiLocali = useMemo(() => vociPreventivoAi.map(voce =>
+    riferimentiLocaliDaVerificare(voce, indiceRiferimentiLocali)), [vociPreventivoAi, indiceRiferimentiLocali])
+  const vociConRiferimenti = riferimentiLocali.filter(r => r.length > 0).length
 
   const esitoCalcolo = calcolatrice
     ? calcolaEspressione(calcolatrice.formula)
@@ -334,6 +340,7 @@ useEffect(() => {
           <PriceResolutionSummary
             statistics={priceResolutionStatistics}
           />
+          {vociConRiferimenti > 0 && <p>Riferimenti disponibili da verificare: {vociConRiferimenti} lavorazioni. Restano incluse tra le non risolte.</p>}
         </div>
       )}
 
@@ -709,6 +716,7 @@ aggiornaVociConCronologia(nuove)
       )}
     </div>
   )}
+  <RiferimentiLocaliPrezzo riferimenti={riferimentiLocali[index]} />
 </td>
 
                 <td style={excelTd}>
