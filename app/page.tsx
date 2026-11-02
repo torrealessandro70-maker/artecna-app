@@ -63,6 +63,7 @@ import { resolvePrice } from './engines/price-resolution'
 import { mediaMemoriaCompatibile } from './engines/price-resolution/revisione-ai'
 import { leggiStoricoPrezzi, risolviPrezzoPrioritario } from './engines/price-resolution/storico-prezzi'
 import { preparaBozzaDocumento } from './engines/price-resolution/proposte-documento'
+import { completaBozzaConStime } from './engines/price-resolution/stima-documento-ai'
 
 
 import PopupModificaOperaio from './components/PopupModificaOperaio'
@@ -1774,7 +1775,24 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
     return false
   }
 
- const vociBozzaDocumento = preparaBozzaDocumento(vociDocumento, knowledgeBasePrezzi, memoriaPrezziValidi)
+ setMessaggioAi('Preparazione della bozza: stime ARTECNA delle voci residue in corso…')
+ const vociBozzaDocumento = await completaBozzaConStime(
+   preparaBozzaDocumento(vociDocumento.map((v, i) => ({ ...v, testoOrigine: vociAnalizzate[i]?.testoOrigine })), knowledgeBasePrezzi, memoriaPrezziValidi), knowledgeBasePrezzi,
+   async input => {
+     const { data, error } = await supabase.auth.getSession()
+     if (error || !data.session?.access_token) throw Error('Sessione non disponibile')
+     const response = await fetch('/api/prezzi/analisi-ai', {
+       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` },
+       body: JSON.stringify(input), signal: AbortSignal.timeout(170000),
+     })
+     if (!response.ok) throw Error('Richiesta stime fallita')
+     return response.json()
+   },
+   testoEstrattoDocumento,
+ )
+ setMessaggioAi(vociBozzaDocumento.some(v => v.erroreStimaDocumento)
+   ? 'Alcune stime non sono disponibili: controlla gli avvisi delle voci senza prezzo.'
+   : 'Bozza pronta. Le stime ARTECNA sono provvisorie: controlla prezzi, quantità e inclusioni prima di salvare.')
  setPreventivoAiGenerato(preventivoDocumentoCreato)
 setVociPreventivoAi(vociBozzaDocumento)
 setVociPreventivoAiOriginali(vociBozzaDocumento)
@@ -4803,7 +4821,7 @@ const [
   vociPreventivoAiOriginali,
   setVociPreventivoAiOriginali,
 ] = useState<any[]>([])
-const [vociAnalizzate, setVociAnalizzate] = useState<VoceAnalizzata[]>([])
+const [vociAnalizzate, setVociAnalizzate] = useState<(VoceAnalizzata & { testoOrigine?: string })[]>([])
 const [sezioneAttiva, setSezioneAttiva] = useState('home')
 
 const [vociPreventivoAi, setVociPreventivoAi] =
@@ -8742,7 +8760,7 @@ vociExcelStrutturate = righeVoce.map((row) => {
     })
   }
 
-  return creaVoceAnalizzataExcel(row, match.prezzoUnitario)
+  return { ...creaVoceAnalizzataExcel(row, match.prezzoUnitario), testoOrigine: row.rawText }
 })
   testo = parsedDocument.rows
     .map((row) => row.rawText)

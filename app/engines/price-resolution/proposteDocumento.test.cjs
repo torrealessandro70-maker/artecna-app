@@ -136,6 +136,7 @@ async function generaOffline(vociAnalizzate, prezziarioSicilia) {
     chiamate.insert = JSON.parse(JSON.stringify(dati)); return { select: () => ({ single: async () => ({ data: { id: 'mock-no-db' }, error: null }) }) }
   } } } }
   const context = { console: quiet, resolvePrice, createPreventivoRevision, preparaBozzaDocumento, supabase,
+    completaBozzaConStime: async voci => voci, setMessaggioAi() {}, testoEstrattoDocumento: '',
     vociAnalizzate, prezziarioSicilia, memoriaPrezziValidi: [], nomeFileAnalisiDocumento: 'fixture.xlsx', alert() {},
     setPreventivoAiGenerato() {}, setVociPreventivoAi: v => { chiamate.voci = v }, setVociPreventivoAiOriginali: v => { chiamate.originali = v },
     setDescrizionePreventivoAi() {}, setMostraRevisionePreventivoAi() {}, caricaEconomia: async () => {} }
@@ -163,18 +164,18 @@ test('UI: prezzo proposto nella colonna esistente, totale e contatori separati, 
     preventivoRegistroCantiere: '', setMostraRevisionePreventivoAi: vietato, excelTable: {}, excelTh: {}, excelTd: {}, buttonPrimary: {}, buttonSecondary: {} }
   const html = renderToStaticMarkup(React.createElement(Panel, props))
   for (const text of ['Prezzo proposto — controllare','Prezzo non determinabile','Riferimenti locali da verificare','ARTECNA','3330.00','Matching originale: no_match']) assert(html.includes(text), text)
-  assert.match(html, /Prezzi proposti<\/dt><dd[^>]*>1<\/dd>/)
+  assert.match(html, /Proposte da riferimenti<\/dt><dd[^>]*>1<\/dd>/)
   assert.match(html, /Prezzi affidabili<\/dt><dd[^>]*>0<\/dd>/)
   assert.match(html, /value="22.2"/)
   assert(!html.includes('nessun prezzo applicato'))
   assert(!html.includes('Risolte automaticamente'))
 })
-test('perimetro: resolver, soglie, parser, AI/Web, SQL e salvataggio revisione invariati', () => {
+test('perimetro: resolver, soglie, parser, analisi singola/Web, SQL e salvataggio revisione invariati', () => {
   const root = path.resolve(app, '..'), base = '66b845903c98f0fe3e2f9cb037daf58d026972ec'
   for (const file of ['app/engines/price-resolution/resolver.ts','app/engines/price-resolution/normalizer.ts','app/engines/price-resolution/diagnostica-voce.ts',
     'app/engines/price-resolution/revisione-ai.ts','app/engines/price-resolution/descrizione-semantica.ts','app/engines/price-resolution/ai-price-analyst.ts',
     'app/engines/price-resolution/web-fallback.ts','app/engines/confidence/confidence.ts','app/engines/document-parser/excel.ts','app/engines/document-parser/voci-analizzate.ts',
-    'app/engines/document-intelligence/pdf-ocr.ts','app/api/prezzi/analisi-ai/route.ts','app/api/prezzi/web/route.ts']) {
+    'app/engines/document-intelligence/pdf-ocr.ts','app/api/prezzi/web/route.ts']) {
     assert.equal(fs.readFileSync(path.join(root,file),'utf8').replace(/\r\n/g,'\n'),execFileSync('git',['show',`${base}:${file}`],{cwd:root,encoding:'utf8'}).replace(/\r\n/g,'\n'),file)
   }
   const section = text => text.slice(text.indexOf('const salvaRevisionePreventivoAi ='), text.indexOf('const generaExcelDefinitivoPreventivoAi =')).replace(/\r\n/g,'\n')

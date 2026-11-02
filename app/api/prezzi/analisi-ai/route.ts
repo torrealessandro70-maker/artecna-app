@@ -1,8 +1,10 @@
 import OpenAI from 'openai'
 import { supabase } from '../../../../lib/supabaseClient'
 import { daVerificare, eseguiAnalisiPrezzo, schemaAnalisiPrezzo, validaInputAnalisi } from '../../../engines/price-resolution/ai-price-analyst'
+import { eseguiStimeDocumento, istruzioniStimeDocumento, modelloStimeDocumento, schemaStimeDocumentoPerInput, validaInputStimeDocumento } from '../../../engines/price-resolution/stima-documento-ai'
 
 export const runtime = 'nodejs'
+export const maxDuration = 180
 
 export async function POST(req: Request) {
   const reply = (result: unknown, status = 200) => Response.json(result, {status, headers:{'Cache-Control':'no-store'}})
@@ -15,8 +17,25 @@ export async function POST(req: Request) {
   let input
   try {
     const raw = await req.text()
+    if (raw.length > 750000) throw Error('Richiesta troppo grande')
+    const parsed = JSON.parse(raw)
+    if (parsed?.tipo === 'stima_documento_batch') {
+      const batch = validaInputStimeDocumento(parsed)
+      const result = await eseguiStimeDocumento(batch, async context => {
+        if (!process.env.OPENAI_API_KEY) throw Error('Servizio non disponibile')
+        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 150000 })
+        const response = await client.responses.create({
+          model: modelloStimeDocumento, store: false, max_output_tokens: 16000,
+          instructions: istruzioniStimeDocumento, input: JSON.stringify(context),
+          text: { format: { type: 'json_schema', name: 'stime_documento', strict: true, schema: schemaStimeDocumentoPerInput(context) } },
+        })
+        if (response.status !== 'completed') throw Error('Stime incomplete')
+        return response.output_text
+      })
+      return reply(result)
+    }
     if (raw.length > 100000) throw Error('Richiesta troppo grande')
-    input = validaInputAnalisi(JSON.parse(raw))
+    input = validaInputAnalisi(parsed)
   } catch { return reply(daVerificare('Input analisi non valido.'),400) }
   const result = await eseguiAnalisiPrezzo(input, async context => {
     if (!process.env.OPENAI_API_KEY) throw Error('Servizio non disponibile')

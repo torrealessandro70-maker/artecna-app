@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import SopralluogoDettaglioHeader from './SopralluogoDettaglioHeader'
 import SopralluogoFirmaCliente from './SopralluogoFirmaCliente'
 import SopralluogoAppunti from './SopralluogoAppunti'
@@ -32,6 +32,18 @@ const sezioni: Array<{ id: SezioneFascicolo; etichetta: string }> = [
 export default function SopralluogoDettaglio(props: Props) {
   const { sopralluogoAperto, buttonPrimary, buttonSecondary, supabase } = props
   const [sezioneAttiva, setSezioneAttiva] = useState<SezioneFascicolo>('informazioni')
+  const generazioneDocumentoRef = useRef(false)
+  const [generazioneDocumento, setGenerazioneDocumento] = useState(false)
+  const [erroreGenerazioneDocumento, setErroreGenerazioneDocumento] = useState('')
+  const generaDocumento = async () => {
+    if (generazioneDocumentoRef.current) return
+    generazioneDocumentoRef.current = true
+    setGenerazioneDocumento(true)
+    setErroreGenerazioneDocumento('')
+    try { await props.generaPreventivoDaDocumentoAnalizzato(sopralluogoAperto) }
+    catch { setErroreGenerazioneDocumento('Generazione non completata. Verifica lo stato del preventivo prima di riprovare.') }
+    finally { generazioneDocumentoRef.current = false; setGenerazioneDocumento(false) }
+  }
 useEffect(() => {
   if (!sopralluogoAperto?.id) return
 
@@ -266,13 +278,14 @@ onChiudiFascicolo={() =>
 
           <button
             type="button"
-            onClick={() =>
-  props.generaPreventivoDaDocumentoAnalizzato(sopralluogoAperto)
-}
+            onClick={generaDocumento}
+            disabled={generazioneDocumento}
+            aria-busy={generazioneDocumento}
             style={buttonPrimary}
           >
-            💰 Genera preventivo da documento
+            {generazioneDocumento ? 'Preparazione bozza e stime ARTECNA in corso…' : '💰 Genera preventivo da documento'}
           </button>
+          {erroreGenerazioneDocumento && <p role="alert">{erroreGenerazioneDocumento}</p>}
         </div>
       )}
     </>

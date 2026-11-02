@@ -633,7 +633,7 @@ aggiornaVociConCronologia(nuove)
   {!voce.priceResolution && <p role="status" style={{ color: '#92400e', fontWeight: 600 }}>
     {voce.fonte_prezzo === 'Prezzo manuale' ? 'Prezzo manuale — da rivalutare' : voce.priceResolutionInvalidated ? 'Prezzo da rivalutare — voce modificata dopo la risoluzione' : 'Diagnostica non disponibile — prezzo da verificare'}
   </p>}
-  {voce.priceResolution && !voce.propostaPrezzoDocumento && (
+  {voce.priceResolution && !voce.propostaPrezzoDocumento && !voce.stimaPrezzoArtecna && (
     <div
       style={{
         marginTop: 8,
@@ -721,7 +721,7 @@ aggiornaVociConCronologia(nuove)
       )}
     </div>
   )}
-  <RiferimentiLocaliPrezzo riferimenti={riferimentiLocali[index]} propostaInBozza={!!voce.propostaPrezzoDocumento} />
+  <RiferimentiLocaliPrezzo riferimenti={riferimentiLocali[index]} propostaInBozza={!!voce.propostaPrezzoDocumento || !!voce.stimaPrezzoArtecna} />
 </td>
 
                 <td style={excelTd}>
@@ -805,8 +805,17 @@ aggiornaVociConCronologia(nuove)
                 <td style={excelTd}>{formatMoney(totale)}</td>
                 {bozzaDocumento && <td style={{ ...excelTd, minWidth: 220, verticalAlign: 'top' }}>
                   <strong style={{ color: statoPrezzoDocumento(voce) === 'prezzo_affidabile' ? '#166534' : statoPrezzoDocumento(voce) === 'prezzo_non_determinabile' ? '#b91c1c' : '#92400e' }}>
-                    {{ prezzo_affidabile: 'Prezzo affidabile', prezzo_proposto: 'Prezzo proposto — controllare', prezzo_non_determinabile: 'Prezzo non determinabile', modificato_utente: 'Modificato dall’utente' }[statoPrezzoDocumento(voce)]}
+                    {{ prezzo_affidabile: 'Prezzo affidabile', prezzo_proposto: 'Prezzo proposto — controllare', stima_artecna_ai: voce.stimaPrezzoArtecna?.lavorazione_composita ? 'Stima ARTECNA — lavorazione composita' : 'Stima ARTECNA — controllare', prezzo_non_determinabile: 'Prezzo non determinabile', modificato_utente: 'Modificato dall’utente' }[statoPrezzoDocumento(voce)]}
                   </strong>
+                  {voce.erroreStimaDocumento && <p role="status">{voce.erroreStimaDocumento}</p>}
+                  {voce.stimaPrezzoArtecna && <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
+                    <p>Stima AI originale: {formatMoney(voce.stimaPrezzoArtecna.prezzo_unitario_proposto)} / {voce.stimaPrezzoArtecna.unita_originale} · Affidabilità: {voce.stimaPrezzoArtecna.affidabilita}</p>
+                    <p>Prezzo per una unità originale · Totale stimato originale: {formatMoney(voce.stimaPrezzoArtecna.totale_riga_proposto)}</p>
+                    <p>{voce.stimaPrezzoArtecna.motivazione}</p>
+                    <p>Riferimenti utilizzati: {voce.stimaPrezzoArtecna.riferimenti_locali.map((r: { fonte: string; codice: string | null }) => `${r.fonte} · ${r.codice || 'senza codice'}`).join('; ') || 'Stima tecnica autonoma, nessun prezzo trasferito dal listino'}</p>
+                    <ul>{voce.stimaPrezzoArtecna.avvisi.map((a: string) => <li key={a}>{a}</li>)}</ul>
+                    <small>Matching originale invariato. Questa stima concorre solo alla bozza fino al salvataggio esplicito.</small>
+                  </div>}
                   {voce.propostaPrezzoDocumento && <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
                     <p>Proposta originale: {voce.propostaPrezzoDocumento.fonte_proposta} · {voce.propostaPrezzoDocumento.codice_riferimento || 'Nessun codice'} · {formatMoney(voce.propostaPrezzoDocumento.prezzo_proposto)} / {voce.propostaPrezzoDocumento.unita_misura}</p>
                     <p>Affidabilità proposta: {voce.propostaPrezzoDocumento.confidence} · Metodo: {voce.propostaPrezzoDocumento.metodo_proposta}</p>
@@ -979,7 +988,7 @@ aggiornaVociConCronologia(nuove)
 {!integrativo && <button
   onClick={async () => {
     for (const voce of manuale ? [] : vociPreventivoAi) {
-      if (voce.propostaPrezzoDocumento && !voce.priceResolutionInvalidated) continue
+      if ((voce.propostaPrezzoDocumento || voce.stimaPrezzoArtecna) && !voce.priceResolutionInvalidated) continue
       if (!puoSalvarePrezzoInMemoria(voce)) continue
       await salvaInMemoriaPrezzi({
         descrizione: voce.descrizione || '',

@@ -186,6 +186,7 @@ test('integrazione handler reale con Storage simulato: 39 voci, mapping e import
   assert.equal(uploads, 1)
   assert.equal(alerts.length, 0)
   assert.equal(result.VociAnalizzate.length, 39)
+  assert.equal(typeof result.VociAnalizzate[0].testoOrigine, 'string')
   assert.equal(result.VociAnalizzate[0].codice, '2.2.1.1')
   assert.equal(result.VociAnalizzate[0].totale, 25)
   assert.equal(result.ImportoRilevatoDocumento, '975,00')
@@ -291,6 +292,12 @@ test('parser/mapping 39/39, PDF/OCR, handler e azioni archiviazione invariati ri
   }
   for (const name of ['leggiPdfTesto', 'leggiTestoDaImmagine', 'analizzaDocumentoCantiere',
     'archiviaPreventivoAnalizzato', 'strutturaPreventivoEsistente']) {
-    assert.equal(declaration(current, name), declaration(previous, name), name)
+    // Only retain the original XLSX row as AI context; extraction/parsing and all
+    // PDF/OCR/archive instructions must remain byte-identical to the approved flow.
+    const senzaContestoRiga = text => text.replace(
+      'return { ...creaVoceAnalizzataExcel(row, match.prezzoUnitario), testoOrigine: row.rawText }',
+      'return creaVoceAnalizzataExcel(row, match.prezzoUnitario)',
+    )
+    assert.equal(senzaContestoRiga(declaration(current, name)), declaration(previous, name), name)
   }
 })

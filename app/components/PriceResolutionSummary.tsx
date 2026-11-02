@@ -9,7 +9,8 @@ type Props = {
 export default function PriceResolutionSummary({ statistics, bozza }: Props) {
   const voci = bozza ? [
     ['Prezzi affidabili', bozza.prezzo_affidabile],
-    ['Prezzi proposti', bozza.prezzo_proposto],
+    ['Proposte da riferimenti', bozza.prezzo_proposto],
+    ['Stime ARTECNA', bozza.stima_artecna_ai],
     ['Prezzi non determinati', bozza.prezzo_non_determinabile],
     ['Modificati dall’utente', bozza.modificato_utente],
   ] as const : [

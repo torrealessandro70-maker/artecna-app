@@ -4,8 +4,9 @@ import { analizzaAmbitoPrezzoSic24, confrontaDescrizioniEdilizie } from './descr
 import { mediaMemoriaCompatibile, risolviPrezzoRevisioneAi, unitaPrezzoCompatibile } from './revisione-ai'
 import { creaIndiceRiferimentiLocali, riferimentiLocaliDaVerificare } from './riferimenti-locali'
 import type { PriceKnowledgeItem, PriceResolutionInput } from './types'
+import type { StimaApplicata } from './stima-documento-ai'
 
-export type StatoPrezzoDocumento = 'prezzo_affidabile' | 'prezzo_proposto' | 'prezzo_non_determinabile' | 'modificato_utente'
+export type StatoPrezzoDocumento = 'prezzo_affidabile' | 'prezzo_proposto' | 'stima_artecna_ai' | 'prezzo_non_determinabile' | 'modificato_utente'
 export type PropostaPrezzoDocumento = {
   prezzo_proposto: number
   fonte_proposta: string
@@ -20,6 +21,7 @@ export type PropostaPrezzoDocumento = {
 type VoceDocumento = {
   descrizione?: string; unita_misura?: string; quantita?: number; prezzo_unitario?: number
   bozzaDocumento?: boolean; propostaPrezzoDocumento?: PropostaPrezzoDocumento
+  stimaPrezzoArtecna?: StimaApplicata
   priceResolutionInvalidated?: boolean; fonte_prezzo?: string
   priceResolution?: { matched?: boolean; strategy?: string; confidence?: number; prezzoUnitarioRisolto?: number }
 }
@@ -61,7 +63,7 @@ export function preparaBozzaDocumento<T extends VoceDocumento>(voci: readonly T[
   return voci.map(voce => {
     const base = { ...voce, bozzaDocumento: true }
     // Idempotent: do not overwrite document prices, matches, manual corrections or a prior proposal.
-    if (voce.priceResolutionInvalidated || voce.propostaPrezzoDocumento) return base
+    if (voce.priceResolutionInvalidated || voce.propostaPrezzoDocumento || voce.stimaPrezzoArtecna) return base
     if (Number(voce.prezzo_unitario) > 0) {
       if (esitoDiagnosticaVoce(voce) === 'resolved') return base
       return { ...base, propostaPrezzoDocumento: {
@@ -109,6 +111,9 @@ export function preparaBozzaDocumento<T extends VoceDocumento>(voci: readonly T[
 
 export function statoPrezzoDocumento(voce: VoceDocumento): StatoPrezzoDocumento {
   if (voce.priceResolutionInvalidated) return 'modificato_utente'
+  const s = voce.stimaPrezzoArtecna
+  if (s) return voce.descrizione === s.descrizione && voce.unita_misura === s.unita_originale &&
+    voce.quantita === s.quantita && voce.prezzo_unitario === s.prezzo_unitario_proposto ? 'stima_artecna_ai' : 'modificato_utente'
   const p = voce.propostaPrezzoDocumento
   if (p) return voce.descrizione === p.descrizione && voce.unita_misura === p.unita_misura &&
     voce.prezzo_unitario === p.prezzo_proposto ? 'prezzo_proposto' : 'modificato_utente'
@@ -116,7 +121,7 @@ export function statoPrezzoDocumento(voce: VoceDocumento): StatoPrezzoDocumento 
   return 'prezzo_non_determinabile'
 }
 export function riepilogoPrezziDocumento(voci: readonly VoceDocumento[]) {
-  const stats = { prezzo_affidabile: 0, prezzo_proposto: 0, prezzo_non_determinabile: 0, modificato_utente: 0 }
+  const stats = { prezzo_affidabile: 0, prezzo_proposto: 0, stima_artecna_ai: 0, prezzo_non_determinabile: 0, modificato_utente: 0 }
   for (const voce of voci) stats[statoPrezzoDocumento(voce)]++
   return stats
 }
