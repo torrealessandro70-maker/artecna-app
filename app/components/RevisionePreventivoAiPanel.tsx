@@ -721,7 +721,7 @@ aggiornaVociConCronologia(nuove)
       )}
     </div>
   )}
-  <RiferimentiLocaliPrezzo riferimenti={riferimentiLocali[index]} propostaInBozza={!!voce.propostaPrezzoDocumento || !!voce.stimaPrezzoArtecna} />
+  <RiferimentiLocaliPrezzo riferimenti={riferimentiLocali[index]} propostaInBozza={!!voce.propostaPrezzoDocumento || voce.stimaPrezzoArtecna?.validazione_tecnica?.stato === 'accettata'} />
 </td>
 
                 <td style={excelTd}>
@@ -788,6 +788,7 @@ aggiornaVociConCronologia(nuove)
                   <input
                     type="number"
                     value={voce.prezzo_unitario || 0}
+                    aria-label={`Prezzo unitario voce ${index + 1}`}
                       disabled={!!integrativo && voce.operazione !== 'nuova'}
                     onChange={(e) => {
                      const nuove = vociPreventivoAi.map((voce, i) =>
@@ -804,17 +805,33 @@ aggiornaVociConCronologia(nuove)
 
                 <td style={excelTd}>{formatMoney(totale)}</td>
                 {bozzaDocumento && <td style={{ ...excelTd, minWidth: 220, verticalAlign: 'top' }}>
-                  <strong style={{ color: statoPrezzoDocumento(voce) === 'prezzo_affidabile' ? '#166534' : statoPrezzoDocumento(voce) === 'prezzo_non_determinabile' ? '#b91c1c' : '#92400e' }}>
-                    {{ prezzo_affidabile: 'Prezzo affidabile', prezzo_proposto: 'Prezzo proposto — controllare', stima_artecna_ai: voce.stimaPrezzoArtecna?.lavorazione_composita ? 'Stima ARTECNA — lavorazione composita' : 'Stima ARTECNA — controllare', prezzo_non_determinabile: 'Prezzo non determinabile', modificato_utente: 'Modificato dall’utente' }[statoPrezzoDocumento(voce)]}
+                  <strong style={{ color: statoPrezzoDocumento(voce) === 'prezzo_affidabile' ? '#166534' : ['prezzo_non_determinabile', 'stima_ai_scartata'].includes(statoPrezzoDocumento(voce)) ? '#b91c1c' : '#92400e' }}>
+                    {{ prezzo_affidabile: 'Prezzo affidabile', prezzo_proposto: 'Prezzo proposto — controllare', stima_artecna_ai: voce.stimaPrezzoArtecna?.lavorazione_composita ? 'Stima ARTECNA — lavorazione composita' : 'Stima ARTECNA — controllare', stima_ai_sospesa: 'Stima ARTECNA — sospesa da verificare', stima_ai_scartata: 'Stima ARTECNA — scartata', prezzo_non_determinabile: 'Prezzo non determinabile', modificato_utente: 'Modificato dall’utente' }[statoPrezzoDocumento(voce)]}
                   </strong>
                   {voce.erroreStimaDocumento && <p role="status">{voce.erroreStimaDocumento}</p>}
                   {voce.stimaPrezzoArtecna && <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
-                    <p>Stima AI originale: {formatMoney(voce.stimaPrezzoArtecna.prezzo_unitario_proposto)} / {voce.stimaPrezzoArtecna.unita_originale} · Affidabilità: {voce.stimaPrezzoArtecna.affidabilita}</p>
-                    <p>Prezzo per una unità originale · Totale stimato originale: {formatMoney(voce.stimaPrezzoArtecna.totale_riga_proposto)}</p>
+                    <p>Stima AI originale: {formatMoney(voce.stimaPrezzoArtecna.prezzo_unitario_proposto)} / {voce.stimaPrezzoArtecna.unita_originale}</p>
+                    <p>Affidabilità AI: {voce.stimaPrezzoArtecna.affidabilita_ai || voce.stimaPrezzoArtecna.affidabilita}</p>
+                    <p>Validazione tecnica: {voce.stimaPrezzoArtecna.validazione_tecnica?.stato || 'sospesa_da_verificare'}</p>
+                    <ul>{voce.stimaPrezzoArtecna.validazione_tecnica?.motivi.map((m: string) => <li key={m}>{m}</li>)}</ul>
+                    <p>Quantità strutturata: {voce.stimaPrezzoArtecna.quantita} · Quantità coperta dichiarata dall’AI: {voce.stimaPrezzoArtecna.quantita_coperta_dal_prezzo} · Totale proposto originale: {formatMoney(voce.stimaPrezzoArtecna.totale_riga_proposto)}</p>
                     <p>{voce.stimaPrezzoArtecna.motivazione}</p>
-                    <p>Riferimenti utilizzati: {voce.stimaPrezzoArtecna.riferimenti_locali.map((r: { fonte: string; codice: string | null }) => `${r.fonte} · ${r.codice || 'senza codice'}`).join('; ') || 'Stima tecnica autonoma, nessun prezzo trasferito dal listino'}</p>
+                    <details><summary>Base economica e componenti</summary>
+                      <p>{voce.stimaPrezzoArtecna.unita_economica?.descrizione || 'Definizione strutturata dell’unità economica non disponibile nella risposta.'}</p>
+                      {voce.stimaPrezzoArtecna.unita_economica && <p>Base documentale: {voce.stimaPrezzoArtecna.unita_economica.base_documentale}</p>}
+                      {voce.stimaPrezzoArtecna.componenti_economiche?.length ? <ul>{voce.stimaPrezzoArtecna.componenti_economiche.map((c: { categoria: string; descrizione: string; importo_unitario: number }, i: number) => <li key={`${c.categoria}:${i}`}>{c.categoria}: {c.descrizione} · {formatMoney(c.importo_unitario)}</li>)}</ul> : <p>Nessuna scomposizione economica disponibile.</p>}
+                      {voce.stimaPrezzoArtecna.scorporo_fornitura && <p>Scorporo dichiarato: {voce.stimaPrezzoArtecna.scorporo_fornitura.riferimento_completo_id} meno {voce.stimaPrezzoArtecna.scorporo_fornitura.riferimento_materiale_id}; sola posa {formatMoney(voce.stimaPrezzoArtecna.scorporo_fornitura.costo_posa_unitario)}.</p>}
+                    </details>
+                    <details><summary>Riferimenti e limiti tecnici</summary>
+                      <ul>{voce.stimaPrezzoArtecna.riferimenti_locali.map((r: { id: string; fonte: string; codice: string | null; descrizione: string; unita: string; prezzo: number; similarity?: number; classificazione?: string; compatibilita_um?: string; avvisi?: string[]; comprende_fornitura?: boolean }) => <li key={r.id}>
+                        <strong>{r.fonte} · {r.codice || 'senza codice'}</strong>: {r.classificazione || 'solo_informativo'} · U.M. {r.unita} ({r.compatibilita_um || 'non verificabile'}) · {formatMoney(r.prezzo)} · Somiglianza {r.similarity === undefined ? 'non disponibile nel reperto' : `${(r.similarity * 100).toFixed(1)}%`}
+                        <p>{r.descrizione}</p>
+                        <p>{r.comprende_fornitura ? 'Comprende fornitura' : 'Fornitura non attestata'} · {voce.stimaPrezzoArtecna.riferimenti_utilizzati.includes(r.id) ? 'Consultato dall’AI' : 'Fornito come contesto'}</p>
+                        <ul>{r.avvisi?.map(a => <li key={a}>{a}</li>)}</ul>
+                      </li>)}</ul>
+                    </details>
                     <ul>{voce.stimaPrezzoArtecna.avvisi.map((a: string) => <li key={a}>{a}</li>)}</ul>
-                    <small>Matching originale invariato. Questa stima concorre solo alla bozza fino al salvataggio esplicito.</small>
+                    <small>Matching originale invariato. {voce.stimaPrezzoArtecna.validazione_tecnica?.stato === 'accettata' ? 'Stima provvisoria applicata alla bozza, da controllare prima del salvataggio.' : 'Proposta consultabile: il prezzo sospeso/scartato non entra nel subtotale.'}</small>
                   </div>}
                   {voce.propostaPrezzoDocumento && <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
                     <p>Proposta originale: {voce.propostaPrezzoDocumento.fonte_proposta} · {voce.propostaPrezzoDocumento.codice_riferimento || 'Nessun codice'} · {formatMoney(voce.propostaPrezzoDocumento.prezzo_proposto)} / {voce.propostaPrezzoDocumento.unita_misura}</p>

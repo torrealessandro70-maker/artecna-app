@@ -6,7 +6,7 @@ import { creaIndiceRiferimentiLocali, riferimentiLocaliDaVerificare } from './ri
 import type { PriceKnowledgeItem, PriceResolutionInput } from './types'
 import type { StimaApplicata } from './stima-documento-ai'
 
-export type StatoPrezzoDocumento = 'prezzo_affidabile' | 'prezzo_proposto' | 'stima_artecna_ai' | 'prezzo_non_determinabile' | 'modificato_utente'
+export type StatoPrezzoDocumento = 'prezzo_affidabile' | 'prezzo_proposto' | 'stima_artecna_ai' | 'stima_ai_sospesa' | 'stima_ai_scartata' | 'prezzo_non_determinabile' | 'modificato_utente'
 export type PropostaPrezzoDocumento = {
   prezzo_proposto: number
   fonte_proposta: string
@@ -112,8 +112,13 @@ export function preparaBozzaDocumento<T extends VoceDocumento>(voci: readonly T[
 export function statoPrezzoDocumento(voce: VoceDocumento): StatoPrezzoDocumento {
   if (voce.priceResolutionInvalidated) return 'modificato_utente'
   const s = voce.stimaPrezzoArtecna
-  if (s) return voce.descrizione === s.descrizione && voce.unita_misura === s.unita_originale &&
-    voce.quantita === s.quantita && voce.prezzo_unitario === s.prezzo_unitario_proposto ? 'stima_artecna_ai' : 'modificato_utente'
+  if (s) {
+    const stato = s.validazione_tecnica?.stato || 'sospesa_da_verificare'
+    const prezzoAtteso = stato === 'accettata' ? s.prezzo_unitario_proposto : 0
+    if (voce.descrizione !== s.descrizione || voce.unita_misura !== s.unita_originale || voce.quantita !== s.quantita ||
+        voce.prezzo_unitario !== prezzoAtteso) return 'modificato_utente'
+    return stato === 'accettata' ? 'stima_artecna_ai' : stato === 'scartata' ? 'stima_ai_scartata' : 'stima_ai_sospesa'
+  }
   const p = voce.propostaPrezzoDocumento
   if (p) return voce.descrizione === p.descrizione && voce.unita_misura === p.unita_misura &&
     voce.prezzo_unitario === p.prezzo_proposto ? 'prezzo_proposto' : 'modificato_utente'
@@ -121,7 +126,7 @@ export function statoPrezzoDocumento(voce: VoceDocumento): StatoPrezzoDocumento 
   return 'prezzo_non_determinabile'
 }
 export function riepilogoPrezziDocumento(voci: readonly VoceDocumento[]) {
-  const stats = { prezzo_affidabile: 0, prezzo_proposto: 0, stima_artecna_ai: 0, prezzo_non_determinabile: 0, modificato_utente: 0 }
+  const stats = { prezzo_affidabile: 0, prezzo_proposto: 0, stima_artecna_ai: 0, stima_ai_sospesa: 0, stima_ai_scartata: 0, prezzo_non_determinabile: 0, modificato_utente: 0 }
   for (const voce of voci) stats[statoPrezzoDocumento(voce)]++
   return stats
 }

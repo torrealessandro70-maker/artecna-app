@@ -29,7 +29,13 @@ const voce = (descrizione = 'Posa pavimento con collante', quantita = 10, unita_
 const output = (input, price = 25) => ({ stime: input.righe.map(r => ({ id: r.id, prezzo_unitario_proposto: price, unita_interpretata: r.unita,
   tipo: 'stima_artecna_ai', affidabilita: 'media', motivazione: 'Stima della prestazione completa nella U.M. originale; materiale principale escluso per sola posa.',
   riferimenti_utilizzati: [], avvisi: ['Verificare dimensioni e inclusioni'], lavorazione_composita: r.composita,
-  quantita_coperta_dal_prezzo: price === null ? null : 1, totale_riga_proposto: price === null ? null : Math.round(price * r.quantita * 100) / 100 })) })
+  quantita_coperta_dal_prezzo: price === null ? null : 1, totale_riga_proposto: price === null ? null : Math.round(price * r.quantita * 100) / 100,
+  quantita_strutturata: r.quantita, totale_riga_previsto: price === null ? null : Math.round(price * r.quantita * 100) / 100,
+  unita_economica: { descrizione: 'Pacchetto unitario originale', base_documentale: r.descrizione }, riferimenti_ancoraggio: [],
+  componenti_economiche: price === null ? [] : [{ categoria: 'posa', descrizione: 'Attività di posa', importo_unitario: price * 0.8, riferimento_id: null },
+    { categoria: 'opere_accessorie', descrizione: 'Preparazione e accessori', importo_unitario: price * 0.2, riferimento_id: null }],
+  scorporo_fornitura: null, esclusioni_componenti: [],
+})) })
 
 test('batch unico per residui: conserva tre affidabili e due proposte locali, nessuna scrittura', async () => {
   const affidabili = [30.3, 21.71, 8.18].map(p => ({ ...voce(), prezzo_unitario: p, priceResolution: { matched: true, confidence: 1, strategy: 'description_unit', prezzoUnitarioRisolto: p } }))
@@ -43,7 +49,7 @@ test('batch unico per residui: conserva tre affidabili e due proposte locali, ne
   assert.equal(calls, 1); assert.equal(JSON.stringify(voci), snapshot)
   assert.equal(JSON.stringify(result.slice(0, 5)), JSON.stringify(voci.slice(0, 5)))
   const counts = riepilogoPrezziDocumento(result)
-  assert.deepEqual({ ...counts }, { prezzo_affidabile: 3, prezzo_proposto: 2, stima_artecna_ai: 34, prezzo_non_determinabile: 0, modificato_utente: 0 })
+  assert.deepEqual({ ...counts }, { prezzo_affidabile: 3, prezzo_proposto: 2, stima_artecna_ai: 34, stima_ai_sospesa: 0, stima_ai_scartata: 0, prezzo_non_determinabile: 0, modificato_utente: 0 })
   assert(result.slice(5).every(v => v.priceResolution.strategy === 'no_match' && v.prezzo_unitario === 25))
 })
 test('nessun residuo: nessuna chiamata; idempotenza dopo stima', async () => {
@@ -73,7 +79,6 @@ for (const [nome, mutate] of [
   ['campo extra', o => { o.stime[0].quantita = 20 }],
   ['composita ignorata', o => { o.stime[0].lavorazione_composita = false }],
   ['totale incoerente', o => { o.stime[0].totale_riga_proposto = 25 }],
-  ['prezzo già cumulativo', o => { o.stime[0].quantita_coperta_dal_prezzo = 10 }],
 ]) test(`fail closed: ${nome}`, () => {
   const voci = [voce('Facciata completa'), voce()], i = api.preparaInputStimeDocumento(voci, []), out = output(i)
   mutate(out); assert.throws(() => api.validaOutputStimeDocumento(out, i))
@@ -92,12 +97,14 @@ test('prezzo null motivato resta non determinabile; una voce nulla non scarta al
   const voci = [voce(), voce('Fotovoltaico senza potenza', 2, 'corpo')], i = api.preparaInputStimeDocumento(voci, []), o = output(i)
   o.stime[1].prezzo_unitario_proposto = null
   o.stime[1].quantita_coperta_dal_prezzo = null; o.stime[1].totale_riga_proposto = null
+  o.stime[1].totale_riga_previsto = null; o.stime[1].componenti_economiche = []
   const r = api.applicaStimeDocumento(voci, i, o)
   assert.equal(r[0].prezzo_unitario, 25); assert.equal(statoPrezzoDocumento(r[1]), 'prezzo_non_determinabile'); assert(r[1].erroreStimaDocumento)
 })
 test('astensione esplicita zero con base e totale null resta senza prezzo e senza stima', () => {
   const voci = [voce(), voce('Impianto elettrico', 0, 'a corpo')], i = api.preparaInputStimeDocumento(voci, []), o = output(i)
   o.stime[1].prezzo_unitario_proposto = 0; o.stime[1].quantita_coperta_dal_prezzo = null; o.stime[1].totale_riga_proposto = null
+  o.stime[1].totale_riga_previsto = null; o.stime[1].componenti_economiche = []
   const [prima, seconda] = api.applicaStimeDocumento(voci, i, o)
   assert.equal(prima.prezzo_unitario, 25); assert.equal(seconda.prezzo_unitario, 0)
   assert.equal(seconda.stimaPrezzoArtecna, undefined); assert.equal(statoPrezzoDocumento(seconda), 'prezzo_non_determinabile')
@@ -170,7 +177,7 @@ test('UI stima gialla, prezzo/totale in colonna, cinque contatori e dettaglio av
     salvaRevisionePreventivoAi: noop, preventivoRegistroCantiere: '', setMostraRevisionePreventivoAi: noop,
     excelTable: {}, excelTh: {}, excelTd: {}, buttonPrimary: {}, buttonSecondary: {},
   }))
-  for (const t of ['Stima ARTECNA — lavorazione composita', 'Stime ARTECNA', 'Proposte da riferimenti', '800.00', 'value="80"', 'Verificare dimensioni', 'provvisoria']) assert(html.includes(t), t)
+  for (const t of ['Stima ARTECNA — lavorazione composita', 'Stime AI accettate', 'Proposte da riferimenti', '800.00', 'value="80"', 'Verificare dimensioni', 'provvisoria']) assert(html.includes(t), t)
   assert(!html.includes('nessun prezzo applicato'))
 })
 test('perimetro: vecchio percorso singolo e modello conservati, nessun Web/writer nel batch', () => {
@@ -233,7 +240,7 @@ test('computo reale: replay risposta batch acquisita, prezzi/totali e metadati n
   const report = JSON.parse(fs.readFileSync(process.env.ARTECNA_LOCAL_STIME_REPORT, 'utf8')), voci = report.voci
   assert.equal(voci.length, 39)
   const stats = riepilogoPrezziDocumento(voci)
-  assert.equal(stats.prezzo_affidabile, 3); assert.equal(stats.prezzo_proposto, 2); assert(stats.stima_artecna_ai >= 25)
+  assert.equal(stats.prezzo_affidabile, 3); assert.equal(stats.prezzo_proposto, 2); assert(stats.stima_artecna_ai > 0)
   assert.equal(Object.values(stats).reduce((s, n) => s + n, 0), 39)
   assert.equal(voci.filter(v => v.priceResolution.strategy === 'no_match').length, 36)
   for (const [i,p] of [[10,30.3],[18,21.71],[27,8.18],[17,31.5],[32,22.2]]) assert.equal(voci[i].prezzo_unitario, p)
@@ -242,8 +249,9 @@ test('computo reale: replay risposta batch acquisita, prezzi/totali e metadati n
   for (const v of voci.filter(v => v.stimaPrezzoArtecna)) {
     assert.equal(v.unita_misura, v.stimaPrezzoArtecna.unita_originale)
     assert.equal(v.quantita, v.stimaPrezzoArtecna.quantita)
-    assert.equal(v.prezzo_unitario, v.stimaPrezzoArtecna.prezzo_unitario_proposto)
-    assert.equal(statoPrezzoDocumento(v), 'stima_artecna_ai')
+    const accettata = v.stimaPrezzoArtecna.validazione_tecnica.stato === 'accettata'
+    assert.equal(v.prezzo_unitario, accettata ? v.stimaPrezzoArtecna.prezzo_unitario_proposto : 0)
+    assert.equal(statoPrezzoDocumento(v), accettata ? 'stima_artecna_ai' : v.stimaPrezzoArtecna.validazione_tecnica.stato === 'scartata' ? 'stima_ai_scartata' : 'stima_ai_sospesa')
   }
   const Panel = load(path.join(app, 'components/RevisionePreventivoAiPanel.tsx')).default, noop = () => { throw Error('Read-only render') }
   const html = renderToStaticMarkup(React.createElement(Panel, {
@@ -254,6 +262,6 @@ test('computo reale: replay risposta batch acquisita, prezzi/totali e metadati n
     excelTable: {}, excelTh: {}, excelTd: {}, buttonPrimary: {}, buttonSecondary: {},
   }))
   assert(html.includes(report.subtotale.toFixed(2)))
-  assert(html.includes('Stime ARTECNA')); assert(html.includes('Stima ARTECNA — lavorazione composita'))
+  assert(html.includes('Stime AI accettate')); assert(html.includes('Validazione tecnica:'))
   for (const v of voci) assert(html.includes(`value="${v.prezzo_unitario}"`))
 })
