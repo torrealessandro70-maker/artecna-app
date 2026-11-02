@@ -52,10 +52,10 @@ test('astensione positiva o zero è invalida; null esplicito resta ND senza erro
   assert.equal(r[0].diagnosticaStimaDocumento.motivo,'stima_ai_scartata');assert.equal(r[1].diagnosticaStimaDocumento.motivo,'stima_ai_scartata')
   assert.equal(r[2].diagnosticaStimaDocumento.motivo,'astensione_ai');assert.equal(r[2].prezzo_unitario,0);assert.equal(r[3].prezzo_unitario,30)
 })
-test('componente circolare e composito senza scomposizione restano sospesi',async()=>{
+test('componente autonoma semplice entra arancione; composito senza scomposizione resta sospeso',async()=>{
   const v=voci(3);v[1].descrizione='Revisione tetto composita'
   const r=await api.completaBozzaConStime(v,[],i=>{const o=output(i);Object.assign(o.stime[0].componenti_economiche[0],{quantita_tecnica:1,unita_tecnica:'mq',costo_unitario:30,metodo_calcolo:'altro_documentato'});o.stime[1].componenti_economiche=[];return api.eseguiStimeDocumento(i,async()=>JSON.stringify(o))})
-  assert.equal(r[0].diagnosticaStimaDocumento.motivo,'stima_ai_sospesa');assert(r[0].stimaPrezzoArtecna.validazione_tecnica.codici.includes('componente_circolare_o_metodo_incoerente'))
+  assert.equal(r[0].diagnosticaStimaDocumento.motivo,'stima_ai_da_controllare');assert.equal(r[0].prezzo_unitario,30);assert.equal(r[0].stimaPrezzoArtecna.validazione_tecnica.supporto_economico,'autonomo')
   assert.equal(r[1].diagnosticaStimaDocumento.motivo,'stima_ai_sospesa');assert(r[1].stimaPrezzoArtecna.validazione_tecnica.codici.includes('scomposizione_assente'))
   assert.equal(r[2].prezzo_unitario,30)
 })

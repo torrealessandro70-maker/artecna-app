@@ -29,7 +29,7 @@ export type StimaDocumento = BaseEconomicaStima & {
 export type StimaApplicata = StimaDocumento & { descrizione: string; quantita: number; unita_originale: string; riferimenti_locali: Riferimento[];
   affidabilita_ai: StimaDocumento['affidabilita']; validazione_tecnica: ValidazioneTecnica }
 export type DiagnosticaIdentitaBatch = { duplicate_ids: string[]; missing_ids: string[]; unexpected_ids: string[]; expected_count: number; received_count: number; invalid_positions: number[] }
-export type DiagnosticaStimaDocumento = { motivo: 'stima_ai_accettata' | 'stima_ai_sospesa' | 'stima_ai_scartata' | 'astensione_ai' | 'batch_identity_invalid' | 'prezzo_non_determinabile'
+export type DiagnosticaStimaDocumento = { motivo: 'stima_ai_supportata' | 'stima_ai_da_controllare' | 'stima_ai_sospesa' | 'stima_ai_scartata' | 'astensione_ai' | 'batch_identity_invalid' | 'prezzo_non_determinabile'
   messaggio: string; chunk_id?: string; identita?: DiagnosticaIdentitaBatch }
 export type EsitoStimeDocumento = { stime: StimaDocumento[]; errore?: string; diagnostica_identita?: DiagnosticaIdentitaBatch
   righe_invalide?: { id: string; motivo: string }[] }
@@ -332,10 +332,10 @@ export function applicaStimeDocumento<T extends VoceStimabile>(voci: readonly T[
       quantita: Number(v.quantita || 0), testo_stima: [...stime, ...stimeAltriChunk].find(s => s.id === `riga-${n + 1}`)?.motivazione }))
     const validazione = validaTecnicamenteStima(r, s, perimetro)
     return { ...v, prezzo_unitario: validazione.stato === 'accettata' ? s.prezzo_unitario_proposto : 0, erroreStimaDocumento: undefined,
-      diagnosticaStimaDocumento: { motivo: validazione.stato === 'accettata' ? 'stima_ai_accettata' : validazione.stato === 'scartata' ? 'stima_ai_scartata' : 'stima_ai_sospesa', messaggio: validazione.motivi.join(' ') },
+      diagnosticaStimaDocumento: { motivo: validazione.stato === 'accettata' ? (validazione.supporto_economico === 'autonomo' ? 'stima_ai_da_controllare' : 'stima_ai_supportata') : validazione.stato === 'scartata' ? 'stima_ai_scartata' : 'stima_ai_sospesa', messaggio: validazione.motivi.join(' ') },
       stimaPrezzoArtecna: { ...s, descrizione: r.descrizione, quantita: r.quantita, unita_originale: r.unita,
         affidabilita_ai: s.affidabilita, validazione_tecnica: validazione, riferimenti_locali: r.riferimenti,
-        avvisi: [...s.avvisi, ...avvisiUm, 'Stima AI provvisoria, non prezzo di listino certificato. Controllare prima del salvataggio finale.'] } }
+        avvisi: [...s.avvisi, ...avvisiUm, ...validazione.avvisi, 'Stima AI provvisoria, non prezzo di listino certificato. Controllare prima del salvataggio finale.'] } }
   })
 }
 

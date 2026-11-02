@@ -805,12 +805,13 @@ aggiornaVociConCronologia(nuove)
 
                 <td style={excelTd}>{formatMoney(totale)}</td>
                 {bozzaDocumento && <td style={{ ...excelTd, minWidth: 220, verticalAlign: 'top' }}>
-                  <strong style={{ color: statoPrezzoDocumento(voce) === 'prezzo_affidabile' ? '#166534' : ['prezzo_non_determinabile', 'stima_ai_scartata'].includes(statoPrezzoDocumento(voce)) ? '#b91c1c' : '#92400e' }}>
-                    {{ prezzo_affidabile: 'Prezzo affidabile', prezzo_proposto: 'Prezzo proposto — controllare', stima_artecna_ai: voce.stimaPrezzoArtecna?.lavorazione_composita ? 'Stima ARTECNA — lavorazione composita' : 'Stima ARTECNA — controllare', stima_ai_sospesa: 'Stima ARTECNA — sospesa da verificare', stima_ai_scartata: 'Stima ARTECNA — scartata', prezzo_non_determinabile: 'Prezzo non determinabile', modificato_utente: 'Modificato dall’utente' }[statoPrezzoDocumento(voce)]}
+                  <strong style={{ color: statoPrezzoDocumento(voce) === 'prezzo_affidabile' ? '#166534' : ['prezzo_non_determinabile', 'stima_ai_sospesa', 'stima_ai_scartata', 'astensione_ai', 'batch_identity_invalid'].includes(statoPrezzoDocumento(voce)) ? '#b91c1c' : statoPrezzoDocumento(voce) === 'stima_ai_da_controllare' ? '#c2410c' : '#92400e' }}>
+                    {{ prezzo_affidabile: 'Prezzo affidabile', proposta_locale: 'Proposta locale — controllare', stima_ai_supportata: 'Stima AI supportata — proposta', stima_ai_da_controllare: '🟠 Stima AI — controllare', astensione_ai: 'Astensione AI', batch_identity_invalid: 'Identità batch non valida', stima_ai_sospesa: 'Stima ARTECNA — sospesa da verificare', stima_ai_scartata: 'Stima ARTECNA — scartata', prezzo_non_determinabile: 'Prezzo non determinabile', modificato_utente: 'Modificato dall’utente' }[statoPrezzoDocumento(voce)]}
                   </strong>
                   {voce.erroreStimaDocumento && <p role="status">{voce.erroreStimaDocumento}</p>}
                   {voce.stimaPrezzoArtecna && <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
                     <p>Stima AI originale: {formatMoney(voce.stimaPrezzoArtecna.prezzo_unitario_proposto)} / {voce.stimaPrezzoArtecna.unita_originale}</p>
+                    <p>Supporto economico: {voce.stimaPrezzoArtecna.validazione_tecnica.supporto_economico === 'supportato' ? 'documentato — proposta provvisoria' : 'stima autonoma non documentata — controllare'}</p>
                     <p>Affidabilità AI: {voce.stimaPrezzoArtecna.affidabilita_ai || voce.stimaPrezzoArtecna.affidabilita}</p>
                     <p>Validazione tecnica: {voce.stimaPrezzoArtecna.validazione_tecnica?.stato || 'sospesa_da_verificare'}</p>
                     <ul>{voce.stimaPrezzoArtecna.validazione_tecnica?.motivi.map((m: string) => <li key={m}>{m}</li>)}</ul>
@@ -819,7 +820,10 @@ aggiornaVociConCronologia(nuove)
                     <details><summary>Base economica e componenti</summary>
                       <p>{voce.stimaPrezzoArtecna.unita_economica?.descrizione || 'Definizione strutturata dell’unità economica non disponibile nella risposta.'}</p>
                       {voce.stimaPrezzoArtecna.unita_economica && <p>Base documentale: {voce.stimaPrezzoArtecna.unita_economica.base_documentale}</p>}
-                      {voce.stimaPrezzoArtecna.componenti_economiche?.length ? <ul>{voce.stimaPrezzoArtecna.componenti_economiche.map((c: { categoria: string; descrizione: string; importo_unitario: number }, i: number) => <li key={`${c.categoria}:${i}`}>{c.categoria}: {c.descrizione} · {formatMoney(c.importo_unitario)}</li>)}</ul> : <p>Nessuna scomposizione economica disponibile.</p>}
+                      {voce.stimaPrezzoArtecna.componenti_economiche?.length ? <ul>{voce.stimaPrezzoArtecna.componenti_economiche.map((c: { categoria: string; descrizione: string; importo_unitario: number; origine_costo?: { tipo: string; descrizione: string } }, i: number) => <li key={`${c.categoria}:${i}`}>
+                        {c.categoria}: {c.descrizione} · {formatMoney(c.importo_unitario)}
+                        {c.origine_costo && <p>Origine/assunzione del costo: {c.origine_costo.tipo} — {c.origine_costo.descrizione}</p>}
+                      </li>)}</ul> : <p>Nessuna scomposizione economica disponibile.</p>}
                       {voce.stimaPrezzoArtecna.scorporo_fornitura && <p>Scorporo dichiarato: {voce.stimaPrezzoArtecna.scorporo_fornitura.riferimento_completo_id} meno {voce.stimaPrezzoArtecna.scorporo_fornitura.riferimento_materiale_id}; sola posa {formatMoney(voce.stimaPrezzoArtecna.scorporo_fornitura.costo_posa_unitario)}.</p>}
                     </details>
                     <details><summary>Riferimenti e limiti tecnici</summary>

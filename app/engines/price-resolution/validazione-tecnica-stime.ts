@@ -31,7 +31,7 @@ export type StimaTecnica = BaseEconomicaStima & {
   prezzo_unitario_proposto: number | null; unita_interpretata: string; quantita_coperta_dal_prezzo: number | null
   totale_riga_proposto: number | null; motivazione: string; riferimenti_utilizzati: string[]; lavorazione_composita: boolean
 }
-export type ValidazioneTecnica = { stato: StatoTecnico; codici: string[]; motivi: string[]; avvisi: string[]; riferimenti_ancoraggio: string[] }
+export type ValidazioneTecnica = { stato: StatoTecnico; codici: string[]; motivi: string[]; avvisi: string[]; riferimenti_ancoraggio: string[]; supporto_economico: 'supportato' | 'autonomo' }
 
 const n = (s: string) => normalizePriceDescription(s)
 const um = (s: string) => normalizeUnitOfMeasure(s)
@@ -200,12 +200,25 @@ export function verificaProvaEconomica(r: RigaTecnica, s: StimaTecnica): { codic
 }
 
 export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, tutte: readonly PerimetroLavorazione[]): ValidazioneTecnica {
-  const result: ValidazioneTecnica = { stato: 'accettata', codici: [], motivi: [], avvisi: [], riferimenti_ancoraggio: [] }
+  const result: ValidazioneTecnica = { stato: 'accettata', codici: [], motivi: [], avvisi: [], riferimenti_ancoraggio: [], supporto_economico: 'supportato' }
   const blocca = (stato: Exclude<StatoTecnico, 'accettata'>, codice: string, motivo: string) => {
     if (result.stato !== 'scartata') result.stato = stato
     result.codici.push(codice); result.motivi.push(motivo)
   }
   const r = { ...riga, riferimenti: riga.riferimenti.map(ref => classificaRiferimento(riga, ref)) }
+  const avvisaEconomia = (codice: string, motivo: string) => {
+    result.supporto_economico = 'autonomo'
+    result.avvisi.push(motivo + ' (' + codice + '). Stima AI — controllare; nessuna certificazione economica.')
+  }
+  if (stima.componenti_economiche?.some(c => c.origine_costo?.tipo === 'ipotesi_tecnica_esplicita')) {
+    avvisaEconomia('costi_ipotizzati', 'La base economica contiene costi autonomi dichiarati dal modello')
+  }
+  const prezzo = stima.prezzo_unitario_proposto
+  if (typeof prezzo !== 'number' || !Number.isFinite(prezzo) || prezzo <= 0 || !Number.isFinite(r.quantita) || r.quantita < 0 ||
+      !Number.isFinite(stima.totale_riga_proposto) || Math.abs(Math.round(prezzo * r.quantita * 100) / 100 - Number(stima.totale_riga_proposto)) >= 0.005) {
+    blocca('scartata', 'totale_riga_incoerente', 'Prezzo, quantità e totale non sono matematicamente coerenti.')
+  }
+  if (!um(r.unita) || um(r.unita) !== um(stima.unita_interpretata)) blocca('sospesa_da_verificare', 'um_non_interpretabile', 'U.M. economica non interpretabile nella unità originale.')
   const testo = n(stima.motivazione + ' ' + (stima.unita_economica?.descrizione || ''))
   const scorporo = scorporoVerificato(r, stima)
   if (stima.scorporo_fornitura && !scorporo) blocca('sospesa_da_verificare', 'scorporo_non_dimostrato', 'Lo scorporo dichiarato non è verificabile sui prezzi, sugli oggetti e sulle U.M. dei due riferimenti originali.')
@@ -220,8 +233,9 @@ export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, 
     else if (ref.utilizzabile_come_ancoraggio) result.riferimenti_ancoraggio.push(id)
     result.avvisi.push(...(ref.avvisi || []))
   }
-  if (!ancoraggi.length && !stima.componenti_economiche?.length && !scorporo) blocca('sospesa_da_verificare', 'base_economica_assente', 'Stima autonoma senza componenti economiche verificabili.')
-  if (solaPosa(r.descrizione) && r.riferimenti.some(ref => stima.riferimenti_utilizzati.includes(ref.id) && ref.comprende_fornitura) && !scorporo) {
+  if (!ancoraggi.length && !stima.componenti_economiche?.length && !scorporo) avvisaEconomia('base_economica_assente', 'Stima autonoma senza supporto economico esterno')
+  if (solaPosa(r.descrizione) && r.riferimenti.some(ref =>
+      (ancoraggi.includes(ref.id) || stima.componenti_economiche?.some(c => c.riferimento_id === ref.id)) && ref.comprende_fornitura) && !scorporo) {
     blocca('sospesa_da_verificare', 'scorporo_non_dimostrato', 'Sola posa derivata da fornitura+posa senza scorporo quantitativo verificato sui riferimenti ricevuti.')
   }
   if (['a_corpo', 'cad', 'cu'].includes(um(r.unita))) {
@@ -250,7 +264,17 @@ export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, 
   const composita = r.composita || stima.lavorazione_composita || ['facciata', 'apertura_portante', 'tetto', 'imhoff', 'muro_confine', 'impianto_elettrico', 'impianto_idrico', 'condizionamento', 'fotovoltaico', 'assistenza_muraria', 'antifurto', 'videosorveglianza', 'vespaio', 'scala'].includes(famigliaTecnica(r.descrizione))
   if ((!result.riferimenti_ancoraggio.length && !scorporo) || composita || stima.metodo_calcolo !== undefined) {
     const prova = verificaProvaEconomica(r, stima)
-    for (const codice of prova.codici) blocca('sospesa_da_verificare', codice, 'Prova economica insufficiente: quantità tecnica × costo, origine del costo e derivazione unitaria devono essere verificabili (' + codice + ').')
+    for (const codice of prova.codici) {
+      // Declared autonomous costs are not evidence, but may price a provisional draft.
+      // Invalid labour units, invented documentary costs and arithmetic stay hard blocks.
+      const nominaleAutonoma = codice === 'componente_circolare_o_metodo_incoerente' &&
+        componenti.every(c => c.metodo_calcolo === 'riferimento_locale' ||
+          (c.metodo_calcolo === 'altro_documentato' && c.origine_costo?.tipo === 'ipotesi_tecnica_esplicita') ||
+          !verificaProvaEconomica(r, { ...stima, componenti_economiche: [c] }).codici.includes(codice))
+      if ((codice === 'prova_economica_assente' && !composita && !componenti.length) || nominaleAutonoma) {
+        avvisaEconomia(codice, 'Supporto economico non dimostrato: il prezzo resta una stima autonoma')
+      } else blocca('sospesa_da_verificare', codice, 'Verifica economica/tecnica non superata (' + codice + ').')
+    }
     result.avvisi.push(...prova.avvisi)
   }
   if (composita) {
@@ -284,7 +308,9 @@ export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, 
     const ancoraConteggiata = componenti.some(c => new RegExp(sovrapposizione.componente).test(n(c.descrizione)))
     if (!esclusa || ancoraConteggiata) blocca('sospesa_da_verificare', 'sovrapposizione_' + sovrapposizione.componente, `Possibile duplicazione ${sovrapposizione.componente} con ${sovrapposizione.voce}: esclusione economica non dimostrata.`)
   }
-  if (result.stato === 'accettata') result.motivi.push('Base unitaria e riferimenti tecnicamente coerenti; resta una stima provvisoria, non un prezzo certificato.')
+  if (result.stato === 'accettata') result.motivi.push(result.supporto_economico === 'autonomo'
+    ? 'Tecnicamente applicabile alla bozza, supporto economico non documentato: Stima AI — controllare.'
+    : 'Stima tecnicamente valida con supporto economico verificato; resta provvisoria, non certificata.')
   result.codici = [...new Set(result.codici)]
   result.motivi = [...new Set(result.motivi)]
   result.avvisi = [...new Set(result.avvisi)]

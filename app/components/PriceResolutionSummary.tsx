@@ -9,8 +9,11 @@ type Props = {
 export default function PriceResolutionSummary({ statistics, bozza }: Props) {
   const voci = bozza ? [
     ['Prezzi affidabili', bozza.prezzo_affidabile],
-    ['Proposte da riferimenti', bozza.prezzo_proposto],
-    ['Stime AI accettate', bozza.stima_artecna_ai],
+    ['Proposte locali', bozza.proposta_locale],
+    ['Stime AI supportate', bozza.stima_ai_supportata],
+    ['Stime AI da controllare', bozza.stima_ai_da_controllare],
+    ['Astensioni AI', bozza.astensione_ai],
+    ['Batch identity invalid', bozza.batch_identity_invalid],
     ['Stime AI sospese', bozza.stima_ai_sospesa],
     ['Stime AI scartate', bozza.stima_ai_scartata],
     ['Prezzi non determinati', bozza.prezzo_non_determinabile],
@@ -23,7 +26,7 @@ export default function PriceResolutionSummary({ statistics, bozza }: Props) {
   ] as const
   return <section aria-label="Esiti risoluzione prezzi" style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, background: '#fff' }}>
     <h3 style={{ marginTop: 0 }}>{bozza ? 'Stato prezzi della bozza' : 'Esiti risoluzione prezzi'}</h3>
-    <p>{bozza ? 'Solo le stime tecnicamente accettate concorrono al subtotale. Le proposte locali restano provvisorie; le stime sospese o scartate restano consultabili senza applicare il prezzo. Controlla prima di salvare o generare il definitivo.' : 'Esiti associati alle voci, non una traccia delle fonti consultate.'}</p>
+    <p>{bozza ? 'Le stime tecnicamente valide concorrono al subtotale: quelle autonome sono indicate come Stima AI — controllare, con supporto economico non documentato. Le proposte locali restano provvisorie; le stime sospese o scartate restano consultabili senza applicare il prezzo. Controlla prima di salvare o generare il definitivo.' : 'Esiti associati alle voci, non una traccia delle fonti consultate.'}</p>
     <dl style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
       {voci.map(([etichetta, numero]) => <div key={etichetta} style={{ display: 'contents' }}>
         <dt>{etichetta}</dt><dd style={{ margin: 0, fontWeight: 700 }}>{numero}</dd>

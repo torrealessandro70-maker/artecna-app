@@ -50,7 +50,7 @@ test('chunk automatici per residui: conserva tre affidabili e due proposte local
   assert.equal(calls, 6); assert.equal(JSON.stringify(voci), snapshot)
   assert.equal(JSON.stringify(result.slice(0, 5)), JSON.stringify(voci.slice(0, 5)))
   const counts = riepilogoPrezziDocumento(result)
-  assert.deepEqual({ ...counts }, { prezzo_affidabile: 3, prezzo_proposto: 2, stima_artecna_ai: 34, stima_ai_sospesa: 0, stima_ai_scartata: 0, prezzo_non_determinabile: 0, modificato_utente: 0 })
+  assert.deepEqual({ ...counts }, { prezzo_affidabile: 3, proposta_locale: 2, stima_ai_supportata: 0, stima_ai_da_controllare: 34, astensione_ai: 0, batch_identity_invalid: 0, stima_ai_sospesa: 0, stima_ai_scartata: 0, prezzo_non_determinabile: 0, modificato_utente: 0 })
   assert(result.slice(5).every(v => v.priceResolution.strategy === 'no_match' && v.prezzo_unitario === 25))
 })
 test('nessun residuo: nessuna chiamata; idempotenza dopo stima', async () => {
@@ -167,7 +167,7 @@ test('input limitato e strutturato: no campi arbitrari, quantità negative, dupl
     assert.throws(() => api.validaInputStimeDocumento(v))
   }
 })
-test('UI stima gialla, prezzo/totale in colonna, cinque contatori e dettaglio avvisi', () => {
+test('UI distingue stima arancione, supporto economico e contatori senza certificare il prezzo', () => {
   const voci = [voce('Facciata completa', 10)], i = api.preparaInputStimeDocumento(voci, [])
   const v = api.applicaStimeDocumento(voci, i, output(i, 80))
   const Panel = load(path.join(app, 'components/RevisionePreventivoAiPanel.tsx')).default, noop = () => { throw Error('No actions during render') }
@@ -178,7 +178,7 @@ test('UI stima gialla, prezzo/totale in colonna, cinque contatori e dettaglio av
     salvaRevisionePreventivoAi: noop, preventivoRegistroCantiere: '', setMostraRevisionePreventivoAi: noop,
     excelTable: {}, excelTh: {}, excelTd: {}, buttonPrimary: {}, buttonSecondary: {},
   }))
-  for (const t of ['Stima ARTECNA — lavorazione composita', 'Stime AI accettate', 'Proposte da riferimenti', '800.00', 'value="80"', 'Verificare dimensioni', 'provvisoria']) assert(html.includes(t), t)
+  for (const t of ['Stima AI — controllare', 'Stime AI supportate', 'Stime AI da controllare', 'Proposte locali', '800.00', 'value="80"', 'Verificare dimensioni', 'provvisoria']) assert(html.includes(t), t)
   assert(!html.includes('nessun prezzo applicato'))
 })
 test('perimetro: vecchio percorso singolo e modello conservati, nessun Web/writer nel batch', () => {
@@ -241,7 +241,7 @@ test('computo reale: replay risposta batch acquisita, prezzi/totali e metadati n
   const report = JSON.parse(fs.readFileSync(process.env.ARTECNA_LOCAL_STIME_REPORT, 'utf8')), voci = report.voci
   assert.equal(voci.length, 39)
   const stats = riepilogoPrezziDocumento(voci)
-  assert.equal(stats.prezzo_affidabile, 3); assert.equal(stats.prezzo_proposto, 2); assert(stats.stima_artecna_ai > 0)
+  assert.equal(stats.prezzo_affidabile, 3); assert.equal(stats.proposta_locale, 2); assert(stats.stima_ai_da_controllare > 0)
   assert.equal(Object.values(stats).reduce((s, n) => s + n, 0), 39)
   assert.equal(voci.filter(v => v.priceResolution.strategy === 'no_match').length, 36)
   for (const [i,p] of [[10,30.3],[18,21.71],[27,8.18],[17,31.5],[32,22.2]]) assert.equal(voci[i].prezzo_unitario, p)
@@ -252,7 +252,7 @@ test('computo reale: replay risposta batch acquisita, prezzi/totali e metadati n
     assert.equal(v.quantita, v.stimaPrezzoArtecna.quantita)
     const accettata = v.stimaPrezzoArtecna.validazione_tecnica.stato === 'accettata'
     assert.equal(v.prezzo_unitario, accettata ? v.stimaPrezzoArtecna.prezzo_unitario_proposto : 0)
-    assert.equal(statoPrezzoDocumento(v), accettata ? 'stima_artecna_ai' : v.stimaPrezzoArtecna.validazione_tecnica.stato === 'scartata' ? 'stima_ai_scartata' : 'stima_ai_sospesa')
+    assert.equal(statoPrezzoDocumento(v), accettata ? (v.stimaPrezzoArtecna.validazione_tecnica.supporto_economico === 'supportato' ? 'stima_ai_supportata' : 'stima_ai_da_controllare') : v.stimaPrezzoArtecna.validazione_tecnica.stato === 'scartata' ? 'stima_ai_scartata' : 'stima_ai_sospesa')
   }
   const Panel = load(path.join(app, 'components/RevisionePreventivoAiPanel.tsx')).default, noop = () => { throw Error('Read-only render') }
   const html = renderToStaticMarkup(React.createElement(Panel, {

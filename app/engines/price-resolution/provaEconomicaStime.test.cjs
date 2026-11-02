@@ -63,11 +63,15 @@ for(const [name,mutate,code]of [
   ['prezzo derivato diverso',s=>s.prezzo_unitario_derivato=60,'totale_analisi_incoerente'],
   ['totale riga diverso',s=>s.totale_riga_proposto=999,'totale_analisi_incoerente'],
   ['totale previsto diverso',s=>s.totale_riga_previsto=999,'totale_analisi_incoerente'],
-  ['circolo posa=prezzo',s=>Object.assign(s.componenti_economiche[0],{quantita_tecnica:1,unita_tecnica:'mq',costo_unitario:30,metodo_calcolo:'altro_documentato'}),'componente_circolare_o_metodo_incoerente'],
   ['ore con U.M. mq',s=>s.componenti_economiche[0].unita_tecnica='mq','componente_circolare_o_metodo_incoerente'],
   ['fonte generica',s=>s.componenti_economiche[0].origine_costo={tipo:'documento',descrizione:'Costo comune',base_documentale:null},'origine_costo_non_verificata'],
   ['numero quantità non prova costo',s=>s.componenti_economiche[0].origine_costo={tipo:'documento',descrizione:'Presunto costo',base_documentale:'Quantità 40 mq'},'origine_costo_non_verificata'],
 ])test(`prova economica blocca ${name}`,()=>{const r=make().righe[0],s=stima(r);r.contesto_riga='Quantità 40 mq';mutate(s);const v=giudica(r,s);assert.notEqual(v.stato,'accettata');assert(v.codici.includes(code),JSON.stringify(v))})
+test('componente nominale autonoma entra senza diventare supporto economico',()=>{
+  const r=make().righe[0],s=stima(r);Object.assign(s.componenti_economiche[0],{quantita_tecnica:1,unita_tecnica:'mq',costo_unitario:30,metodo_calcolo:'altro_documentato'})
+  const v=giudica(r,s);assert.equal(v.stato,'accettata');assert.equal(v.supporto_economico,'autonomo');assert(v.avvisi.some(a=>a.includes('non dimostrato')))
+})
+
 test('materiale principale non diventa sola posa nemmeno con prodotto numerico corretto',()=>{
   const r=make().righe[0],s=stima(r),c=s.componenti_economiche[0];Object.assign(c,{categoria:'materiale',descrizione:'Piastrelle ceramiche',metodo_calcolo:'materiale',unita_tecnica:'mq'})
   assert(giudica(r,s).codici.includes('materiale_principale_incluso'))

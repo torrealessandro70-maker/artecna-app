@@ -49,7 +49,7 @@ test('ponteggio: proposta ARTECNA in colonna prezzo e totale, matching originale
   assert.equal(v.quantita * v.prezzo_unitario, 3330)
   assert.equal(v.priceResolution.strategy, 'no_match')
   assert.equal(esitoDiagnosticaVoce(v), 'unresolved')
-  assert.equal(statoPrezzoDocumento(v), 'prezzo_proposto')
+  assert.equal(statoPrezzoDocumento(v), 'proposta_locale')
   assert.equal(v.propostaPrezzoDocumento.fonte_proposta, 'ARTECNA')
   assert(v.propostaPrezzoDocumento.avvisi.some(a => a.includes('durata del nolo')))
 })
@@ -125,7 +125,7 @@ test('correzioni prezzo/descrizione/U.M. invalidano esito, preservando proposta 
     assert.equal(r.propostaPrezzoDocumento.prezzo_proposto, 22.2)
     assert.equal(preparaBozzaDocumento([r], prezzi)[0][campo], valore)
   }
-  assert.equal(statoPrezzoDocumento(v), 'prezzo_proposto')
+  assert.equal(statoPrezzoDocumento(v), 'proposta_locale')
 })
 
 async function generaOffline(vociAnalizzate, prezziarioSicilia) {
@@ -163,8 +163,8 @@ test('UI: prezzo proposto nella colonna esistente, totale e contatori separati, 
     miglioraVocePreventivoAi: vietato, salvaInMemoriaPrezzi: vietato, generaExcelDefinitivoPreventivoAi: vietato, salvaRevisionePreventivoAi: vietato,
     preventivoRegistroCantiere: '', setMostraRevisionePreventivoAi: vietato, excelTable: {}, excelTh: {}, excelTd: {}, buttonPrimary: {}, buttonSecondary: {} }
   const html = renderToStaticMarkup(React.createElement(Panel, props))
-  for (const text of ['Prezzo proposto — controllare','Prezzo non determinabile','Riferimenti locali da verificare','ARTECNA','3330.00','Matching originale: no_match']) assert(html.includes(text), text)
-  assert.match(html, /Proposte da riferimenti<\/dt><dd[^>]*>1<\/dd>/)
+  for (const text of ['Proposta locale — controllare','Prezzo non determinabile','Riferimenti locali da verificare','ARTECNA','3330.00','Matching originale: no_match']) assert(html.includes(text), text)
+  assert.match(html, /Proposte locali<\/dt><dd[^>]*>1<\/dd>/)
   assert.match(html, /Prezzi affidabili<\/dt><dd[^>]*>0<\/dd>/)
   assert.match(html, /value="22.2"/)
   assert(!html.includes('nessun prezzo applicato'))

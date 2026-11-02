@@ -6,7 +6,7 @@ import { creaIndiceRiferimentiLocali, riferimentiLocaliDaVerificare } from './ri
 import type { PriceKnowledgeItem, PriceResolutionInput } from './types'
 import type { StimaApplicata } from './stima-documento-ai'
 
-export type StatoPrezzoDocumento = 'prezzo_affidabile' | 'prezzo_proposto' | 'stima_artecna_ai' | 'stima_ai_sospesa' | 'stima_ai_scartata' | 'prezzo_non_determinabile' | 'modificato_utente'
+export type StatoPrezzoDocumento = 'prezzo_affidabile' | 'proposta_locale' | 'stima_ai_supportata' | 'stima_ai_da_controllare' | 'astensione_ai' | 'batch_identity_invalid' | 'stima_ai_sospesa' | 'stima_ai_scartata' | 'prezzo_non_determinabile' | 'modificato_utente'
 export type PropostaPrezzoDocumento = {
   prezzo_proposto: number
   fonte_proposta: string
@@ -21,6 +21,7 @@ export type PropostaPrezzoDocumento = {
 type VoceDocumento = {
   descrizione?: string; unita_misura?: string; quantita?: number; prezzo_unitario?: number
   bozzaDocumento?: boolean; propostaPrezzoDocumento?: PropostaPrezzoDocumento
+  diagnosticaStimaDocumento?: { motivo: string }
   stimaPrezzoArtecna?: StimaApplicata
   priceResolutionInvalidated?: boolean; fonte_prezzo?: string
   priceResolution?: { matched?: boolean; strategy?: string; confidence?: number; prezzoUnitarioRisolto?: number }
@@ -117,16 +118,18 @@ export function statoPrezzoDocumento(voce: VoceDocumento): StatoPrezzoDocumento 
     const prezzoAtteso = stato === 'accettata' ? s.prezzo_unitario_proposto : 0
     if (voce.descrizione !== s.descrizione || voce.unita_misura !== s.unita_originale || voce.quantita !== s.quantita ||
         voce.prezzo_unitario !== prezzoAtteso) return 'modificato_utente'
-    return stato === 'accettata' ? 'stima_artecna_ai' : stato === 'scartata' ? 'stima_ai_scartata' : 'stima_ai_sospesa'
+    return stato === 'accettata' ? (s.validazione_tecnica.supporto_economico === 'supportato' ? 'stima_ai_supportata' : 'stima_ai_da_controllare') : stato === 'scartata' ? 'stima_ai_scartata' : 'stima_ai_sospesa'
   }
+  const motivo = voce.diagnosticaStimaDocumento?.motivo
+  if (['astensione_ai', 'batch_identity_invalid', 'stima_ai_scartata'].includes(motivo || '') && !Number(voce.prezzo_unitario)) return motivo as StatoPrezzoDocumento
   const p = voce.propostaPrezzoDocumento
   if (p) return voce.descrizione === p.descrizione && voce.unita_misura === p.unita_misura &&
-    voce.prezzo_unitario === p.prezzo_proposto ? 'prezzo_proposto' : 'modificato_utente'
-  if (Number(voce.prezzo_unitario) > 0) return esitoDiagnosticaVoce(voce) === 'resolved' ? 'prezzo_affidabile' : 'prezzo_proposto'
+    voce.prezzo_unitario === p.prezzo_proposto ? 'proposta_locale' : 'modificato_utente'
+  if (Number(voce.prezzo_unitario) > 0) return esitoDiagnosticaVoce(voce) === 'resolved' ? 'prezzo_affidabile' : 'proposta_locale'
   return 'prezzo_non_determinabile'
 }
 export function riepilogoPrezziDocumento(voci: readonly VoceDocumento[]) {
-  const stats = { prezzo_affidabile: 0, prezzo_proposto: 0, stima_artecna_ai: 0, stima_ai_sospesa: 0, stima_ai_scartata: 0, prezzo_non_determinabile: 0, modificato_utente: 0 }
+  const stats = { prezzo_affidabile: 0, proposta_locale: 0, stima_ai_supportata: 0, stima_ai_da_controllare: 0, astensione_ai: 0, batch_identity_invalid: 0, stima_ai_sospesa: 0, stima_ai_scartata: 0, prezzo_non_determinabile: 0, modificato_utente: 0 }
   for (const voce of voci) stats[statoPrezzoDocumento(voce)]++
   return stats
 }
