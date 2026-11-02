@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import RiferimentiLocaliPrezzo from './RiferimentiLocaliPrezzo'
 import { creaIndiceRiferimentiLocali, riferimentiLocaliDaVerificare } from '../engines/price-resolution/riferimenti-locali'
+import { riepilogoPrezziDocumento, statoPrezzoDocumento } from '../engines/price-resolution/proposte-documento'
 import RicercaPrezziPreventivo from './RicercaPrezziPreventivo'
 import { voceLibera } from '../engines/preventivo-generation/manuale'
 import PriceResolutionSummary from './PriceResolutionSummary'
@@ -269,6 +270,8 @@ useEffect(() => {
   }, { resolved: 0, review: 0, unresolved: 0, modified: 0 })
 
   const mostraPriceResolutionSummary = vociPreventivoAi.length > 0
+  const bozzaDocumento = vociPreventivoAi.some(voce => voce.bozzaDocumento)
+  const riepilogoBozza = bozzaDocumento ? riepilogoPrezziDocumento(vociPreventivoAi) : undefined
   const indiceRiferimentiLocali = useMemo(() => creaIndiceRiferimentiLocali(prezziRiferimento), [prezziRiferimento])
   const riferimentiLocali = useMemo(() => vociPreventivoAi.map(voce =>
     riferimentiLocaliDaVerificare(voce, indiceRiferimentiLocali)), [vociPreventivoAi, indiceRiferimentiLocali])
@@ -339,8 +342,9 @@ useEffect(() => {
         <div style={{ marginBottom: 16 }}>
           <PriceResolutionSummary
             statistics={priceResolutionStatistics}
+            bozza={riepilogoBozza}
           />
-          {vociConRiferimenti > 0 && <p>Riferimenti disponibili da verificare: {vociConRiferimenti} lavorazioni. Restano incluse tra le non risolte.</p>}
+          {vociConRiferimenti > 0 && <p>Riferimenti disponibili da verificare: {vociConRiferimenti} lavorazioni. {bozzaDocumento ? 'Le proposte restano distinte dai prezzi affidabili.' : 'Restano incluse tra le non risolte.'}</p>}
         </div>
       )}
 
@@ -555,6 +559,7 @@ useEffect(() => {
             <th style={excelTh}>Q.tà</th>
             <th style={excelTh}>Prezzo</th>
             <th style={excelTh}>Totale</th>
+            {bozzaDocumento && <th style={excelTh}>Stato</th>}
             <th style={excelTh}>Azioni</th>
           </tr>
         </thead>
@@ -628,7 +633,7 @@ aggiornaVociConCronologia(nuove)
   {!voce.priceResolution && <p role="status" style={{ color: '#92400e', fontWeight: 600 }}>
     {voce.fonte_prezzo === 'Prezzo manuale' ? 'Prezzo manuale — da rivalutare' : voce.priceResolutionInvalidated ? 'Prezzo da rivalutare — voce modificata dopo la risoluzione' : 'Diagnostica non disponibile — prezzo da verificare'}
   </p>}
-  {voce.priceResolution && (
+  {voce.priceResolution && !voce.propostaPrezzoDocumento && (
     <div
       style={{
         marginTop: 8,
@@ -716,7 +721,7 @@ aggiornaVociConCronologia(nuove)
       )}
     </div>
   )}
-  <RiferimentiLocaliPrezzo riferimenti={riferimentiLocali[index]} />
+  <RiferimentiLocaliPrezzo riferimenti={riferimentiLocali[index]} propostaInBozza={!!voce.propostaPrezzoDocumento} />
 </td>
 
                 <td style={excelTd}>
@@ -798,6 +803,18 @@ aggiornaVociConCronologia(nuove)
                 </td>
 
                 <td style={excelTd}>{formatMoney(totale)}</td>
+                {bozzaDocumento && <td style={{ ...excelTd, minWidth: 220, verticalAlign: 'top' }}>
+                  <strong style={{ color: statoPrezzoDocumento(voce) === 'prezzo_affidabile' ? '#166534' : statoPrezzoDocumento(voce) === 'prezzo_non_determinabile' ? '#b91c1c' : '#92400e' }}>
+                    {{ prezzo_affidabile: 'Prezzo affidabile', prezzo_proposto: 'Prezzo proposto — controllare', prezzo_non_determinabile: 'Prezzo non determinabile', modificato_utente: 'Modificato dall’utente' }[statoPrezzoDocumento(voce)]}
+                  </strong>
+                  {voce.propostaPrezzoDocumento && <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
+                    <p>Proposta originale: {voce.propostaPrezzoDocumento.fonte_proposta} · {voce.propostaPrezzoDocumento.codice_riferimento || 'Nessun codice'} · {formatMoney(voce.propostaPrezzoDocumento.prezzo_proposto)} / {voce.propostaPrezzoDocumento.unita_misura}</p>
+                    <p>Affidabilità proposta: {voce.propostaPrezzoDocumento.confidence} · Metodo: {voce.propostaPrezzoDocumento.metodo_proposta}</p>
+                    <p>{voce.propostaPrezzoDocumento.motivazione}</p>
+                    <ul>{voce.propostaPrezzoDocumento.avvisi.map((a: string) => <li key={a}>{a}</li>)}</ul>
+                    <small>Matching originale: {voce.priceResolution?.strategy || 'invalidato dalla modifica'}. La proposta non è un match automatico.</small>
+                  </div>}
+                </td>}
 
                 <td style={excelTd}>
                   <div
@@ -962,6 +979,7 @@ aggiornaVociConCronologia(nuove)
 {!integrativo && <button
   onClick={async () => {
     for (const voce of manuale ? [] : vociPreventivoAi) {
+      if (voce.propostaPrezzoDocumento && !voce.priceResolutionInvalidated) continue
       if (!puoSalvarePrezzoInMemoria(voce)) continue
       await salvaInMemoriaPrezzi({
         descrizione: voce.descrizione || '',

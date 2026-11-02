@@ -62,6 +62,7 @@ import {
 import { resolvePrice } from './engines/price-resolution'
 import { mediaMemoriaCompatibile } from './engines/price-resolution/revisione-ai'
 import { leggiStoricoPrezzi, risolviPrezzoPrioritario } from './engines/price-resolution/storico-prezzi'
+import { preparaBozzaDocumento } from './engines/price-resolution/proposte-documento'
 
 
 import PopupModificaOperaio from './components/PopupModificaOperaio'
@@ -1773,9 +1774,10 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
     return false
   }
 
+ const vociBozzaDocumento = preparaBozzaDocumento(vociDocumento, knowledgeBasePrezzi, memoriaPrezziValidi)
  setPreventivoAiGenerato(preventivoDocumentoCreato)
-setVociPreventivoAi(vociDocumento)
-setVociPreventivoAiOriginali(vociDocumento)
+setVociPreventivoAi(vociBozzaDocumento)
+setVociPreventivoAiOriginali(vociBozzaDocumento)
 setDescrizionePreventivoAi(descrizioneDocumento)
 setMostraRevisionePreventivoAi(true)
 
