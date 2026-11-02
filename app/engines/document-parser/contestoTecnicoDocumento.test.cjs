@@ -91,13 +91,21 @@ test('computo reale: 39/39, tutte le colonne documentali e i sei casi fino al pr
  assert.equal(targets[38].quantita,2);assert(targets[38].contesto_tecnico.ubicazioneDimensioni.includes('3 kW'));assert.equal(targets[24].quantita,0);assert(targets[24].descrizione.includes('50 punti'));assert.equal(targets[23].quantita,4);assert(targets[23].descrizione.includes('4 punti'));assert.equal(targets[36].quantita,18.36);assert.equal(targets[36].unita,'corpo')
 })
 
-test('policy, matching, route e algoritmi chunk restano identici al parent approvato',()=>{
+test('classificazione della bozza, matching, route e algoritmi chunk restano identici al parent approvato',()=>{
  const cp=require('node:child_process'),root=path.dirname(app),base='caae926e80a550fa3a4427caf4f96f9bad6c270c',old=f=>cp.execFileSync('git',['show',base+':'+f],{cwd:root,encoding:'utf8'}).replace(/\r\n/g,'\n'),now=f=>fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n/g,'\n')
- for(const f of ['app/engines/price-resolution/validazione-tecnica-stime.ts','app/engines/price-resolution/proposte-documento.ts','app/engines/price-resolution/resolver.ts','app/engines/price-resolution/normalizer.ts','app/engines/price-resolution/similarity.ts','app/engines/document-parser/header-detector.ts','app/api/prezzi/analisi-ai/route.ts','app/engines/document-intelligence/pdf-ocr.ts'])assert.equal(now(f),old(f),f)
+ for(const f of ['app/engines/price-resolution/proposte-documento.ts','app/engines/price-resolution/resolver.ts','app/engines/price-resolution/normalizer.ts','app/engines/price-resolution/similarity.ts','app/engines/document-parser/header-detector.ts','app/api/prezzi/analisi-ai/route.ts','app/engines/document-intelligence/pdf-ocr.ts'])assert.equal(now(f),old(f),f)
  const before='preparaBozzaDocumento(vociDocumento.map((v, i) => ({ ...v, testoOrigine: vociAnalizzate[i]?.testoOrigine })), knowledgeBasePrezzi, memoriaPrezziValidi)',after='preparaBozzaDocumento(vociDocumento.map((v, i) => ({ ...v, testoOrigine: preventivoRevision.voci[i]?.testoOrigine, contestoTecnicoDocumento: preventivoRevision.voci[i]?.contestoTecnicoDocumento })), knowledgeBasePrezzi, memoriaPrezziValidi)'
  assert(now('app/page.tsx').includes(after));assert.equal(now('app/page.tsx').replace(after,before),old('app/page.tsx'),'entire page including persistence unchanged except allowed pass-through')
  const declaration=(src,name)=>{const ast=ts.createSourceFile('source.ts',src,ts.ScriptTarget.Latest,true);let found;function visit(node){if((ts.isVariableDeclaration(node)||ts.isFunctionDeclaration(node))&&node.name?.getText(ast)===name)found=node.getText(ast);ts.forEachChild(node,visit)}visit(ast);assert(found,name);return found}
- for(const name of ['creaChunkStimeDocumento','orchestraChunkStimeDocumento','completaBozzaConStime','validaOutputStimeDocumento','schemaStimeDocumento','modelloStimeDocumento'])assert.equal(declaration(now('app/engines/price-resolution/stima-documento-ai.ts'),name),declaration(old('app/engines/price-resolution/stima-documento-ai.ts'),name),name)
+ const pricing='app/engines/price-resolution/validazione-tecnica-stime.ts'
+ for(const name of ['classificaRiferimento','scorporoVerificato','sovrapposizioniEconomiche'])assert.equal(declaration(now(pricing),name),declaration(old(pricing),name),name)
+ const schemaFile='app/engines/price-resolution/stima-documento-ai.ts'
+ const sourceSchema=declaration(old(schemaFile),'schemaStimeDocumento')
+ const oldSchema=vm.runInNewContext(ts.transpileModule('const '+sourceSchema+'; schemaStimeDocumento',{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText)
+ const shape=schema=>JSON.parse(JSON.stringify(schema,(key,value)=>key==='description'?undefined:value))
+ const expected=shape(oldSchema);delete expected.properties.stime.items.properties.esclusioni_componenti.items.properties.componente.enum
+ assert.deepEqual(shape(api.schemaStimeDocumento),expected,'solo documentazione e nomi generici di componenti esclusi dal confronto')
+ for(const name of ['creaChunkStimeDocumento','orchestraChunkStimeDocumento','completaBozzaConStime','validaOutputStimeDocumento','modelloStimeDocumento'])assert.equal(declaration(now('app/engines/price-resolution/stima-documento-ai.ts'),name),declaration(old('app/engines/price-resolution/stima-documento-ai.ts'),name),name)
  for(const name of ['normalizzaValoreCella','convertiNumeroExcel','creaRawText','rilevaTipoRiga','estraiCodiceEDescrizioneVoce'])assert.equal(declaration(now('app/engines/document-parser/excel.ts'),name),declaration(old('app/engines/document-parser/excel.ts'),name),name)
  assert.equal(declaration(now('app/engines/document-intelligence/preventivo-items.ts'),'parsePreventivoItems'),declaration(old('app/engines/document-intelligence/preventivo-items.ts'),'parsePreventivoItems'))
 })

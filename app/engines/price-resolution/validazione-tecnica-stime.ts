@@ -1,5 +1,8 @@
 import { normalizePriceDescription, normalizeUnitOfMeasure } from './normalizer'
 
+import type { ContestoTecnicoDocumento } from '../document-parser/types'
+import { verificaSemanticaProposta, coperturaPacchetto } from './coerenza-semantica'
+
 export type ClasseRiferimento = 'trasferibile' | 'comparabile' | 'solo_informativo' | 'incompatibile'
 export type StatoTecnico = 'accettata' | 'sospesa_da_verificare' | 'scartata'
 export type RiferimentoTecnico = {
@@ -10,7 +13,7 @@ export type RiferimentoTecnico = {
 }
 export type PerimetroLavorazione = { id: string; descrizione: string; unita: string; quantita: number; testo_stima?: string
   stato_prezzo?: string; prezzo_unitario?: number; richiami_componenti?: ('ponteggio' | 'ringhiera' | 'verniciatura')[] }
-export type RigaTecnica = PerimetroLavorazione & { contesto_riga: string; composita: boolean; ambito: string; riferimenti: RiferimentoTecnico[] }
+export type RigaTecnica = PerimetroLavorazione & { contesto_riga: string; contesto_tecnico?: ContestoTecnicoDocumento; composita: boolean; ambito: string; riferimenti: RiferimentoTecnico[] }
 export type ComponenteEconomica = {
   categoria: 'demolizione_rimozione' | 'materiale' | 'posa' | 'opere_accessorie' | 'smaltimento' | 'sicurezza_noli'
   descrizione: string; importo_unitario: number; riferimento_id: string | null
@@ -24,12 +27,12 @@ export type BaseEconomicaStima = {
   riferimenti_ancoraggio?: string[]
   componenti_economiche?: ComponenteEconomica[]
   scorporo_fornitura?: { riferimento_completo_id: string; riferimento_materiale_id: string; costo_posa_unitario: number } | null
-  esclusioni_componenti?: { componente: 'ponteggio' | 'ringhiera' | 'verniciatura'; voce_copertura_id: string; motivazione: string }[]
+  esclusioni_componenti?: { componente: string; voce_copertura_id: string; motivazione: string }[]
   metodo_calcolo?: 'analisi_unitaria'; totale_componenti?: number | null; prezzo_unitario_derivato?: number | null
 }
 export type StimaTecnica = BaseEconomicaStima & {
   prezzo_unitario_proposto: number | null; unita_interpretata: string; quantita_coperta_dal_prezzo: number | null
-  totale_riga_proposto: number | null; motivazione: string; riferimenti_utilizzati: string[]; lavorazione_composita: boolean
+  totale_riga_proposto: number | null; motivazione: string; avvisi?: string[]; riferimenti_utilizzati: string[]; lavorazione_composita: boolean
 }
 export type ValidazioneTecnica = { stato: StatoTecnico; codici: string[]; motivi: string[]; avvisi: string[]; riferimenti_ancoraggio: string[]; supporto_economico: 'supportato' | 'autonomo' }
 
@@ -183,6 +186,7 @@ export function verificaProvaEconomica(r: RigaTecnica, s: StimaTecnica): { codic
         avvisi.push('Costo autonomo dichiarato come ipotesi tecnica: calcolo verificato, prezzo di mercato non certificato.')
       } else codici.push('origine_costo_non_verificata')
       const ore = /^(?:h|ora|ore|ore uomo|ore squadra)$/.test(unit)
+      if (c.metodo_calcolo?.startsWith('ore_') && !ore) codici.push('metodo_orario_um_incoerente')
       const durata = ore || /^(?:giorno|giorni|gg|mese|mesi)$/.test(unit)
       const lavoro = c.metodo_calcolo === 'ore_uomo' || c.metodo_calcolo === 'ore_squadra'
       if ((lavoro && (!ore || !['posa', 'demolizione_rimozione', 'opere_accessorie'].includes(c.categoria))) ||
@@ -206,6 +210,10 @@ export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, 
     result.codici.push(codice); result.motivi.push(motivo)
   }
   const r = { ...riga, riferimenti: riga.riferimenti.map(ref => classificaRiferimento(riga, ref)) }
+  for (const rilievo of verificaSemanticaProposta(r, stima, tutte)) {
+    if (rilievo.soloAvviso) result.avvisi.push(rilievo.motivo)
+    else blocca('sospesa_da_verificare', rilievo.codice, rilievo.motivo)
+  }
   const avvisaEconomia = (codice: string, motivo: string) => {
     result.supporto_economico = 'autonomo'
     result.avvisi.push(motivo + ' (' + codice + '). Stima AI — controllare; nessuna certificazione economica.')
@@ -245,7 +253,8 @@ export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, 
     const singolaDichiarata = /(?:per|a) (?:un[ao]? |ogni |ciascun[oa]? )?(?:singol[oa] )?(?:pezzo|telaio|porta|infisso|apertura|corpo|impianto)|singol[oa] (?:corpo|pezzo|apertura)/.test(testo)
     if (!baseNelDocumento && !singolaDichiarata) blocca('sospesa_da_verificare', 'unita_economica_non_dimostrata', 'Non è definito documentalmente cosa rappresenta una singola unità economica.')
     const elementiContabili = ['infissi', 'controtelaio', 'telaio_scomparsa', 'apertura_portante', 'sanitari', 'fotovoltaico']
-    const conteggioEsplicito = /\b(?:n\.|numero|pezzi|corpi|punti)\s*[:=]?\s*\d/i.test(r.contesto_riga) ||
+    const pacchetto = coperturaPacchetto(r, stima)
+    const conteggioEsplicito = pacchetto === 'distinti_documentati' || /\b(?:n\.|numero|pezzi|corpi|punti)\s*[:=]?\s*\d/i.test(r.contesto_riga) ||
       (elementiContabili.includes(famigliaTecnica(r.descrizione)) && /(?:porte|finestre|apertur[ae]|bagno|piano).{0,60}:\s*\d/i.test(r.contesto_riga))
     if (r.quantita > 1 && !conteggioEsplicito) blocca('sospesa_da_verificare', 'conteggio_unita_non_documentato', 'Quantità discreta multipla senza conteggio documentato dei singoli elementi/pacchetti: potrebbe essere una misura complessiva.')
     if (!Number.isInteger(r.quantita) || (/\d\s*[×x]\s*\d/.test(r.contesto_riga) && !/apertur/.test(n(r.descrizione)))) {
@@ -254,9 +263,7 @@ export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, 
     if (/\bbagno\s*:\s*\d/i.test(r.contesto_riga) && /per apparecchio|sanitari distinti/.test(testo)) {
       blocca('scartata', 'oggetto_unita_diverso', 'La quantità documenta bagni/pacchetti, ma il prezzo è dichiarato per apparecchi sanitari.')
     }
-    const pacchetto = [...testo.matchAll(/(?:per|da|con)\s+(?:(?:le|i|tutte le|tutti i)\s+)?(\d+(?:[.,]\d+)?)\s+(?:unita|corpi|punti|pezzi|aperture|impianti)/g)]
-      .some(m => Number(m[1].replace(',', '.')) > 1)
-    if (pacchetto) blocca('sospesa_da_verificare', 'forfait_quantita_multipla', 'La motivazione riferisce il forfait a più unità: non è provato che il prezzo copra una sola unità originale.')
+    if (pacchetto === 'copertura_ambigua') blocca('sospesa_da_verificare', 'forfait_quantita_multipla', 'La motivazione riferisce il forfait a più unità: non è provato che il prezzo copra una sola unità originale.')
   }
   if (stima.quantita_strutturata !== undefined && stima.quantita_strutturata !== r.quantita) blocca('scartata', 'quantita_modificata', 'La risposta non conserva la quantità strutturata.')
   if (stima.quantita_coperta_dal_prezzo !== 1) blocca('sospesa_da_verificare', 'base_multipla', 'Prezzo riferito a una quantità diversa da una singola unità originale.')
