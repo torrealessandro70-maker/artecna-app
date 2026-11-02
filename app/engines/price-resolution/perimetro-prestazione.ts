@@ -1,5 +1,6 @@
 import { normalizePriceDescription } from './normalizer'
 import { analizzaAmbitoPrezzoSic24 } from './descrizione-semantica'
+import { senzaConcettiNegati } from './negazioni-prestazione'
 import type { RigaTecnica, StimaTecnica } from './validazione-tecnica-stime'
 
 // Azione sul bene principale e ampiezza del bene sono due vincoli distinti:
@@ -93,7 +94,8 @@ export function clausoleAffermative(testo: string): string[] {
 }
 
 function affermazioni(testo: string): string[] {
-  return clausoleAffermative(testo)
+  return senzaConcettiNegati(testo).split(/(?:,\s*|\s+ed?\s+)(?=(?:include|comprende|copre|prevede)\b)/i)
+    .flatMap(clausoleAffermative)
     .flatMap(frase => frase.split(/,|\b(?:include|comprende|copre) (?:anche )?/i))
     .filter(frase => !/\b(?:esclus[oaie]|non (?:[èe] |sono )?(?:un|una|inclus[oaie]|compres[oaie]|previst[oaie]|present[ei])|manca(?:no)?|insufficient[ei])\b/i.test(frase))
     .map(frase => frase.trim()).filter(Boolean)

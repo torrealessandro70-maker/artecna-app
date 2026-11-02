@@ -361,6 +361,83 @@ function giudizio(descrizione, unita, motivazione = '', componenti = [], avvisi 
   return confrontaPerimetroPrestazione({ descrizione }, { unita_economica: { descrizione: unita }, motivazione,
     componenti_economiche: componenti.map(([descrizione, importo_unitario]) => ({ descrizione, importo_unitario })), avvisi })
 }
+
+for (const frase of [
+  'La fornitura del pavimento non è compresa.',
+  'La stima non comprende la fornitura.',
+  'La stima esclude il ricorso a prezzi di fornitura e posa.',
+  'Non sono utilizzati prezzi di fornitura e posa né scorpori non verificabili.',
+  'Nessun prezzo di fornitura e posa è stato trasferito alla sola posa.',
+]) test('negazione locale della fornitura: ' + frase, () => {
+  const doc = 'Sola posa di pavimento'
+  assert.equal(giudizio(doc, doc, frase).coerenza_perimetro, 'compatibile')
+  assert.equal(giudizio(doc, doc, frase + ' Il prezzo include la fornitura del pavimento.').coerenza_perimetro, 'incompatibile')
+})
+
+test('negazione locale del rifacimento: conserva la revisione e le affermazioni successive', () => {
+  const doc = 'Revisione della copertura'
+  for (const frase of ['Revisione della copertura esistente, non rifacimento completo.', 'Non è previsto il rifacimento completo.']) {
+    assert.equal(giudizio(doc, doc, frase).coerenza_perimetro, 'compatibile')
+  }
+  assert.equal(giudizio(doc, doc, 'Nessun prezzo di fornitura e posa è stato utilizzato, ma si quota il rifacimento completo.').coerenza_perimetro, 'incompatibile')
+})
+
+test('negazione locale: una seconda inclusione nella stessa frase resta verificata', () => {
+  const posa = 'Sola posa di pavimento'
+  for (const testo of ['Non comprende la fornitura del collante, comprende la fornitura delle piastrelle.',
+    'Esclude il ricorso a prezzi di fornitura e posa ma include la fornitura delle piastrelle.']) {
+    assert.equal(giudizio(posa, posa, testo).coerenza_perimetro, 'incompatibile', testo)
+  }
+})
+
+test('negazione locale: la sola posa con analisi coerente può entrare nella bozza', async () => {
+  const v = await applica({ ...voce, descrizione: 'Posa in opera di pavimento' }, s => {
+    s.motivazione = 'Stima autonoma. Non sono utilizzati prezzi di fornitura e posa.'
+    s.unita_economica.descrizione = 'Un mq di sola posa di pavimento.'
+    s.componenti_economiche[0].descrizione = 'Posa di pavimento.'
+    s.componenti_economiche[1].descrizione = 'Pulizia finale.'
+  })
+  assert.equal(v.prezzo_unitario, 30)
+  assert.equal(v.stimaPrezzoArtecna.validazione_tecnica.stato, 'accettata')
+})
+
+test('ponteggio separato: rinvio inequivoco, voce autonoma esistente e nessun costo duplicato', () => {
+  const { validaTecnicamenteStima } = load(path.join(__dirname, 'validazione-tecnica-stime.ts'))
+  const r = api.preparaInputStimeDocumento([{ ...voce, descrizione: 'Revisione copertura compreso ponteggio' }], []).righe[0]
+  const altra = { id: 'riga-33', descrizione: 'Approntamento di ponteggio metallico', unita: 'mq', quantita: 150 }
+  const esclusione = { componente: 'Ponteggio metallico di accesso e servizio', voce_copertura_id: altra.id, motivazione: 'Contabilizzato interamente nella voce autonoma.' }
+  const s = risposta(r)
+  const costo = s.componenti_economiche[0]
+  costo.descrizione = 'Dotazione anticaduta sulla copertura, senza ponteggio.'
+  const codici = (catalogo = [altra]) => validaTecnicamenteStima(r, s, catalogo).codici
+  const overlap = 'sovrapposizione_ponteggio'
+  s.motivazione = 'Ponteggio escluso, contabilizzato alla voce 33.'
+  assert(!codici().includes(overlap))
+  assert(codici([]).includes(overlap))
+  assert(codici([{ ...altra, descrizione: 'Pittura ringhiera' }]).includes(overlap))
+  s.motivazione = 'Stima della revisione del tetto.'
+  assert(codici().includes(overlap))
+  s.esclusioni_componenti = [{ ...esclusione, voce_copertura_id: 'riga-333' }]
+  assert(codici().includes(overlap))
+  s.esclusioni_componenti = [esclusione]
+  assert(!codici().includes(overlap))
+  for (const addebito of ['Comprende ponteggio e nolo.', 'Nolo del ponteggio, escluso il trasporto.',
+    'Senza ponteggio in questa quota, ma comprende il ponteggio per il tetto.', 'Ponteggio non escluso.',
+    'Ponteggio escluso solo in parte.', 'Ponteggio escluso dal solo trasporto.', 'Nessun ponteggio è escluso.',
+    'Nolo del ponteggio escluso dal prezzo.']) {
+    costo.descrizione = addebito
+    assert(codici().includes(overlap), addebito)
+  }
+  costo.descrizione = 'Protezione anticaduta senza ponteggio.'
+  costo.origine_costo.descrizione = 'Costo della protezione e del nolo del ponteggio.'
+  assert(codici().includes(overlap))
+  costo.origine_costo.descrizione = 'Costo orario della sola protezione anticaduta.'
+  for (const dichiarazione of ['Ponteggio compreso.', 'Ponteggio compreso per la durata dei lavori.',
+    'La stima comprende il nolo del ponteggio.']) {
+    s.motivazione = dichiarazione
+    assert(codici().includes('contraddizione_inclusione_esclusione'), dichiarazione)
+  }
+})
 test('unità nominalmente corretta: anche motivazione, avviso e componente valorizzata possono smentirla', () => {
   const doc = 'Predisposizione di un impianto di allarme'
   const eccesso = 'Il prezzo include un impianto completo'

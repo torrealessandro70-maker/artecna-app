@@ -1,5 +1,6 @@
 import type { ComponenteEconomica, PerimetroLavorazione, RigaTecnica, StimaTecnica } from './validazione-tecnica-stime'
 import { clausoleAffermative } from './perimetro-prestazione'
+import { rinviiPonteggio, senzaConcettiNegati } from './negazioni-prestazione'
 
 export type RilievoSemantico = { codice: string; motivo: string; soloAvviso?: true }
 
@@ -102,10 +103,16 @@ function perimetroDichiarato(stima: StimaTecnica) {
   const incluse = new Set<string>()
   const escluse = new Map<string, string>()
   const escludi = (nome: string) => escluse.set(nomeComponente(nome), etichetta(nome))
+  const includi = (nome: string) => {
+    incluse.add(nomeComponente(nome))
+    if (/\b(?:nolo|noleggio|montaggio|smontaggio|approntamento) (?:del |di |dei )?ponteggio?\b/i.test(senzaConcettiNegati(nome)))
+      incluse.add(nomeComponente('ponteggio'))
+  }
   for (const e of stima.esclusioni_componenti || []) escludi(e.componente)
+  if (rinviiPonteggio(stima).size) escludi('ponteggio')
   for (const c of stima.componenti_economiche || []) {
     if (c.importo_unitario > 0) {
-      incluse.add(nomeComponente(c.descrizione))
+      incluse.add(nomeComponente(senzaConcettiNegati(c.descrizione)))
       incluse.add(nomeComponente(c.categoria))
     }
   }
@@ -117,16 +124,18 @@ function perimetroDichiarato(stima: StimaTecnica) {
       if (/\b(?:se|qualora|potrebbe|eventualmente)\b/.test(frase) ||
           /\b(?:riferiment[oi]|listino|computo|documento|capitolato|contratto)\b[^,]{0,70}\b(?:comprend|includ|esclud|comprensiv)/.test(frase)) continue
       const proposizione = piano(frase.replace(/(?:^|\s)(?:è|sono|viene|vengono)\s+(?=(?:non )?(?:inclus|esclus|compres))/g, ' '))
+      if (/\bponteggio?(?: metallic[oi]| general[ei])? (?:inclus[oi]|compres[oi])\b/.test(senzaConcettiNegati(proposizione)))
+        incluse.add(nomeComponente('ponteggio'))
       let registra: ((nome: string) => void) | undefined
       let soggetti: string[] = []
       for (const pezzo of proposizione.split(/\s*(?:,|\b(?:e|ed|ma)\b)\s*/)) {
         const segmento = pezzo.trim()
-        const suffisso = /^(.*?)\s+(non\s+)?(inclus[oaie]|compres[oaie]|esclus[oaie])(?:\s+(?:dal|nel|dalla|nella) (?:prezzo|totale|pacchetto|stima|bozza))?$/.exec(segmento)
+        const suffisso = /^(.*?)\s+(non\s+)?(inclus[oaie]|compres[oaie]|esclus[oaie])(?:\s+(?:dal|nel|dalla|nella) (?:presente )?(?:prezzo|totale|pacchetto|stima|bozza))?$/.exec(segmento)
         const prefisso = /\b(non\s+)?(comprende|include|comprensiv[oaie] di|compres[oaie]|inclus[oaie]|esclude|esclus[oaie]|senza)\s+(.+)$/.exec(segmento)
         if (suffisso || prefisso) {
           const parola = suffisso?.[3] ?? prefisso![2]
           const negata = Boolean(suffisso ? suffisso[2] : prefisso![1])
-          registra = (/^(?:escl|senza)/.test(parola) !== negata) ? escludi : nome => incluse.add(nomeComponente(nome))
+          registra = (/^(?:escl|senza)/.test(parola) !== negata) ? escludi : includi
           if (suffisso) {
             for (const soggetto of [...soggetti, suffisso[1]]) registra(soggetto)
             registra = undefined

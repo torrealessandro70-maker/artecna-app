@@ -3,6 +3,7 @@ import { normalizePriceDescription, normalizeUnitOfMeasure } from './normalizer'
 import type { ContestoTecnicoDocumento } from '../document-parser/types'
 import { verificaSemanticaProposta, coperturaPacchetto } from './coerenza-semantica'
 import { confrontaPerimetroPrestazione, type ConfrontoPerimetro } from './perimetro-prestazione'
+import { addebitaPonteggio, rinviiPonteggio } from './negazioni-prestazione'
 
 export type ClasseRiferimento = 'trasferibile' | 'comparabile' | 'solo_informativo' | 'incompatibile'
 export type StatoTecnico = 'accettata' | 'sospesa_da_verificare' | 'scartata'
@@ -145,7 +146,7 @@ export function sovrapposizioniEconomiche(r: RigaTecnica, s: StimaTecnica, tutte
   const testo = n(r.descrizione + ' ' + s.motivazione)
   const altre = tutte.filter(x => x.id !== r.id && x.quantita > 0)
   const sovrapposizioni: { componente: 'ponteggio' | 'ringhiera' | 'verniciatura'; voce: string }[] = []
-  if (/ponteggi/.test(testo)) {
+  if (/ponteggi/.test(testo) || rinviiPonteggio(s).size || addebitaPonteggio(s)) {
     for (const a of altre.filter(a => /^(?:approntamento|montaggio|nolo).*ponteggi/.test(n(a.descrizione)))) sovrapposizioni.push({ componente: 'ponteggio', voce: a.id })
   }
   if (famigliaTecnica(r.descrizione) === 'muro_confine' && /ringhier/.test(testo)) {
@@ -339,9 +340,18 @@ export function validaTecnicamenteStima(riga: RigaTecnica, stima: StimaTecnica, 
       if (solaPosa(r.descrizione) && c.categoria === 'materiale' && !/collant|stucc|sigillant/.test(n(c.descrizione))) blocca('sospesa_da_verificare', 'materiale_principale_incluso', 'La stima di sola posa include una componente materiale non dimostrata come consumabile.')
     }
   }
-  for (const sovrapposizione of sovrapposizioniEconomiche(r, stima, tutte)) {
-    const esclusa = stima.esclusioni_componenti?.some(e => e.componente === sovrapposizione.componente && e.voce_copertura_id === sovrapposizione.voce && e.motivazione.trim().length >= 10)
-    const ancoraConteggiata = componenti.some(c => new RegExp(sovrapposizione.componente).test(n(c.descrizione)))
+  const sovrapposizioni = sovrapposizioniEconomiche(r, stima, tutte)
+  const rinvii = rinviiPonteggio(stima)
+  for (const id of rinvii) {
+    if (!sovrapposizioni.some(x => x.componente === 'ponteggio' && x.voce === id))
+      blocca('sospesa_da_verificare', 'sovrapposizione_ponteggio', 'Copertura del ponteggio non verificata nella voce autonoma ' + id + '.')
+  }
+  for (const sovrapposizione of sovrapposizioni) {
+    const ponteggio = sovrapposizione.componente === 'ponteggio'
+    const esclusa = ponteggio ? rinvii.has(sovrapposizione.voce) : stima.esclusioni_componenti?.some(e =>
+      e.componente === sovrapposizione.componente && e.voce_copertura_id === sovrapposizione.voce && e.motivazione.trim().length >= 10)
+    const ancoraConteggiata = ponteggio ? addebitaPonteggio(stima)
+      : componenti.some(c => new RegExp(sovrapposizione.componente).test(n(c.descrizione)))
     if (!esclusa || ancoraConteggiata) blocca('sospesa_da_verificare', 'sovrapposizione_' + sovrapposizione.componente, `Possibile duplicazione ${sovrapposizione.componente} con ${sovrapposizione.voce}: esclusione economica non dimostrata.`)
   }
   if (result.stato === 'accettata') result.motivi.push(result.supporto_economico === 'autonomo'

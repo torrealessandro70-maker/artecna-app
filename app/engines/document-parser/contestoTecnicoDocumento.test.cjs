@@ -98,7 +98,12 @@ test('classificazione della bozza, matching, route e algoritmi chunk restano ide
  assert(now('app/page.tsx').includes(after));assert.equal(now('app/page.tsx').replace(after,before),old('app/page.tsx'),'entire page including persistence unchanged except allowed pass-through')
  const declaration=(src,name)=>{const ast=ts.createSourceFile('source.ts',src,ts.ScriptTarget.Latest,true);let found;function visit(node){if((ts.isVariableDeclaration(node)||ts.isFunctionDeclaration(node))&&node.name?.getText(ast)===name)found=node.getText(ast);ts.forEachChild(node,visit)}visit(ast);assert(found,name);return found}
  const pricing='app/engines/price-resolution/validazione-tecnica-stime.ts'
- for(const name of ['classificaRiferimento','scorporoVerificato','sovrapposizioniEconomiche'])assert.equal(declaration(now(pricing),name),declaration(old(pricing),name),name)
+ for(const name of ['classificaRiferimento','scorporoVerificato','sovrapposizioniEconomiche']){
+   const atteso=declaration(old(pricing),name)
+   // La ricerca della voce autonoma è identica; ora può attivarla anche il dettaglio della stima.
+   assert.equal(declaration(now(pricing),name),name==='sovrapposizioniEconomiche'
+     ?atteso.replace('if (/ponteggi/.test(testo))','if (/ponteggi/.test(testo) || rinviiPonteggio(s).size || addebitaPonteggio(s))'):atteso,name)
+ }
  const schemaFile='app/engines/price-resolution/stima-documento-ai.ts'
  const sourceSchema=declaration(old(schemaFile),'schemaStimeDocumento')
  const oldSchema=vm.runInNewContext(ts.transpileModule('const '+sourceSchema+'; schemaStimeDocumento',{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText)
