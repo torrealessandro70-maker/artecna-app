@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import RiferimentiLocaliPrezzo from './RiferimentiLocaliPrezzo'
 import { creaIndiceRiferimentiLocali, riferimentiLocaliDaVerificare } from '../engines/price-resolution/riferimenti-locali'
 import { riepilogoPrezziDocumento, statoPrezzoDocumento } from '../engines/price-resolution/proposte-documento'
@@ -9,7 +9,7 @@ import { voceLibera } from '../engines/preventivo-generation/manuale'
 import PriceResolutionSummary from './PriceResolutionSummary'
 import { modificaVoceDiagnostica, esitoDiagnosticaVoce } from '../engines/price-resolution/diagnostica-voce'
 import PrezzoWebVoce from './PrezzoWebVoce'
-import AnalisiPrezzoVoce, { chiaveAnalisiVoce } from './AnalisiPrezzoVoce'
+import AnalisiPrezzoVoce from './AnalisiPrezzoVoce'
 import { applicaAnalisiPrezzo } from '../engines/price-resolution/ai-price-analyst'
 import type { EsitoWeb } from '../engines/price-resolution/web-fallback'
 import { applicaPrezzoWeb, puoSalvarePrezzoInMemoria } from '../engines/price-resolution/web-fallback'
@@ -329,6 +329,11 @@ useEffect(() => {
         background: '#fff',
       }}
     >
+      <style>{`
+        .analisi-prezzo-voce > summary::-webkit-details-marker { display: none; }
+        .analisi-prezzo-chevron { display: inline-block; transition: transform 0.15s; }
+        .analisi-prezzo-voce[open] > summary .analisi-prezzo-chevron { transform: rotate(90deg); }
+      `}</style>
       <h3
         style={{
           fontSize: 28,
@@ -375,131 +380,6 @@ useEffect(() => {
           fontSize: 18,
         }}
       />
-
-      <div
-        style={{
-          marginBottom: 16,
-          padding: 14,
-          border: '1px solid #cbd5e1',
-          borderRadius: 10,
-          background: '#f8fafc',
-        }}
-      >
-        <strong style={{ fontSize: 20 }}>
-          Memoria prezzi ARTECNA
-        </strong>
-
-        <div style={{ marginTop: 10, fontSize: 15, color: '#475569' }}>
-          La memoria prezzi confronta le lavorazioni del preventivo con i prezzi
-          reali già usati da ARTECNA a Catania.
-        </div>
-
-        {vociPreventivoAi.length === 0 ? (
-          <div style={{ marginTop: 10 }}>
-            Nessuna voce disponibile da confrontare.
-          </div>
-        ) : (
-          <div style={{ marginTop: 12 }}>
-            {vociPreventivoAi.map((voce, index) => {
-              const media = calcolaMediaPrezziSimili(
-                voce.descrizione || '', voce.unita_misura
-              )
-
-              const avviso = verificaPrezzoAnomalo(
-                voce.descrizione || '',
-                Number(voce.prezzo_unitario || 0), voce.unita_misura
-              )
-
-              return (
-                <div
-                  key={chiaveAnalisiVoce(voce,index,vociPreventivoAi)}
-                  style={{
-                    marginBottom: 10,
-                    padding: 10,
-                    border: '1px solid #e2e8f0',
-                    borderRadius: 8,
-                    background: '#fff',
-                  }}
-                >
-                  <div style={{ fontWeight: 700 }}>
-                    {voce.descrizione || 'Voce senza descrizione'}
-                  </div>
-
-                  <div style={{ marginTop: 6 }}>
-                    Prezzo voce:{' '}
-                    <strong>
-                      {formatMoney(Number(voce.prezzo_unitario || 0))}
-                    </strong>
-                  </div>
-
-                  <div>
-                    Media ARTECNA/Catania:{' '}
-                    <strong>
-                      {media ? formatMoney(media) : 'Nessun dato sufficiente'}
-                    </strong>
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontWeight: 700,
-                      color: avviso.includes('âš ï¸')
-                        ? '#b45309'
-                        : '#166534',
-                    }}
-                  >
-                    {avviso || 'Nessun confronto disponibile'}
-                  </div>
-
-                  {voce.priceResolution?.manodoperaSic24 && <p style={{ fontSize: 12 }}>
-                    Fonte: SIC24 · Prezzo completo: {voce.priceResolution.manodoperaSic24.prezzoCompleto} €/{voce.priceResolution.manodoperaSic24.unitaMisura}<br />
-                    Incidenza manodopera: {voce.priceResolution.manodoperaSic24.percentualeManodopera}% · Quota manodopera: {voce.priceResolution.manodoperaSic24.prezzoManodopera} €/{voce.priceResolution.manodoperaSic24.unitaMisura}<br />
-                    Metodo: {voce.priceResolution.manodoperaSic24.metodo}. Nessuna maggiorazione.
-                  </p>}
-                  {!manuale && (!integrativo || voce.operazione === 'nuova') && (!voce.priceResolution?.matched || voce.priceResolution?.strategy === 'similarity') && <AnalisiPrezzoVoce
-                    descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} quantita={Number(voce.quantita || 0)} prezzo={Number(voce.prezzo_unitario || 0)}
-                    prezzi={prezziRiferimento} memoria={memoriaRiferimento} webVerificato={webPerVoce[JSON.stringify([voce.descrizione,voce.unita_misura])]}
-                    onUsa={(input,result)=>aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?applicaAnalisiPrezzo(v,input,result):v))} />}
-                  {!manuale && (!integrativo || voce.operazione === 'nuova') && !voce.priceResolution?.matched && <PrezzoWebVoce descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} prezzi={prezziRiferimento} memoria={memoriaRiferimento}
-                    onVerificato={result=>setWebPerVoce(correnti=>({...correnti,[JSON.stringify([voce.descrizione,voce.unita_misura])]:result}))}
-                    onInterno={r => aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?{...v,...r,priceResolutionInvalidated:false}:v))}
-                    onUsa={r => aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?applicaPrezzoWeb(v,r):v))} />}
-                  {voce.webPriceApplied && voce.fonte_prezzo !== 'Prezzo manuale' && !voce.priceResolutionInvalidated && <div><p>Origine: Web — Prezzo da verificare. Nessuna maggiorazione automatica.</p>
-                    <label><input type="checkbox" checked={voce.webMemoryConfirmed === true} onChange={e=>{
-                      if(e.target.checked && !window.confirm('Confermare questo prezzo Web come riferimento da salvare nella memoria ARTECNA?'))return
-                      aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?{...v,webMemoryConfirmed:e.target.checked}:v))
-                    }} /> Conferma esplicita per salvare il prezzo Web in memoria ARTECNA</label></div>}
-                  {media && (
-  <button
-    onClick={() => {
-      const nuove = vociPreventivoAi.map((voce, i) =>
-        i === index
-          ? {
-              ...voce,
-              prezzo_unitario: Number(media.toFixed(2)),
-            }
-          : voce
-      )
-
-      aggiornaVociConCronologia(nuove)
-    }}
-    style={{
-      ...buttonSecondary,
-      marginTop: 8,
-      backgroundColor: '#0f766e',
-      color: '#fff',
-    }}
-  >
-    Usa media memoria prezzi
-  </button>
-)}
-
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
 
       <div
         style={{
@@ -566,6 +446,15 @@ useEffect(() => {
 
         <tbody>
           {vociPreventivoAi.map((voce, index) => {
+              const media = calcolaMediaPrezziSimili(
+                voce.descrizione || '', voce.unita_misura
+              )
+
+              const avviso = verificaPrezzoAnomalo(
+                voce.descrizione || '',
+                Number(voce.prezzo_unitario || 0), voce.unita_misura
+              )
+
             const totale =
   Number(voce.quantita || 0) *
   Number(voce.prezzo_unitario || 0)
@@ -588,7 +477,8 @@ const confidenceBadge =
   getConfidenceBadge(confidencePercent)
 
 return (
-  <tr key={index}>
+  <Fragment key={index}>
+  <tr>
 
                <td style={excelTd}>
   {manuale && <p>Origine prezzo: {voce.riferimento_scelto ? voce.fonte_prezzo : 'Inserito manualmente'}
@@ -633,95 +523,7 @@ aggiornaVociConCronologia(nuove)
   {!voce.priceResolution && <p role="status" style={{ color: '#92400e', fontWeight: 600 }}>
     {voce.fonte_prezzo === 'Prezzo manuale' ? 'Prezzo manuale — da rivalutare' : voce.priceResolutionInvalidated ? 'Prezzo da rivalutare — voce modificata dopo la risoluzione' : 'Diagnostica non disponibile — prezzo da verificare'}
   </p>}
-  {voce.priceResolution && !voce.propostaPrezzoDocumento && !voce.stimaPrezzoArtecna && (
-    <div
-      style={{
-        marginTop: 8,
-        padding: 10,
-        borderRadius: 8,
-        background:
-          voce.priceResolution.matched
-            ? '#f0fdf4'
-            : '#fef2f2',
-        border:
-          voce.priceResolution.matched
-            ? '1px solid #86efac'
-            : '1px solid #fca5a5',
-        fontSize: 14,
-        lineHeight: 1.5,
-      }}
-    >
 
-      <div
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          marginBottom: 8,
-          padding: '5px 9px',
-          borderRadius: 999,
-          background: `${confidenceBadge.color}18`,
-          color: confidenceBadge.color,
-          fontWeight: 800,
-        }}
-      >
-        <span>{confidenceBadge.icon}</span>
-        <span>{confidenceBadge.label}</span>
-        <span>
-          {formatConfidence(confidencePercent)}
-        </span>
-      </div>
-      <div>
-        <strong>Strategia dell’esito salvato:</strong>{' '}
-        {voce.priceResolution.strategy}
-      </div>
-
-      <div>
-        <strong>Affidabilità:</strong>{' '}
-        {Math.round(
-          Number(voce.priceResolution.confidence || 0) * 100,
-        )}
-        %
-      </div>
-
-      {voce.priceResolution.codiceRisolto && (
-        <div>
-          <strong>Codice trovato:</strong>{' '}
-          {voce.priceResolution.codiceRisolto}
-        </div>
-      )}
-
-      {voce.priceResolution.prezzoUnitarioRisolto !== undefined && (
-        <div>
-          <strong>Prezzo risolto:</strong>{' '}
-          {formatMoney(
-            voce.priceResolution.prezzoUnitarioRisolto,
-          )}
-        </div>
-      )}
-
-      {Array.isArray(voce.priceResolution.reasons) &&
-        voce.priceResolution.reasons.length > 0 && (
-          <div>
-            <strong>Motivo:</strong>{' '}
-            {voce.priceResolution.reasons.join(' ')}
-          </div>
-        )}
-
-      {!voce.priceResolution.matched && (
-        <div
-          style={{
-            marginTop: 6,
-            fontWeight: 700,
-            color: '#b91c1c',
-          }}
-        >
-          Nessuna corrispondenza trovata
-        </div>
-      )}
-    </div>
-  )}
-  <RiferimentiLocaliPrezzo riferimenti={riferimentiLocali[index]} propostaInBozza={!!voce.propostaPrezzoDocumento || voce.stimaPrezzoArtecna?.validazione_tecnica?.stato === 'accettata'} />
 </td>
 
                 <td style={excelTd}>
@@ -932,6 +734,186 @@ aggiornaVociConCronologia(nuove)
                   </div>
                 </td>
               </tr>
+              <tr>
+                <td colSpan={bozzaDocumento ? 7 : 6} style={excelTd}>
+  <details className="analisi-prezzo-voce" style={{ marginTop: 8 }}>
+    <summary style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', listStyle: 'none', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 6, background: '#f8fafc', color: '#334155', fontSize: 14, fontWeight: 600 }}>
+      <span>🔍 Analisi prezzo</span>
+      <span className="analisi-prezzo-chevron" aria-hidden="true">›</span>
+    </summary>
+    <div style={{ marginTop: 10 }}>
+        <strong style={{ fontSize: 20 }}>
+          Memoria prezzi ARTECNA
+        </strong>
+
+        <div style={{ marginTop: 10, fontSize: 15, color: '#475569' }}>
+          La memoria prezzi confronta le lavorazioni del preventivo con i prezzi
+          reali già usati da ARTECNA a Catania.
+        </div>
+
+                  <div style={{ marginTop: 6 }}>
+                    Prezzo voce:{' '}
+                    <strong>
+                      {formatMoney(Number(voce.prezzo_unitario || 0))}
+                    </strong>
+                  </div>
+
+                  <div>
+                    Media ARTECNA/Catania:{' '}
+                    <strong>
+                      {media ? formatMoney(media) : 'Nessun dato sufficiente'}
+                    </strong>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 6,
+                      fontWeight: 700,
+                      color: avviso.includes('âš ï¸')
+                        ? '#b45309'
+                        : '#166534',
+                    }}
+                  >
+                    {avviso || 'Nessun confronto disponibile'}
+                  </div>
+
+                  {voce.priceResolution?.manodoperaSic24 && <p style={{ fontSize: 12 }}>
+                    Fonte: SIC24 · Prezzo completo: {voce.priceResolution.manodoperaSic24.prezzoCompleto} €/{voce.priceResolution.manodoperaSic24.unitaMisura}<br />
+                    Incidenza manodopera: {voce.priceResolution.manodoperaSic24.percentualeManodopera}% · Quota manodopera: {voce.priceResolution.manodoperaSic24.prezzoManodopera} €/{voce.priceResolution.manodoperaSic24.unitaMisura}<br />
+                    Metodo: {voce.priceResolution.manodoperaSic24.metodo}. Nessuna maggiorazione.
+                  </p>}
+                  {!manuale && (!integrativo || voce.operazione === 'nuova') && (!voce.priceResolution?.matched || voce.priceResolution?.strategy === 'similarity') && <AnalisiPrezzoVoce
+                    descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} quantita={Number(voce.quantita || 0)} prezzo={Number(voce.prezzo_unitario || 0)}
+                    prezzi={prezziRiferimento} memoria={memoriaRiferimento} webVerificato={webPerVoce[JSON.stringify([voce.descrizione,voce.unita_misura])]}
+                    onUsa={(input,result)=>aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?applicaAnalisiPrezzo(v,input,result):v))} />}
+                  {!manuale && (!integrativo || voce.operazione === 'nuova') && !voce.priceResolution?.matched && <PrezzoWebVoce descrizione={voce.descrizione || ''} um={voce.unita_misura || ''} prezzi={prezziRiferimento} memoria={memoriaRiferimento}
+                    onVerificato={result=>setWebPerVoce(correnti=>({...correnti,[JSON.stringify([voce.descrizione,voce.unita_misura])]:result}))}
+                    onInterno={r => aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?{...v,...r,priceResolutionInvalidated:false}:v))}
+                    onUsa={r => aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?applicaPrezzoWeb(v,r):v))} />}
+                  {voce.webPriceApplied && voce.fonte_prezzo !== 'Prezzo manuale' && !voce.priceResolutionInvalidated && <div><p>Origine: Web — Prezzo da verificare. Nessuna maggiorazione automatica.</p>
+                    <label><input type="checkbox" checked={voce.webMemoryConfirmed === true} onChange={e=>{
+                      if(e.target.checked && !window.confirm('Confermare questo prezzo Web come riferimento da salvare nella memoria ARTECNA?'))return
+                      aggiornaVociConCronologia(vociCorrentiRef.current.map((v,i)=>i===index?{...v,webMemoryConfirmed:e.target.checked}:v))
+                    }} /> Conferma esplicita per salvare il prezzo Web in memoria ARTECNA</label></div>}
+                  {media && (
+  <button
+    onClick={() => {
+      const nuove = vociPreventivoAi.map((voce, i) =>
+        i === index
+          ? {
+              ...voce,
+              prezzo_unitario: Number(media.toFixed(2)),
+            }
+          : voce
+      )
+
+      aggiornaVociConCronologia(nuove)
+    }}
+    style={{
+      ...buttonSecondary,
+      marginTop: 8,
+      backgroundColor: '#0f766e',
+      color: '#fff',
+    }}
+  >
+    Usa media memoria prezzi
+  </button>
+)}
+
+  {voce.priceResolution && !voce.propostaPrezzoDocumento && !voce.stimaPrezzoArtecna && (
+    <div
+      style={{
+        marginTop: 8,
+        padding: 10,
+        borderRadius: 8,
+        background:
+          voce.priceResolution.matched
+            ? '#f0fdf4'
+            : '#fef2f2',
+        border:
+          voce.priceResolution.matched
+            ? '1px solid #86efac'
+            : '1px solid #fca5a5',
+        fontSize: 14,
+        lineHeight: 1.5,
+      }}
+    >
+
+      <div
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          marginBottom: 8,
+          padding: '5px 9px',
+          borderRadius: 999,
+          background: `${confidenceBadge.color}18`,
+          color: confidenceBadge.color,
+          fontWeight: 800,
+        }}
+      >
+        <span>{confidenceBadge.icon}</span>
+        <span>{confidenceBadge.label}</span>
+        <span>
+          {formatConfidence(confidencePercent)}
+        </span>
+      </div>
+      <div>
+        <strong>Strategia dell’esito salvato:</strong>{' '}
+        {voce.priceResolution.strategy}
+      </div>
+
+      <div>
+        <strong>Affidabilità:</strong>{' '}
+        {Math.round(
+          Number(voce.priceResolution.confidence || 0) * 100,
+        )}
+        %
+      </div>
+
+      {voce.priceResolution.codiceRisolto && (
+        <div>
+          <strong>Codice trovato:</strong>{' '}
+          {voce.priceResolution.codiceRisolto}
+        </div>
+      )}
+
+      {voce.priceResolution.prezzoUnitarioRisolto !== undefined && (
+        <div>
+          <strong>Prezzo risolto:</strong>{' '}
+          {formatMoney(
+            voce.priceResolution.prezzoUnitarioRisolto,
+          )}
+        </div>
+      )}
+
+      {Array.isArray(voce.priceResolution.reasons) &&
+        voce.priceResolution.reasons.length > 0 && (
+          <div>
+            <strong>Motivo:</strong>{' '}
+            {voce.priceResolution.reasons.join(' ')}
+          </div>
+        )}
+
+      {!voce.priceResolution.matched && (
+        <div
+          style={{
+            marginTop: 6,
+            fontWeight: 700,
+            color: '#b91c1c',
+          }}
+        >
+          Nessuna corrispondenza trovata
+        </div>
+      )}
+    </div>
+  )}
+  <RiferimentiLocaliPrezzo riferimenti={riferimentiLocali[index]} propostaInBozza={!!voce.propostaPrezzoDocumento || voce.stimaPrezzoArtecna?.validazione_tecnica?.stato === 'accettata'} />
+    </div>
+  </details>
+                </td>
+              </tr>
+  </Fragment>
             )
           })}
         </tbody>
