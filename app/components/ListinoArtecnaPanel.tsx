@@ -14,7 +14,7 @@ export default function ListinoArtecnaPanel({ supabase, onSaved }: { supabase: S
   const [rows, setRows] = useState<VoceListino[]>([])
   const [search, setSearch] = useState('')
   const [currentId, setCurrentId] = useState<string | null>(null)
-  const currentRow = useRef<HTMLTableRowElement>(null)
+  const currentRow = useRef<HTMLElement>(null)
   const contenitoreRighe = useRef<HTMLDivElement>(null)
   const [form, setForm] = useState<FormListino | null>(null)
   const [editing, setEditing] = useState<VoceListino>()
@@ -63,13 +63,17 @@ export default function ListinoArtecnaPanel({ supabase, onSaved }: { supabase: S
       setRows(await leggiListinoManuale(supabase)); setProposte(null); setSelezionate([]); await onSaved()
     }} />
     {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
-    {loading ? <p>Caricamento listino...</p> : <div ref={contenitoreRighe} role="region" aria-label="Righe Listino ARTECNA" tabIndex={0} style={stileRighePrezzari}><table style={{ width: '100%', textAlign: 'left' }}>
-      <thead><tr>{['Codice', 'Descrizione', 'U.M.', 'Prezzo unitario', '% Manodopera', 'Manodopera €/U.M.', 'Categoria', 'Zona', 'Regione', 'Aggiornato il', 'Azioni'].map(label => <th key={label}>{label}</th>)}</tr></thead>
-      <tbody>{filtered.map(row => <tr key={row.id} ref={row.id === activeId ? currentRow : undefined} style={row.id === activeId ? { background: '#eff6ff' } : undefined}>
-        <td>{evidenziaRicerca(row.codice, search)}</td><td>{evidenziaRicerca(row.descrizione, search)}</td><td>{row.unita_misura}</td><td>{Number(row.prezzo_unitario).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</td>
-        <td>{formattaManodopera(row.incidenza_manodopera)}</td><td>{formattaManodopera(row.prezzo_manodopera)}</td>
-        <td>{row.categoria}</td><td>{row.zona}</td><td>{row.regione}</td><td>{row.updated_at ? new Date(row.updated_at).toLocaleString('it-IT') : '—'}</td>
-        <td><button disabled={busy || row.tipo_prezzo !== 'artecna'} onClick={() => {
+    {loading ? <p>Caricamento listino...</p> : <div ref={contenitoreRighe} role="region" aria-label="Righe Listino ARTECNA" tabIndex={0} style={stileRighePrezzari}>
+      <div style={{ padding: 2 }}>
+      {filtered.map(row => <article key={row.id} aria-label={`Voce ARTECNA ${row.codice || '—'}`} ref={row.id === activeId ? currentRow : undefined}
+        style={{ marginBottom: 14, padding: 16, border: '1px solid #cbd5e1', borderRadius: 10,
+          background: row.id === activeId ? '#eff6ff' : '#fff', boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
+        <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <strong style={{ fontFamily: 'monospace', fontSize: 17, color: '#0f172a', overflowWrap: 'anywhere' }}>
+            {evidenziaRicerca(row.codice, search)}
+          </strong>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button disabled={busy || row.tipo_prezzo !== 'artecna'} onClick={() => {
           setEditing(row); setError(''); setMessage(''); setForm({ codice: row.codice || '', descrizione: row.descrizione || '', unita_misura: row.unita_misura || '', prezzo_unitario: String(row.prezzo_unitario), categoria: row.categoria || '', zona: row.zona || '', regione: row.regione || '', note: row.note || '', incidenza_manodopera: row.incidenza_manodopera == null ? '' : String(row.incidenza_manodopera), prezzo_manodopera: row.prezzo_manodopera == null ? '' : String(row.prezzo_manodopera) })
         }}>Modifica</button>{row.tipo_prezzo === 'artecna' && <>{' '}<button type="button" disabled={busy || !!form} onClick={async () => {
           if (busy || operazioneStorico.current) return
@@ -83,9 +87,26 @@ export default function ListinoArtecnaPanel({ supabase, onSaved }: { supabase: S
             await onSaved()
           } catch (e) { setError(e instanceof Error ? e.message : 'Errore eliminazione listino.') }
           finally { operazioneStorico.current = false; setBusy(false) }
-        }}>Elimina</button></>}</td>
-      </tr>)}</tbody>
-    </table>{!filtered.length && <p>Nessuna voce trovata.</p>}</div>}
+        }}>Elimina</button></>}
+          </div>
+        </header>
+        <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(130px, 100%), 1fr))', gap: '12px 18px', margin: '14px 0 0', fontSize: 14, overflowWrap: 'anywhere' }}>
+          <div><dt style={{ color: '#64748b' }}>U.M.</dt><dd style={{ margin: '4px 0 0', fontWeight: 600 }}>{row.unita_misura}</dd></div>
+          <div style={{ textAlign: 'right' }}><dt style={{ color: '#64748b' }}>Prezzo unitario</dt><dd style={{ margin: '4px 0 0', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{Number(row.prezzo_unitario).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</dd></div>
+          <div style={{ textAlign: 'right' }}><dt style={{ color: '#64748b' }}>% Manodopera</dt><dd style={{ margin: '4px 0 0', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formattaManodopera(row.incidenza_manodopera)}</dd></div>
+          <div style={{ textAlign: 'right' }}><dt style={{ color: '#64748b' }}>Manodopera €/U.M.</dt><dd style={{ margin: '4px 0 0', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formattaManodopera(row.prezzo_manodopera)}</dd></div>
+          <div><dt style={{ color: '#64748b' }}>Categoria</dt><dd style={{ margin: '4px 0 0' }}>{row.categoria}</dd></div>
+          <div><dt style={{ color: '#64748b' }}>Zona</dt><dd style={{ margin: '4px 0 0' }}>{row.zona}</dd></div>
+          <div><dt style={{ color: '#64748b' }}>Regione</dt><dd style={{ margin: '4px 0 0' }}>{row.regione}</dd></div>
+          <div><dt style={{ color: '#64748b' }}>Aggiornato il</dt><dd style={{ margin: '4px 0 0' }}>{row.updated_at ? new Date(row.updated_at).toLocaleString('it-IT') : '—'}</dd></div>
+        </dl>
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #e2e8f0', lineHeight: 1.65, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          {evidenziaRicerca(row.descrizione, search)}
+        </div>
+      </article>)}
+      </div>
+      {!filtered.length && <p>Nessuna voce trovata.</p>}
+    </div>}
     {proposte && <section aria-label="Proposte da storico ARTECNA" style={{ marginTop: 18 }}>
       <h3>Proposte da storico ARTECNA</h3>
       <p>Nessuna modifica automatica. Prezzo proposto: mediana dei prezzi aziendali, senza maggiorazione.</p>
