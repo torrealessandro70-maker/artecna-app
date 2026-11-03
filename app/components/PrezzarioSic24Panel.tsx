@@ -25,7 +25,7 @@ export default function PrezzarioSic24Panel({ supabase }: { supabase: SupabaseCl
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [currentId, setCurrentId] = useState<string | null>(null)
-  const currentRow = useRef<HTMLTableRowElement>(null)
+  const currentRow = useRef<HTMLElement>(null)
   const contenitoreRighe = useRef<HTMLDivElement>(null)
   const operation = useRef(false)
   useEffect(() => {
@@ -86,18 +86,15 @@ export default function PrezzarioSic24Panel({ supabase }: { supabase: SupabaseCl
     {!loading && !error && <>
       <p role="status">{filtered.length} voci</p>
       <div ref={contenitoreRighe} role="region" aria-label="Righe Prezzario SIC24" tabIndex={0} style={stileRighePrezzari}>
-        <table>
-          <thead><tr>{['Codice', 'Descrizione', 'U.M.', 'Prezzo unitario', '% Manodopera', 'Manodopera €/U.M.', 'Fonte', 'Anno', 'Versione', 'Personalizzazione ARTECNA'].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
-          <tbody>{visible.map(row => <tr key={row.id} ref={row.id === activeId ? currentRow : undefined} style={row.id === activeId ? { background: '#eff6ff' } : undefined}>
-            <td>{evidenziaRicerca(row.codice, search)}</td><td>{evidenziaRicerca(row.descrizione || '—', search)}</td><td>{row.unita_misura || '—'}</td>
-            <td>{formattaManodopera(row.prezzo_unitario)}</td><td>{formattaManodopera(row.incidenza_manodopera)}</td>
-            <td>{formattaManodopera(row.prezzo_manodopera)}</td><td>{row.fonte}</td><td>{row.anno ?? '—'}</td><td>{row.versione}</td>
-            <td>{overrides[row.id] && <div aria-label={`Confronto ${row.codice}`}>
-              <strong>UFFICIALE</strong>: {formattaManodopera(row.prezzo_unitario)} €/{row.unita_misura || '—'}<br />
-              Manodopera: {formattaManodopera(row.incidenza_manodopera)}% / {formattaManodopera(row.prezzo_manodopera)} €/{row.unita_misura || '—'}<br />
-              <strong>ARTECNA</strong>: {formattaManodopera(overrides[row.id].prezzo_unitario)} €/{overrides[row.id].unita_misura}<br />
-              Manodopera: {formattaManodopera(overrides[row.id].incidenza_manodopera)}% / {formattaManodopera(overrides[row.id].prezzo_manodopera)} €/{overrides[row.id].unita_misura}
-            </div>}
+        <div style={{ padding: 2 }}>
+          {visible.map(row => <article key={row.id} aria-label={`Voce ${row.codice}`} ref={row.id === activeId ? currentRow : undefined}
+            style={{ marginBottom: 14, padding: 16, border: '1px solid #cbd5e1', borderRadius: 10,
+              background: row.id === activeId ? '#eff6ff' : '#fff', boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
+            <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <strong style={{ fontFamily: 'monospace', fontSize: 17, color: '#0f172a', overflowWrap: 'anywhere' }}>
+                {evidenziaRicerca(row.codice, search)}
+              </strong>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {origineRegionaleValida(row) && <button type="button" disabled={busy || overrideLoading || !!editor} onClick={() => apri(row)}>
                 {overrides[row.id] ? 'Modifica personalizzazione' : 'Personalizza per ARTECNA'}
               </button>}
@@ -111,9 +108,28 @@ export default function PrezzarioSic24Panel({ supabase }: { supabase: SupabaseCl
                 } catch (e) { setOverrideError(e instanceof Error ? e.message : 'Rimozione non riuscita.') }
                 finally { operation.current = false; setBusy(false) }
               }}>Rimuovi personalizzazione</button>}
-            </td>
-          </tr>)}</tbody>
-        </table>
+              </div>
+            </header>
+            <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px 18px', margin: '14px 0 0', fontSize: 14 }}>
+              <div><dt style={{ color: '#64748b' }}>U.M.</dt><dd style={{ margin: '4px 0 0', fontWeight: 600 }}>{row.unita_misura || '—'}</dd></div>
+              <div style={{ textAlign: 'right' }}><dt style={{ color: '#64748b' }}>Prezzo unitario</dt><dd style={{ margin: '4px 0 0', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formattaManodopera(row.prezzo_unitario)}</dd></div>
+              <div style={{ textAlign: 'right' }}><dt style={{ color: '#64748b' }}>% Manodopera</dt><dd style={{ margin: '4px 0 0', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formattaManodopera(row.incidenza_manodopera)}</dd></div>
+              <div style={{ textAlign: 'right' }}><dt style={{ color: '#64748b' }}>Manodopera €/U.M.</dt><dd style={{ margin: '4px 0 0', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formattaManodopera(row.prezzo_manodopera)}</dd></div>
+              <div><dt style={{ color: '#64748b' }}>Fonte</dt><dd style={{ margin: '4px 0 0' }}>{row.fonte}</dd></div>
+              <div><dt style={{ color: '#64748b' }}>Anno</dt><dd style={{ margin: '4px 0 0' }}>{row.anno ?? '—'}</dd></div>
+              <div><dt style={{ color: '#64748b' }}>Versione</dt><dd style={{ margin: '4px 0 0' }}>{row.versione}</dd></div>
+            </dl>
+            {overrides[row.id] && <div aria-label={`Confronto ${row.codice}`} style={{ marginTop: 14, padding: 10, borderRadius: 6, background: '#f8fafc' }}>
+              <strong>UFFICIALE</strong>: {formattaManodopera(row.prezzo_unitario)} €/{row.unita_misura || '—'}<br />
+              Manodopera: {formattaManodopera(row.incidenza_manodopera)}% / {formattaManodopera(row.prezzo_manodopera)} €/{row.unita_misura || '—'}<br />
+              <strong>ARTECNA</strong>: {formattaManodopera(overrides[row.id].prezzo_unitario)} €/{overrides[row.id].unita_misura}<br />
+              Manodopera: {formattaManodopera(overrides[row.id].incidenza_manodopera)}% / {formattaManodopera(overrides[row.id].prezzo_manodopera)} €/{overrides[row.id].unita_misura}
+            </div>}
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #e2e8f0', lineHeight: 1.65, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+              {evidenziaRicerca(row.descrizione || '—', search)}
+            </div>
+          </article>)}
+        </div>
       </div>
       {!filtered.length && <p>Nessuna voce SIC24 trovata.</p>}
       <div aria-label="Paginazione prezzario SIC24">
