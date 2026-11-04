@@ -1216,6 +1216,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   const [preventivi, setPreventivi] = useState<PreventivoSorgenteCandidato[]>([])
   const [preventivoId, setPreventivoId] = useState('')
   const [caricamentoElenco, setCaricamentoElenco] = useState(false)
+  const [elencoPreventiviCaricato, setElencoPreventiviCaricato] = useState(false)
   const [caricamentoAnteprima, setCaricamentoAnteprima] = useState(false)
   const [messaggio, setMessaggio] = useState('')
   const [anteprimaCaricata, setAnteprima] = useState<{
@@ -1247,15 +1248,15 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   const bozzaCreataId = useRef<string | null>(null)
   const [nuovaRaccoltaIntenzionale, setNuovaRaccoltaIntenzionale] = useState(false)
   const elencoPronto = elencoVarianti.tipo === 'elenco' && elencoVarianti.cantiereId === cantiereId
-  const candidate = variantiCorrenti.filter(v => v.titolo === titoloBozzaSorgenti &&
+  const variantiStoriche = variantiCorrenti.filter(v => v.titolo === titoloBozzaSorgenti &&
     ['bozza', 'proposta', 'approvata', 'rifiutata', 'annullata'].includes(v.stato))
-  const varianteCorrente = candidate.find(v => v.id === bozzaSorgentiVarianteId)
+  const varianteCorrente = variantiStoriche.find(v => v.id === bozzaSorgentiVarianteId)
   const varianteSelezionata = varianteCorrente ??
     ((!elencoPronto || bozzaCreataId.current === bozzaSorgentiVarianteId) ? selezioneSorgenti : null)
   const varianteSorgentiModificabile = varianteSelezionata?.stato === 'bozza'
   // Prima della prima sorgente resta disponibile la creazione della bozza già esistente.
   const nuovaRaccolta = elencoPronto && !bozzaSorgentiVarianteId &&
-    (nuovaRaccoltaIntenzionale || candidate.length === 0)
+    (nuovaRaccoltaIntenzionale || variantiStoriche.length === 0)
   const acquisizioneConsentita = varianteSorgentiModificabile || nuovaRaccolta
   const contestoScrittura = useRef({ id: bozzaSorgentiVarianteId, consentita: acquisizioneConsentita })
   contestoScrittura.current = { id: bozzaSorgentiVarianteId, consentita: acquisizioneConsentita }
@@ -1278,7 +1279,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
 
   async function caricaSorgentiSalvate(id: string) {
     if (invioSorgente.current || invioCumulativa.current) return
-    const candidata = candidate.find(v => v.id === id) ?? selezioneSorgenti
+    const candidata = variantiStoriche.find(v => v.id === id) ?? selezioneSorgenti
     if (!candidata || candidata.id !== id) return
     setNuovaRaccoltaIntenzionale(false)
     setSelezioneSorgenti({ id: candidata.id, titolo: candidata.titolo, stato: candidata.stato,
@@ -1318,8 +1319,8 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
 
   useEffect(() => {
     if (!elencoPronto || bozzaIdRef.current || nuovaRaccoltaIntenzionale) return
-    if (candidate.length === 1) void caricaSorgentiSalvate(candidate[0].id)
-    else setSorgentiPronte(candidate.length === 0)
+    if (variantiStoriche.length === 1) void caricaSorgentiSalvate(variantiStoriche[0].id)
+    else setSorgentiPronte(variantiStoriche.length === 0)
   }, [elencoVarianti, cantiereId, variantiCorrenti, nuovaRaccoltaIntenzionale])
   const richiesta = useRef(0)
 
@@ -1511,7 +1512,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   }
 
   function avviaNuovaRaccolta() {
-    if (!elencoPronto || operazioneSorgenti || acquisizioneConsentita || !varianteSelezionata) return
+    if (!elencoPronto || operazioneSorgenti || acquisizioneConsentita || variantiStoriche.length === 0) return
     // Invalida le risposte asincrone della raccolta precedente.
     sessioneSorgenti.current = {}
     letturaSorgenti.current += 1
@@ -1535,6 +1536,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     richiesta.current += 1
     resetFile()
     setPreventivi([])
+    setElencoPreventiviCaricato(false)
     setPreventivoId('')
     setAnteprima(null)
     setMessaggio('')
@@ -1547,6 +1549,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     richiesta.current += 1
     if (acquisizioneConsentita) resetFile()
     setPreventivi([])
+    setElencoPreventiviCaricato(false)
     setPreventivoId('')
     setAnteprima(null)
     setMessaggio('')
@@ -1556,7 +1559,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
       void elencaPreventiviSorgenteVariante(supabase, cantiereId).then(esito => {
         if (!attivo || !contestoScrittura.current.consentita) return
         if (esito.stato === 'errore') setMessaggio(esito.messaggio)
-        else setPreventivi(esito.preventivi)
+        else { setPreventivi(esito.preventivi); setElencoPreventiviCaricato(true) }
       }).catch(() => {
         if (attivo && contestoScrittura.current.consentita) setMessaggio('Impossibile caricare i preventivi sorgente.')
       }).finally(() => {
@@ -1630,7 +1633,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   async function aggiungiSorgente() {
     if (!verificaModifica(true)) return
     if (invioSorgente.current || invioCumulativa.current || caricamentoSorgenti || !elencoPronto || !sorgentiPronte ||
-        (!bozzaIdRef.current && candidate.length > 0 && !nuovaRaccolta) ||
+        (!bozzaIdRef.current && variantiStoriche.length > 0 && !nuovaRaccolta) ||
         !sorgenteCorrente || sorgenteCorrente.proposta.lavorazioni.length === 0) return
     if (sorgenti.some(s => s.id === chiaveSorgenteAperta || s.snapshot?.chiave === sorgenteCorrente.chiave ||
         (sorgenteCorrente.tipo === 'preventivo_artecna' && s.preventivoId === sorgenteCorrente.preventivoId))) {
@@ -1820,14 +1823,16 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
         {acquisizione === 'file' && <ImportazioneEconomiaLocale key={cantiereId} cantiereId={cantiereId} onInvio={setInvioEconomia} onSalvata={() => setAggiornamentoEconomia(v => v+1)} />}
       </> : <>
       {!elencoPronto && <p role="status">Attendi il caricamento delle varianti prima di salvare sorgenti.</p>}
-      {varianteSelezionata && !acquisizioneConsentita && <button type="button"
+      {variantiStoriche.length > 0 && !acquisizioneConsentita && <button type="button"
         disabled={!elencoPronto || operazioneSorgenti} onClick={avviaNuovaRaccolta}>Nuova raccolta</button>}
-      {candidate.length > 0 && (candidate.length > 1 || nuovaRaccoltaIntenzionale) && <label>
+      {elencoPronto && variantiStoriche.length > 0 && !varianteSelezionata && !nuovaRaccolta &&
+        <p role="status">Seleziona una variante esistente oppure avvia una nuova raccolta.</p>}
+      {variantiStoriche.length > 0 && (variantiStoriche.length > 1 || nuovaRaccoltaIntenzionale) && <label>
         Esistono più Varianti di Preventivo integrativo. Seleziona quella da consultare.
         <select value={bozzaSorgentiVarianteId ?? ''} disabled={operazioneSorgenti}
           onChange={e => { if (e.target.value) void caricaSorgentiSalvate(e.target.value) }}>
           <option value="" disabled>Seleziona una Variante</option>
-          {candidate.map(b => <option key={b.id} value={b.id}>
+          {variantiStoriche.map(b => <option key={b.id} value={b.id}>
             {b.stato}{b.numero !== null ? ' — N. ' + b.numero : ''} — {b.data_variante || b.created_at || 'Data non disponibile'} — {b.id.slice(0, 8)}
           </option>)}
         </select>
@@ -1950,7 +1955,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
         </option>)}
       </select></label>
       {caricamentoElenco && <p role="status">Caricamento preventivi...</p>}
-      {!caricamentoElenco && !messaggio && preventivi.length === 0 && <p>Nessun preventivo strutturato disponibile per questo cantiere.</p>}
+      {acquisizioneConsentita && elencoPreventiviCaricato && !caricamentoElenco && !messaggio && preventivi.length === 0 && <p>Nessun preventivo strutturato disponibile per questo cantiere.</p>}
       <button type="button" disabled={operazioneSorgenti || !acquisizioneConsentita || !preventivoId || caricamentoElenco || caricamentoAnteprima}
         onClick={() => void caricaAnteprima()}>{caricamentoAnteprima ? 'Caricamento anteprima...' : 'Carica anteprima'}</button>
       {messaggio && <p role="status">{messaggio}</p>}
