@@ -37,7 +37,7 @@ function mount({ variants = [], candidates = [{ id: testa, numeroLavorazioni: 7,
   const props = { cantiereId: 'cantiere', elencoVarianti: { tipo: 'elenco', cantiereId: 'cantiere', righe: variants }, variantiCorrenti: variants, onVarianteAggiornata() { assert.fail('No update') }, onApriVarianteEconomia() { assert.fail('No update') } }
   const render = () => { cursor = 0; const tree = exports.AnteprimaPreventivoVariante(props); const pending = effects; effects = []; pending.forEach(f => f()); return tree }
   const settle = async () => { let tree; for (let i = 0; i < 6; i++) { tree = render(); await tick() } return tree }
-  const open = async () => { const tree = await settle(); find(tree, 'button', '+ Nuova variante da preventivo').props.onClick(); return settle() }
+  const open = async () => { const tree = await settle(); find(tree, 'button', '+ Variante da preventivo').props.onClick(); return settle() }
   return { settle, open, calls, reads, writes, handlers: () => exports.handlers }
 }
 test('Pidatella: tre storiche, Nuova raccolta diretta carica 17 voci senza scritture', async () => {
@@ -128,4 +128,22 @@ test('storico Pidatella e nuova raccolta: nessuna scrittura e solo contratto dis
   find(tree, 'button', 'Nuova raccolta').props.onClick(); tree = await m.settle()
   assert.equal(m.calls.length, 1); assert.equal(find(tree, 'option', 'Preventivo contrattuale').props.disabled, true)
   assert.equal(m.reads.length, 0); assert.equal(m.writes.length, 0)
+})
+
+
+test('Variante da preventivo: un solo comando, focus isolato e ritorno solo locale', async () => {
+  const m = mount({ variants: history() }); let tree = await m.settle()
+  assert.equal(nodes(tree).filter(n => n.type === 'button' && text(n) === '+ Variante da preventivo').length, 1)
+  assert(!nodes(tree).some(n => n.props?.titolo === 'Nuova variante da preventivo'))
+  tree = await m.open()
+  let focus = nodes(tree).find(n => n.props?.titolo === 'Nuova variante da preventivo')
+  assert(focus); assert.equal(focus.props.attiva, true); assert.equal(focus.props.etichettaRitorno, '← Torna alle varianti')
+  assert(find(focus, 'select', 'Seleziona una Variante'))
+  find(focus, 'button', 'Nuova raccolta').props.onClick(); tree = await m.settle()
+  assert.equal(m.calls.length, 1)
+  focus = nodes(tree).find(n => n.props?.titolo === 'Nuova variante da preventivo')
+  focus.props.onChiudi(); tree = await m.settle()
+  assert(!nodes(tree).some(n => n.props?.titolo === 'Nuova variante da preventivo'))
+  tree = await m.open(); assert(text(tree).includes('17 voci') || text(tree).includes('7 voci'))
+  assert.equal(m.writes.length, 0)
 })

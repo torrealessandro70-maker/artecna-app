@@ -1200,6 +1200,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   economiaRapportini?: boolean
 }) {
   const [aperto, setAperto] = useState(economiaRapportini)
+  const aperturaRef = useRef<HTMLButtonElement | null>(null)
   useEffect(() => { if (richiestaApertura > 0) setAperto(true) }, [richiestaApertura])
   const [natura, setNatura] = useState<NaturaVariante>(economiaRapportini ? 'lavori_in_economia' : 'preventivo_integrativo')
   const [invioEconomia, setInvioEconomia] = useState(false)
@@ -1810,13 +1811,16 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   const totaleFile = propostaFile?.lavorazioni.reduce((somma, voce) =>
     somma + (typeof voce.totale === 'number' && Number.isFinite(voce.totale) && voce.totale >= 0 ? voce.totale : 0), 0)
 
-  return <div style={{ margin: '12px 0' }}>
+  return <div style={{ margin: economiaRapportini ? '12px 0' : 0, minWidth: 0 }}>
     {!economiaRapportini && <button type="button" disabled={confermaInCorso || invioEconomia} onClick={() => {
       richiesta.current += 1
       resetFile()
       setAperto(!aperto)
-    }}>{aperto ? 'Chiudi anteprima da preventivo' : '+ Nuova variante da preventivo'}</button>}
-    {aperto && <section aria-label="Origine e acquisizione variante"
+    }} ref={aperturaRef}>+ Variante da preventivo</button>}
+    {aperto && <VistaOperativa attiva={!economiaRapportini} titolo="Nuova variante da preventivo"
+      etichettaRitorno="← Torna alle varianti" onChiudi={() => setAperto(false)}
+      occupata={operazioneSorgenti || invioEconomia} ritornoFocusRef={aperturaRef}>
+    <section aria-label="Origine e acquisizione variante" className="acquisizione-variante"
       style={{ marginTop: 12, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
       {!economiaRapportini && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         <label>Origine variante<select disabled={operazioneSorgenti || !acquisizioneConsentita || invioEconomia} value={natura} style={{ display: 'block', padding: 8 }}
@@ -2004,7 +2008,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
         {anteprima.proposta.anomalie.filter(a => a.indiceVoce === undefined).map((a, i) =>
           <p key={i}>Adapter: {a.codice.replaceAll('_', ' ')}</p>)}
         <div style={{ overflowX: 'auto', marginTop: 12 }}>
-          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 780, fontSize: 14 }}>
+          <table className="anteprima-lavorazioni-variante" style={{ borderCollapse: 'collapse', width: '100%', minWidth: 780, fontSize: 14 }}>
             <caption style={{ textAlign: 'left', padding: 8 }}>Lavorazioni sorgente — sola lettura</caption>
             <thead><tr>{['Descrizione', 'UM', 'Quantità', 'Prezzo sorgente', 'Totale sorgente', 'Verifica'].map(t =>
               <th key={t} scope="col" style={{ ...cella, textAlign: 'left', background: '#f1f5f9' }}>{t}</th>)}</tr></thead>
@@ -2014,12 +2018,12 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
                 ...anteprima.proposta.anomalie.filter(a => a.indiceVoce === indice).map(a => `Adapter: ${a.codice.replaceAll('_', ' ')}`),
               ]
               return <tr key={indice} style={{ background: indice % 2 ? '#f8fafc' : '#fff' }}>
-                <td style={{ ...cella, whiteSpace: 'pre-wrap' }}>{voce.descrizione ?? 'Non disponibile'}</td>
-                <td style={cella}>{voce.unitaMisura ?? 'Non disponibile'}</td>
-                <td style={cella}>{numero(voce.quantita)}</td>
-                <td style={cella}>{numero(voce.prezzoSorgente)}</td>
-                <td style={cella}>{numero(voce.totale)}</td>
-                <td style={cella}>{anomalie.length ? anomalie.map((a, i) => <div key={i}>{a}</div>) : 'Nessuna anomalia rilevata'}</td>
+                <td data-label="Descrizione" style={{ ...cella, whiteSpace: 'pre-wrap' }}>{voce.descrizione ?? 'Non disponibile'}</td>
+                <td data-label="UM" style={cella}>{voce.unitaMisura ?? 'Non disponibile'}</td>
+                <td data-label="Quantità" style={cella}>{numero(voce.quantita)}</td>
+                <td data-label="Prezzo sorgente" style={cella}>{numero(voce.prezzoSorgente)}</td>
+                <td data-label="Totale sorgente" style={cella}>{numero(voce.totale)}</td>
+                <td data-label="Verifica" style={cella}>{anomalie.length ? anomalie.map((a, i) => <div key={i}>{a}</div>) : 'Nessuna anomalia rilevata'}</td>
               </tr>
             })}</tbody>
           </table>
@@ -2035,7 +2039,21 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
       {varianteSorgentiModificabile && revisione !== null && <RevisioneVarianteLocale righe={revisione} onChange={setRevisione}
         onAnnulla={() => setRevisione(null)} onRipristina={revisionaSorgente} />}
       </>}
-    </section>}
+    </section>
+    <style>{`
+      .acquisizione-variante { min-width: 0; overflow-wrap: anywhere; container: acquisizione-variante / inline-size; }
+      .acquisizione-variante select, .acquisizione-variante input { max-width: 100%; box-sizing: border-box; }
+      .acquisizione-variante button { white-space: normal; max-width: 100%; overflow-wrap: anywhere; }
+      @container acquisizione-variante (width < 900px) {
+        .anteprima-lavorazioni-variante { display: block; min-width: 0 !important; }
+        .anteprima-lavorazioni-variante caption, .anteprima-lavorazioni-variante tbody { display: block; }
+        .anteprima-lavorazioni-variante thead { display: none; }
+        .anteprima-lavorazioni-variante tr { display: block; margin-bottom: 12px; }
+        .anteprima-lavorazioni-variante td { display: block; overflow-wrap: anywhere; }
+        .anteprima-lavorazioni-variante td::before { content: attr(data-label); display: block; font-weight: 600; color: #475569; }
+      }
+    `}</style>
+    </VistaOperativa>}
   </div>
 }
 
@@ -2337,36 +2355,35 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
   return (
     <section aria-label="Varianti" style={{ marginTop: 16 }}>
       {economiaRapportini && <p>Prestazioni da acquisire → Prezzi fatturabili → Totale lavori → Crea proposta → Approva proposta → KPI aggiornati</p>}
-      {stampaContesto && <div><button type="button" disabled={stampaInCorso || stato.tipo !== 'elenco'} onClick={() => void stampaVarianti()}>Stampa varianti</button>
-        <label><input type="checkbox" checked={includiProposte} disabled={stampaInCorso} onChange={e => setIncludiProposte(e.target.checked)} /> Includi proposte e bozze, con stato indicato</label></div>}
-      {erroreStampa && <p role="alert">{erroreStampa}</p>}
+      {economiaRapportini && stampaContesto && <details><summary>Stampa varianti</summary><button type="button" disabled={stampaInCorso || stato.tipo !== 'elenco'} onClick={() => void stampaVarianti()}>Stampa varianti</button>
+        <label><input type="checkbox" checked={includiProposte} disabled={stampaInCorso} onChange={e => setIncludiProposte(e.target.checked)} /> Includi proposte e bozze, con stato indicato</label></details>}
+      {economiaRapportini && erroreStampa && <p role="alert">{erroreStampa}</p>}
       <h3>{economiaRapportini ? 'Lavori in economia dai Rapportini' : 'Varianti'}</h3>
-      {!economiaRapportini && stato.tipo === 'elenco' && !varianteApertaId && !righe.some(v => v.stato === 'bozza' || v.stato === 'proposta') &&
-        <GuidaPassoSuccessivo stato={null} onCrea={apriNuovaVariante}
-          onAcquisisci={cantiereId ? vaiAnteprima : undefined} />}
+      <div role={economiaRapportini ? undefined : 'toolbar'} aria-label={economiaRapportini ? undefined : 'Creazione varianti'}
+        style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      {!economiaRapportini && !formAperto && (
+        <button ref={creazioneRef} type="button" disabled={!cantiereId || salvataggio}
+          onClick={apriNuovaVariante}>+ Nuova variante</button>
+      )}
       {cantiereId && <div ref={anteprimaRef} tabIndex={-1}>
         <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} elencoVarianti={stato} variantiCorrenti={righe}
           onVarianteAggiornata={aggiornaVariante} richiestaApertura={richiestaAperturaAnteprima} economiaRapportini={economiaRapportini}
           onApriVarianteEconomia={apriVarianteEconomia} />
       </div>}
-      {!economiaRapportini && !formAperto && (
-        <button ref={creazioneRef} type="button" disabled={!cantiereId || salvataggio}
-          onClick={apriNuovaVariante}>
-          Nuova variante
-        </button>
-      )}
+      </div>
       {!economiaRapportini && formAperto && (
         <VistaOperativa titolo="Nuova variante" contesto={stampaContesto?.nome}
+          etichettaRitorno="← Torna alle varianti"
           onChiudi={() => setFormAperto(false)} occupata={salvataggio} ritornoFocusRef={creazioneRef}>
         <form ref={formCreazioneRef} tabIndex={-1} onSubmit={salvaBozza} style={{ marginTop: 16 }}>
-          <fieldset disabled={salvataggio} style={{ display: 'grid', gap: 12, padding: 16, minWidth: 0, boxSizing: 'border-box', border: '1px solid #e2e8f0', borderRadius: 12 }}>
+          <fieldset disabled={salvataggio} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12, padding: 16, minWidth: 0, boxSizing: 'border-box', border: '1px solid #e2e8f0', borderRadius: 12 }}>
             <legend>Nuova variante</legend>
             <label>Titolo *<input required value={titolo} onChange={e => setTitolo(e.target.value)}
               style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 8 }} /></label>
             <label>Descrizione<textarea value={descrizione} onChange={e => setDescrizione(e.target.value)}
               rows={3} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 8 }} /></label>
             <label>Data variante<input type="date" value={dataVariante} onChange={e => setDataVariante(e.target.value)}
-              style={{ display: 'block', padding: 8 }} /></label>
+              style={{ display: 'block', width: '100%', minWidth: 0, boxSizing: 'border-box', padding: 8 }} /></label>
             <p style={{ margin: 0 }}>Se lasci la data vuota verrà usata la data corrente del database.</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <button type="button" onClick={resetForm}>Annulla</button>
@@ -2390,12 +2407,30 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
       {righe.length > 0 && (
         <div style={{ display: 'grid', gap: 12 }}>
           {(economiaRapportini ? righe.filter(v => v.id === varianteApertaId) : righe).map(variante => (
-            <article key={variante.id} style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
+            <article key={variante.id} style={{ padding: economiaRapportini ? 16 : 12, minWidth: 0, overflowWrap: 'anywhere', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
+              {economiaRapportini ? <>
               <h4 style={{ marginTop: 0 }}>
                 {variante.stato === 'approvata' ? 'Approvata' : variante.stato === 'proposta' ? 'Proposta' : variante.numero === null ? 'Bozza' : `Variante n. ${variante.numero}`}
                 {' — '}{variante.titolo || 'Senza titolo'}
               </h4>
               <p>Stato: {variante.stato}</p>
+              </> : <>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                  <h4 style={{ margin: 0, minWidth: 0, overflowWrap: 'anywhere' }}>
+                    Variante{variante.numero !== null ? ` ${variante.numero}` : ''} — {variante.titolo === titoloBozzaSorgenti ? 'Preventivo integrativo' : variante.titolo || 'Senza titolo'}
+                  </h4>
+                  <span style={{ borderRadius: 20, padding: '3px 10px', fontSize: 13, fontWeight: 600,
+                    background: variante.stato === 'approvata' ? '#dcfce7' : variante.stato === 'rifiutata' ? '#fee2e2' : '#f1f5f9',
+                    color: variante.stato === 'approvata' ? '#166534' : variante.stato === 'rifiutata' ? '#991b1b' : '#334155' }}>
+                    {({ bozza: 'Bozza', proposta: 'Proposta', approvata: 'Approvata', rifiutata: 'Rifiutata', annullata: 'Annullata' } as Record<string, string>)[variante.stato] ?? variante.stato}
+                  </span>
+                </div>
+                <p style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', margin: '8px 0', fontSize: 14 }}>
+                  <span>Data: {variante.data_variante ? variante.data_variante.slice(0, 10).split('-').reverse().join('/') : 'Non indicata'}</span>
+                  <span>Delta: {variante.importo_delta_approvato === null ? 'Non disponibile' : Number(variante.importo_delta_approvato).toLocaleString('it-IT', { style: 'currency', currency: 'EUR', signDisplay: 'exceptZero' })}</span>
+                </p>
+              </>}
+              {varianteApertaId === variante.id && <>
               {!economiaRapportini && variante.stato === 'bozza' && <RinominaVarianteBozza id={variante.id} stato={variante.stato} titoloAttuale={variante.titolo || ''}
                 onRinominata={nuovo => {
                   setBozzeCreate(v => v.map(r => r.id === variante.id ? { ...r, titolo: nuovo } : r))
@@ -2411,6 +2446,8 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
                   setVarianteApertaId(v => v === variante.id ? null : v)
                   setRefresh(v => v + 1)
                 }} />}
+              </>}
+              {economiaRapportini && <>
               {variante.numero !== null && <p>Numero: {variante.numero}</p>}
               <p>Data variante: {variante.data_variante
                 ? variante.data_variante.slice(0, 10).split('-').reverse().join('/')
@@ -2418,12 +2455,17 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
               {(varianteApertaId === variante.id || variante.importo_delta_approvato !== null) && <p>Importo delta approvato: {variante.importo_delta_approvato === null
                 ? 'Non disponibile'
                 : Number(variante.importo_delta_approvato).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</p>}
+              </>}
               <button type="button" aria-expanded={varianteApertaId === variante.id}
                 aria-controls={`variante-area-${variante.id}`}
                 onClick={() => setVarianteApertaId(aperta => aperta === variante.id ? null : variante.id)}>
                 {varianteApertaId === variante.id ? 'Chiudi variante' : 'Apri variante'}
               </button>
               {varianteApertaId === variante.id && <div id={`variante-area-${variante.id}`}>
+      {!economiaRapportini && stampaContesto && <details><summary>Stampa varianti</summary><button type="button" disabled={stampaInCorso || stato.tipo !== 'elenco'} onClick={() => void stampaVarianti()}>Stampa varianti</button>
+        <label><input type="checkbox" checked={includiProposte} disabled={stampaInCorso} onChange={e => setIncludiProposte(e.target.checked)} /> Includi proposte e bozze, con stato indicato</label></details>}
+      {!economiaRapportini && erroreStampa && <p role="alert">{erroreStampa}</p>}
+
               <p style={{ whiteSpace: 'pre-wrap' }}>{variante.descrizione || 'Nessuna descrizione.'}</p>
               {variante.stato === 'approvata' && <>
                 <p>Riferimento approvazione: {variante.riferimento_approvazione || 'Non disponibile'}</p>

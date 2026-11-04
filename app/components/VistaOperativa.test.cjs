@@ -19,9 +19,9 @@ function hooks() {
   return { react, start() { cursor = 0 }, flush() { const pending = effects; effects = []; pending.forEach(f => f()) } }
 }
 const focus = {}; vm.runInNewContext(compile(source('VistaOperativa.tsx')), { exports: focus, require(id) { if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }; return {} } })
-function mount() {
+function mount({ rows = [{ id: 'storica', titolo: 'Storica', stato: 'approvata', numero: 1, importo_delta_approvato: null }] } = {}) {
   const h = hooks(), reads = [], exports = {}
-  const db = { rpc(name) { reads.push(name); assert.equal(name, 'leggi_varianti_cantiere', 'No write allowed'); const q = { order() { return q }, range() { return Promise.resolve({ data: [{ id: 'storica', titolo: 'Storica', stato: 'approvata', numero: 1, importo_delta_approvato: null }], error: null }) } }; return q } }
+  const db = { rpc(name) { reads.push(name); assert.equal(name, 'leggi_varianti_cantiere', 'No write allowed'); const q = { order() { return q }, range() { return Promise.resolve({ data: rows, error: null }) } }; return q } }
   vm.runInNewContext(compile(source('VariantiCantierePanel.tsx')), { exports, require(id) {
     if (id === 'react') return h.react
     if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }
@@ -95,17 +95,61 @@ test('errori e stato occupato restano nel contenuto operativo, salvataggio invar
   const cur = source('VariantiCantierePanel.tsx'), old = cp.execFileSync('git', ['show', 'HEAD:app/components/VariantiCantierePanel.tsx'], { encoding: 'utf8' })
   const handlers = s => s.slice(s.indexOf('  function resetForm() {', s.indexOf('export default function VariantiCantierePanel')), s.indexOf('  function confermaProposta('))
   assert.equal(handlers(cur), handlers(old))
-  const focusMarkup = cur.slice(cur.indexOf('<VistaOperativa'), cur.indexOf('</VistaOperativa>'))
+  const focusMarkup = cur.slice(cur.indexOf('<VistaOperativa titolo="Nuova variante"'), cur.indexOf('</VistaOperativa>', cur.indexOf('<VistaOperativa titolo="Nuova variante"')))
   assert(focusMarkup.includes('occupata={salvataggio}'))
   assert(focusMarkup.includes('{erroreSalvataggio && <p role="alert">'))
   assert(focusMarkup.includes('{salvataggio && <p role="status">'))
   cp.execFileSync('git', ['diff', '--exit-code', '--', 'app/engines/varianti', 'supabase', 'lib'])
 })
 
-test('anche Nuova variante nella guida apre la stessa vista focus', async () => {
+test('toolbar unica senza guida duplicata, riposo senza form', async () => {
   const m = mount(), tree = await m.settle()
-  const guide = nodes(tree).find(n => n.props?.onCrea)
-  assert(guide); assert.equal(guide.props.onCrea, find(tree, 'button', 'Nuova variante').props.onClick)
-  guide.props.onCrea()
-  assert.equal(operational(m.render()).props.titolo, 'Nuova variante')
+  const toolbar = nodes(tree).find(n => n.props?.role === 'toolbar')
+  assert(toolbar); assert.equal(typeof find(toolbar, 'button', '+ Nuova variante').props.onClick === 'function', true)
+  assert.equal(nodes(tree).filter(n => n.type === 'button' && text(n) === '+ Nuova variante').length, 1)
+  assert(!nodes(tree).some(n => n.props?.onCrea)); assert(!find(tree, 'form'))
+})
+
+test('card compatta distingue numero, titolo e badge reale senza mutare i dati', async () => {
+  const m = mount(), tree = await m.settle(), card = find(tree, 'article')
+  assert.equal(card.props.style.padding, 12); assert.equal(card.props.style.minWidth, 0)
+  assert(text(find(card, 'h4')).includes('Variante 1 — Storica'))
+  assert(nodes(card).some(n => n.type === 'span' && text(n) === 'Approvata'))
+  assert(!text(card).includes('Stato:')); assert(!nodes(card).some(n => n.props?.tipo === 'variante'))
+})
+
+test('titolo storico normalizzato solo in presentazione, nessun cambio di numeri e importi', () => {
+  const src = source('VariantiCantierePanel.tsx')
+  assert(src.includes("variante.titolo === titoloBozzaSorgenti ? 'Preventivo integrativo'"))
+  assert(src.includes('variante.numero !== null ?'))
+  assert(src.includes("signDisplay: 'exceptZero'"))
+  assert(src.includes('variante.data_variante.slice(0, 10)'))
+})
+
+test('Apri variante conserva esattamente il callback e tutti gli handler economici', () => {
+  const cur = source('VariantiCantierePanel.tsx'), old = cp.execFileSync('git', ['show', 'HEAD:app/components/VariantiCantierePanel.tsx'], { encoding: 'utf8' })
+  const callback = 'onClick={() => setVarianteApertaId(aperta => aperta === variante.id ? null : variante.id)}'
+  assert(cur.includes(callback)); assert(old.includes(callback))
+  const logic = s => s.slice(s.indexOf('  async function caricaSorgentiSalvate'), s.indexOf('  return <div style={{ margin:'))
+  assert.equal(logic(cur), logic(old))
+})
+
+
+test('layout form e anteprima si adattano al contenitore senza cambiare calcoli', () => {
+  const s = source('VariantiCantierePanel.tsx')
+  assert(s.includes("gridTemplateColumns: 'minmax(0, 1fr)'"))
+  assert(s.includes('@container acquisizione-variante (width < 900px)'))
+  assert(s.includes('min-width: 0 !important'))
+  for (const label of ['Descrizione', 'UM', 'Quantità', 'Prezzo sorgente', 'Totale sorgente', 'Verifica']) assert(s.includes('data-label="' + label + '"'))
+  assert(!s.includes('window.innerWidth'))
+})
+
+
+for (const [stato, badge] of [['bozza','Bozza'],['proposta','Proposta'],['approvata','Approvata'],['rifiutata','Rifiutata'],['annullata','Annullata']]) test('card mostra stato reale separato dal titolo storico: ' + stato, async () => {
+  const record = { id: 'storica', titolo: 'Preventivo integrativo - bozza', stato, numero: 12, data_variante: '2026-10-13', importo_delta_approvato: '1411.78' }
+  const m = mount({ rows: [record] }), card = find(await m.settle(), 'article')
+  assert.equal(text(find(card, 'h4')), 'Variante 12 — Preventivo integrativo')
+  assert(nodes(card).some(n => n.type === 'span' && text(n) === badge))
+  assert(text(card).includes('13/10/2026')); assert(text(card).includes('1411,78'))
+  assert.equal(record.titolo, 'Preventivo integrativo - bozza'); assert.equal(record.numero, 12); assert.equal(record.importo_delta_approvato, '1411.78')
 })
