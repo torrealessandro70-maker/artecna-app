@@ -3,12 +3,13 @@
 import type { ReactNode } from 'react'
 import VistaOperativa from './VistaOperativa'
 
-export default function PreventivoManualeFocus({ contesto, onChiudi, children }: {
+export default function PreventivoManualeFocus({ contesto, etichettaRitorno, onChiudi, children }: {
   contesto: string
+  etichettaRitorno?: string
   onChiudi: () => void
   children: ReactNode
 }) {
-  return <VistaOperativa titolo="Preventivo manuale" contesto={contesto} onChiudi={onChiudi}>
+  return <VistaOperativa titolo="Preventivo manuale" contesto={contesto} etichettaRitorno={etichettaRitorno} onChiudi={onChiudi}>
     <div className="preventivo-manuale-focus" style={{ width: '100%', minWidth: 0, containerType: 'inline-size', containerName: 'preventivo-manuale' }}>
       {children}
       <style>{`

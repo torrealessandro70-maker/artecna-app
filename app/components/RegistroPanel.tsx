@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import PreventivoManualePanel, { type DocumentoManuale } from './PreventivoManualePanel'
+import PreventivoManualeFocus from './PreventivoManualeFocus'
 import RegistroHeaderToolbar from './RegistroHeaderToolbar'
 import RegistroCantieriPanel from './RegistroCantieriPanel'
 import RegistroPreventiviPanel from './RegistroPreventiviPanel'
@@ -81,7 +82,7 @@ export default function RegistroPanel(props: any) {
      {p.registroTab === 'preventivi' && <>
        <button type="button" disabled={manuale !== undefined} onClick={() => setNuovo(v => !v)}>+ Nuovo preventivo</button>
        {nuovo && <div aria-label="Modalità nuovo preventivo"><button type="button" onClick={() => { p.setSezioneAttiva('sopralluoghi'); setNuovo(false) }}>Genera con AI</button><button type="button" onClick={() => { setManuale(null); setNuovo(false) }}>Compila manualmente</button></div>}
-       {manuale !== undefined && <PreventivoManualePanel key={manuale?.id || 'nuovo'} db={supabase} cantieri={p.cantieri} iniziale={manuale || undefined} chiudi={() => setManuale(undefined)} salvato={p.ricaricaPreventivi} excel={p.generaExcelDaPreventivoAi} />}
+       {manuale !== undefined && <PreventivoManualeFocus contesto="Registro · Preventivi" etichettaRitorno="← Torna al Registro" onChiudi={() => { if (window.confirm('Chiudere il preventivo? Le modifiche non salvate saranno perse.')) setManuale(undefined) }}><PreventivoManualePanel key={manuale?.id || 'nuovo'} db={supabase} cantieri={p.cantieri} iniziale={manuale || undefined} chiudi={() => setManuale(undefined)} salvato={p.ricaricaPreventivi} excel={p.generaExcelDaPreventivoAi} /></PreventivoManualeFocus>}
   <RegistroPreventiviPanel
     apriManuale={documento => { if (manuale === undefined || window.confirm("Scartare le modifiche non salvate e aprire questo preventivo?")) setManuale(documento) }}
     preventivi={p.preventivi}
