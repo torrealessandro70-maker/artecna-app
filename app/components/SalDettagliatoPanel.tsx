@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { calcolaStampaSal, documentoSalCliente, type DatiStampaSal } from '../utils/stampaSalCliente'
 
 import SalForm from './SalForm'
+import PreparazioneSalFocus from './PreparazioneSalFocus'
 import PreventivoLavorazioniForm from './PreventivoLavorazioniForm'
 import PreventiviCaricatiList from './PreventiviCaricatiList'
 import ConfrontoPdfSalPanel from './ConfrontoPdfSalPanel'
@@ -485,6 +486,8 @@ export default function SalDettagliatoPanel({
     Gestisci lo stato avanzamento lavori per singola lavorazione.
   </p>
 
+  <PreparazioneSalFocus contestuale={!!contesto.contestuale} contesto={salCantiere}
+    occupata={operazioniInCorso > 0} buttonStyle={buttonSecondary}>
   <div
     style={{
       display: 'flex',
@@ -583,6 +586,8 @@ export default function SalDettagliatoPanel({
     </button>
     )}
   </div>
+
+  </PreparazioneSalFocus>
 
   {!contesto.contestuale && <>
   <div
