@@ -7,6 +7,7 @@ import GestioniQuadernoPendenti from './GestioniQuadernoPendenti'
 import { duplicaProgetto, eliminaProgetto } from '../engines/quaderno/gestione'
 import { rpcQuaderno } from '../engines/quaderno/operazioni'
 import SopralluogoAppunti from './SopralluogoAppunti'
+import QuadernoCollegatoFocus from './QuadernoCollegatoFocus'
 import { erroreQuaderno } from '../engines/quaderno/persistenza'
 
 type Progetto = { id: string; titolo: string; updated_at: string; gestione_id?: string | null }
@@ -130,7 +131,7 @@ export default function QuadernoProgettiPanel({ supabase, attivo, buttonPrimary,
 
   return <section aria-label="Quaderno autonomo" style={{ padding: 16 }}>
     <h2>Strumenti · Quaderno</h2>
-    {onChiudi && <button type="button" onClick={() => { if (puoCambiare()) onChiudi() }}>Chiudi Quaderno e rileggi fonti</button>}
+    {onChiudi && !progettoInizialeId && <button type="button" onClick={() => { if (puoCambiare()) onChiudi() }}>Chiudi Quaderno e rileggi fonti</button>}
     <p>Progetti indipendenti dai sopralluoghi. Salva le modifiche con il pulsante Salva dell’editor.</p>
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
       <input aria-label="Titolo nuovo progetto" placeholder="Titolo nuovo progetto" value={titolo}
@@ -160,10 +161,14 @@ export default function QuadernoProgettiPanel({ supabase, attivo, buttonPrimary,
     <GestioniQuadernoPendenti supabase={supabase} revisione={revisioneGestione} disabled={gestioneBusy || pendenti}
       onBusy={busy => { gestioneBusyRef.current = busy; setGestioneBusy(busy); if (busy) setAperto(null) }}
       onConclusa={() => { setRevisioneGestione(n => n + 1); void carica() }} />
-    {aperto && <SopralluogoAppunti key={aperto} progettoQuadernoId={aperto} importazioneFile={importato}
+    {aperto && <QuadernoCollegatoFocus aperto attivo={Boolean(onChiudi && progettoInizialeId)} contesto={progetti.find(p => p.id === aperto)?.titolo}
+      etichettaRitorno="← Torna al cantiere" onChiudi={() => { if (puoCambiare()) onChiudi?.() }}>
+    {onChiudi && progettoInizialeId && <button type="button" onClick={() => { if (puoCambiare()) onChiudi() }}>Chiudi Quaderno e rileggi fonti</button>}
+    <SopralluogoAppunti key={aperto} progettoQuadernoId={aperto} importazioneFile={importato}
       mostraAppuntiSopralluogo setMostraAppuntiSopralluogo={() => undefined} integrato
       supabase={supabase} buttonPrimary={buttonPrimary} buttonSecondary={buttonSecondary}
       onStatoProgettoChange={aggiornaStato}
-      onProgettoSalvato={carica} />}
+      onProgettoSalvato={carica} />
+    </QuadernoCollegatoFocus>}
   </section>
 }

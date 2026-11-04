@@ -5,6 +5,7 @@ import { flushSync } from 'react-dom'
 import SopralluogoDettaglioHeader from './SopralluogoDettaglioHeader'
 import SopralluogoFirmaCliente from './SopralluogoFirmaCliente'
 import SopralluogoAppunti from './SopralluogoAppunti'
+import QuadernoCollegatoFocus from './QuadernoCollegatoFocus'
 import SopralluogoFotoGallery from './SopralluogoFotoGallery'
 import SopralluogoAzioniPreventivo from './SopralluogoAzioniPreventivo'
 import DocumentIntelligencePanel from './DocumentIntelligencePanel'
@@ -36,6 +37,7 @@ export default function SopralluogoDettaglio(props: Props) {
   const { sopralluogoAperto, buttonPrimary, buttonSecondary, supabase } = props
   const [sezioneAttiva, setSezioneAttiva] = useState<SezioneFascicolo>('informazioni')
   const [analisiDocumentoAperta, setAnalisiDocumentoAperta] = useState(false)
+  const [quadernoAperto, setQuadernoAperto] = useState(false)
   const aperturaAnalisiRef = useRef<HTMLButtonElement | null>(null)
   const generazioneDocumentoRef = useRef(false)
   const [generazioneDocumento, setGenerazioneDocumento] = useState(false)
@@ -65,8 +67,10 @@ export default function SopralluogoDettaglio(props: Props) {
   }
 useEffect(() => {
   if (!sopralluogoAperto?.id) return
+  setQuadernoAperto(false)
   if (props.apriQuadernoDirettamente) {
     setSezioneAttiva('quaderno')
+    setQuadernoAperto(true)
     return
   }
 
@@ -84,6 +88,7 @@ useEffect(() => {
 )
 {
     setSezioneAttiva(salvata)
+    if (salvata === 'quaderno') setQuadernoAperto(true)
   } else {
     setSezioneAttiva('informazioni')
   }
@@ -118,7 +123,7 @@ useEffect(() => {
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        display: analisiDocumentoAperta ? 'none' : 'flex',
+        display: analisiDocumentoAperta || quadernoAperto ? 'none' : 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
@@ -193,6 +198,7 @@ useEffect(() => {
                 key={sezione.id}
                 type="button"
                 onClick={() => {
+  if (sezione.id === 'quaderno') { setQuadernoAperto(true); return }
   setSezioneAttiva(sezione.id)
 
   if (sopralluogoAperto?.id) {
@@ -261,6 +267,10 @@ useEffect(() => {
             aria-label="Quaderno del sopralluogo"
             style={{ display: sezioneAttiva === 'quaderno' ? 'block' : 'none' }}
           >
+              <button type="button" onClick={() => setQuadernoAperto(true)} style={buttonPrimary}>Apri Quaderno</button>
+              <QuadernoCollegatoFocus aperto={quadernoAperto} contesto={sopralluogoAperto.cliente || 'Sopralluogo'}
+                etichettaRitorno={props.tornaAlCantiere ? '← Torna al cantiere' : '← Torna al sopralluogo'}
+                onChiudi={props.tornaAlCantiere || (() => setQuadernoAperto(false))}>
               <SopralluogoAppunti
                 mostraAppuntiSopralluogo={props.mostraAppuntiSopralluogo}
                 setMostraAppuntiSopralluogo={props.setMostraAppuntiSopralluogo}
@@ -270,11 +280,12 @@ useEffect(() => {
                 buttonSecondary={buttonSecondary}
                 integrato
                 fotoGalleria={props.fotoSopralluoghi}
-                onApriGalleria={() => setSezioneAttiva('galleria')}
+                onApriGalleria={() => { setQuadernoAperto(false); setSezioneAttiva('galleria') }}
 onChiudiFascicolo={() =>
   props.setSopralluogoAperto(null)
 }
               />
+              </QuadernoCollegatoFocus>
 
           </section>
 <section
