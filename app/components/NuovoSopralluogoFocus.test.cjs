@@ -25,13 +25,20 @@ function mount(props = {}) {
       return { default: children.get(id) }
     } }); return exports
   }
-  modules.focus = load('VistaOperativa.tsx'); const panel = load('SopralluoghiPanel.tsx')
+  modules.focus = load('VistaOperativa.tsx'); const panel = load('SopralluoghiPanel.tsx'), header = load('SopralluogoDettaglioHeader.tsx')
   const p = { sopralluogoModificaId: null, sopralluoghi: [{ id: 'collegato' }], buttonPrimary: {}, buttonSecondary: {}, ...props }
   const render = () => { cursor = 0; const tree = panel.default(p), pending = effects; effects = []; pending.forEach(fn => fn()); return tree }
   const findChild = (tree, name) => nodes(tree).find(n => n.type === children.get('./' + name))
   const focus = tree => nodes(tree).find(n => n.type === modules.focus.default)
   const open = () => { const list = findChild(render(), 'SopralluoghiList'); nodes(list.props.azioneNuovo).find(n => n.type === 'button').props.onClick(); return render() }
-  return { props: p, render, open, focus, findChild, focusComponent: modules.focus.default, portalCalls, resetCursor() { cursor = 0 }, flush() { const pending = effects; effects = []; pending.forEach(fn => fn()) } }
+  const edit = sopralluogo => {
+    const propsHeader = { sopralluogoAperto: sopralluogo, buttonPrimary: {}, buttonSecondary: {}, coloreStatoSopralluogo: () => '#fff', setSopralluogoAperto: v => p.sopralluogoAperto = v }
+    for (const name of ['SopralluogoModificaId', 'ClienteSopralluogo', 'TelefonoSopralluogo', 'IndirizzoSopralluogo', 'DataSopralluogo', 'OraSopralluogo', 'TipoLavoroSopralluogo', 'NoteSopralluogo', 'PromemoriaSopralluogo', 'GeolocalizzazioneSopralluogo']) propsHeader['set' + name] = v => p[name[0].toLowerCase() + name.slice(1)] = v
+    const tree = header.default(propsHeader)
+    nodes(tree).find(n => n.type === 'button' && text(n).includes('Modifica sopralluogo')).props.onClick()
+    render(); return render()
+  }
+  return { props: p, render, open, edit, focus, findChild, focusComponent: modules.focus.default, portalCalls, resetCursor() { cursor = 0 }, flush() { const pending = effects; effects = []; pending.forEach(fn => fn()) } }
 }
 
 test('click Nuovo sopralluogo apre VistaOperativa con ritorno corretto e stesso form', () => {
@@ -59,11 +66,13 @@ test('contesto cantiere resta in memoria e il ritorno non esce dai sopralluoghi 
   assert(nodes(m.render()).some(n => n.props?.['data-cantiere-id'] === context.id))
 })
 
-test('modifica sopralluogo resta inline, anche quando il salvataggio originale azzera l’id', () => {
+test('modifica in focus; dopo reset originale dell’id il form aperto torna alla modalità nuova', () => {
   const m = mount({ sopralluogoModificaId: 'esistente' }); m.render()
-  assert.equal(m.focus(m.render()).props.attiva, false)
+  assert.equal(m.focus(m.render()).props.titolo, 'Modifica sopralluogo')
+  assert.equal(m.focus(m.render()).props.attiva, true)
   m.props.sopralluogoModificaId = null
-  assert.equal(m.focus(m.render()).props.attiva, false)
+  assert.equal(m.focus(m.render()).props.attiva, true)
+  assert.equal(m.focus(m.render()).props.titolo, 'Nuovo sopralluogo')
 })
 
 test('salvataggio originale: callback identico, nessuna chiusura/reset aggiunta dal wrapper', async () => {
@@ -91,10 +100,54 @@ test('VistaOperativa inattiva restituisce soltanto il contenuto; default Variant
   assert(text(scoped).includes('display: none !important')); assert.equal(scoped.props.style.width, '100%')
 })
 
-test('responsive limitato al form nuovo; salvataggio, Varianti, Quaderno e DB non modificati', () => {
+test('responsive condiviso dal form sopralluogo; salvataggio, Varianti, Quaderno e DB non modificati', () => {
   const current = source('SopralluoghiPanel.tsx'), old = cp.execFileSync('git', ['show', 'HEAD:app/components/SopralluoghiPanel.tsx'], { encoding: 'utf8' })
   const sf = s => ts.createSourceFile('panel.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const form = s => { const file = sf(s); let result; const visit = n => { if (ts.isJsxSelfClosingElement(n) && n.tagName.getText(file) === 'SopralluogoForm') result = n.getText(file).replace(/\r\n/g, '\n'); ts.forEachChild(n, visit) }; visit(file); return result }
   assert.equal(form(current), form(old)); assert(current.includes('min-width: 0; max-width: 100%; box-sizing: border-box;'))
   cp.execFileSync('git', ['diff', '--exit-code', '--', 'app/page.tsx', 'app/components/SopralluogoForm.tsx', 'app/components/VariantiCantierePanel.tsx', 'app/components/SopralluogoAppunti.tsx', 'app/engines', 'supabase', 'lib'])
+})
+
+const sopralluogoEsistente = { id: 'esistente', cliente: 'Cliente esistente', telefono: '123', indirizzo: 'Via di prova', data_sopralluogo: '2026-10-30', ora_appuntamento: '09:00', tipo_lavoro: 'Verifica', note: 'Nota originale', promemoria: 'Chiamare', geolocalizzazione: 'Posizione', stato: 'da_preventivare' }
+test('azione reale Modifica sopralluogo precompila lo stesso form e apre focus senza scrivere', () => {
+  let writes = 0; const m = mount({ salvaSopralluogo() { writes++ } }), view = m.focus(m.edit(sopralluogoEsistente))
+  assert.equal(view.props.attiva, true); assert.equal(view.props.titolo, 'Modifica sopralluogo')
+  assert.equal(view.props.etichettaRitorno, '← Torna ai sopralluoghi')
+  const form = m.findChild(view, 'SopralluogoForm')
+  assert.equal(form.props.clienteSopralluogo, sopralluogoEsistente.cliente)
+  assert.equal(form.props.noteSopralluogo, sopralluogoEsistente.note)
+  assert.equal(form.props.oraSopralluogo, '09:00')
+  assert.equal(m.props.sopralluogoModificaId, 'esistente'); assert.equal(m.props.sopralluogoAperto, null)
+  assert.strictEqual(form.props.salvaSopralluogo, m.props.salvaSopralluogo); assert.equal(writes, 0)
+})
+test('Torna dalla modifica generale chiude solo focus: lista, ID e campi non salvati restano', () => {
+  const ultimo = { id: 'esistente' }, m = mount({ ultimoSopralluogo: ultimo, mostraElencoSopralluoghi: true })
+  const list = m.findChild(m.render(), 'SopralluoghiList')
+  const view = m.focus(m.edit(sopralluogoEsistente)); m.props.clienteSopralluogo = 'Modifica locale non salvata'
+  view.props.onChiudi(); const tree = m.render(), restored = m.findChild(tree, 'SopralluoghiList')
+  assert.equal(m.focus(tree), undefined); assert.strictEqual(restored.type, list.type)
+  assert.strictEqual(restored.props.sopralluoghi, list.props.sopralluoghi); assert.equal(restored.props.mostraElencoSopralluoghi, true)
+  assert.equal(m.props.sopralluogoModificaId, 'esistente'); assert.equal(m.props.clienteSopralluogo, 'Modifica locale non salvata')
+  assert.strictEqual(m.props.ultimoSopralluogo, ultimo)
+})
+test('Torna dalla modifica contestuale conserva UUID e callback Torna al cantiere', () => {
+  let back = 0; const context = { id: 'cantiere-id', nome: 'Cantiere corrente' }, ritorno = () => back++
+  const m = mount({ contestoCantiere: context, tornaAlCantiere: ritorno })
+  const view = m.focus(m.edit(sopralluogoEsistente)); assert.equal(view.props.contesto, context.nome)
+  view.props.onChiudi(); const tree = m.render()
+  assert(nodes(tree).some(n => n.props?.['data-cantiere-id'] === context.id))
+  const button = nodes(tree).find(n => n.type === 'button' && text(n) === '← Torna al cantiere')
+  assert.strictEqual(button.props.onClick, ritorno); assert.equal(back, 0); button.props.onClick(); assert.equal(back, 1)
+})
+test('Salva modifica usa il callback originale; dopo successo resta aperto col reset già previsto', async () => {
+  let calls = 0; const m = mount({ salvaSopralluogo: async () => { calls++; m.props.sopralluogoModificaId = null; m.props.clienteSopralluogo = '' } })
+  const view = m.focus(m.edit(sopralluogoEsistente)), form = m.findChild(view, 'SopralluogoForm')
+  assert.strictEqual(form.props.salvaSopralluogo, m.props.salvaSopralluogo)
+  await form.props.salvaSopralluogo(); assert.equal(calls, 1)
+  assert.equal(m.focus(m.render()).props.attiva, true); assert.equal(m.focus(m.render()).props.titolo, 'Nuovo sopralluogo')
+})
+test('nessun Annulla o blocco uscita inventato; ingresso, form e salvataggio invariati', () => {
+  assert(!source('SopralluogoForm.tsx').includes('Annulla'))
+  assert(!source('SopralluoghiPanel.tsx').includes('beforeunload'))
+  cp.execFileSync('git', ['diff', '--exit-code', '--', 'app/page.tsx', 'app/components/SopralluogoForm.tsx', 'app/components/SopralluogoDettaglioHeader.tsx', 'app/components/VistaOperativa.tsx'])
 })

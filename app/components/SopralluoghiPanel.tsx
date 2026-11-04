@@ -112,7 +112,7 @@ export default function SopralluoghiPanel(props: Props) {
 
   useEffect(() => {
     if (props.sopralluogoModificaId) {
-      setAperturaInFocus(false)
+      setAperturaInFocus(true)
       setMostraNuovoSopralluogo(true)
     }
   }, [props.sopralluogoModificaId])
@@ -129,7 +129,7 @@ export default function SopralluoghiPanel(props: Props) {
   <button
     type="button"
     ref={nuovoSopralluogoRef}
-    onClick={() => { setAperturaInFocus(!props.sopralluogoModificaId); setMostraNuovoSopralluogo((v) => !v) }}
+    onClick={() => { setAperturaInFocus(true); setMostraNuovoSopralluogo((v) => !v) }}
     style={props.buttonPrimary}
   >
     {mostraNuovoSopralluogo
@@ -152,7 +152,7 @@ export default function SopralluoghiPanel(props: Props) {
         buttonSecondary={props.buttonSecondary}
       />
 
-      {mostraNuovoSopralluogo && <VistaOperativa attiva={aperturaInFocus} titolo="Nuovo sopralluogo"
+      {mostraNuovoSopralluogo && <VistaOperativa attiva={aperturaInFocus} titolo={props.sopralluogoModificaId ? 'Modifica sopralluogo' : 'Nuovo sopralluogo'}
         etichettaRitorno="← Torna ai sopralluoghi" contesto={props.contestoCantiere?.nome}
         onChiudi={() => setMostraNuovoSopralluogo(false)} ritornoFocusRef={nuovoSopralluogoRef}>
      <div className={aperturaInFocus ? 'nuovo-sopralluogo-focus' : undefined}
