@@ -106,6 +106,8 @@ export default function PreventiviEconomiaPanel({
                 <div
                   key={p.id || i}
                   style={{
+                    minWidth: 0,
+                    overflowWrap: 'anywhere',
                     padding: 12,
                     border: '1px solid #ddd',
                     borderRadius: 8,
@@ -242,12 +244,13 @@ export default function PreventiviEconomiaPanel({
                   {anteprimaAperta && p.file_tipo === 'pdf' && p.file_url && (
                     <div
                       style={{
-                        width: 700,
+                        width: '100%',
                         height: 500,
-                        minWidth: 300,
+                        minWidth: 0,
                         minHeight: 250,
                         maxWidth: '100%',
-                        resize: 'both',
+                        resize: 'vertical',
+                        boxSizing: 'border-box',
                         overflow: 'auto',
                         border: '1px solid #ddd',
                         borderRadius: 8,
@@ -257,6 +260,7 @@ export default function PreventiviEconomiaPanel({
                       <iframe
                         src={p.file_url}
                         style={{
+                          display: 'block',
                           width: '100%',
                           height: '100%',
                           border: 'none',
