@@ -25,6 +25,7 @@ import SignatureCanvas from 'react-signature-canvas'
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 import PreventivoManualePanel from './components/PreventivoManualePanel'
+import PreventivoManualeFocus from './components/PreventivoManualeFocus'
 import { supabase } from '../lib/supabaseClient'
 import { useAccontiCantiere } from './hooks/useAccontiCantiere'
 import jsPDF from 'jspdf'
@@ -12336,7 +12337,7 @@ WebkitOverflowScrolling: 'touch',
 
 {sezioneAttiva === 'cantieri' && cantiereSelezionatoDaId?.id && <section>
   <button type="button" onClick={() => setMostraManualeCantiere(v => !v)}>+ Nuovo preventivo manuale per questo Cantiere</button>
-  {mostraManualeCantiere && <PreventivoManualePanel key={cantiereSelezionatoDaId.id} db={supabase} cantieri={cantieri} cantiereId={cantiereSelezionatoDaId.id} chiudi={() => setMostraManualeCantiere(false)} salvato={caricaEconomia} excel={generaExcelDaPreventivoAi} />}
+  {mostraManualeCantiere && <PreventivoManualeFocus contesto={cantiereSelezionatoDaId.nome} onChiudi={() => setMostraManualeCantiere(false)}><PreventivoManualePanel key={cantiereSelezionatoDaId.id} db={supabase} cantieri={cantieri} cantiereId={cantiereSelezionatoDaId.id} chiudi={() => setMostraManualeCantiere(false)} salvato={caricaEconomia} excel={generaExcelDaPreventivoAi} /></PreventivoManualeFocus>}
 </section>}
 {/* ================= CANTIERI - ELENCO ================= */}
 {(
