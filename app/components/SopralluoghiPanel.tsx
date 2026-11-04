@@ -2,12 +2,14 @@
 
 import {
   useEffect,
+  useRef,
   useState,
   type CSSProperties,
   type RefObject,
 } from 'react'
 import type Webcam from 'react-webcam'
 import SopralluogoForm from './SopralluogoForm'
+import VistaOperativa from './VistaOperativa'
 import SopralluoghiList from './SopralluoghiList'
 import SopralluogoDettaglio from './SopralluogoDettaglio'
 import PopupFotoSopralluogo from './PopupFotoSopralluogo'
@@ -105,9 +107,12 @@ generaPreventivoDaDocumentoAnalizzato: any
 export default function SopralluoghiPanel(props: Props) {
   const [mostraNuovoSopralluogo, setMostraNuovoSopralluogo] =
     useState(false)
+  const [aperturaInFocus, setAperturaInFocus] = useState(false)
+  const nuovoSopralluogoRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     if (props.sopralluogoModificaId) {
+      setAperturaInFocus(false)
       setMostraNuovoSopralluogo(true)
     }
   }, [props.sopralluogoModificaId])
@@ -123,7 +128,8 @@ export default function SopralluoghiPanel(props: Props) {
         azioneNuovo={<>
   <button
     type="button"
-    onClick={() => setMostraNuovoSopralluogo((v) => !v)}
+    ref={nuovoSopralluogoRef}
+    onClick={() => { setAperturaInFocus(!props.sopralluogoModificaId); setMostraNuovoSopralluogo((v) => !v) }}
     style={props.buttonPrimary}
   >
     {mostraNuovoSopralluogo
@@ -146,7 +152,10 @@ export default function SopralluoghiPanel(props: Props) {
         buttonSecondary={props.buttonSecondary}
       />
 
-     {mostraNuovoSopralluogo && <div
+      {mostraNuovoSopralluogo && <VistaOperativa attiva={aperturaInFocus} titolo="Nuovo sopralluogo"
+        etichettaRitorno="← Torna ai sopralluoghi" contesto={props.contestoCantiere?.nome}
+        onChiudi={() => setMostraNuovoSopralluogo(false)} ritornoFocusRef={nuovoSopralluogoRef}>
+     <div className={aperturaInFocus ? 'nuovo-sopralluogo-focus' : undefined}
   style={{
     margin: '20px 0',
     padding: 16,
@@ -155,7 +164,7 @@ export default function SopralluoghiPanel(props: Props) {
     background: '#f8fafc',
   }}
 >
-  <div
+  {!aperturaInFocus && <div
     style={{
       fontWeight: 800,
       fontSize: 16,
@@ -164,7 +173,7 @@ export default function SopralluoghiPanel(props: Props) {
     }}
   >
     ➕ Nuovo sopralluogo
-  </div>
+  </div>}
 
 
   {mostraNuovoSopralluogo && (
@@ -196,7 +205,11 @@ export default function SopralluoghiPanel(props: Props) {
       />
     </div>
   )}
-</div>}
+</div>
+  <style>{` .nuovo-sopralluogo-focus input, .nuovo-sopralluogo-focus textarea {
+    min-width: 0; max-width: 100%; box-sizing: border-box;
+  } `}</style>
+  </VistaOperativa>}
 
       <SopralluogoDettaglio
         apriQuadernoDirettamente={!!props.contestoCantiere}
