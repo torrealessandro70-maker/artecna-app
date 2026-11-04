@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import PreventivoManualeFocus from './PreventivoManualeFocus'
+import VistaOperativa from './VistaOperativa'
 import RevisionePreventivoAiPanel from './RevisionePreventivoAiPanel'
 import { leggiSnapshotIntegrativo } from '../engines/preventivo-generation/lettura'
 import { contestoVariante, leggiRispostaIntegrativa, validaRevisione, type SnapshotIntegrativo, type VoceIntegrativa } from '../engines/preventivo-generation/contesto'
@@ -13,6 +14,7 @@ import { preservaPerimetroMiglioraTesto } from '../utils/perimetroMiglioraTesto'
 
 type Props = { soloManuale?: boolean; metadatiManuali?: { cliente: string; titolo: string; data: string }; supabase: SupabaseClient; varianteId: string; onSalvato: () => void }
 export default function VariantePreventivoIntegrativoPanel({ supabase, varianteId, onSalvato, metadatiManuali, soloManuale = false }: Props) {
+  const [preparazioneAperta, setPreparazioneAperta] = useState(false)
   const [clienteManuale, setClienteManuale] = useState(metadatiManuali?.cliente || '')
   const [titoloManuale, setTitoloManuale] = useState(metadatiManuali?.titolo || 'Preventivo Integrativo manuale')
   const [dataManuale, setDataManuale] = useState(metadatiManuali?.data || new Date().toLocaleDateString('sv-SE'))
@@ -115,13 +117,17 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
   let stato = ''
   let numeroNarrative = snapshot ? snapshot.lettura.fonti.quaderni.length + 1 : 0
   if (snapshot) { try { numeroNarrative = contestoVariante(snapshot).narrativa.fonti.length } catch (e) { stato = e instanceof Error ? e.message : 'Fonti non valide' } }
-  return <section aria-label="Generazione Preventivo Integrativo">
-    <h4>Preventivo Integrativo</h4>
-    {!soloManuale && <button type="button" disabled={busy || !!salvato || arrestoVisibile || revisione} onClick={() => void anteprima()}>Genera Preventivo Integrativo</button>}
-    <button type="button" disabled={busy || !!salvato || arrestoVisibile || revisione} onClick={() => void compilaManuale()}>Compila manualmente</button>
+  return <VistaOperativa attiva={preparazioneAperta} visibile={!revisione} titolo="Preparazione preventivo integrativo"
+    contesto={`Variante: ${varianteId}`} etichettaRitorno={soloManuale ? '← Torna al preventivo manuale' : '← Torna alle varianti'}
+    occupata={busy || arrestoVisibile} onChiudi={() => setPreparazioneAperta(false)}>
+  <section aria-label="Generazione Preventivo Integrativo" className="preparazione-integrativo" style={{ width: '100%', minWidth: 0, overflowWrap: 'anywhere' }}>
+    {!preparazioneAperta && <h4>Preventivo Integrativo</h4>}
+    {!soloManuale && <button type="button" disabled={busy || !!salvato || arrestoVisibile || revisione} onClick={() => { setPreparazioneAperta(true); void anteprima() }}>Genera Preventivo Integrativo</button>}
+    <button type="button" disabled={busy || !!salvato || arrestoVisibile || revisione} onClick={() => { setPreparazioneAperta(true); void compilaManuale() }}>Compila manualmente</button>
+    {busy && <p role="status">Preparazione o generazione in corso…</p>}
     {manuale && memoriaRiservata && <p role="status">Memoria prezzi riservata al titolare autorizzato. Restano disponibili prezzario e voci libere.</p>}
     {errore && <p role="alert">{errore}</p>}
-    {preview && snapshot && <div aria-label="Anteprima generazione integrativa">
+    {preparazioneAperta && preview && snapshot && <div aria-label="Anteprima generazione integrativa">
       <p>{numeroNarrative} fonti narrative · {snapshot.lettura.fonti.quaderni.length} Quaderni · {snapshot.lettura.fonti.foto.length} foto</p>
       <p>AI Osservatore: {!snapshot.lettura.analisi ? 'Non presente' : snapshot.lettura.analisi.allineata ? 'Allineata' : 'Non allineata'}</p>
       <p>Preventivo contrattuale di riferimento: {snapshot.contratto.id} — {snapshot.contratto.voci.length} voci, soltanto contesto di confronto.</p>
@@ -130,7 +136,13 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
       <button type="button" disabled={busy} onClick={() => void anteprima()}>Aggiorna anteprima</button>
       <button type="button" onClick={() => setPreview(false)}>Annulla</button>
     </div>}
-    {revisione && snapshot && <PreventivoManualeFocus titolo="Revisione preventivo integrativo" contesto={`Variante: ${varianteId}`} etichettaRitorno={soloManuale ? '← Torna al preventivo manuale' : '← Torna alla variante'} occupata={busy || arrestoVisibile} onChiudi={() => chiudiRevisione(false)}><fieldset disabled={busy || arrestoVisibile} style={{ border: 0, margin: 0, padding: 0 }} aria-label="Revisione Integrativo">
+    {preparazioneAperta && snapshot && !preview && !revisione && !salvato && <div aria-label="Contesto preparazione integrativa">
+      <p>{numeroNarrative} fonti narrative · {snapshot.lettura.fonti.quaderni.length} Quaderni · {snapshot.lettura.fonti.foto.length} foto</p>
+      <p>AI Osservatore: {!snapshot.lettura.analisi ? 'Non presente' : snapshot.lettura.analisi.allineata ? 'Allineata' : 'Non allineata'}</p>
+      <p>Preventivo contrattuale di riferimento: {snapshot.contratto.id} — {snapshot.contratto.voci.length} voci, soltanto contesto di confronto.</p>
+      {stato && <p role="alert">{stato}</p>}
+    </div>}
+    {revisione && snapshot && <PreventivoManualeFocus titolo="Revisione preventivo integrativo" contesto={`Variante: ${varianteId}`} etichettaRitorno="← Torna alla preparazione" occupata={busy || arrestoVisibile} onChiudi={() => chiudiRevisione(false)}><fieldset disabled={busy || arrestoVisibile} style={{ border: 0, margin: 0, padding: 0 }} aria-label="Revisione Integrativo">
       {manuale && memoriaRiservata && <p role="status">Memoria prezzi riservata al titolare autorizzato. Restano disponibili prezzario e voci libere.</p>}
       {manuale && <div><p>Cantiere: {snapshot.genealogia.cantiere_id} · Variante: {varianteId} · Contratto: {snapshot.contratto.id}</p>
         <label>Cliente <input value={clienteManuale} onChange={e => setClienteManuale(e.target.value)} /></label>
@@ -147,5 +159,10 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
       excelTable={{ borderCollapse: 'collapse' }} excelTh={{ padding: 8, border: '1px solid #ccc' }} excelTd={{ padding: 8, border: '1px solid #ccc' }} buttonPrimary={{ padding: 8 }} buttonSecondary={{ padding: 8 }} />
     </fieldset></PreventivoManualeFocus>}
     {salvato && <p role="status">Preventivo Integrativo {salvato} salvato nel Registro. Lavorazioni inserite nella bozza Variante; nessuna approvazione automatica. Excel disponibile dal Registro esistente.</p>}
+    <style>{`
+      .preparazione-integrativo { min-width: 0; }
+      .preparazione-integrativo button, .preparazione-integrativo input, .preparazione-integrativo select { min-width: 0; max-width: 100%; box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
+    `}</style>
   </section>
+  </VistaOperativa>
 }
