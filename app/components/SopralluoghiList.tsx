@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type ReactNode, type CSSProperties } from 'react'
 
 const excelTable: CSSProperties = {
   width: '100%', borderCollapse: 'collapse', tableLayout: 'auto', fontSize: 14, minWidth: 1100,
@@ -14,6 +14,7 @@ const excelTd: CSSProperties = {
 }
 
 type Props = {
+  azioneNuovo?: ReactNode
   sopralluoghi: any[]
   mostraElencoSopralluoghi: boolean
   setMostraElencoSopralluoghi: (v: boolean) => void
@@ -33,6 +34,7 @@ type Props = {
 }
 
 export default function SopralluoghiList({
+  azioneNuovo,
   sopralluoghi,
   mostraElencoSopralluoghi,
   setMostraElencoSopralluoghi,
@@ -257,12 +259,16 @@ const toggleInLavorazione = (id: string) => {
         style={{
           display: 'flex',
           justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
           alignItems: 'center',
           marginBottom: 10,
         }}
       >
         <h3>🚧 Lavori attivi</h3>
 
+        <div aria-label="Navigazione sopralluoghi" style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        {azioneNuovo}
         <button
   type="button"
   onClick={() =>
@@ -277,6 +283,7 @@ const toggleInLavorazione = (id: string) => {
     ? '📚 Archivio sopralluoghi ▲'
     : '📚 Archivio sopralluoghi ▼'}
 </button>
+        </div>
       </div>
 
 {attiviFiltrati.length === 0 ? <p>Nessun lavoro attivo trovato</p> : (

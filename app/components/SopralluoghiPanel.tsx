@@ -114,6 +114,17 @@ export default function SopralluoghiPanel(props: Props) {
     <div style={props.cardStyle}>
       <h2>📍 Sopralluoghi</h2>
  <SopralluoghiList
+        azioneNuovo={<>
+  <button
+    type="button"
+    onClick={() => setMostraNuovoSopralluogo((v) => !v)}
+    style={props.buttonPrimary}
+  >
+    {mostraNuovoSopralluogo
+      ? '✖ Chiudi nuovo sopralluogo'
+      : '➕ Nuovo sopralluogo'}
+  </button>
+        </>}
         sopralluoghi={props.sopralluoghi}
         mostraElencoSopralluoghi={props.mostraElencoSopralluoghi}
         setMostraElencoSopralluoghi={props.setMostraElencoSopralluoghi}
@@ -129,7 +140,7 @@ export default function SopralluoghiPanel(props: Props) {
         buttonSecondary={props.buttonSecondary}
       />
 
-     <div
+     {mostraNuovoSopralluogo && <div
   style={{
     margin: '20px 0',
     padding: 16,
@@ -148,15 +159,7 @@ export default function SopralluoghiPanel(props: Props) {
   >
     ➕ Nuovo sopralluogo
   </div>
-  <button
-    type="button"
-    onClick={() => setMostraNuovoSopralluogo((v) => !v)}
-    style={props.buttonPrimary}
-  >
-    {mostraNuovoSopralluogo
-      ? '✖ Chiudi nuovo sopralluogo'
-      : '➕ Nuovo sopralluogo'}
-  </button>
+
 
   {mostraNuovoSopralluogo && (
     <div style={{ marginTop: 16 }}>
@@ -187,9 +190,7 @@ export default function SopralluoghiPanel(props: Props) {
       />
     </div>
   )}
-</div>
-
-     
+</div>}
 
       <SopralluogoDettaglio
         sopralluogoAperto={props.sopralluogoAperto}

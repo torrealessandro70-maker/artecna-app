@@ -2,11 +2,14 @@
 
 import DocumentDestinationSelector from './DocumentDestinationSelector'
 import DocumentUploadBox from './DocumentUploadBox'
+import type { StatoProgressoOperazione } from './ProgressoOperazione'
 import type { DocumentInsights } from '@/app/engines/document-intelligence'
 import { DocumentUnderstandingCard } from './ui/DocumentUnderstandingCard'
 import { totaleVoceAnalizzata } from '../engines/document-parser/voci-analizzate'
 
 type Props = {
+  progressoAnalisiDocumento?: StatoProgressoOperazione | null
+  bloccato?: boolean
   mostraUpload?: boolean
   titolo?: string
   fileAnalisiDocumento: any
@@ -25,6 +28,8 @@ type Props = {
 export default function DocumentIntelligencePanel({
   titolo = 'Document Intelligence',
   mostraUpload = true,
+  progressoAnalisiDocumento,
+  bloccato,
   fileAnalisiDocumento,
   nomeFileAnalisiDocumento,
   testoEstrattoDocumento,
@@ -51,6 +56,8 @@ onDocumentAction,
         caricaFileAnalisiDocumento={caricaFileAnalisiDocumento}
         inputStyle={inputStyle}
         accettaExcel={accettaExcel}
+        progresso={progressoAnalisiDocumento}
+        bloccato={bloccato}
       />}
 
       {fileAnalisiDocumento && (

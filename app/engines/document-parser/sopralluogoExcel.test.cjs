@@ -16,6 +16,7 @@ function load(file, overrides = {}) {
   const loaded = { exports: {} }
   const localRequire = (id) => {
     if (id in overrides) return overrides[id]
+    if (id === 'react') return { useRef: v => ({ current: v }), useState: v => [v, () => {}] }
     if (id.startsWith('.') || id.startsWith('@/')) {
       const target = id.startsWith('@/') ? path.resolve(app, '..', id.slice(2)) : path.resolve(path.dirname(file), id)
       const resolved = [target, target + '.ts', target + '.tsx', path.join(target, 'index.ts')].find((p) => fs.existsSync(p) && fs.statSync(p).isFile())
@@ -212,7 +213,7 @@ function propsSuperficie(surface, state) {
   }
   visit(ast)
   assert(literal, `Props ${surface} presenti`)
-  const sandbox = { ...state, caricaFileAnalisiDocumento() {}, gestisciAzioneDocumento() {}, inputStyle: {} }
+  const sandbox = { progressoAnalisiDocumento: null, analisiInCorso: false, ...state, caricaFileAnalisiDocumento() {}, gestisciAzioneDocumento() {}, inputStyle: {} }
   vm.runInNewContext(`globalThis.result = (${literal.getText(ast)})`, sandbox)
   return sandbox.result
 }

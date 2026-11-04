@@ -63,6 +63,7 @@ import { resolvePrice } from './engines/price-resolution'
 import { mediaMemoriaCompatibile } from './engines/price-resolution/revisione-ai'
 import { leggiStoricoPrezzi, risolviPrezzoPrioritario } from './engines/price-resolution/storico-prezzi'
 import { preparaBozzaDocumento } from './engines/price-resolution/proposte-documento'
+import type { StatoProgressoOperazione, ProgressoGenerazioneDocumento } from './components/ProgressoOperazione'
 import { completaBozzaConStime } from './engines/price-resolution/stima-documento-ai'
 import { headerModelloAi, modelliAiSelezionabili, normalizzaModelloAi } from './lib/modelloAi'
 
@@ -1573,7 +1574,7 @@ const response = await fetch('/api/genera-preventivo-ai', {
   return true
 }
 
-const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
+const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo, onProgress?: (p: ProgressoGenerazioneDocumento) => void) => {
   if (!s.id) {
     alert('Sopralluogo non valido')
     return false
@@ -1794,7 +1795,11 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo) => {
      return response.json()
    },
    testoEstrattoDocumento,
+   onProgress,
  )
+ if (vociBozzaDocumento.some(v => v.erroreStimaDocumento)) onProgress?.({
+   fase: 'errore', messaggio: 'Analisi prezzi non completata. La bozza è disponibile per la revisione.',
+ })
  setMessaggioAi(vociBozzaDocumento.some(v => v.erroreStimaDocumento)
    ? 'Alcune stime non sono disponibili: controlla gli avvisi delle voci senza prezzo.'
    : 'Bozza pronta. Le stime ARTECNA sono provvisorie: controlla prezzi, quantità e inclusioni prima di salvare.')
@@ -4822,6 +4827,8 @@ const [fileAnalisiDocumento, setFileAnalisiDocumento] = useState<File | null>(nu
 const [testoEstrattoDocumento, setTestoEstrattoDocumento] = useState('')
 const [nomeFileAnalisiDocumento, setNomeFileAnalisiDocumento] = useState('')
 const [analisiInCorso, setAnalisiInCorso] = useState(false)
+const [progressoAnalisiDocumento, setProgressoAnalisiDocumento] = useState<StatoProgressoOperazione | null>(null)
+const invioAnalisiDocumento = useRef(false)
 const [
   vociPreventivoAiOriginali,
   setVociPreventivoAiOriginali,
@@ -8615,15 +8622,19 @@ const strutturaPreventivoEsistente = async (
 }
 
 const caricaFileAnalisiDocumento = async (file: File) => {
-  if (!file) return
-
-  const fakeEvent = {
-    target: {
-      files: [file],
-    },
-  } as unknown as React.ChangeEvent<HTMLInputElement>
-
-  await analizzaDocumentoCantiere(fakeEvent)
+  if (!file || invioAnalisiDocumento.current) return
+  invioAnalisiDocumento.current = true
+  setProgressoAnalisiDocumento({ stato: 'in_corso', testo: 'Documento ricevuto — caricamento in corso...' })
+  try {
+    const fakeEvent = { target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>
+    await analizzaDocumentoCantiere(fakeEvent)
+    setProgressoAnalisiDocumento(analisiPreventivoRef.current?.file === file && analisiPreventivoRef.current.pronta
+      ? { stato: 'completata', testo: 'Analisi completata' }
+      : { stato: 'errore', testo: 'Errore durante l’analisi del documento' })
+  } catch (error) {
+    setProgressoAnalisiDocumento({ stato: 'errore', testo: 'Errore durante l’analisi del documento' })
+    throw error
+  } finally { invioAnalisiDocumento.current = false }
 }
 const gestisciAzioneDocumento = (actionId: string) => {
   if (!documentInsightsDocumento) {
@@ -13166,6 +13177,11 @@ generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo}
     setNotaFotoSopralluogo={setNotaFotoSopralluogo}
     salvaFotoSopralluogo={salvaFotoSopralluogo}
 documentIntelligence={{
+  progressoAnalisiDocumento: progressoAnalisiDocumento?.stato === 'in_corso' && analisiInCorso
+    ? { ...progressoAnalisiDocumento, testo: 'Lettura e analisi delle lavorazioni...' }
+    : progressoAnalisiDocumento?.stato === 'completata'
+      ? { ...progressoAnalisiDocumento, testo: 'Analisi completata — Voci individuate: ' + vociAnalizzate.length }
+      : progressoAnalisiDocumento,
   accettaExcel: true,
   warningsAnalisiDocumento: warningsAnalisiExcel,
   documentInsights: documentInsightsDocumento,

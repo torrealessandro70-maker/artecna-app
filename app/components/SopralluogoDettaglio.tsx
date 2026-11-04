@@ -7,6 +7,7 @@ import SopralluogoAppunti from './SopralluogoAppunti'
 import SopralluogoFotoGallery from './SopralluogoFotoGallery'
 import SopralluogoAzioniPreventivo from './SopralluogoAzioniPreventivo'
 import DocumentIntelligencePanel from './DocumentIntelligencePanel'
+import ProgressoOperazione, { progressoPrezziDocumento, type StatoProgressoOperazione, type ProgressoGenerazioneDocumento } from './ProgressoOperazione'
 
 
 type Props = {
@@ -34,14 +35,25 @@ export default function SopralluogoDettaglio(props: Props) {
   const [sezioneAttiva, setSezioneAttiva] = useState<SezioneFascicolo>('informazioni')
   const generazioneDocumentoRef = useRef(false)
   const [generazioneDocumento, setGenerazioneDocumento] = useState(false)
-  const [erroreGenerazioneDocumento, setErroreGenerazioneDocumento] = useState('')
+  const [progressoGenerazioneDocumento, setProgressoGenerazioneDocumento] = useState<StatoProgressoOperazione | null>(null)
   const generaDocumento = async () => {
-    if (generazioneDocumentoRef.current || !props.generaPreventivoDaDocumentoAnalizzato) return
+    if (generazioneDocumentoRef.current || props.documentIntelligence?.progressoAnalisiDocumento?.stato === 'in_corso' || !props.generaPreventivoDaDocumentoAnalizzato) return
     generazioneDocumentoRef.current = true
     setGenerazioneDocumento(true)
-    setErroreGenerazioneDocumento('')
-    try { await props.generaPreventivoDaDocumentoAnalizzato(sopralluogoAperto) }
-    catch { setErroreGenerazioneDocumento('Generazione non completata. Verifica lo stato del preventivo prima di riprovare.') }
+    setProgressoGenerazioneDocumento({ stato: 'in_corso', testo: 'Preparazione lavorazioni' })
+    let errorePrezzi = false
+    try {
+      const esito = await props.generaPreventivoDaDocumentoAnalizzato(sopralluogoAperto,
+        (p: ProgressoGenerazioneDocumento) => {
+          if (p.fase === 'errore') errorePrezzi = true
+          setProgressoGenerazioneDocumento(progressoPrezziDocumento(p))
+        })
+      if (errorePrezzi) return
+      setProgressoGenerazioneDocumento(esito === true
+        ? { stato: 'completata', testo: 'Preventivo pronto' }
+        : { stato: 'errore', testo: 'Generazione non completata. La bozza già disponibile è conservata.' })
+    }
+    catch { setProgressoGenerazioneDocumento({ stato: 'errore', testo: 'Generazione non completata. Verifica lo stato del preventivo prima di riprovare. La bozza già disponibile è conservata.' }) }
     finally { generazioneDocumentoRef.current = false; setGenerazioneDocumento(false) }
   }
 useEffect(() => {
@@ -257,6 +269,7 @@ onChiudiFascicolo={() =>
       <DocumentIntelligencePanel
         titolo="Documenti del sopralluogo"
         {...props.documentIntelligence}
+        bloccato={generazioneDocumento}
       />
 
       {props.documentIntelligence?.vociAnalizzate?.length > 0 && (
@@ -279,13 +292,13 @@ onChiudiFascicolo={() =>
           <button
             type="button"
             onClick={generaDocumento}
-            disabled={generazioneDocumento || !props.generaPreventivoDaDocumentoAnalizzato}
+            disabled={generazioneDocumento || props.documentIntelligence?.progressoAnalisiDocumento?.stato === 'in_corso' || !props.generaPreventivoDaDocumentoAnalizzato}
             aria-busy={generazioneDocumento}
             style={buttonPrimary}
           >
             {generazioneDocumento ? 'Preparazione bozza e stime ARTECNA in corso…' : '💰 Genera preventivo da documento'}
           </button>
-          {erroreGenerazioneDocumento && <p role="alert">{erroreGenerazioneDocumento}</p>}
+          <ProgressoOperazione progresso={progressoGenerazioneDocumento} />
         </div>
       )}
     </>

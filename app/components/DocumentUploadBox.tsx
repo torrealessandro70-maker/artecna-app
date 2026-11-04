@@ -1,11 +1,16 @@
 'use client'
 
+import { useRef, useState } from 'react'
+import ProgressoOperazione, { type StatoProgressoOperazione } from './ProgressoOperazione'
+
 type Props = {
   titolo: string
   nomeFileAnalisiDocumento: string
   caricaFileAnalisiDocumento: (file: File) => void | Promise<void>
   inputStyle: any
   accettaExcel?: boolean
+  progresso?: StatoProgressoOperazione | null
+  bloccato?: boolean
 }
 
 export default function DocumentUploadBox({
@@ -14,7 +19,13 @@ export default function DocumentUploadBox({
   caricaFileAnalisiDocumento,
   inputStyle,
   accettaExcel = false,
+  progresso,
+  bloccato = false,
 }: Props) {
+  const occupato = useRef(false)
+  const [ricevuto, setRicevuto] = useState('')
+  const [inCorso, setInCorso] = useState(false)
+  const [errore, setErrore] = useState('')
   return (
     <div
       style={{
@@ -29,18 +40,26 @@ export default function DocumentUploadBox({
 
       <input
         type="file"
+        disabled={bloccato || inCorso || progresso?.stato === 'in_corso'}
+        aria-busy={inCorso}
         accept={accettaExcel ? '.pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx' : '.pdf,.jpg,.jpeg,.png,.webp'}
         style={inputStyle}
         onChange={async (e) => {
           const file = e.target.files?.[0]
-          if (!file) return
-
-          await caricaFileAnalisiDocumento(file)
-
-          e.target.value = ''
+          if (!file || occupato.current || bloccato || progresso?.stato === 'in_corso') return
+          const input = e.target
+          occupato.current = true
+          setRicevuto(file.name)
+          setInCorso(true)
+          setErrore('')
+          try { await caricaFileAnalisiDocumento(file) }
+          catch { setErrore('Errore durante l’analisi del documento') }
+          finally { occupato.current = false; setInCorso(false); input.value = '' }
         }}
       />
 
+      {ricevuto && <p style={{ overflowWrap: 'anywhere' }}>Documento ricevuto: {ricevuto}</p>}
+      <ProgressoOperazione progresso={errore ? { stato: 'errore', testo: errore } : progresso ?? (inCorso ? { stato: 'in_corso', testo: 'Documento ricevuto — lettura del documento...' } : null)} />
       <p style={{ marginTop: 10, color: '#64748b' }}>
         Estrae testo, importi e voci da PDF o immagini{accettaExcel ? ', XLS o XLSX' : ''}. L&apos;analisi non
         modifica automaticamente preventivi, SAL o costi.
