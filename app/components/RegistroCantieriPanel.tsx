@@ -1,6 +1,7 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
+import VistaOperativa from './VistaOperativa'
 
 type Props = {
   cantieri: any[]
@@ -79,6 +80,7 @@ export default function RegistroCantieriPanel({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+  const [mostraModifica, setMostraModifica] = useState(false)
   const cantieriFiltrati = [...cantieri]
     .filter((c) =>
       String(c.nome || '')
@@ -185,16 +187,16 @@ export default function RegistroCantieriPanel({
           </thead>
 
           <tbody>
-            {cantieriFiltrati.map((c, i) => (
-              <tr
+            {cantieriFiltrati.map((c, i) => {
+              const riga = <tr
                 key={c.id || i}
                 style={{
                   backgroundColor:
-                    cantiereRegistroEdit === c.id ? '#eff6ff' : '#fff',
+                    mostraModifica && cantiereRegistroEdit === c.id ? '#eff6ff' : '#fff',
                 }}
               >
                 <td style={excelTd}>
-                  {cantiereRegistroEdit === c.id ? (
+                  {mostraModifica && cantiereRegistroEdit === c.id ? (
                     <input
                       value={cantiereRegistroNome}
                       onChange={(e) =>
@@ -208,7 +210,7 @@ export default function RegistroCantieriPanel({
                 </td>
 
                 <td style={excelTd}>
-                  {cantiereRegistroEdit === c.id ? (
+                  {mostraModifica && cantiereRegistroEdit === c.id ? (
                     <input
                       value={cantiereRegistroPreventivo}
                       onChange={(e) =>
@@ -222,7 +224,7 @@ export default function RegistroCantieriPanel({
                 </td>
 
                 <td style={excelTd}>
-                  {cantiereRegistroEdit === c.id ? (
+                  {mostraModifica && cantiereRegistroEdit === c.id ? (
                     <input
                       type="date"
                       value={cantiereRegistroInizio}
@@ -237,7 +239,7 @@ export default function RegistroCantieriPanel({
                 </td>
 
                 <td style={excelTd}>
-                  {cantiereRegistroEdit === c.id ? (
+                  {mostraModifica && cantiereRegistroEdit === c.id ? (
                     <input
                       type="date"
                       value={cantiereRegistroFine}
@@ -252,7 +254,7 @@ export default function RegistroCantieriPanel({
                 </td>
 
                 <td style={excelTd}>
-                  {cantiereRegistroEdit === c.id ? (
+                  {mostraModifica && cantiereRegistroEdit === c.id ? (
                     <input
                       type="checkbox"
                       checked={cantiereRegistroConcluso}
@@ -268,7 +270,7 @@ export default function RegistroCantieriPanel({
                 </td>
 
                 <td style={excelTd}>
-                  {cantiereRegistroEdit === c.id ? (
+                  {mostraModifica && cantiereRegistroEdit === c.id ? (
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button
                         onClick={() => salvaModificaRegistroCantiere(c.id)}
@@ -287,7 +289,7 @@ export default function RegistroCantieriPanel({
                   ) : (
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button
-                        onClick={() => preparaModificaRegistroCantiere(c)}
+                        onClick={() => { preparaModificaRegistroCantiere(c); setMostraModifica(true) }}
                         style={buttonSecondary}
                       >
                         ✏️
@@ -310,7 +312,28 @@ export default function RegistroCantieriPanel({
                   )}
                 </td>
               </tr>
-            ))}
+              return mostraModifica && cantiereRegistroEdit === c.id ? (
+                <VistaOperativa key={c.id || i} titolo="Modifica cantiere" contesto={c.nome}
+                  etichettaRitorno="← Torna al cantiere" onChiudi={() => setMostraModifica(false)}>
+                  <div className="modifica-cantiere-focus" style={{ width: '100%', overflowX: 'auto' }}>
+                    <table style={{ ...excelTable, width: '100%' }}><thead><tr>
+                      {['Nome', 'Preventivo', 'Inizio', 'Fine', 'Concluso', 'Azioni'].map(t => <th key={t} style={excelTh}>{t}</th>)}
+                    </tr></thead><tbody>{riga}</tbody></table>
+                  </div>
+                  <style>{`.modifica-cantiere-focus input { box-sizing: border-box; max-width: 100%; min-width: 0; }
+                    @media (max-width: 700px) {
+                      .modifica-cantiere-focus thead { display: none; }
+                      .modifica-cantiere-focus tbody, .modifica-cantiere-focus tr, .modifica-cantiere-focus td { display: block; width: 100%; box-sizing: border-box; }
+                      .modifica-cantiere-focus td::before { display: block; font-weight: 600; margin-bottom: 4px; }
+                      .modifica-cantiere-focus td:nth-child(1)::before { content: 'Nome'; }
+                      .modifica-cantiere-focus td:nth-child(2)::before { content: 'Preventivo'; }
+                      .modifica-cantiere-focus td:nth-child(3)::before { content: 'Inizio'; }
+                      .modifica-cantiere-focus td:nth-child(4)::before { content: 'Fine'; }
+                      .modifica-cantiere-focus td:nth-child(5)::before { content: 'Concluso'; }
+                    }`}</style>
+                </VistaOperativa>
+              ) : riga
+            })}
           </tbody>
         </table>
       </div>

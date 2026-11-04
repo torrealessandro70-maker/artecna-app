@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import VistaOperativa from './VistaOperativa'
 import { mappaPreventiviElenco, totalePreventivoElenco, confrontaPreventiviElenco } from '../utils/cantiereElenco'
 
 type Props = {
@@ -58,12 +59,20 @@ export default function CantieriElencoPanel({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+  const [mostraNuovo, setMostraNuovo] = useState(false)
+  const aperturaRef = useRef<HTMLButtonElement>(null)
   const preventiviPerCantiere = useMemo(() => mappaPreventiviElenco(preventivi), [preventivi])
   return (
     <div style={cardStyle}>
       <h2>Elenco cantieri</h2>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 15 }}>
+      <button type="button" ref={aperturaRef} onClick={() => setMostraNuovo(true)} style={buttonPrimary}>Nuovo cantiere</button>
+      <input aria-label="Cerca cantiere" placeholder="Cerca cantiere..." value={ricercaCantiere || ''}
+        onChange={(e) => { setRicercaCantiere(e.target.value); setNomeCantiere(e.target.value) }}
+        style={{ display: 'block', padding: 8, margin: '12px 0', width: 220, maxWidth: '100%', boxSizing: 'border-box' }} />
+      {mostraNuovo && <VistaOperativa titolo="Nuovo cantiere" etichettaRitorno="← Torna ai cantieri"
+        onChiudi={() => setMostraNuovo(false)} ritornoFocusRef={aperturaRef}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 15 }}>
         <input
           placeholder="Nome cantiere"
           value={ricercaCantiere || ''}
@@ -71,20 +80,22 @@ export default function CantieriElencoPanel({
             setRicercaCantiere(e.target.value)
             setNomeCantiere(e.target.value)
           }}
-          style={{ padding: 8, width: 220 }}
+          style={{ padding: 8, width: 220, maxWidth: '100%', boxSizing: 'border-box' }}
         />
 
         <input
           placeholder="Preventivo €"
           value={preventivoCantiereInput || ''}
           onChange={(e) => setPreventivoCantiereInput(e.target.value)}
-          style={{ padding: 8, width: 140 }}
+          style={{ padding: 8, width: 140, maxWidth: '100%', boxSizing: 'border-box' }}
         />
 
         <button onClick={aggiungiCantiere} style={buttonPrimary}>
           Aggiungi
         </button>
       </div>
+
+      </VistaOperativa>}
 
       <div style={{ marginBottom: 12 }}>
         <button
