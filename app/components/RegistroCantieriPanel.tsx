@@ -104,12 +104,23 @@ export default function RegistroCantieriPanel({
 
   return (
     <div style={excelBox}>
+                  <style>{`.registro-cantieri-tabella input { box-sizing: border-box; max-width: 100%; min-width: 0; }
+                    @container registro-cantieri (max-width: 900px) {
+                      .registro-cantieri-tabella thead { display: none; }
+                      .registro-cantieri-tabella, .registro-cantieri-tabella tbody, .registro-cantieri-tabella tr, .registro-cantieri-tabella td { display: block; width: 100%; min-width: 0; box-sizing: border-box; }
+                      .registro-cantieri-tabella td::before { display: block; font-weight: 600; margin-bottom: 4px; }
+                      .registro-cantieri-tabella td:nth-child(1)::before { content: 'Nome'; }
+                      .registro-cantieri-tabella td:nth-child(2)::before { content: 'Preventivo'; }
+                      .registro-cantieri-tabella td:nth-child(3)::before { content: 'Inizio'; }
+                      .registro-cantieri-tabella td:nth-child(4)::before { content: 'Fine'; }
+                      .registro-cantieri-tabella td:nth-child(5)::before { content: 'Concluso'; }
+                    }`}</style>
       <div style={excelToolbar}>
         <strong>🏗️ Registro cantieri</strong>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={excelTable}>
+      <div style={{ containerType: 'inline-size', containerName: 'registro-cantieri', minWidth: 0 }}>
+        <table className="registro-cantieri-tabella" style={excelTable}>
           <thead>
             <tr>
               <th
@@ -315,22 +326,12 @@ export default function RegistroCantieriPanel({
               return mostraModifica && cantiereRegistroEdit === c.id ? (
                 <VistaOperativa key={c.id || i} titolo="Modifica cantiere" contesto={c.nome}
                   etichettaRitorno="← Torna al cantiere" onChiudi={() => setMostraModifica(false)}>
-                  <div className="modifica-cantiere-focus" style={{ width: '100%', overflowX: 'auto' }}>
-                    <table style={{ ...excelTable, width: '100%' }}><thead><tr>
+                  <div className="modifica-cantiere-focus" style={{ width: '100%', minWidth: 0, containerType: 'inline-size', containerName: 'registro-cantieri' }}>
+                    <table className="registro-cantieri-tabella" style={{ ...excelTable, width: '100%' }}><thead><tr>
                       {['Nome', 'Preventivo', 'Inizio', 'Fine', 'Concluso', 'Azioni'].map(t => <th key={t} style={excelTh}>{t}</th>)}
                     </tr></thead><tbody>{riga}</tbody></table>
                   </div>
-                  <style>{`.modifica-cantiere-focus input { box-sizing: border-box; max-width: 100%; min-width: 0; }
-                    @media (max-width: 700px) {
-                      .modifica-cantiere-focus thead { display: none; }
-                      .modifica-cantiere-focus tbody, .modifica-cantiere-focus tr, .modifica-cantiere-focus td { display: block; width: 100%; box-sizing: border-box; }
-                      .modifica-cantiere-focus td::before { display: block; font-weight: 600; margin-bottom: 4px; }
-                      .modifica-cantiere-focus td:nth-child(1)::before { content: 'Nome'; }
-                      .modifica-cantiere-focus td:nth-child(2)::before { content: 'Preventivo'; }
-                      .modifica-cantiere-focus td:nth-child(3)::before { content: 'Inizio'; }
-                      .modifica-cantiere-focus td:nth-child(4)::before { content: 'Fine'; }
-                      .modifica-cantiere-focus td:nth-child(5)::before { content: 'Concluso'; }
-                    }`}</style>
+
                 </VistaOperativa>
               ) : riga
             })}
