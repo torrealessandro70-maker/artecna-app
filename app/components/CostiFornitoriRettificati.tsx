@@ -30,20 +30,26 @@ export default function CostiFornitoriRettificati({ client, cantiereId, da, a }:
   return <CostiFornitoriVista dati={dati} errore={errore} />
 }
 
-export function CostiFornitoriVista({ dati, errore }: { dati: CostoFornitori | null; errore: string }) {
+export function CostiFornitoriVista({ dati, errore, compatta = false, soloKpi = false }: { dati: CostoFornitori | null; errore: string; compatta?: boolean; soloKpi?: boolean }) {
   const euro = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
   const totali = dati ? riepilogaCostiFornitori(dati) : null
-  return <section aria-label="Costi fornitori con rettifiche" style={{ minWidth: 0, padding: 12, marginBlock: 12, border: '1px solid #cbd5e1', borderRadius: 8 }}>
-    <h3>Costi fornitori assegnati e rettifiche</h3>
-    <p>Quote documentali originali + rettifiche negative. Nessuna somma aggiuntiva del totale della nota, nessuna modifica a IVA o pagamenti. Non è l’utile contabile della ditta.</p>
+  return <section aria-label={soloKpi ? 'KPI costi fornitori' : 'Costi fornitori con rettifiche'} style={{ minWidth: 0, padding: 12, marginBlock: soloKpi ? 0 : 12, border: '1px solid #cbd5e1', borderRadius: 8 }}>
+    {compatta ? <h4 style={{ margin: '0 0 8px', fontSize: 14, color: '#475569' }}>Costi fornitori rettificati</h4> : <h3>Costi fornitori assegnati e rettifiche</h3>}
+    {!compatta && <p>Quote documentali originali + rettifiche negative. Nessuna somma aggiuntiva del totale della nota, nessuna modifica a IVA o pagamenti. Non è l’utile contabile della ditta.</p>}
     {!totali && <p role={errore ? 'alert' : 'status'}>{errore ? `Dato non disponibile: ${errore}` : 'Caricamento costi e rettifiche…'}</p>}
     {totali && dati && <>
-      <p>Quote originali: {euro(totali.originali)} · Rettifiche applicate: {euro(totali.rettifiche)} · <strong>Costi fornitori rettificati: {euro(totali.netto)}</strong></p>
-      <p>{dati.perimetro}. Le note non riconciliate non riducono i costi. Il costo conserva la base già usata da ciascuna quota: imponibile per Economia, totale registrato per materiali/spese.</p>
-      <details><summary>Fonti originali e rettifiche</summary>
+      {compatta ? <>
+        <strong style={{ display: 'block', fontSize: 22 }}>{euro(totali.netto)}</strong>
+        <p style={{ margin: '8px 0 0', fontSize: 13, color: '#64748b' }}>Quote originali: {euro(totali.originali)}<br />Rettifiche applicate: {euro(totali.rettifiche)}</p>
+      </> : <p>Quote originali: {euro(totali.originali)} · Rettifiche applicate: {euro(totali.rettifiche)} · <strong>Costi fornitori rettificati: {euro(totali.netto)}</strong></p>}
+      {compatta ? !soloKpi && <details style={{ marginTop: 12 }}><summary>Dettagli sul calcolo</summary>
+        <p>Quote documentali originali + rettifiche negative. Nessuna somma aggiuntiva del totale della nota, nessuna modifica a IVA o pagamenti. Non è l’utile contabile della ditta.</p>
+        <p>{dati.perimetro}. Le note non riconciliate non riducono i costi. Il costo conserva la base già usata da ciascuna quota: imponibile per Economia, totale registrato per materiali/spese.</p>
+      </details> : <p>{dati.perimetro}. Le note non riconciliate non riducono i costi. Il costo conserva la base già usata da ciascuna quota: imponibile per Economia, totale registrato per materiali/spese.</p>}
+      {!soloKpi && <details style={compatta ? { marginTop: 12 } : undefined}><summary>Fonti originali e rettifiche</summary>
         {dati.quote.map(q => <p key={`${q.tipo}:${q.id}`} style={{ overflowWrap: 'anywhere' }}>{q.data} · Documento {q.documento_id} · Quota {q.tipo}/{q.id} · {q.cantiere_id || 'Impresa'} / {q.categoria}: {euro(Number(q.costo))}</p>)}
         {dati.rettifiche.map(r => <p key={r.id} style={{ overflowWrap: 'anywhere' }}>{r.data_nota} · Nota {r.nota_id} · Origine {r.origine_id}, riga {r.origine_riga_id} · Rettifica {r.id} · {r.cantiere_id || 'Impresa'} / {r.categoria}: {euro(Number(r.importo_costo))}</p>)}
-      </details>
+      </details>}
     </>}
   </section>
 }

@@ -49,21 +49,22 @@ export default function PrestazioniRapportiniEconomia({ cantiereId, aggiornament
       if (token === generation.current) { setErrore(e instanceof Error ? e.message : 'Esito non verificabile. Rileggi prima di riprovare.'); setDaRileggere(true) }
     } finally { invio.current = false; setBusy(false); onInvio(false) }
   }
-  return <section aria-label="Prestazioni Economia dai Rapportini" style={{ marginTop: 16 }}>
-    <h4>ECONOMIA DAI RAPPORTINI MOBILE</h4>
-    <p>Acquisisci le ore nella raccolta in bozza. Il costo interno non diventa il prezzo fatturabile.</p>
+  return <section aria-label="Prestazioni Economia dai Rapportini" style={{ marginTop: 12, padding: 12, border: '1px solid #e2e8f0', borderRadius: 10, minWidth: 0 }}>
+    <h4 style={{ margin: '0 0 4px', fontSize: 17 }}>Lavori in economia dai Rapportini</h4>
+    <p style={{ margin: '0 0 8px', fontSize: 11, color: '#64748b', letterSpacing: '.04em' }}>ECONOMIA DAI RAPPORTINI MOBILE</p>
+    <p style={{ margin: '0 0 12px', fontSize: 14 }}>Acquisisci le ore nella raccolta in bozza. Il costo interno non diventa il prezzo fatturabile.</p>
     <button type="button" disabled={busy || loading} onClick={() => { setConferma(false); setLettura(v => v + 1) }}>Rileggi prestazioni</button>
     {loading && <p role="status">Caricamento prestazioni...</p>}
     {busy && <p role="status">Acquisizione in corso...</p>}
     {errore && <p role="alert">{errore}</p>}
     {messaggio && <p role="status">{messaggio}</p>}
     {elenco && <>
-      {!elenco.raccolte_in_bozza.length ? <p>Nessuna raccolta in bozza per questo cantiere. Apri una raccolta con il flusso Economia esistente prima di acquisire.</p> :
+      {!elenco.raccolte_in_bozza.length ? <p role="status" style={{ margin: '8px 0', fontSize: 14 }}>Nessuna raccolta in bozza</p> :
         <label>Raccolta di destinazione<select value={destinazione} disabled={busy || daRileggere} onChange={e => { setDestinazione(e.target.value); setConferma(false) }}>
           <option value="">Scegli esplicitamente una raccolta</option>
           {elenco.raccolte_in_bozza.map(r => <option key={r.raccolta_id} value={r.raccolta_id}>N. {r.numero} — {r.titolo} · revisione {r.revisione}</option>)}
         </select></label>}
-      {!elenco.prestazioni.length ? <p>Nessuna prestazione Economia V1 disponibile.</p> : <div style={{ overflowX: 'auto' }}><table>
+      {!elenco.prestazioni.length ? <p style={{ margin: '8px 0', fontSize: 14 }}>Nessuna prestazione Economia V1 disponibile.</p> : <div style={{ overflowX: 'auto' }}><table>
         <thead><tr>{['Selezione', 'Data', 'Operaio', 'Lavorazione', 'Ore', 'Variante', 'Stato'].map(v => <th key={v} scope="col">{v}</th>)}</tr></thead>
         <tbody>{elenco.prestazioni.map(p => <tr key={p.prestazione_id}>
           <td><input type="checkbox" aria-label={`Seleziona prestazione ${p.prestazione_id}`} checked={selezione.includes(p.prestazione_id)}

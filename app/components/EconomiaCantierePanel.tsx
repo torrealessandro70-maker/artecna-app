@@ -152,28 +152,34 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     ['Attrezzature', p.riepilogo.totaleAttrezziEconomia],
   ]
   return (
-    <section aria-label="Economia del cantiere" style={{ padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', minWidth: 0 }}>
-      <h3 style={{ margin: '0 0 16px', fontSize: 22 }}>Economia del cantiere</h3>
-      <CostiFornitoriVista dati={rettifiche.dati} errore={rettifiche.errore} />
-      {rettifiche.dati && !baseCoerente && <p role="alert">Fonte originaria non compresa nella base legacy del Cantiere: totale generale non disponibile. Il riepilogo documentale mostra le quote verificate e le rettifiche.</p>}
-      <nav aria-label="Sezioni economia" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, marginBottom: 20, borderBottom: '1px solid #e2e8f0' }}>
+    <section aria-label="Economia del cantiere" className="economia-dashboard" style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', minWidth: 0, overflowWrap: 'anywhere' }}>
+      <h3 style={{ margin: '0 0 16px', fontSize: 22 }}>Economia</h3>
+      <div aria-label="Indicatori Economia" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginBottom: 16 }}>
+        <CostiFornitoriVista dati={rettifiche.dati} errore={rettifiche.errore} compatta soloKpi />
+        <article style={{ minWidth: 0, padding: 12, border: '1px solid #cbd5e1', borderRadius: 8 }}>
+          <h4 style={{ margin: '0 0 8px', fontSize: 14, color: '#475569' }}>Acconti ricevuti</h4>
+          {accontiCumulativi === null ? <span role={p.acconti.statoAcconti === 'errore' ? 'alert' : 'status'}>{messaggioAcconti(p.acconti.statoAcconti)}</span> : <strong style={{ fontSize: 22 }}>{p.riepilogo.formatMoney(accontiCumulativi)}</strong>}
+        </article>
+        {variantiCorrenti?.scomposizione && <article style={{ minWidth: 0, padding: 12, border: '1px solid #cbd5e1', borderRadius: 8 }}>
+          <h4 style={{ margin: '0 0 8px', fontSize: 14, color: '#475569' }}>Lavori in economia approvati</h4>
+          <p style={{ margin: '4px 0', fontSize: 14 }}>Manodopera: <strong>{p.riepilogo.formatMoney(variantiCorrenti.scomposizione.manodopera)}</strong></p>
+          <p style={{ margin: '4px 0', fontSize: 14 }}>Materiali: <strong>{p.riepilogo.formatMoney(variantiCorrenti.scomposizione.materiali)}</strong></p>
+        </article>}
+      </div>
+      <nav aria-label="Sezioni economia" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingBottom: 12, marginBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
         {([['riepilogo', 'Riepilogo'], ['costi', 'Costi'], ['sal', 'SAL e acconti'], ['rapportini', 'Rapportini']] as const).map(([sezione, label]) => (
           <button key={sezione} type="button" aria-pressed={economiaSezione === sezione} onClick={() => setEconomiaSezione(sezione)}
-            style={{ minHeight: 44, padding: '10px 16px', borderRadius: 8, whiteSpace: 'nowrap', cursor: 'pointer', border: '1px solid #cbd5e1', background: economiaSezione === sezione ? '#0f172a' : '#fff', color: economiaSezione === sezione ? '#fff' : '#334155' }}>
+            style={{ minHeight: 44, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 8, whiteSpace: 'normal', cursor: 'pointer', border: '1px solid #cbd5e1', background: economiaSezione === sezione ? '#0f172a' : '#fff', color: economiaSezione === sezione ? '#fff' : '#334155' }}>
             {label}
           </button>
         ))}
       </nav>
-      <div className="economia-cantiere-acconti" style={{ minWidth: 0, overflowX: 'auto', marginBottom: 20 }}>
-        <AccontiEconomiaPanel {...p.acconti} cantiereScheda={cantiere.nome} cantiereId={cantiere.id}
-          totaleAccontiCantiere={accontiCumulativi} residuoDaIncassare={residuoContrattuale} />
-      </div>
       {economiaSezione === 'rapportini' && <VariantiCantierePanel
         key={cantiere.id} cantiereId={cantiere.id} economiaRapportini
         onApprovazione={() => setAggiornamentoKpi(v => v + 1)}
         stampaContesto={{ nome: cantiere.nome, contrattoBase: importoBase ?? null, preventivoId: preventivoId ?? null }} />}
       {economiaSezione === 'riepilogo' && <section aria-label="Riepilogo economico">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginBottom: 16 }}>
           <h4 style={{ gridColumn: '1 / -1', margin: '0' }}>Contratto</h4>
           {kpiContrattuali.map(([label, value]) => <article key={label} style={{ padding: 14, border: '1px solid #e2e8f0', borderRadius: 10 }}>
             <div style={{ fontSize: 13, color: '#64748b' }}>{label}</div>
@@ -202,10 +208,10 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
               : <strong style={{ fontSize: 20 }}>{margineAggiornato.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</strong>}
           </article>
         </div>
-        <section aria-label="Aggiornamenti contrattuali"><h4>Aggiornamenti contrattuali approvati</h4>
+        <details aria-label="Aggiornamenti contrattuali" style={{ marginBottom: 12 }}><summary>Aggiornamenti contrattuali approvati</summary>
           <ScomposizioneContrattuale valori={variantiCorrenti?.scomposizione ?? null} operativi={variantiCorrenti?.materialiOperativi ?? null} formatMoney={p.riepilogo.formatMoney} />
           <p>La scomposizione è già compresa nelle Varianti approvate e non si somma nuovamente al contratto.</p>
-        </section>
+        </details>
         {preventivoId && <ManodoperaEconomiaDettaglio key={`${cantiere.id}:${preventivoId}:${aggiornamentoKpi}`} client={supabase} cantiereId={cantiere.id} contrattoId={preventivoId} cantiereNome={cantiere.nome} />}
         <div className="economia-cantiere-grafici">
           {costoMateriali !== null && costoMateriali < 0 && <p>Nel periodo il costo materiali è negativo per le rettifiche: consultare il dettaglio firmato anziché il grafico di ripartizione.</p>}
@@ -223,15 +229,25 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
         </div>
       </section>}
       {economiaSezione === 'costi' && <section aria-label="Costi del cantiere" style={{ minWidth: 0, overflowX: 'auto' }}>
+        <CostiFornitoriVista dati={rettifiche.dati} errore={rettifiche.errore} compatta />
+        {rettifiche.dati && !baseCoerente && <p role="alert">Fonte originaria non compresa nella base legacy del Cantiere: totale generale non disponibile. Il riepilogo documentale mostra le quote verificate e le rettifiche.</p>}
         <FiltroPeriodoEconomia {...p.periodo} />
         <RiepilogoCostiEconomiaPanel {...p.costi} cantiereScheda={cantiere.nome} />
       </section>}
       {economiaSezione === 'sal' && <section aria-label="SAL e acconti" style={{ display: 'grid', gap: 20, minWidth: 0, overflowX: 'auto' }}>
+        <div className="economia-cantiere-acconti" style={{ minWidth: 0 }}>
+          <AccontiEconomiaPanel {...p.acconti} cantiereScheda={cantiere.nome} cantiereId={cantiere.id}
+            totaleAccontiCantiere={accontiCumulativi} residuoDaIncassare={residuoContrattuale} />
+        </div>
         {contrattoAggiornato === null && <p role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</p>}
         <SalDettagliatoPanel {...p.sal} scomposizioneEconomiaApprovata={variantiCorrenti?.scomposizione ?? null} contestuale cantiereContestuale={cantiere} cantiereScheda={cantiere.nome} />
       </section>}
       <style>{`
         .economia-cantiere-acconti button { min-height: 44px; }
+        .economia-dashboard article { min-width: 0; }
+        .economia-dashboard input, .economia-dashboard select { min-width: 0; max-width: 100%; box-sizing: border-box; }
+        .economia-dashboard button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+        #area-lavoro-principale:has(.economia-dashboard) > details { padding: 10px !important; margin-top: 10px !important; border-radius: 10px !important; }
         .economia-cantiere-grafici > div > div { min-width: 0; }
         @media (max-width: 760px) {
           .economia-cantiere-grafici > div { grid-template-columns: minmax(0, 1fr) !important; }

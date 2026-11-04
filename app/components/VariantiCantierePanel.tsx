@@ -918,9 +918,9 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
     if (apertaId) void apri(apertaId, true)
   }, [aggiornamento])
   const riepilogo = (r: RaccoltaConsultazioneEconomia) => <>
-    <h5>Raccolta n. {r.numero} — {r.titolo}</h5>
-    <p>{r.stato === 'bozza' ? 'Bozza' : 'Chiusa'} · {dataConsultazioneEconomia(r.data)} · Revisione {r.revisione}</p>
-    <p>Totale{r.nonValorizzate > 0 ? ' parziale' : ''}: {r.totale === null ? 'Non valorizzato' : importoConsultazioneEconomia(r.totale)} · Righe non valorizzate: {r.nonValorizzate}</p>
+    <h5 style={{ margin: 0, fontSize: 16, overflowWrap: 'anywhere' }}>Raccolta n. {r.numero} — {r.titolo}</h5>
+    <p style={{ margin: '4px 0', fontSize: 13, color: '#64748b' }}>{r.stato === 'bozza' ? 'Bozza' : 'Chiusa'} · {dataConsultazioneEconomia(r.data)} · Rev. {r.revisione}</p>
+    <p style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', margin: '4px 0 8px', fontSize: 14 }}><strong>Totale{r.nonValorizzate > 0 ? ' parziale' : ''}: {r.totale === null ? 'Non valorizzato' : importoConsultazioneEconomia(r.totale)}</strong><span>{r.nonValorizzate} righe non valorizzate</span></p>
   </>
   const tabella = (tipo: RigaConsultazioneEconomia['tipo'], titolo: string, colonne: string[], celle: (r: RigaConsultazioneEconomia) => ReactNode[]) => {
     const righe = dettaglio?.righe.filter(r => r.tipo === tipo) ?? []
@@ -928,29 +928,36 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
     return <section aria-label={titolo}><h5>{titolo} — {righe.length} registrazioni</h5>
       {!righe.length ? <p>Nessuna registrazione.</p> : <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
         <thead><tr>{colonne.map(c => <th scope="col" key={c} style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid #cbd5e1' }}>{c}</th>)}{tipo === 'materiale' && <th scope="col">Prezzo cliente</th>}</tr></thead>
-        <tbody>{righe.map(r => <tr key={r.id} id={`economia-${dettaglio?.raccolta.id}-${r.id}`} tabIndex={-1}>{celle(r).map((v,i) => <td key={i} style={{ padding: 8, verticalAlign: 'top', whiteSpace: 'pre-wrap', borderBottom: '1px solid #e2e8f0' }}>{v}</td>)}{tipo === 'materiale' && dettaglio && <td style={{ padding: 8, minWidth: 180 }}><PrezziMaterialiEconomia key={`${r.id}:${dettaglio.raccolta.revisione}:${letturaDettaglio}`} raccolta={dettaglio.raccolta} righe={[r]} bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio} onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }} onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} /><EsclusioneRigaEconomia key={'esclusione:'+r.id+':'+dettaglio.raccolta.revisione+':'+letturaDettaglio} raccolta={dettaglio.raccolta} riga={r} bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio} onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }} onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id,true) }} /></td>}</tr>)}</tbody>
+        <tbody>{righe.map(r => <tr key={r.id} id={`economia-${dettaglio?.raccolta.id}-${r.id}`} tabIndex={-1}>{celle(r).map((v,i) => <td key={i} data-label={colonne[i]} style={{ padding: 8, verticalAlign: 'top', whiteSpace: 'pre-wrap', borderBottom: '1px solid #e2e8f0' }}>{v}</td>)}{tipo === 'materiale' && dettaglio && <td data-label="Prezzo cliente" style={{ padding: 8, minWidth: 180 }}><PrezziMaterialiEconomia key={`${r.id}:${dettaglio.raccolta.revisione}:${letturaDettaglio}`} raccolta={dettaglio.raccolta} righe={[r]} bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio} onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }} onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} /><EsclusioneRigaEconomia key={'esclusione:'+r.id+':'+dettaglio.raccolta.revisione+':'+letturaDettaglio} raccolta={dettaglio.raccolta} riga={r} bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio} onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }} onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id,true) }} /></td>}</tr>)}</tbody>
       </table></div>}
     </section>
   }
   const numero = (v: number) => Number.isFinite(v) ? v.toLocaleString('it-IT', { maximumFractionDigits: 6 }) : 'Non valido'
+  const tornaElenco = () => { tokenDettaglio.current += 1; setApertaId(null); setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(false) }
   return <section aria-label="Lavori in economia registrati" style={{ marginTop: 16 }}>
-    <h4>LAVORI IN ECONOMIA REGISTRATI</h4>
+    <h4 style={{ margin: '0 0 8px', fontSize: 17 }}>Raccolte lavori in economia</h4>
     {onCreata && <div>
-      <button type="button" disabled={caricamentoElenco || Boolean(erroreElenco) || operazioneInCorso || creazioneInCorso || creazioneBloccata.current}
+      <button type="button" style={{ minHeight: 44, padding: '8px 14px', border: '1px solid #1d4ed8', borderRadius: 8, background: '#1d4ed8', color: '#fff' }} disabled={caricamentoElenco || Boolean(erroreElenco) || operazioneInCorso || creazioneInCorso || creazioneBloccata.current}
         onClick={() => setConfermaCreazione(true)}>Crea nuova raccolta</button>
-      {confermaCreazione && <div>
+      {confermaCreazione && <VistaOperativa titolo="Nuova raccolta lavori in economia" etichettaRitorno="← Torna a Economia"
+        onChiudi={() => setConfermaCreazione(false)} occupata={creazioneInCorso || operazioneInCorso}>
+      <div className="raccolta-economia-focus">
         <p>Crea una raccolta vuota in bozza per questo cantiere. Nessuna prestazione viene acquisita in questa operazione.</p>
         <label>Titolo raccolta<input value={titoloCreazione} disabled={creazioneInCorso} onChange={e => setTitoloCreazione(e.target.value)} /></label>
         {titoloSuggerito && <p>Titolo suggerito: {titoloSuggerito} <button type="button" disabled={creazioneInCorso} onClick={() => setTitoloCreazione(titoloSuggerito)}>Usa titolo suggerito</button></p>}
         <button type="button" disabled={creazioneInCorso || operazioneInCorso || !titoloCreazione.trim()} onClick={() => void creaBozzaRapportini()}>Conferma creazione raccolta</button>
         <button type="button" disabled={creazioneInCorso} onClick={() => setConfermaCreazione(false)}>Annulla creazione</button>
-      </div>}
+      </div>
+      <style>{`.raccolta-economia-focus { min-width: 0; overflow-wrap: anywhere; } .raccolta-economia-focus input, .raccolta-economia-focus button { max-width: 100%; min-width: 0; box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }`}</style>
+      </VistaOperativa>}
       {creazioneInCorso && <p role="status">Creazione raccolta in corso...</p>}
       {erroreCreazione && <p role="alert">{erroreCreazione}</p>}
       {messaggioCreazione && <p role="status">{messaggioCreazione}</p>}
     </div>}
-    {apertaId ? <>
-      <button type="button" disabled={valorizzazioneInCorso} onClick={() => { tokenDettaglio.current += 1; setApertaId(null); setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(false) }}>Torna all'elenco</button>
+    {apertaId ? <VistaOperativa attiva={operativo} titolo={`Raccolta n. ${dettaglio?.raccolta.numero ?? elenco.find(r => r.id === apertaId)?.numero ?? '—'} — Lavori in economia`}
+      etichettaRitorno="← Torna a Economia" onChiudi={tornaElenco} occupata={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso}>
+      <div className={operativo ? 'raccolta-economia-focus' : undefined} style={{ minWidth: 0, containerType: 'inline-size', containerName: 'raccolta-economia' }}>
+      <button type="button" disabled={valorizzazioneInCorso} onClick={tornaElenco}>Torna all'elenco</button>
       {caricamentoDettaglio && <p role="status">Caricamento raccolta Economia...</p>}
       {erroreDettaglio && <div role="alert"><p>{erroreDettaglio}</p><button type="button" onClick={() => void apri(apertaId)}>Riprova</button></div>}
       {dettaglio && <>
@@ -963,7 +970,7 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
           onInvio={busy => { setValorizzazioneInCorso(busy); onInvio?.(busy) }}
           onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} />
         <UsaRaccoltaEconomiaInVariante key={dettaglio.raccolta.id} raccolta={dettaglio.raccolta} righe={dettaglio.righe}
-          varianti={varianti} elencoPronto={elencoPronto} onApri={onApriVariante} operativo={operativo} totale={dettaglio.raccolta.totale}
+          varianti={varianti} elencoPronto={elencoPronto} onApri={operativo ? id => { tornaElenco(); onApriVariante(id) } : onApriVariante} operativo={operativo} totale={dettaglio.raccolta.totale}
           statiVarianti={variantiInfo}
           bloccato={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso || caricamentoDettaglio || dettaglio.righe.length === 0 || dettaglio.raccolta.nonValorizzate > 0 || dettaglio.raccolta.totale === null || dettaglio.raccolta.totale <= 0}
           onRileggi={async () => { setRilettura(v => v + 1); await apri(dettaglio.raccolta.id, true) }} />
@@ -972,10 +979,21 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
         {tabella('materiale','MATERIALI',['Data','Materiale','UM','Quantità','Prezzo fatturabile €','Totale €','Fornitore','Documento','Riferimento rapportino','Note'],r => [dataConsultazioneEconomia(r.operativo.data),<span>{r.descrizione}{r.provenienzaFattura && <small style={{ display: 'block' }}>{r.provenienzaFattura}</small>}</span>,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.operativo.fornitore),testoConsultazioneEconomia(r.operativo.documento),testoConsultazioneEconomia(r.operativo.riferimento_rapportino),testoConsultazioneEconomia(r.note)])}
         {tabella('generica','REGISTRAZIONI GENERICHE',['Descrizione','UM','Quantità','Prezzo unitario €','Totale €','Note'],r => [r.descrizione,r.um,numero(r.quantita),importoConsultazioneEconomia(r.prezzo),importoConsultazioneEconomia(r.totale),testoConsultazioneEconomia(r.note)])}
       </>}
-    </> : <>
+      </div>
+      {operativo && <style>{`
+        .raccolta-economia-focus { min-width: 0; overflow-wrap: anywhere; }
+        .raccolta-economia-focus input, .raccolta-economia-focus select, .raccolta-economia-focus button { min-width: 0; max-width: 100%; box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
+        @container raccolta-economia (width < 1100px) {
+          .raccolta-economia-focus table, .raccolta-economia-focus tbody, .raccolta-economia-focus tr, .raccolta-economia-focus td { display: block; width: 100%; min-width: 0 !important; box-sizing: border-box; }
+          .raccolta-economia-focus thead { display: none; }
+          .raccolta-economia-focus tr { margin-bottom: 12px; }
+          .raccolta-economia-focus td::before { content: attr(data-label); display: block; font-weight: 600; color: #64748b; }
+        }
+      `}</style>}
+    </VistaOperativa> : <>
       {caricamentoElenco && <p role="status">Caricamento raccolte Economia...</p>}
       {erroreElenco && <div role="alert"><p>{erroreElenco}</p><button type="button" onClick={() => setRilettura(v => v+1)}>Riprova</button></div>}
-      {!caricamentoElenco && !erroreElenco && (elenco.length === 0 ? <p>Nessuna raccolta Economia registrata per questo cantiere.</p> : <div style={{ display: 'grid', gap: 12 }}>{elenco.map(r => <article key={r.id} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}>
+      {!caricamentoElenco && !erroreElenco && (elenco.length === 0 ? <p style={{ fontSize: 14 }}>Nessuna raccolta Economia registrata per questo cantiere.</p> : <div style={{ display: 'grid', gap: 8 }}>{elenco.map(r => <article key={r.id} style={{ padding: 12, minWidth: 0, overflowWrap: 'anywhere', border: '1px solid #e2e8f0', borderRadius: 8 }}>
         {riepilogo(r)}<button type="button" onClick={() => void apri(r.id)}>Apri</button>
         <EliminaBozzaVuota tipo="raccolta" id={r.id} contestoId={cantiereId}
           aggiornamento={`${aggiornamento}:${rilettura}:${r.revisione}`}
@@ -1821,7 +1839,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
       etichettaRitorno="← Torna alle varianti" onChiudi={() => setAperto(false)}
       occupata={operazioneSorgenti || invioEconomia} ritornoFocusRef={aperturaRef}>
     <section aria-label="Origine e acquisizione variante" className="acquisizione-variante"
-      style={{ marginTop: 12, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
+      style={{ marginTop: economiaRapportini ? 0 : 12, padding: economiaRapportini ? 0 : 16, border: economiaRapportini ? 'none' : '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
       {!economiaRapportini && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         <label>Origine variante<select disabled={operazioneSorgenti || !acquisizioneConsentita || invioEconomia} value={natura} style={{ display: 'block', padding: 8 }}
           onChange={e => {
@@ -2353,14 +2371,17 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
   }
 
   return (
-    <section aria-label="Varianti" style={{ marginTop: 16 }}>
-      {economiaRapportini && <p>Prestazioni da acquisire → Prezzi fatturabili → Totale lavori → Crea proposta → Approva proposta → KPI aggiornati</p>}
+    <section aria-label={economiaRapportini ? 'Lavori in economia dai Rapportini' : 'Varianti'} style={{ marginTop: 16 }}>
+      {economiaRapportini && <ol aria-label="Percorso lavori in economia" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '0 0 12px', padding: 0, listStyle: 'none' }}>
+        {['Prestazioni da acquisire', 'Prezzi fatturabili', 'Totale lavori', 'Crea proposta', 'Approva proposta', 'KPI aggiornati'].map((passo, i) => <li key={passo}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#f1f5f9', borderRadius: 8, fontSize: 12, minWidth: 0 }}><span aria-hidden="true" style={{ fontWeight: 700 }}>{i + 1}</span>{passo}</li>)}
+      </ol>}
       {economiaRapportini && stampaContesto && <details><summary>Stampa varianti</summary><button type="button" disabled={stampaInCorso || stato.tipo !== 'elenco'} onClick={() => void stampaVarianti()}>Stampa varianti</button>
         <label><input type="checkbox" checked={includiProposte} disabled={stampaInCorso} onChange={e => setIncludiProposte(e.target.checked)} /> Includi proposte e bozze, con stato indicato</label></details>}
       {economiaRapportini && erroreStampa && <p role="alert">{erroreStampa}</p>}
-      <h3>{economiaRapportini ? 'Lavori in economia dai Rapportini' : 'Varianti'}</h3>
+      <h3>{economiaRapportini ? 'Rapportini' : 'Varianti'}</h3>
       <div role={economiaRapportini ? undefined : 'toolbar'} aria-label={economiaRapportini ? undefined : 'Creazione varianti'}
-        style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        style={{ display: economiaRapportini ? 'block' : 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 }}>
       {!economiaRapportini && !formAperto && (
         <button ref={creazioneRef} type="button" disabled={!cantiereId || salvataggio}
           onClick={apriNuovaVariante}>+ Nuova variante</button>
