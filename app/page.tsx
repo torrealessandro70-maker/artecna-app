@@ -12085,8 +12085,10 @@ textarea:not(.impostazioni-input) {
 </aside>
 
  <main
+  id="area-lavoro-principale"
   style={{
     flex: 1,
+    minWidth: 0,
     padding: '80px 25px 25px 25px',
     height: '100vh',
     overflowY: 'auto',

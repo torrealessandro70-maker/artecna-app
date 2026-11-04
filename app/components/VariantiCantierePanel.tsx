@@ -1,6 +1,7 @@
 'use client'
 
 import EsclusioneRigaEconomia from './EsclusioneRigaEconomia'
+import VistaOperativa from './VistaOperativa'
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { supabase } from '../../lib/supabaseClient'
@@ -2328,6 +2329,10 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
   }
   const bozzeNonRilette = stato.tipo === 'elenco' &&
     bozzeCreate.some(bozza => !righeLette.some(riga => riga.id === bozza.id))
+  const apriNuovaVariante = () => {
+    setErroreSalvataggio('')
+    setFormAperto(true)
+  }
 
   return (
     <section aria-label="Varianti" style={{ marginTop: 16 }}>
@@ -2337,7 +2342,7 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
       {erroreStampa && <p role="alert">{erroreStampa}</p>}
       <h3>{economiaRapportini ? 'Lavori in economia dai Rapportini' : 'Varianti'}</h3>
       {!economiaRapportini && stato.tipo === 'elenco' && !varianteApertaId && !righe.some(v => v.stato === 'bozza' || v.stato === 'proposta') &&
-        <GuidaPassoSuccessivo stato={null} onCrea={() => portaAlControllo(formCreazioneRef.current ?? creazioneRef.current)}
+        <GuidaPassoSuccessivo stato={null} onCrea={apriNuovaVariante}
           onAcquisisci={cantiereId ? vaiAnteprima : undefined} />}
       {cantiereId && <div ref={anteprimaRef} tabIndex={-1}>
         <AnteprimaPreventivoVariante key={cantiereId} cantiereId={cantiereId} elencoVarianti={stato} variantiCorrenti={righe}
@@ -2346,13 +2351,15 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
       </div>}
       {!economiaRapportini && !formAperto && (
         <button ref={creazioneRef} type="button" disabled={!cantiereId || salvataggio}
-          onClick={() => { setErroreSalvataggio(''); setFormAperto(true) }}>
+          onClick={apriNuovaVariante}>
           Nuova variante
         </button>
       )}
       {!economiaRapportini && formAperto && (
+        <VistaOperativa titolo="Nuova variante" contesto={stampaContesto?.nome}
+          onChiudi={() => setFormAperto(false)} occupata={salvataggio} ritornoFocusRef={creazioneRef}>
         <form ref={formCreazioneRef} tabIndex={-1} onSubmit={salvaBozza} style={{ marginTop: 16 }}>
-          <fieldset disabled={salvataggio} style={{ display: 'grid', gap: 12, padding: 16, border: '1px solid #e2e8f0', borderRadius: 12 }}>
+          <fieldset disabled={salvataggio} style={{ display: 'grid', gap: 12, padding: 16, minWidth: 0, boxSizing: 'border-box', border: '1px solid #e2e8f0', borderRadius: 12 }}>
             <legend>Nuova variante</legend>
             <label>Titolo *<input required value={titolo} onChange={e => setTitolo(e.target.value)}
               style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 8 }} /></label>
@@ -2369,9 +2376,12 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
             </div>
           </fieldset>
         </form>
+        {salvataggio && <p role="status">Salvataggio...</p>}
+        {erroreSalvataggio && <p role="alert">{erroreSalvataggio}</p>}
+        </VistaOperativa>
       )}
-      {salvataggio && <p role="status">Salvataggio...</p>}
-      {erroreSalvataggio && <p role="alert">{erroreSalvataggio}</p>}
+      {!formAperto && salvataggio && <p role="status">Salvataggio...</p>}
+      {!formAperto && erroreSalvataggio && <p role="alert">{erroreSalvataggio}</p>}
       {successo && <p role="status">{successo}</p>}
       {stato.tipo === 'loading' && <p role="status">Caricamento varianti...</p>}
       {stato.tipo === 'errore' && <p role="alert">{stato.messaggio}</p>}
