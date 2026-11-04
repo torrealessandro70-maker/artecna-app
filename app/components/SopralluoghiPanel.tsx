@@ -13,6 +13,8 @@ import SopralluogoDettaglio from './SopralluogoDettaglio'
 import PopupFotoSopralluogo from './PopupFotoSopralluogo'
 
 type Props = {
+  contestoCantiere?: { id: string; nome: string } | null
+  tornaAlCantiere?: () => void
   cardStyle: CSSProperties
   clienteSopralluogo: string
   setClienteSopralluogo: any
@@ -113,6 +115,10 @@ export default function SopralluoghiPanel(props: Props) {
   return (
     <div style={props.cardStyle}>
       <h2>📍 Sopralluoghi</h2>
+      {props.contestoCantiere && <div data-cantiere-id={props.contestoCantiere.id} style={{ marginBottom: 16 }}>
+        <button type="button" onClick={props.tornaAlCantiere} style={props.buttonSecondary}>← Torna al cantiere</button>
+        <p>Sopralluoghi del cantiere: <strong>{props.contestoCantiere.nome}</strong></p>
+      </div>}
  <SopralluoghiList
         azioneNuovo={<>
   <button
@@ -193,6 +199,8 @@ export default function SopralluoghiPanel(props: Props) {
 </div>}
 
       <SopralluogoDettaglio
+        apriQuadernoDirettamente={!!props.contestoCantiere}
+        tornaAlCantiere={props.contestoCantiere ? props.tornaAlCantiere : undefined}
         sopralluogoAperto={props.sopralluogoAperto}
         setSopralluogoAperto={props.setSopralluogoAperto}
         setSopralluogoModificaId={props.setSopralluogoModificaId}

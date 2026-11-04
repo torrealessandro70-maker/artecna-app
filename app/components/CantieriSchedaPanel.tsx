@@ -191,6 +191,10 @@ export default function CantieriSchedaPanel(props: any) {
             Azioni rapide
           </h3>
           <div className="scheda-cantiere-azioni-rapide">
+            <button type="button" onClick={() => p.apriQuadernoCantiere?.(p.cantiereSelezionatoDaId.id)} className="scheda-cantiere-azione-rapida">
+              <span style={{ display: 'block', fontSize: 16, fontWeight: 600 }}>📓 Quaderno</span>
+              <span style={{ display: 'block', marginTop: 8, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>Quaderno e sopralluoghi del cantiere</span>
+            </button>
             {azioniRapide.map((azione) => (
               <button
                 key={azione.titolo}

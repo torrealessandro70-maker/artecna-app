@@ -62,6 +62,10 @@ export default function SopralluogoDettaglio(props: Props) {
   }
 useEffect(() => {
   if (!sopralluogoAperto?.id) return
+  if (props.apriQuadernoDirettamente) {
+    setSezioneAttiva('quaderno')
+    return
+  }
 
   const salvata = localStorage.getItem(
     `artecna:sopralluogo:${sopralluogoAperto.id}:sezione`
@@ -80,7 +84,7 @@ useEffect(() => {
   } else {
     setSezioneAttiva('informazioni')
   }
-}, [sopralluogoAperto?.id])
+}, [sopralluogoAperto?.id, props.apriQuadernoDirettamente])
   if (!sopralluogoAperto) return null
 
   const fotoDelSopralluogo = props.fotoSopralluoghi.filter(
@@ -155,6 +159,7 @@ useEffect(() => {
               <h2 style={{ margin: '3px 0 0', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {sopralluogoAperto.cliente || 'Sopralluogo'}
               </h2>
+              {props.tornaAlCantiere && <button type="button" onClick={props.tornaAlCantiere} style={buttonSecondary}>← Torna al cantiere</button>}
             </div>
             <button
               type="button"

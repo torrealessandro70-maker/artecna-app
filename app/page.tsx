@@ -4,6 +4,7 @@ import { leggiAnteprimaXml, leggiMetadatiFiscali } from './engines/fatture/docum
 import type { AnteprimaFattura } from './engines/fatture/import-documenti'
 import { modificaERicarica, EVENTO_FATTURE_AGGIORNATE, type ModificheFattura, type EsitoModifica, type StatoCantieri } from './engines/contabilita-ditta/modificaFattura'
 import QuadernoProgettiPanel from './components/QuadernoProgettiPanel'
+import { sopralluoghiDelCantiere, sopralluogoDiretto } from './lib/navigazioneQuadernoCantiere'
 import { preservaPerimetroMiglioraTesto, messaggioPerimetro } from './utils/perimetroMiglioraTesto'
 import { chiaveAnalisiVoce } from './components/AnalisiPrezzoVoce'
 import { contabilizzaManodopera } from './engines/economia/contabilitaManodopera'
@@ -650,6 +651,7 @@ const webcamFotoCantiereRef = useRef<Webcam>(null)
 const webcamCantiereRef = useRef<Webcam>(null)
 
 const [sopralluoghi, setSopralluoghi] = useState<Sopralluogo[]>([])
+const [contestoQuadernoCantiere, setContestoQuadernoCantiere] = useState<{ id: string; nome: string } | null>(null)
 const [fotoSopralluoghi, setFotoSopralluoghi] = useState<FotoSopralluogo[]>([])
 
 const [geolocalizzazioneSopralluogo, setGeolocalizzazioneSopralluogo] =
@@ -11371,6 +11373,37 @@ const eliminaFatturaEmessa = async () => {
 
   alert('Fattura eliminata')
 }
+ const apriQuadernoCantiere = (id: string) => {
+   const cantiere = cantieri.find(c => c.id === id)
+   if (!cantiere?.id) return
+   const collegati = sopralluoghiDelCantiere(cantiere, sopralluoghi, preventivi)
+   let attivi: unknown = []
+   try { attivi = JSON.parse(localStorage.getItem('artecna:sopralluoghi:in-lavorazione') || '[]') } catch { /* No active selection when preferences are unavailable. */ }
+   const diretto = sopralluogoDiretto(collegati, attivi)
+   setContestoQuadernoCantiere({ id: cantiere.id, nome: cantiere.nome })
+   setSopralluogoModificaId(null)
+   setSopralluogoAperto(diretto)
+   setMostraElencoSopralluoghi(true)
+   if (diretto) {
+     setUltimoSopralluogo(diretto)
+     setFirmaCliente(diretto.firma_cliente || '')
+     setMostraGestioneFotoSopralluogo(false)
+     setMostraFotoPreventivoSopralluogo(false)
+     void caricaFotoSopralluoghi(diretto.id)
+   }
+   setSezioneAttiva('sopralluoghi')
+   setMenuAperto(null)
+ }
+ const tornaAlCantiereDaQuaderno = () => {
+   if (!contestoQuadernoCantiere) return
+   const cantiere = cantieri.find(c => c.id === contestoQuadernoCantiere.id)
+   setSopralluogoAperto(null)
+   setContestoQuadernoCantiere(null)
+   setCantiereIdScheda(cantiere?.id || '')
+   setCantiereScheda(cantiere?.nome || '')
+   setSottoSezioneCantieri(cantiere ? 'scheda' : 'elenco')
+   setSezioneAttiva('cantieri')
+ }
  return (
 
 
@@ -11585,6 +11618,8 @@ textarea:not(.impostazioni-input) {
 
 <button
   onClick={() => {
+    setContestoQuadernoCantiere(null)
+    setSopralluogoAperto(null)
     setSezioneAttiva('sopralluoghi')
     setMenuAperto(null)
   }}
@@ -12595,6 +12630,7 @@ strutturaPreventivoEsistente,
   setMostraAttrezziCantiere={setMostraAttrezziCantiere}
   modificaNomeCantiereScheda={modificaNomeCantiereScheda}
   cantiereSelezionatoDaId={cantiereSelezionatoDaId}
+  apriQuadernoCantiere={apriQuadernoCantiere}
   cantiereNomeVisualizzato={cantiereSchedaDerivato}
   materialiCantiere={materialiCantiere}
   mostraDettaglioMateriali={mostraDettaglioMateriali}
@@ -13093,6 +13129,9 @@ onDocumentAction={gestisciAzioneDocumento}
 {/* ================= SOPRALLUOGHI ================= */}
 {sezioneAttiva === 'sopralluoghi' && (
   <SopralluoghiContainer
+    key={contestoQuadernoCantiere?.id || 'generale'}
+    contestoCantiere={contestoQuadernoCantiere}
+    tornaAlCantiere={tornaAlCantiereDaQuaderno}
     cardStyle={cardStyle}
     clienteSopralluogo={clienteSopralluogo}
     setClienteSopralluogo={setClienteSopralluogo}
@@ -13117,7 +13156,9 @@ onDocumentAction={gestisciAzioneDocumento}
     inputStyle={inputStyle}
     buttonPrimary={buttonPrimary}
     buttonSecondary={buttonSecondary}
-    sopralluoghi={sopralluoghi}
+    sopralluoghi={contestoQuadernoCantiere
+      ? sopralluoghiDelCantiere(cantieri.find(c => c.id === contestoQuadernoCantiere.id) || { id: contestoQuadernoCantiere.id }, sopralluoghi, preventivi)
+      : sopralluoghi}
     mostraElencoSopralluoghi={mostraElencoSopralluoghi}
     setMostraElencoSopralluoghi={setMostraElencoSopralluoghi}
     setUltimoSopralluogo={setUltimoSopralluogo}
