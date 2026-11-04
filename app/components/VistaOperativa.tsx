@@ -5,10 +5,11 @@ import { createPortal } from 'react-dom'
 
 // Reuse the existing main workspace and portal pattern. The originating tree
 // stays mounted, so its selected site, tab and local work survive the return.
-export default function VistaOperativa({ titolo, contesto, attiva = true, etichettaRitorno = '← Torna al cantiere', onChiudi, occupata, ritornoFocusRef, children }: {
+export default function VistaOperativa({ titolo, contesto, attiva = true, visibile = true, etichettaRitorno = '← Torna al cantiere', onChiudi, occupata, ritornoFocusRef, children }: {
   titolo: string
   contesto?: string
   attiva?: boolean
+  visibile?: boolean
   etichettaRitorno?: string
   onChiudi: () => void
   occupata?: boolean
@@ -22,7 +23,7 @@ export default function VistaOperativa({ titolo, contesto, attiva = true, etiche
     ritornoFocusRef?.current?.focus({ preventScroll: true })
   }, [ritornoFocusRef])
   useEffect(() => {
-    if (!attiva || !area) return
+    if (!attiva || !visibile || !area) return
     const scroll = scrollOrigine.current
     intestazione.current?.focus({ preventScroll: true })
     area.scrollTo({ top: 0 })
@@ -30,11 +31,11 @@ export default function VistaOperativa({ titolo, contesto, attiva = true, etiche
       area.scrollTo({ top: scroll })
       ripristinaFocus()
     }
-  }, [area, attiva, ripristinaFocus])
+  }, [area, attiva, visibile, ripristinaFocus])
 
   if (!attiva) return children
 
-  const contenuto = <section data-attivita-operativa aria-label={titolo}
+  const contenuto = <section hidden={!visibile} data-attivita-operativa={visibile ? true : undefined} aria-label={titolo}
     style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', overflowWrap: 'anywhere' }}>
     <header style={{ marginBottom: 20 }}>
       <button type="button" disabled={occupata} onClick={onChiudi} style={{ minHeight: 44, padding: '10px 16px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#334155', font: 'inherit', cursor: occupata ? 'wait' : 'pointer' }}>{etichettaRitorno}</button>

@@ -8,6 +8,7 @@ import SopralluogoAppunti from './SopralluogoAppunti'
 import SopralluogoFotoGallery from './SopralluogoFotoGallery'
 import SopralluogoAzioniPreventivo from './SopralluogoAzioniPreventivo'
 import DocumentIntelligencePanel from './DocumentIntelligencePanel'
+import AnalisiDocumentoFocus from './AnalisiDocumentoFocus'
 import ProgressoOperazione, { progressoPrezziDocumento, type StatoProgressoOperazione, type ProgressoGenerazioneDocumento } from './ProgressoOperazione'
 
 
@@ -34,6 +35,8 @@ const sezioni: Array<{ id: SezioneFascicolo; etichetta: string }> = [
 export default function SopralluogoDettaglio(props: Props) {
   const { sopralluogoAperto, buttonPrimary, buttonSecondary, supabase } = props
   const [sezioneAttiva, setSezioneAttiva] = useState<SezioneFascicolo>('informazioni')
+  const [analisiDocumentoAperta, setAnalisiDocumentoAperta] = useState(false)
+  const aperturaAnalisiRef = useRef<HTMLButtonElement | null>(null)
   const generazioneDocumentoRef = useRef(false)
   const [generazioneDocumento, setGenerazioneDocumento] = useState(false)
   const [progressoGenerazioneDocumento, setProgressoGenerazioneDocumento] = useState<StatoProgressoOperazione | null>(null)
@@ -115,7 +118,7 @@ useEffect(() => {
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        display: 'flex',
+        display: analisiDocumentoAperta ? 'none' : 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
@@ -206,7 +209,7 @@ useEffect(() => {
               </button>
             ))}
           </nav>
-          {progressoGenerazioneDocumento && (
+          {progressoGenerazioneDocumento && !analisiDocumentoAperta && (
             <div aria-label="Avanzamento preventivo da documento" style={{ padding: '0 20px 8px' }}>
               <ProgressoOperazione progresso={progressoGenerazioneDocumento} />
             </div>
@@ -280,6 +283,11 @@ onChiudiFascicolo={() =>
 >
   {props.documentIntelligence ? (
     <>
+      <button type="button" ref={aperturaAnalisiRef} onClick={() => setAnalisiDocumentoAperta(true)} style={buttonPrimary}>Analizza documento</button>
+      <AnalisiDocumentoFocus aperta={analisiDocumentoAperta} onChiudi={() => setAnalisiDocumentoAperta(false)}
+        occupata={generazioneDocumento || props.documentIntelligence?.progressoAnalisiDocumento?.stato === 'in_corso'}
+        contesto={sopralluogoAperto.cliente || 'Sopralluogo'} ritornoFocusRef={aperturaAnalisiRef}
+        progresso={progressoGenerazioneDocumento && <ProgressoOperazione progresso={progressoGenerazioneDocumento} />}>
       <DocumentIntelligencePanel
         titolo="Documenti del sopralluogo"
         {...props.documentIntelligence}
@@ -314,6 +322,7 @@ onChiudiFascicolo={() =>
           </button>
         </div>
       )}
+      </AnalisiDocumentoFocus>
     </>
   ) : (
     <div style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 12 }}>

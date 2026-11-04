@@ -3,6 +3,8 @@
 import { useId, useRef, useState, type ComponentProps } from 'react'
 import PreventiviEconomiaPanel from './PreventiviEconomiaPanel'
 import DocumentIntelligencePanel from './DocumentIntelligencePanel'
+import AnalisiDocumentoFocus from './AnalisiDocumentoFocus'
+import ProgressoOperazione from './ProgressoOperazione'
 
 export type EsitoArchiviazionePreventivo = {
   id: string
@@ -36,6 +38,8 @@ type Props = {
 
 export default function DocumentiCantierePanel({ cantiere, panelProps: p }: Props) {
   const [dragAttivo, setDragAttivo] = useState(false)
+  const [analisiAperta, setAnalisiAperta] = useState(false)
+  const aperturaAnalisiRef = useRef<HTMLButtonElement | null>(null)
   const [fileSelezionato, setFileSelezionato] = useState<File | null>(null)
   const [azioneInCorso, setAzioneInCorso] =
   useState<'preventivo' | 'analisi' | 'struttura' | null>(null)
@@ -135,7 +139,13 @@ else
   return (
     <section aria-label="Documenti del cantiere" style={{ padding: 20, border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', minWidth: 0 }}>
       <h3 style={{ margin: '0 0 16px', fontSize: 22 }}>Documenti del cantiere</h3>
+      {!analisiAperta && <button type="button" ref={aperturaAnalisiRef} onClick={() => setAnalisiAperta(true)} style={{ minHeight: 44, marginBottom: 12 }}>Analizza documento</button>}
       <div style={{ display: 'grid', gap: 20, minWidth: 0 }}>
+        <AnalisiDocumentoFocus inlineChiusa aperta={analisiAperta} onChiudi={() => setAnalisiAperta(false)}
+          occupata={azioneInCorso !== null || p.analisi.progressoAnalisiDocumento?.stato === 'in_corso'}
+          contesto={cantiere.nome} ritornoFocusRef={aperturaAnalisiRef}
+          progresso={p.analisi.progressoAnalisiDocumento && <ProgressoOperazione progresso={p.analisi.progressoAnalisiDocumento} />}>
+        {analisiAvviata && !analisiAperta && <button type="button" onClick={() => setAnalisiAperta(true)}>Apri analisi documento</button>}
         <div onDragOver={(e) => { e.preventDefault(); if (!occupato.current) setDragAttivo(true) }}
           onDragLeave={() => setDragAttivo(false)}
           onDrop={(e) => {
@@ -160,11 +170,11 @@ else
                   style={{ minHeight: 44, padding: '10px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Archivia come preventivo</button>
                 <p style={{ color: '#475569', fontSize: 14 }}>Registra il documento tra i preventivi del cantiere e lo rende disponibile al flusso economico/SAL.</p>
               </div>}
-              <div>
+              {analisiAperta && <div>
                 <button type="button" disabled={azioneInCorso !== null || analisiAvviata} onClick={() => esegui('analisi')}
                   style={{ minHeight: 44, padding: '10px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Analizza documento</button>
                 <p style={{ color: '#475569', fontSize: 14 }}>Legge il documento ed estrae testo, importi e voci senza registrarlo automaticamente come preventivo.</p>
-              </div>
+              </div>}
             </div>
           </>}
          {azioneInCorso && (
@@ -177,14 +187,7 @@ else
   </p>
 )}
         </div>
-        <section aria-label="Preventivi del cantiere" style={{ minWidth: 0, overflowX: 'auto' }}>
-          <h4 style={{ margin: '0 0 12px', fontSize: 18 }}>Documenti / Preventivi del cantiere</h4>
-          <PreventiviEconomiaPanel {...p.preventivi} cantiereScheda={cantiere.nome}
-            contratto={{ cantiereId: cantiere.id, preventivoId: cantiere.preventivo_contrattuale_id,
-              seleziona: p.selezionaPreventivoContrattuale }}
-            preventivi={p.preventivi.preventivi.filter((preventivo) => preventivo.cantiere_id === cantiere.id || (!preventivo.cantiere_id && preventivo.cantiere === cantiere.nome))} />
-        </section>
-        <section aria-label="Analisi documento" style={{ minWidth: 0, overflowX: 'auto' }}>
+        <section aria-label="Risultato analisi documento" style={{ display: analisiAperta ? undefined : 'none', minWidth: 0, overflowX: 'auto' }}>
           <h4 style={{ margin: '0 0 12px', fontSize: 18 }}>Analisi documento</h4>
           {analisiAvviata ? <>
             <p style={{ overflowWrap: 'anywhere' }}><strong>File analizzato:</strong> {p.analisi.nomeFileAnalisiDocumento}</p>
@@ -266,6 +269,14 @@ else
   )}
 </div>}
           </> : <p style={{ color: '#64748b' }}>Seleziona un file e scegli Analizza documento per visualizzare il risultato.</p>}
+        </section>
+        </AnalisiDocumentoFocus>
+        <section aria-label="Preventivi del cantiere" style={{ minWidth: 0, overflowX: 'auto' }}>
+          <h4 style={{ margin: '0 0 12px', fontSize: 18 }}>Documenti / Preventivi del cantiere</h4>
+          <PreventiviEconomiaPanel {...p.preventivi} cantiereScheda={cantiere.nome}
+            contratto={{ cantiereId: cantiere.id, preventivoId: cantiere.preventivo_contrattuale_id,
+              seleziona: p.selezionaPreventivoContrattuale }}
+            preventivi={p.preventivi.preventivi.filter((preventivo) => preventivo.cantiere_id === cantiere.id || (!preventivo.cantiere_id && preventivo.cantiere === cantiere.nome))} />
         </section>
       </div>
     </section>

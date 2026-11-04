@@ -12382,6 +12382,7 @@ WebkitOverflowScrolling: 'touch',
 ) && (
 <>
 <CantieriContainer
+  progressoAnalisiDocumento={progressoAnalisiDocumento}
   timelinePanelProps={{ foto: fotoCantiere, rapportini, preventivi, acconti: accontiCantiere,
     presenze: timbrature, materiali: materialiCantiere, attrezzature: attrezziCantiere, formatMoney }}
   fascicoloPanelProps={{ foto: fotoCantiere, rapportini, preventivi, sal: salLavorazioni }}
@@ -12556,6 +12557,7 @@ strutturaPreventivoEsistente,
     },
     analisi: {
       titolo: 'Carica / Analizza documento',
+      progressoAnalisiDocumento,
       warningsAnalisiDocumento: warningsAnalisiExcel,
       fileAnalisiDocumento, nomeFileAnalisiDocumento, testoEstrattoDocumento,
       importoRilevatoDocumento, vociAnalizzate, caricaFileAnalisiDocumento, inputStyle,
@@ -12772,6 +12774,7 @@ strutturaPreventivoEsistente,
   inputStyle={inputStyle}
   buttonSecondary={buttonSecondary}
   buttonPrimary={buttonPrimary}
+  progressoAnalisiDocumento={progressoAnalisiDocumento}
   caricaFileAnalisiDocumento={caricaFileAnalisiDocumento}
   fileAnalisiDocumento={fileAnalisiDocumento}
   nomeFileAnalisiDocumento={nomeFileAnalisiDocumento}
@@ -12790,6 +12793,7 @@ onDocumentAction={gestisciAzioneDocumento}
     sottoSezioneCantieri === 'economia')
 ) && (
 <CantieriEconomiaPanel
+  progressoAnalisiDocumento={progressoAnalisiDocumento}
   cantiereNomeVisualizzato={cantiereSchedaDerivato}
   setCantiereIdScheda={setCantiereIdScheda}
   cantiereSelezionatoUnico={cantiereSelezionatoUnico}

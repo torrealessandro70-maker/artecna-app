@@ -39,6 +39,7 @@ const schede: Array<{ id: SchedaFascicolo; etichetta: string }> = [
 
 export default function CantieriEconomiaPanel(props: Props) {
   const p = props
+  const [analisiAperta, setAnalisiAperta] = useState(false)
   const [schedaAttiva, setSchedaAttiva] =
     useState<FascicoloCantiereTab>('panoramica')
   const margine = Number(p.margineCantiere || 0)
@@ -110,7 +111,7 @@ export default function CantieriEconomiaPanel(props: Props) {
   )
 
   return (
-    <div style={{ ...p.cardStyle, padding: 0, overflow: 'hidden' }}>
+    <div style={{ ...p.cardStyle, padding: 0, overflow: 'hidden', display: analisiAperta ? 'none' : undefined }}>
       <header
         style={{
           position: 'sticky',
@@ -304,6 +305,7 @@ export default function CantieriEconomiaPanel(props: Props) {
                   <CantieriAnalisiDocumentoPanel
                     {...p}
                     integrato
+                    analisiAperta={analisiAperta} setAnalisiAperta={setAnalisiAperta}
                     cantiereAnalisiDocumento={p.cantiereScheda}
                     setCantiereAnalisiDocumento={p.setCantiereScheda}
                   />
@@ -332,7 +334,7 @@ export default function CantieriEconomiaPanel(props: Props) {
                     <p style={{ color: '#475569' }}>
                       Estrai testo, importi e voci dai documenti del cantiere.
                     </p>
-                    <button type="button" onClick={() => setSchedaAttiva('documenti')} style={p.buttonPrimary}>
+                    <button type="button" onClick={() => { setSchedaAttiva('documenti'); setAnalisiAperta(true) }} style={p.buttonPrimary}>
                       Apri analisi documento
                     </button>
                   </article>

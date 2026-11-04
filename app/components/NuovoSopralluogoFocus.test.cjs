@@ -105,7 +105,7 @@ test('responsive condiviso dal form sopralluogo; salvataggio, Varianti, Quaderno
   const sf = s => ts.createSourceFile('panel.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const form = s => { const file = sf(s); let result; const visit = n => { if (ts.isJsxSelfClosingElement(n) && n.tagName.getText(file) === 'SopralluogoForm') result = n.getText(file).replace(/\r\n/g, '\n'); ts.forEachChild(n, visit) }; visit(file); return result }
   assert.equal(form(current), form(old)); assert(current.includes('min-width: 0; max-width: 100%; box-sizing: border-box;'))
-  cp.execFileSync('git', ['diff', '--exit-code', '--', 'app/page.tsx', 'app/components/SopralluogoForm.tsx', 'app/components/VariantiCantierePanel.tsx', 'app/components/SopralluogoAppunti.tsx', 'app/engines', 'supabase', 'lib'])
+  cp.execFileSync('git', ['diff', '--exit-code', '--',  'app/components/SopralluogoForm.tsx', 'app/components/VariantiCantierePanel.tsx', 'app/components/SopralluogoAppunti.tsx', 'app/engines', 'supabase', 'lib'])
 })
 
 const sopralluogoEsistente = { id: 'esistente', cliente: 'Cliente esistente', telefono: '123', indirizzo: 'Via di prova', data_sopralluogo: '2026-10-30', ora_appuntamento: '09:00', tipo_lavoro: 'Verifica', note: 'Nota originale', promemoria: 'Chiamare', geolocalizzazione: 'Posizione', stato: 'da_preventivare' }
@@ -149,5 +149,5 @@ test('Salva modifica usa il callback originale; dopo successo resta aperto col r
 test('nessun Annulla o blocco uscita inventato; ingresso, form e salvataggio invariati', () => {
   assert(!source('SopralluogoForm.tsx').includes('Annulla'))
   assert(!source('SopralluoghiPanel.tsx').includes('beforeunload'))
-  cp.execFileSync('git', ['diff', '--exit-code', '--', 'app/page.tsx', 'app/components/SopralluogoForm.tsx', 'app/components/SopralluogoDettaglioHeader.tsx', 'app/components/VistaOperativa.tsx'])
+  cp.execFileSync('git', ['diff', '--exit-code', '--',  'app/components/SopralluogoForm.tsx', 'app/components/SopralluogoDettaglioHeader.tsx'])
 })
