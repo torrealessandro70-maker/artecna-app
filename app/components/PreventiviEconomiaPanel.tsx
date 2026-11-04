@@ -61,17 +61,22 @@ export default function PreventiviEconomiaPanel({
         ? preventivo.importo_corretto
         : preventivo.importo_totale
     )
-  const totalePreventivi = preventiviCantiere.reduce(
-    (totale, preventivo) => totale + importoUsato(preventivo),
-    0
-  )
+  const preventivoContrattuale = contratto?.preventivoId
+    ? preventiviCantiere.find(p => p.id === contratto.preventivoId)
+    : undefined
 
   return (
     <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
       <strong>
-        Preventivi caricati: {preventiviCantiere.length} — Totale:{' '}
-        {formatMoney(totalePreventivi)}
+        Documenti caricati: {preventiviCantiere.length}
       </strong>
+      {preventivoContrattuale && <div style={{ marginTop: 6 }}>
+        <strong>Preventivo contrattuale:</strong>{' '}
+        {formatMoney(importoUsato(preventivoContrattuale))}
+      </div>}
+      {contratto && !preventivoContrattuale && <p style={{ margin: '6px 0', color: '#475569' }}>
+        {contratto.preventivoId ? 'Preventivo contrattuale non disponibile.' : 'Nessun preventivo contrattuale impostato.'}
+      </p>}
 
       <button
         onClick={() => setMostraPreventiviCantiere(!mostraPreventiviCantiere)}
@@ -119,7 +124,7 @@ export default function PreventiviEconomiaPanel({
                   <br />
 
                   <div style={{ marginTop: 8 }}>
-                    <strong>Importo usato nel totale:</strong>{' '}
+                    <strong>Importo documento:</strong>{' '}
                     {formatMoney(importoEffettivo)}
                   </div>
 
