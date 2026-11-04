@@ -24,6 +24,8 @@ export default function RegistroPanel(props: any) {
     p.registroTab === 'preventivi' &&
     p.mostraRevisionePreventivoAi
 
+  const preventivoRevisione = (p.preventivi || []).find((documento: { id: string }) => String(documento.id) === String(p.preventivoAiGenerato?.id))
+
   if (p.sezioneAttiva !== 'registro') return null
 
  return (
@@ -118,6 +120,8 @@ export default function RegistroPanel(props: any) {
     mostraRevisionePreventivoAi={revisioneVisibile}
     preventivoAiGenerato={p.preventivoAiGenerato}
     pannelloRevisione={revisioneVisibile ? (
+      <PreventivoManualeFocus titolo="Revisione AI" contesto={preventivoRevisione?.nome_file || 'Registro · Preventivi'} etichettaRitorno="← Torna al Registro" onChiudi={() => p.setMostraRevisionePreventivoAi(false)}>
+      {preventivoRevisione?.natura !== 'integrativo' && preventivoRevisione?.origine_ai && !preventivoRevisione.approvato && p.preventivoRegistroEdit === String(preventivoRevisione.id) && <button type="button" onClick={() => p.approvaPreventivoAiECreaCantiere(preventivoRevisione)} style={{ ...p.buttonPrimary, backgroundColor: '#16a34a', marginBottom: 16 }}>✅ Approva e crea cantiere</button>}
       <RevisionePreventivoAiPanel
     prezziRiferimento={p.prezziRiferimento}
     memoriaRiferimento={p.memoriaRiferimento}
@@ -142,6 +146,7 @@ salvaRevisionePreventivoAi={p.salvaRevisionePreventivoAi}
         buttonPrimary={p.buttonPrimary}
         buttonSecondary={p.buttonSecondary}
       />
+      </PreventivoManualeFocus>
     ) : null}
     excelBox={p.excelBox}
     excelToolbar={p.excelToolbar}
