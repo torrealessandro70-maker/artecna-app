@@ -3,17 +3,19 @@
 import type { ReactNode } from 'react'
 import VistaOperativa from './VistaOperativa'
 
-export default function PreventivoManualeFocus({ titolo = 'Preventivo manuale', contesto, etichettaRitorno, onChiudi, children }: {
+export default function PreventivoManualeFocus({ titolo = 'Preventivo manuale', contesto, etichettaRitorno, occupata, onChiudi, children }: {
   titolo?: string
   contesto: string
   etichettaRitorno?: string
+  occupata?: boolean
   onChiudi: () => void
   children: ReactNode
 }) {
-  return <VistaOperativa titolo={titolo} contesto={contesto} etichettaRitorno={etichettaRitorno} onChiudi={onChiudi}>
+  return <VistaOperativa titolo={titolo} contesto={contesto} etichettaRitorno={etichettaRitorno} occupata={occupata} onChiudi={onChiudi}>
     <div className="preventivo-manuale-focus" style={{ width: '100%', minWidth: 0, containerType: 'inline-size', containerName: 'preventivo-manuale' }}>
       {children}
       <style>{`
+        #area-lavoro-principale > [data-attivita-operativa]:has(~ [data-attivita-operativa]) { display: none !important; }
         .preventivo-manuale-focus fieldset { min-width: 0; max-width: 100%; box-sizing: border-box; }
         .preventivo-manuale-focus input, .preventivo-manuale-focus select, .preventivo-manuale-focus textarea { box-sizing: border-box; min-width: 0; max-width: 100%; }
         .preventivo-manuale-focus > section > fieldset > label { display: grid; gap: 4px; margin-bottom: 10px; }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import PreventivoManualeFocus from './PreventivoManualeFocus'
 import RevisionePreventivoAiPanel from './RevisionePreventivoAiPanel'
 import { leggiSnapshotIntegrativo } from '../engines/preventivo-generation/lettura'
 import { contestoVariante, leggiRispostaIntegrativa, validaRevisione, type SnapshotIntegrativo, type VoceIntegrativa } from '../engines/preventivo-generation/contesto'
@@ -110,6 +111,7 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
     if (r.ok && typeof data.descrizione === 'string' && preservaPerimetroMiglioraTesto(voce.descrizione, data.descrizione))
       setVoci(correnti => correnti.map(v => v === voce ? { ...v, descrizione: data.descrizione, revisione_confermata: false, da_verificare: true } : v))
   }
+  const chiudiRevisione = (v: boolean) => { if (!v && !busy && window.confirm('Chiudere e scartare la revisione non salvata?')) setRevisione(false) }
   let stato = ''
   let numeroNarrative = snapshot ? snapshot.lettura.fonti.quaderni.length + 1 : 0
   if (snapshot) { try { numeroNarrative = contestoVariante(snapshot).narrativa.fonti.length } catch (e) { stato = e instanceof Error ? e.message : 'Fonti non valide' } }
@@ -128,7 +130,8 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
       <button type="button" disabled={busy} onClick={() => void anteprima()}>Aggiorna anteprima</button>
       <button type="button" onClick={() => setPreview(false)}>Annulla</button>
     </div>}
-    {revisione && snapshot && <fieldset disabled={busy || arrestoVisibile} style={{ border: 0, margin: 0, padding: 0 }} aria-label="Revisione Integrativo">
+    {revisione && snapshot && <PreventivoManualeFocus titolo="Revisione preventivo integrativo" contesto={`Variante: ${varianteId}`} etichettaRitorno={soloManuale ? '← Torna al preventivo manuale' : '← Torna alla variante'} occupata={busy || arrestoVisibile} onChiudi={() => chiudiRevisione(false)}><fieldset disabled={busy || arrestoVisibile} style={{ border: 0, margin: 0, padding: 0 }} aria-label="Revisione Integrativo">
+      {manuale && memoriaRiservata && <p role="status">Memoria prezzi riservata al titolare autorizzato. Restano disponibili prezzario e voci libere.</p>}
       {manuale && <div><p>Cantiere: {snapshot.genealogia.cantiere_id} · Variante: {varianteId} · Contratto: {snapshot.contratto.id}</p>
         <label>Cliente <input value={clienteManuale} onChange={e => setClienteManuale(e.target.value)} /></label>
         <label>Titolo <input value={titoloManuale} onChange={e => setTitoloManuale(e.target.value)} /></label>
@@ -140,9 +143,9 @@ export default function VariantePreventivoIntegrativoPanel({ supabase, varianteI
       prezziRiferimento={prezzi} memoriaRiferimento={memoria} calcolaMediaPrezziSimili={() => null} verificaPrezzoAnomalo={() => ''}
       formatMoney={v => Number(v).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })} miglioraVocePreventivoAi={migliora}
       salvaInMemoriaPrezzi={() => {}} generaExcelDefinitivoPreventivoAi={() => {}} salvaRevisionePreventivoAi={conferma}
-      preventivoRegistroCantiere="Preventivo Integrativo" setMostraRevisionePreventivoAi={v => { if (!v && !busy && window.confirm('Chiudere e scartare la revisione non salvata?')) setRevisione(false) }}
+      preventivoRegistroCantiere="Preventivo Integrativo" setMostraRevisionePreventivoAi={chiudiRevisione}
       excelTable={{ borderCollapse: 'collapse' }} excelTh={{ padding: 8, border: '1px solid #ccc' }} excelTd={{ padding: 8, border: '1px solid #ccc' }} buttonPrimary={{ padding: 8 }} buttonSecondary={{ padding: 8 }} />
-    </fieldset>}
+    </fieldset></PreventivoManualeFocus>}
     {salvato && <p role="status">Preventivo Integrativo {salvato} salvato nel Registro. Lavorazioni inserite nella bozza Variante; nessuna approvazione automatica. Excel disponibile dal Registro esistente.</p>}
   </section>
 }
