@@ -1214,6 +1214,25 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   const [warningsFileLettura, setWarningsFile] = useState<string[]>([])
   const [propostaFileCaricata, setPropostaFile] = useState<PropostaVarianteDaFile | null>(null)
   const [preventivi, setPreventivi] = useState<PreventivoSorgenteCandidato[]>([])
+  const [contrattoSorgenti, setContrattoSorgenti] = useState<{ cantiereId: string; id: string | null } | null>(null)
+  const [erroreContrattoSorgenti, setErroreContrattoSorgenti] = useState('')
+  const contrattoPronto = contrattoSorgenti?.cantiereId === cantiereId
+  const preventivoContrattualeId = contrattoPronto ? contrattoSorgenti.id : null
+  const avvisoContrattuale = 'Preventivo contrattuale — consultabile, non utilizzabile come nuove lavorazioni'
+  useEffect(() => {
+    let attivo = true
+    void Promise.resolve(supabase.from('cantieri').select('id, preventivo_contrattuale_id').eq('id', cantiereId).maybeSingle())
+      .then(({ data, error }) => {
+        if (!attivo) return
+        if (error || !data || data.id !== cantiereId ||
+            (data.preventivo_contrattuale_id !== null && !idSorgenteValido(data.preventivo_contrattuale_id))) {
+          setErroreContrattoSorgenti('Impossibile verificare il preventivo contrattuale. Riapri il pannello.')
+          return
+        }
+        setContrattoSorgenti({ cantiereId, id: data.preventivo_contrattuale_id })
+      }).catch(() => { if (attivo) setErroreContrattoSorgenti('Impossibile verificare il preventivo contrattuale. Riapri il pannello.') })
+    return () => { attivo = false }
+  }, [cantiereId])
   const [preventivoId, setPreventivoId] = useState('')
   const [caricamentoElenco, setCaricamentoElenco] = useState(false)
   const [elencoPreventiviCaricato, setElencoPreventiviCaricato] = useState(false)
@@ -1389,7 +1408,13 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     setErroreCumulativa('')
   }
 
+  const sorgenteAcquisibile = contrattoPronto && !(sorgenteCorrente?.tipo === 'preventivo_artecna' &&
+    sorgenteCorrente.preventivoId === preventivoContrattualeId)
+  const sorgentiAcquisibili = contrattoPronto && !sorgenti.some(s =>
+    s.tipo === 'preventivo_artecna' && s.preventivoId === preventivoContrattualeId)
+
   async function confermaLavorazioni() {
+    if (!sorgentiAcquisibili) { setErroreConferma(avvisoContrattuale); return }
     if (!verificaModifica()) return
     if (invioConferma.current || operazioneSorgenti || esitoConferma ||
         !bozzaSorgentiVarianteId || !revisioneCumulativa) return
@@ -1456,6 +1481,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   }
 
   async function revisionaTutteLeSorgenti() {
+    if (!sorgentiAcquisibili) { setErroreCumulativa(avvisoContrattuale); return }
     if (!verificaModifica()) return
     if (invioCumulativa.current || invioSorgente.current || caricamentoSorgenti ||
         !sorgentiPronte || !bozzaSorgentiVarianteId || sorgenti.length === 0) return
@@ -1569,9 +1595,11 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     return () => { attivo = false; richiesta.current += 1 }
   }, [aperto, cantiereId, natura, acquisizione, percorsoPreventivo, acquisizioneConsentita])
 
-  async function caricaAnteprima() {
-    if (!verificaModifica(true)) return
-    if (!aperto || !percorsoPreventivo || !preventivi.some(p => p.id === preventivoId)) return
+  async function caricaAnteprima(consultaContrattuale = false) {
+    if (!contrattoPronto) return
+    const id = consultaContrattuale ? preventivoContrattualeId : preventivoId
+    if (!consultaContrattuale && (!verificaModifica(true) || id === preventivoContrattualeId)) return
+    if (!id || !aperto || !percorsoPreventivo || !preventivi.some(p => p.id === id)) return
     const corrente = ++richiesta.current
     setChiaveSorgenteAperta(null)
     setMessaggioSorgenti('')
@@ -1580,21 +1608,21 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
     setMessaggio('')
     setCaricamentoAnteprima(true)
     try {
-      const esito = await caricaLavorazioniPreventivoSorgente(supabase, cantiereId, preventivoId)
-      if (corrente !== richiesta.current || !contestoScrittura.current.consentita) return
+      const esito = await caricaLavorazioniPreventivoSorgente(supabase, cantiereId, id)
+      if (corrente !== richiesta.current || (!consultaContrattuale && !contestoScrittura.current.consentita)) return
       if (esito.stato === 'errore') { setMessaggio(esito.messaggio); return }
       if (esito.stato === 'nessuna_lavorazione') {
         setMessaggio('Il preventivo selezionato non contiene lavorazioni disponibili.')
         return
       }
       setAnteprima({
-        proposta: adattaPreventivoAVariante(cantiereId, preventivoId, esito.voci),
+        proposta: adattaPreventivoAVariante(cantiereId, id, esito.voci),
         anomalieMapper: esito.anomalie,
       })
     } catch {
-      if (corrente === richiesta.current && contestoScrittura.current.consentita) setMessaggio('Impossibile caricare l’anteprima.')
+      if (corrente === richiesta.current && (consultaContrattuale || contestoScrittura.current.consentita)) setMessaggio('Impossibile caricare l’anteprima.')
     } finally {
-      if (corrente === richiesta.current && contestoScrittura.current.consentita) setCaricamentoAnteprima(false)
+      if (corrente === richiesta.current && (consultaContrattuale || contestoScrittura.current.consentita)) setCaricamentoAnteprima(false)
     }
   }
 
@@ -1631,6 +1659,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   }
 
   async function aggiungiSorgente() {
+    if (!sorgenteAcquisibile) { setMessaggioSorgenti(avvisoContrattuale); return }
     if (!verificaModifica(true)) return
     if (invioSorgente.current || invioCumulativa.current || caricamentoSorgenti || !elencoPronto || !sorgentiPronte ||
         (!bozzaIdRef.current && variantiStoriche.length > 0 && !nuovaRaccolta) ||
@@ -1763,6 +1792,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
   }
 
   function revisionaSorgente() {
+    if (!sorgenteAcquisibile) { setMessaggioSorgenti(avvisoContrattuale); return }
     if (!verificaModifica()) return
     if (anteprima && anteprima.proposta.lavorazioni.length > 0) {
       setRevisione(creaRevisioneVariante(anteprima.proposta, anteprima.anomalieMapper))
@@ -1847,7 +1877,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
       {caricamentoSorgenti && <p role="status">Caricamento sorgenti...</p>}
       {sorgenti.length > 0 && <section aria-label="Sorgenti della variante" style={{ marginTop: 16 }}>
         <h4>Sorgenti della variante</h4>
-        <button type="button" disabled={operazioneSorgenti || !sorgentiPronte || !varianteSorgentiModificabile}
+        <button type="button" disabled={operazioneSorgenti || !sorgentiPronte || !varianteSorgentiModificabile || !sorgentiAcquisibili}
           onClick={() => void revisionaTutteLeSorgenti()}>Revisiona tutte le sorgenti</button>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 650, fontSize: 14 }}>
@@ -1880,7 +1910,7 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
         pronta={verificaConferma?.stato === 'ok'}
         indiciNonValidi={verificaConferma?.stato === 'errore'
           ? verificaConferma.anomalie.flatMap(a => a.indiceRigaInput === undefined ? [] : [a.indiceRigaInput]) : []}
-        bloccata={operazioneSorgenti || !varianteSorgentiModificabile}
+        bloccata={operazioneSorgenti || !varianteSorgentiModificabile || !sorgentiAcquisibili}
         confermaInCorso={confermaInCorso} confermata={!!esitoConferma}
         onConferma={() => void confermaLavorazioni()} />}
       {erroreConferma && <p role="alert">{erroreConferma}</p>}
@@ -1936,10 +1966,10 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
         </>}
       {percorsoPreventivo && <>
       <p>L’anteprima non salva dati. Aggiungi alle sorgenti salva lo snapshot nella bozza senza correggere voci o importi.</p>
-      <label>Preventivo sorgente<select value={preventivoId} disabled={operazioneSorgenti || !acquisizioneConsentita || caricamentoElenco}
+      <label>Preventivo sorgente<select value={preventivoId} disabled={operazioneSorgenti || !acquisizioneConsentita || caricamentoElenco || !contrattoPronto}
         style={{ display: 'block', width: '100%', padding: 8, margin: '8px 0' }}
         onChange={e => {
-          if (!verificaModifica(true)) return
+          if (!verificaModifica(true) || !contrattoPronto || e.target.value === preventivoContrattualeId) return
           richiesta.current += 1
           resetFile()
           setPreventivoId(e.target.value)
@@ -1948,15 +1978,23 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
           setCaricamentoAnteprima(false)
         }}>
         <option value="">Seleziona un preventivo</option>
-        {preventivi.map(p => <option key={p.id} value={p.id}>
+        {preventivi.map(p => <option key={p.id} value={p.id} disabled={!contrattoPronto || p.id === preventivoContrattualeId}>
           {p.nomeFile || 'Preventivo'} — {p.dataPreventivo || p.createdAt || 'Data non disponibile'}
           {' — '}{p.importoTotale !== undefined ? `${p.importoTotale} €` : 'Importo non disponibile'}
-          {' — '}{p.numeroLavorazioni} voci
+          {' — '}{p.numeroLavorazioni} voci{p.id === preventivoContrattualeId ? ' — Preventivo contrattuale (solo consultazione)' : ''}
         </option>)}
       </select></label>
+      {!contrattoPronto && <p role="status">{erroreContrattoSorgenti || 'Verifica del preventivo contrattuale...'}</p>}
+      {contrattoPronto && preventivi.some(p => p.id === preventivoContrattualeId) && <div>
+        <p>{avvisoContrattuale}</p>
+        {elencoPreventiviCaricato && preventivi.every(p => p.id === preventivoContrattualeId) &&
+          <p>È disponibile il preventivo contrattuale, ma non può essere acquisito come nuove lavorazioni.</p>}
+        <button type="button" disabled={operazioneSorgenti || caricamentoAnteprima}
+          onClick={() => void caricaAnteprima(true)}>Consulta preventivo contrattuale</button>
+      </div>}
       {caricamentoElenco && <p role="status">Caricamento preventivi...</p>}
       {acquisizioneConsentita && elencoPreventiviCaricato && !caricamentoElenco && !messaggio && preventivi.length === 0 && <p>Nessun preventivo strutturato disponibile per questo cantiere.</p>}
-      <button type="button" disabled={operazioneSorgenti || !acquisizioneConsentita || !preventivoId || caricamentoElenco || caricamentoAnteprima}
+      <button type="button" disabled={operazioneSorgenti || !acquisizioneConsentita || !contrattoPronto || preventivoId === preventivoContrattualeId || !preventivoId || caricamentoElenco || caricamentoAnteprima}
         onClick={() => void caricaAnteprima()}>{caricamentoAnteprima ? 'Caricamento anteprima...' : 'Carica anteprima'}</button>
       {messaggio && <p role="status">{messaggio}</p>}
       </>}
@@ -1985,11 +2023,11 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
             })}</tbody>
           </table>
         </div>
-        {anteprima.proposta.lavorazioni.length > 0 && <button type="button" disabled={!varianteSorgentiModificabile} onClick={revisionaSorgente}>
+        {sorgenteAcquisibile && anteprima.proposta.lavorazioni.length > 0 && <button type="button" disabled={!varianteSorgentiModificabile} onClick={revisionaSorgente}>
           Revisiona variante
         </button>}
       </>}
-      {revisione === null && sorgenteCorrente && sorgenteCorrente.proposta.lavorazioni.length > 0 &&
+      {sorgenteAcquisibile && revisione === null && sorgenteCorrente && sorgenteCorrente.proposta.lavorazioni.length > 0 &&
         <button type="button" disabled={operazioneSorgenti || !acquisizioneConsentita || !elencoPronto || !sorgentiPronte || caricamentoAnteprima}
           onClick={() => void aggiungiSorgente()}>{salvataggioSorgente ? 'Salvataggio...' : 'Aggiungi alle sorgenti'}</button>}
       {messaggioSorgenti && <p role="status">{messaggioSorgenti}</p>}
