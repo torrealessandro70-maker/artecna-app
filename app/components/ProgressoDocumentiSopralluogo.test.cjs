@@ -11,7 +11,7 @@ function mount(name, props = {}) {
   const slots = []; let cursor = 0
   const react = { useState(init) { const i = cursor++; if (!(i in slots)) slots[i] = typeof init === 'function' ? init() : init; return [slots[i], v => { slots[i] = typeof v === 'function' ? v(slots[i]) : v }] }, useRef(init) { const i = cursor++; return slots[i] ?? (slots[i] = { current: init }) }, useEffect() { cursor++ }, useMemo(fn) { cursor++; return fn() } }
   const exports = {}, jsx = (type, props) => ({ type, props }), child = id => Object.assign(() => null, { displayName: id })
-  vm.runInNewContext(compile(source(name)), { exports, require(id) { if (id === 'react') return react; if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }; if (id === './ProgressoOperazione') return progress; return { default: child(id) } }, localStorage: { getItem() { return null }, setItem() {} } })
+  vm.runInNewContext(compile(source(name)), { exports, require(id) { if (id === 'react') return react; if (id === 'react-dom') return { flushSync: fn => fn() }; if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }; if (id === './ProgressoOperazione') return progress; return { default: child(id) } }, localStorage: { getItem() { return null }, setItem() {} } })
   return { props, render() { cursor = 0; return exports.default(props) } }
 }
 const progress = {}; vm.runInNewContext(compile(source('ProgressoOperazione.tsx')), { exports: progress, require: () => ({ jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) }) })
@@ -53,7 +53,7 @@ test('generazione: preparazione, callback chunk, completamento e niente doppia g
   const m = mount('SopralluogoDettaglio.tsx', { sopralluogoAperto: { id: 'smoke' }, fotoSopralluoghi: [], buttonPrimary: {}, buttonSecondary: {}, documentIntelligence: { vociAnalizzate: [{}] }, generaPreventivoDaDocumentoAnalizzato(_s, cb) { calls++; callback = cb; return d.promise } })
   let tree = m.render(); const click = find(tree, 'button', 'Genera preventivo da documento').props.onClick
   const pending = click(); await click(); tree = m.render(); assert.equal(calls, 1)
-  assert.equal(nodes(tree).find(n => n.type === progress.default).props.progresso.testo, 'Preparazione lavorazioni')
+  assert.equal(nodes(tree).find(n => n.type === progress.default).props.progresso.testo, 'Preparazione preventivo...')
   for (const completati of [0, 3, 6]) { callback({ fase: 'analisi', completati, totale: 6, in_corso: completati < 6 ? completati + 1 : null }); tree = m.render(); assert.equal(nodes(tree).find(n => n.type === progress.default).props.progresso.completati, completati) }
   callback({ fase: 'aggregazione', completati: 6, totale: 6, in_corso: null }); tree = m.render(); assert(nodes(tree).find(n => n.type === progress.default).props.progresso.testo.includes('Validazione tecnica'))
   d.resolve(true); await pending; tree = m.render(); assert.equal(nodes(tree).find(n => n.type === progress.default).props.progresso.testo, 'Preventivo pronto')
@@ -95,7 +95,7 @@ test('Nuovo sopralluogo affiancato ad Archivio, handler originali e flex wrap', 
 test('payload AI/modello e salvataggio immutati; solo il callback osservatore viene aggiunto', () => {
   const old = cp.execFileSync('git', ['show', '8b7d3b2932e830631d4f8d09d459cedeab1d4a72:app/page.tsx'], { encoding: 'utf8' }).replace(/\r\n/g, '\n'), cur = source('../page.tsx').replace(/\r\n/g, '\n')
   const body = s => s.slice(s.indexOf('const generaPreventivoDaDocumentoAnalizzato ='), s.indexOf('const miglioraVocePreventivoAi ='))
-  assert.equal(body(cur).replace(', onProgress?: (p: ProgressoGenerazioneDocumento) => void', '').replace('   onProgress,\n', '').replace(/ if \(vociBozzaDocumento\.some\(v => v\.erroreStimaDocumento\)\) onProgress\?\.\(\{\n   fase: 'errore', messaggio: 'Analisi prezzi non completata\. La bozza è disponibile per la revisione\.',\n \}\)\n/, ''), body(old))
+  assert.equal(body(cur).replace(" onProgress?.({ fase: 'prezzi' })\n", '').replace(', onProgress?: (p: ProgressoGenerazioneDocumento) => void', '').replace('   onProgress,\n', '').replace(/ if \(vociBozzaDocumento\.some\(v => v\.erroreStimaDocumento\)\) onProgress\?\.\(\{\n   fase: 'errore', messaggio: 'Analisi prezzi non completata\. La bozza è disponibile per la revisione\.',\n \}\)\n/, ''), body(old))
 })
 
 test('errore reale stime: bozza conservata, barra errore non sovrascritta da Preventivo pronto', async () => {
@@ -103,4 +103,37 @@ test('errore reale stime: bozza conservata, barra errore non sovrascritta da Pre
   await find(m.render(), 'button', 'Genera preventivo da documento').props.onClick()
   const p = nodes(m.render()).find(n => n.type === progress.default).props.progresso
   assert.equal(p.stato, 'errore'); assert(p.testo.includes('bozza è disponibile')); assert(!p.testo.includes('Preventivo pronto'))
+})
+
+// Deferred provider promises control the wait; no timers, HTTP, DB or OpenAI.
+test('progresso nel header sticky durante attesa, cambio sezione e voci non più presenti', async () => {
+  const d = deferred(); let callback, calls = 0
+  const m = mount('SopralluogoDettaglio.tsx', { sopralluogoAperto: { id: 'smoke' }, fotoSopralluoghi: [], documentIntelligence: { vociAnalizzate: [{}] }, generaPreventivoDaDocumentoAnalizzato(_s, cb) { calls++; callback = cb; return d.promise } })
+  const click = find(m.render(), 'button', 'Genera preventivo da documento').props.onClick
+  const pending = click()
+  const headerProgress = () => {
+    const header = find(m.render(), 'header')
+    assert.equal(header.props.style.position, 'sticky')
+    return nodes(header).find(n => n.type === progress.default).props.progresso
+  }
+  assert.equal(headerProgress().testo, 'Preparazione preventivo...')
+  assert.equal(find(m.render(), 'button', 'Generazione in corso').props.disabled, true)
+  callback({ fase: 'prezzi' })
+  assert.equal(headerProgress().testo, 'Generazione prezzi in corso...')
+  assert.equal(bar(progress.default({ progresso: headerProgress() })).props['aria-valuenow'], undefined)
+  await click(); assert.equal(calls, 1)
+  m.props.documentIntelligence.vociAnalizzate = []
+  find(m.render(), 'button', 'AI').props.onClick()
+  await new Promise(setImmediate)
+  assert.equal(headerProgress().stato, 'in_corso')
+  for (let n = 1; n <= 6; n++) {
+    callback({ fase: 'analisi', completati: n - 1, totale: 6, in_corso: n })
+    assert.equal(headerProgress().testo, `Analisi prezzi — ${n} di 6`)
+  }
+  callback({ fase: 'aggregazione', completati: 6, totale: 6, in_corso: null })
+  assert(headerProgress().testo.includes('Validazione tecnica'))
+  callback({ fase: 'completata', completati: 6, totale: 6, in_corso: null })
+  assert.equal(headerProgress().testo, 'Preparazione bozza')
+  d.resolve(true); await pending
+  assert.equal(headerProgress().testo, 'Preventivo pronto')
 })

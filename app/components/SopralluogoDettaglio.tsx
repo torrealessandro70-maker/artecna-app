@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { flushSync } from 'react-dom'
 import SopralluogoDettaglioHeader from './SopralluogoDettaglioHeader'
 import SopralluogoFirmaCliente from './SopralluogoFirmaCliente'
 import SopralluogoAppunti from './SopralluogoAppunti'
@@ -39,8 +40,11 @@ export default function SopralluogoDettaglio(props: Props) {
   const generaDocumento = async () => {
     if (generazioneDocumentoRef.current || props.documentIntelligence?.progressoAnalisiDocumento?.stato === 'in_corso' || !props.generaPreventivoDaDocumentoAnalizzato) return
     generazioneDocumentoRef.current = true
-    setGenerazioneDocumento(true)
-    setProgressoGenerazioneDocumento({ stato: 'in_corso', testo: 'Preparazione lavorazioni' })
+    // Commit feedback before synchronous document/price preparation starts.
+    flushSync(() => {
+      setGenerazioneDocumento(true)
+      setProgressoGenerazioneDocumento({ stato: 'in_corso', testo: 'Preparazione preventivo...' })
+    })
     let errorePrezzi = false
     try {
       const esito = await props.generaPreventivoDaDocumentoAnalizzato(sopralluogoAperto,
@@ -197,6 +201,11 @@ useEffect(() => {
               </button>
             ))}
           </nav>
+          {progressoGenerazioneDocumento && (
+            <div aria-label="Avanzamento preventivo da documento" style={{ padding: '0 20px 8px' }}>
+              <ProgressoOperazione progresso={progressoGenerazioneDocumento} />
+            </div>
+          )}
         </header>
 
         <main style={{ padding: 20 }}>
@@ -296,9 +305,8 @@ onChiudiFascicolo={() =>
             aria-busy={generazioneDocumento}
             style={buttonPrimary}
           >
-            {generazioneDocumento ? 'Preparazione bozza e stime ARTECNA in corso…' : '💰 Genera preventivo da documento'}
+            {generazioneDocumento ? 'Generazione in corso…' : '💰 Genera preventivo da documento'}
           </button>
-          <ProgressoOperazione progresso={progressoGenerazioneDocumento} />
         </div>
       )}
     </>

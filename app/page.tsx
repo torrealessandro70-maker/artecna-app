@@ -1781,6 +1781,7 @@ const generaPreventivoDaDocumentoAnalizzato = async (s: Sopralluogo, onProgress?
     return false
   }
 
+ onProgress?.({ fase: 'prezzi' })
  setMessaggioAi('Preparazione della bozza: stime ARTECNA delle voci residue in corso…')
  const vociBozzaDocumento = await completaBozzaConStime(
    preparaBozzaDocumento(vociDocumento.map((v, i) => ({ ...v, testoOrigine: preventivoRevision.voci[i]?.testoOrigine, contestoTecnicoDocumento: preventivoRevision.voci[i]?.contestoTecnicoDocumento })), knowledgeBasePrezzi, memoriaPrezziValidi), knowledgeBasePrezzi,

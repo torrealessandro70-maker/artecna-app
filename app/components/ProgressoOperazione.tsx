@@ -9,9 +9,10 @@ export type StatoProgressoOperazione = {
   totale?: number
 }
 
-export type ProgressoGenerazioneDocumento = ProgressoStimeDocumento | { fase: 'errore'; messaggio: string }
+export type ProgressoGenerazioneDocumento = ProgressoStimeDocumento | { fase: 'prezzi' } | { fase: 'errore'; messaggio: string }
 
 export function progressoPrezziDocumento(p: ProgressoGenerazioneDocumento): StatoProgressoOperazione {
+  if (p.fase === 'prezzi') return { stato: 'in_corso', testo: 'Generazione prezzi in corso...' }
   if (p.fase === 'errore') return { stato: 'errore', testo: p.messaggio }
   return {
     stato: 'in_corso',
