@@ -14,6 +14,7 @@ const excelTd: CSSProperties = {
 }
 
 type Props = {
+  onApriPdf?: (sopralluogoId: string) => void
   onApriPreventivo?: (sopralluogoId: string) => void
   azioneNuovo?: ReactNode
   sopralluoghi: any[]
@@ -35,6 +36,7 @@ type Props = {
 }
 
 export default function SopralluoghiList({
+  onApriPdf,
   onApriPreventivo,
   azioneNuovo,
   sopralluoghi,
@@ -403,7 +405,7 @@ onKeyDown={(event) => {
       type="button"
       onClick={(event) => {
         event.stopPropagation()
-        alert('PDF sopralluogo: azione in arrivo')
+        onApriPdf?.(String(s.id))
       }}
       style={{
         ...buttonSecondary,

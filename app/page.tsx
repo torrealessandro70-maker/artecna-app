@@ -122,6 +122,7 @@ import SopralluoghiPanel from './components/SopralluoghiPanel'
 import FattureEmessePopupLayer from './components/FattureEmessePopupLayer'
 import RegistroPanel from './components/RegistroPanel'
 import PreventivoSopralluogoFocus from './components/PreventivoSopralluogoFocus'
+import PdfSopralluogoFocus, { type ContestoPdfSopralluogo } from './components/PdfSopralluogoFocus'
 import { impostaPreventivoContrattuale } from './utils/preventivoContrattuale'
 import CantieriElencoPanel from './components/CantieriElencoPanel'
 import CantieriSchedaPanel from './components/CantieriSchedaPanel'
@@ -3709,6 +3710,7 @@ const [cantiereRegistroFine, setCantiereRegistroFine] = useState('')
 const [cantiereRegistroConcluso, setCantiereRegistroConcluso] = useState(false)
 
 const [preventivoRegistroEdit, setPreventivoRegistroEdit] = useState<string | null>(null)
+const [pdfSopralluogoId, setPdfSopralluogoId] = useState<string | null>(null)
 const [preventivoSopralluogoId, setPreventivoSopralluogoId] = useState<string | null>(null)
 const [preventivoAiGenerato, setPreventivoAiGenerato] =
   useState<any | null>(null)
@@ -7329,8 +7331,11 @@ await caricaEconomia()
 }
 
 const generaPdfSopralluogo = async (
-  sopralluogo: Sopralluogo
+  sopralluogo: Sopralluogo,
+  contestoPdf?: ContestoPdfSopralluogo
 ) => {
+  if (contestoPdf && (contestoPdf.sopralluogoId !== sopralluogo.id || contestoPdf.foto.some(f => f.sopralluogo_id !== sopralluogo.id))) throw Error('UUID contesto PDF non corrispondente')
+  const firmaPdf = contestoPdf ? contestoPdf.firma : firmaCliente
   const pdf = new jsPDF()
 
   let y = 18
@@ -7412,7 +7417,7 @@ pdf.setFontSize(12)
   y += note.length * 6 + 10
 
   const fotoDelSopralluogo =
-    fotoSopralluoghi.filter(
+    contestoPdf ? contestoPdf.foto : fotoSopralluoghi.filter(
       (f) =>
         f.sopralluogo_id === sopralluogo.id
     )
@@ -7468,7 +7473,7 @@ if (fotoDelSopralluogo.length > 0) {
     }
   }
 
-if (firmaCliente) {
+if (firmaPdf) {
   if (y > 220) {
     pdf.addPage()
     y = 20
@@ -7481,7 +7486,7 @@ if (firmaCliente) {
 
   try {
     pdf.addImage(
-      firmaCliente,
+      firmaPdf,
       'PNG',
       20,
       y,
@@ -7497,12 +7502,9 @@ if (firmaCliente) {
 
 
 
-if (appuntiRefs.current.length > 0) {
-  appuntiRefs.current.forEach((ref, index) => {
-    const img = ref
-      ?.getCanvas()
-      ?.toDataURL('image/png')
-
+const paginePdf = contestoPdf ? contestoPdf.pagine : appuntiRefs.current.map(ref => ref?.getCanvas()?.toDataURL('image/png')).filter(Boolean)
+if (paginePdf.length > 0) {
+  paginePdf.forEach((img: string, index: number) => {
     if (!img) return
 
     pdf.addPage()
@@ -13146,6 +13148,7 @@ onDocumentAction={gestisciAzioneDocumento}
 {/* ================= SOPRALLUOGHI ================= */}
 {sezioneAttiva === 'sopralluoghi' && (
   <SopralluoghiContainer
+    onApriPdf={(id: string) => { if (sopralluoghi.some(s => String(s.id) === id)) setPdfSopralluogoId(id) }}
     onApriPreventivo={(id: string) => { if (sopralluoghi.some(s => String(s.id) === id)) setPreventivoSopralluogoId(id) }}
     key={contestoQuadernoCantiere?.id || 'generale'}
     contestoCantiere={contestoQuadernoCantiere}
@@ -13350,6 +13353,7 @@ onDocumentAction: gestisciAzioneDocumento,
     excelTd={excelTd}
   />
 )}
+{sezioneAttiva === 'sopralluoghi' && pdfSopralluogoId && <PdfSopralluogoFocus key={pdfSopralluogoId} sopralluogo={sopralluoghi.find(s => s.id === pdfSopralluogoId) as Sopralluogo & { id: string }} db={supabase} generaPdf={(s, contesto) => generaPdfSopralluogo(s as Sopralluogo, contesto)} onChiudi={() => setPdfSopralluogoId(null)} />}
 {/* ================= REGISTRO ================= */}
 {(sezioneAttiva === 'registro' || (sezioneAttiva === 'sopralluoghi' && preventivoSopralluogoId)) && (
   <PreventivoSopralluogoFocus formatMoney={formatMoney} key={preventivoSopralluogoId || 'registro'} sopralluogo={preventivoSopralluogoId ? sopralluoghi.find(s => String(s.id) === preventivoSopralluogoId) : undefined} preventivi={preventivi}

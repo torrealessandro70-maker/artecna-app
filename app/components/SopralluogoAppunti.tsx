@@ -31,6 +31,7 @@ import CadEntityRenderer from "../engines/cad/render/CadEntityRenderer";
 import { intersectsCadMarquee } from "../engines/cad/selection/marquee";
 import { DEFAULT_TEXT_BOX_WIDTH, getCadTextLayout } from "../engines/cad/geometry/text-layout";
 import { STRUMENTI_DISEGNO } from "./note/drawing-tools";
+import { identificaNotaPdf, esportaPaginePdf, attendiPagineMontate, type PaginePdfSopralluogo } from '../lib/quadernoPdf';
 import { jsPDF } from "jspdf";
 import { Canvg } from "canvg";
 import {
@@ -228,6 +229,7 @@ type QuadernoHistorySnapshot = {
 };
 
 type Props = {
+  richiestaExportPdf?: { sopralluogoId: string; onReady: (pagine: PaginePdfSopralluogo) => void; onErrore: (errore: unknown) => void };
   mostraAppuntiSopralluogo: boolean;
   setMostraAppuntiSopralluogo: (v: boolean) => void;
   sopralluogoAperto?: SopralluogoNota;
@@ -249,6 +251,7 @@ onChiudiFascicolo?: () => void;
 };
 
 export default function SopralluogoAppunti({
+  richiestaExportPdf,
   mostraAppuntiSopralluogo,
   setMostraAppuntiSopralluogo,
   sopralluogoAperto = {},
@@ -287,6 +290,9 @@ documentoAttivoRef.current = contestoQuaderno.id;
 const fileOccupatoRef = useRef(false);
 const [fileOccupato, setFileOccupato] = useState(false);
 const documentoId = contestoQuaderno.id;
+const exportRootRef = useRef<HTMLElement | null>(null);
+const caricatoPdfRef = useRef({ id: '', pronto: false, presente: false });
+const exportIniziatoRef = useRef(false);
 const salvataggioInCorsoRef = useRef(false);
 const [salvataggioInCorso, setSalvataggioInCorso] = useState(false);
 const quadernoContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1245,7 +1251,7 @@ useEffect(() => {
 }, [oggettiGrafici]);
 
 useEffect(() => {
-  if (!notaVisibile) return;
+  if (!notaVisibile || richiestaExportPdf) return;
 
   const gestisciScorciatoieQuaderno = (
     event: KeyboardEvent,
@@ -3265,6 +3271,7 @@ useEffect(() => {
 }, [calibrazioneScalaAttiva])
 
   useEffect(() => {
+    if (richiestaExportPdf) return;
     const preferenze = window.localStorage.getItem(
       "artecna-quaderno-preferenze",
     );
@@ -3280,9 +3287,10 @@ if (dati.profiliStrumenti) {
     } catch {
       window.localStorage.removeItem("artecna-quaderno-preferenze");
     }
-  }, []);
+  }, [richiestaExportPdf]);
 
   useEffect(() => {
+    if (richiestaExportPdf) return;
     window.localStorage.setItem(
       "artecna-quaderno-preferenze",
       JSON.stringify({
@@ -3292,6 +3300,7 @@ if (dati.profiliStrumenti) {
 })
     );
   }, [
+  richiestaExportPdf,
   strumentoDisegno,
   coloreDisegno,
   spessoreDisegno,
@@ -5123,7 +5132,7 @@ const creaSvgPaginaStampa = (
   pagina: PaginaQuadernoNota,
 ): string | null => {
   const contenitorePagina =
-    document.querySelector<HTMLElement>(
+    (richiestaExportPdf ? exportRootRef.current : document)?.querySelector<HTMLElement>(
       `[data-quaderno-page-id="${pagina.id}"]`,
     )
 
@@ -5527,6 +5536,7 @@ return new XMLSerializer().serializeToString(
 
 const incorporaImmaginiSvg = async (
   svgTesto: string,
+  rigoroso = false,
 ): Promise<string> => {
   const parser =
     new DOMParser()
@@ -5536,6 +5546,12 @@ const incorporaImmaginiSvg = async (
       svgTesto,
       "image/svg+xml",
     )
+
+  // Empty live-preview polylines have no visible geometry; Canvg cannot render them.
+  // Remove them only from this detached export document, never from the editor.
+  if (rigoroso) documento.querySelectorAll('polyline,polygon').forEach(nodo => {
+    if (!nodo.getAttribute('points')?.trim()) nodo.remove();
+  });
 
   const immagini =
     Array.from(
@@ -5549,6 +5565,7 @@ const incorporaImmaginiSvg = async (
         "xlink:href",
       )
 
+    if (!href && rigoroso) throw Error("Immagine Quaderno priva di sorgente");
     if (
       !href ||
       href.startsWith("data:")
@@ -5561,6 +5578,7 @@ const incorporaImmaginiSvg = async (
         await fetch(href)
 
       if (!risposta.ok) {
+        if (rigoroso) throw Error("Immagine Quaderno non disponibile");
         continue
       }
 
@@ -5594,6 +5612,7 @@ const incorporaImmaginiSvg = async (
         "xlink:href",
       )
     } catch (errore) {
+      if (rigoroso) throw errore;
       console.warn(
         "Immagine non incorporata nel PDF:",
         href,
@@ -5608,53 +5627,11 @@ const incorporaImmaginiSvg = async (
     )
 }
 
-const generaPdfQuadernoBlob = async (): Promise<Blob> => {
-  const pdf = new jsPDF({
-    orientation: "landscape",
-    unit: "px",
-    format: "a4",
-  })
-
-  let primaPaginaPdf = true
-
-  for (const pagina of pagineQuaderno) {
-    const svgTesto =
-      creaSvgPaginaStampa(pagina)
-
-    if (!svgTesto) {
-      continue
-    }
-
-const svgConImmagini =
-  await incorporaImmaginiSvg(
-    svgTesto,
-  )
-
-    const layout =
-      pagina.pageLayout ??
-      createQuadernoPageLayout()
-
-    const orientamento =
-      layout.orientation === "portrait"
-        ? "portrait"
-        : "landscape"
-
-    if (!primaPaginaPdf) {
-      pdf.addPage(
-        [layout.width, layout.height],
-        orientamento,
-      )
-    } else {
-      pdf.deletePage(1)
-
-      pdf.addPage(
-        [layout.width, layout.height],
-        orientamento,
-      )
-
-      primaPaginaPdf = false
-    }
-
+const rasterizzaPaginaQuaderno = async (pagina: PaginaQuadernoNota, rigoroso = false) => {
+  const svgTesto = creaSvgPaginaStampa(pagina);
+  if (!svgTesto) return null;
+  const svgConImmagini = await incorporaImmaginiSvg(svgTesto, rigoroso);
+  const layout = pagina.pageLayout ?? createQuadernoPageLayout();
     const canvas =
   document.createElement("canvas")
 
@@ -5700,6 +5677,45 @@ const immaginePng =
   canvas.toDataURL(
     "image/png",
   )
+
+
+  return { immaginePng, layout };
+};
+
+const generaPdfQuadernoBlob = async (): Promise<Blob> => {
+  const pdf = new jsPDF({
+    orientation: "landscape",
+    unit: "px",
+    format: "a4",
+  })
+
+  let primaPaginaPdf = true
+
+  for (const pagina of pagineQuaderno) {
+    const raster = await rasterizzaPaginaQuaderno(pagina);
+    if (!raster) continue;
+    const { immaginePng, layout } = raster;
+
+    const orientamento =
+      layout.orientation === "portrait"
+        ? "portrait"
+        : "landscape"
+
+    if (!primaPaginaPdf) {
+      pdf.addPage(
+        [layout.width, layout.height],
+        orientamento,
+      )
+    } else {
+      pdf.deletePage(1)
+
+      pdf.addPage(
+        [layout.width, layout.height],
+        orientamento,
+      )
+
+      primaPaginaPdf = false
+    }
 
 pdf.addImage(
   immaginePng,
@@ -5856,6 +5872,7 @@ useEffect(() => {
     const caricaNota = async () => {
       documentoAttivoRef.current = documentoId;
       setPronto(false);
+      caricatoPdfRef.current = { id: documentoId, pronto: false, presente: false };
       setRichiamoAperto(false); setRichiamoIncerto(true); richiamoIncertoRef.current = true;
       versioneNotaRef.current = null;
       setNotaId(null);
@@ -5895,6 +5912,7 @@ useEffect(() => {
       const { data: userData } = importazioneFile ? { data: { user: null } } : await supabase.auth.getUser();
       if (!userData.user && !importazioneFile) {
         setStato("Accedi per utilizzare le note");
+        richiestaExportPdf?.onErrore(Error("Sessione Quaderno non disponibile"));
         return;
       }
 
@@ -5907,11 +5925,14 @@ useEffect(() => {
 
       if (!attivo) return;
       if (error) {
+        richiestaExportPdf?.onErrore(error);
         setStato(
           erroreQuaderno(error),
         );
         return;
       }
+
+      const provenienzaPdf = richiestaExportPdf ? identificaNotaPdf(documentoId, userData.user?.id || '', data) : null;
 
       if (progettoQuadernoId && !data) {
         setStato('Progetto non trovato o non accessibile');
@@ -6114,7 +6135,7 @@ setScaleCalibration(null);
           .order("created_at", { ascending: true });
 
         if (!attivo) return;
-        if (erroreAllegati) { setStato(erroreQuaderno(erroreAllegati)); return; }
+        if (erroreAllegati) { richiestaExportPdf?.onErrore(erroreAllegati); setStato(erroreQuaderno(erroreAllegati)); return; }
         let copie: AllegatoNota[] = [];
         if (!progettoQuadernoId) {
           const privati = await supabase.from('quaderno_copie_allegati').select('*').eq('nota_id', data.id).neq('tipo', 'immagine');
@@ -6140,7 +6161,7 @@ setWorkspaceCadEntities([])
         setAnalisiAi(null);
       }
 
-      if (!progettoQuadernoId && !importazioneFile) {
+      if (!richiestaExportPdf && !progettoQuadernoId && !importazioneFile) {
         const pending = await trovaOperazione(supabase, documentoId);
         if (!attivo) return;
         setOperazioneDaRiprendere(pending.id || null);
@@ -6149,6 +6170,7 @@ setWorkspaceCadEntities([])
         richiamoIncertoRef.current = blocco; setRichiamoIncerto(blocco); setRichiamoAperto(blocco);
       } else { richiamoIncertoRef.current = false; setRichiamoIncerto(false); }
       setQuadernoDirty(!!importazioneFile);
+      caricatoPdfRef.current = { id: provenienzaPdf?.id || documentoId, pronto: true, presente: provenienzaPdf?.presente ?? !!data };
       setPronto(true);
       setStato(importazioneFile ? "File aperto come nuovo progetto: non ancora salvato nell’archivio" : "Nota pronta");
     };
@@ -6156,16 +6178,18 @@ setWorkspaceCadEntities([])
     void caricaNota().catch((error) => {
       if (!attivo) return;
       setPronto(false);
+      richiestaExportPdf?.onErrore(error);
       setStato('Errore caricamento: ' + erroreQuaderno(error as Error));
     });
     return () => {
       attivo = false;
-      if (documentoAttivoRef.current === documentoId) documentoAttivoRef.current = '';
+      if (documentoAttivoRef.current === documentoId) { documentoAttivoRef.current = ''; caricatoPdfRef.current.pronto = false; }
     };
   }, [
     notaVisibile,
     ricaricaNota,
     documentoId,
+    richiestaExportPdf,
     destinazione.tabella,
     destinazione.allegati,
     destinazione.chiave,
@@ -6200,7 +6224,7 @@ setWorkspaceCadEntities([])
   contenutoCorrenteRef.current = preparaContenuto;
 
   const salvaNota = async (mostraConferma = true) => {
-    if (!documentoId || !pronto || salvataggioInCorsoRef.current || richiamoAperto || richiamoBusyRef.current || richiamoIncertoRef.current) return null;
+    if (richiestaExportPdf || !documentoId || !pronto || salvataggioInCorsoRef.current || richiamoAperto || richiamoBusyRef.current || richiamoIncertoRef.current) return null;
     salvataggioInCorsoRef.current = true;
     setSalvataggioInCorso(true);
     const contenuto = structuredClone(preparaContenuto());
@@ -6272,7 +6296,7 @@ setWorkspaceCadEntities([])
 
   useEffect(() => {
   if (
-  progettoQuadernoId || richiamoAperto || richiamoIncerto ||
+  richiestaExportPdf || progettoQuadernoId || richiamoAperto || richiamoIncerto ||
   !pronto ||
   !quadernoDirty ||
   trasformazioneOggettoAttiva
@@ -6835,8 +6859,35 @@ const dimensioniWorkspace =
   )
 }
 
+
+useEffect(() => {
+  if (!richiestaExportPdf || !pronto || exportIniziatoRef.current) return;
+  exportIniziatoRef.current = true;
+  const controller = new AbortController();
+  const esegui = async () => {
+    const attuale = caricatoPdfRef.current;
+    let renderingPronto = !attuale.presente;
+    if (richiestaExportPdf.sopralluogoId !== documentoId || attuale.id !== documentoId || !attuale.pronto) throw Error('UUID Quaderno non corrispondente');
+    if (attuale.presente) {
+      if (!exportRootRef.current) throw Error('Renderer Quaderno non montato');
+      await attendiPagineMontate(exportRootRef.current, pagineQuaderno.map(p => p.id), controller.signal);
+      await document.fonts.ready;
+      if (!workspaceSvgRef.current || exportRootRef.current?.dataset.exportSopralluogoId !== documentoId) throw Error("Workspace Quaderno non pronto");
+      renderingPronto = true;
+    }
+    const snapshot = await esportaPaginePdf({ richiesto: richiestaExportPdf.sopralluogoId,
+      stato: () => ({ ...caricatoPdfRef.current, pronto: caricatoPdfRef.current.pronto && renderingPronto }), pagine: pagineQuaderno, signal: controller.signal,
+      render: async pagina => (await rasterizzaPaginaQuaderno(pagina, true))?.immaginePng || null });
+    if (!controller.signal.aborted) richiestaExportPdf.onReady(snapshot);
+  };
+  void esegui().catch(errore => { if (!controller.signal.aborted) richiestaExportPdf.onErrore(errore); });
+  return () => { controller.abort(); exportIniziatoRef.current = false; };
+  // The immutable export request owns this mount; editor state must not restart a snapshot.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [richiestaExportPdf, pronto, documentoId]);
+
 return (
-  <section inert={richiamoAperto || richiamoInCorso || richiamoIncerto} style={{ marginTop: 16 }}>
+  <section data-export-sopralluogo-id={richiestaExportPdf ? documentoId : undefined} ref={exportRootRef} inert={!!richiestaExportPdf || richiamoAperto || richiamoInCorso || richiamoIncerto} style={{ marginTop: 16 }}>
       <style>{`
         .smart-note-print {
           display: none;

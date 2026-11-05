@@ -15,6 +15,7 @@ import SopralluogoDettaglio from './SopralluogoDettaglio'
 import PopupFotoSopralluogo from './PopupFotoSopralluogo'
 
 type Props = {
+  onApriPdf?: (sopralluogoId: string) => void
   onApriPreventivo?: (sopralluogoId: string) => void
   contestoCantiere?: { id: string; nome: string } | null
   tornaAlCantiere?: () => void
@@ -126,6 +127,7 @@ export default function SopralluoghiPanel(props: Props) {
         <p>Sopralluoghi del cantiere: <strong>{props.contestoCantiere.nome}</strong></p>
       </div>}
  <SopralluoghiList
+        onApriPdf={props.onApriPdf}
         onApriPreventivo={props.onApriPreventivo}
         azioneNuovo={<>
   <button
