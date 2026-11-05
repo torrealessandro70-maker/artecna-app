@@ -135,7 +135,8 @@ test('formule, hook, reader e writer restano identici al parent', () => {
     const extract = s => { s = s.replace(/\r\n/g, '\n'); const ast = ts.createSourceFile(file, s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), result = {}; function walk(n) { if (ts.isFunctionDeclaration(n) && n.name && n.modifiers?.some(m => m.kind === ts.SyntaxKind.AsyncKeyword)) result[n.name.text + Object.keys(result).length] = n.getText(ast); ts.forEachChild(n, walk) } walk(ast); return result }
     assert.deepEqual(extract(read(file)), extract(cp.execFileSync('git', ['show', 'HEAD:' + file], { encoding: 'utf8' })))
   }
-  for (const file of ['app/engines','supabase','lib','app/components/AccontiEconomiaPanel.tsx','app/components/AccontiSalPanel.tsx','app/components/SalDettagliatoPanel.tsx','app/components/PrezziRapportiniEconomia.tsx','app/components/PrezziMaterialiEconomia.tsx']) assert.equal(cp.spawnSync('git', ['diff','--quiet','HEAD','--',file]).status, 0, file)
+  // AccontiEconomiaPanel può evolvere nel layout; i callback sono certificati da GestioneAccontiFocus.
+  for (const file of ['app/engines','supabase','lib','app/components/AccontiSalPanel.tsx','app/components/SalDettagliatoPanel.tsx','app/components/PrezziRapportiniEconomia.tsx','app/components/PrezziMaterialiEconomia.tsx']) assert.equal(cp.spawnSync('git', ['diff','--quiet','HEAD','--',file]).status, 0, file)
 })
 test('layout basato sul contenitore: KPI impilabili, tab a capo, dettagli operativi adattivi', () => {
   const s = read('app/components/EconomiaCantierePanel.tsx'), v = read('app/components/VariantiCantierePanel.tsx')
