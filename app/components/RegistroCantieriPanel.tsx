@@ -4,6 +4,7 @@ import { useState, type CSSProperties } from 'react'
 import VistaOperativa from './VistaOperativa'
 
 type Props = {
+  soloAzioni?: boolean
   cantieri: any[]
   registroCerca: string
   formatMoney: (v: any) => string
@@ -49,6 +50,7 @@ type Props = {
 
 export default function RegistroCantieriPanel({
   cantieri,
+  soloAzioni = false,
   registroCerca,
   formatMoney,
   ordinaRegistro,
@@ -102,9 +104,7 @@ export default function RegistroCantieriPanel({
         : String(valoreB).localeCompare(String(valoreA))
     })
 
-  return (
-    <div style={excelBox}>
-                  <style>{`.registro-cantieri-tabella input { box-sizing: border-box; max-width: 100%; min-width: 0; }
+  const stileRegistro = (<style>{`.registro-cantieri-tabella input { box-sizing: border-box; max-width: 100%; min-width: 0; }
                     @container registro-cantieri (max-width: 900px) {
                       .registro-cantieri-tabella thead { display: none; }
                       .registro-cantieri-tabella, .registro-cantieri-tabella tbody, .registro-cantieri-tabella tr, .registro-cantieri-tabella td { display: block; width: 100%; min-width: 0; box-sizing: border-box; }
@@ -114,91 +114,14 @@ export default function RegistroCantieriPanel({
                       .registro-cantieri-tabella td:nth-child(3)::before { content: 'Inizio'; }
                       .registro-cantieri-tabella td:nth-child(4)::before { content: 'Fine'; }
                       .registro-cantieri-tabella td:nth-child(5)::before { content: 'Concluso'; }
-                    }`}</style>
-      <div style={excelToolbar}>
-        <strong>🏗️ Registro cantieri</strong>
-      </div>
-
-      <div style={{ containerType: 'inline-size', containerName: 'registro-cantieri', minWidth: 0 }}>
-        <table className="registro-cantieri-tabella" style={excelTable}>
-          <thead>
-            <tr>
-              <th
-                style={{ ...excelTh, cursor: 'pointer' }}
-                onClick={() =>
-                  ordinaRegistro(
-                    'nome',
-                    setOrdinaCantieriCampo,
-                    setOrdinaCantieriDirezione,
-                    ordinaCantieriCampo
-                  )
-                }
-              >
-                Nome ↕
-              </th>
-
-              <th
-                style={{ ...excelTh, cursor: 'pointer' }}
-                onClick={() =>
-                  ordinaRegistro(
-                    'preventivo',
-                    setOrdinaCantieriCampo,
-                    setOrdinaCantieriDirezione,
-                    ordinaCantieriCampo
-                  )
-                }
-              >
-                Preventivo ↕
-              </th>
-
-              <th
-                style={{ ...excelTh, cursor: 'pointer' }}
-                onClick={() =>
-                  ordinaRegistro(
-                    'data_inizio_lavori',
-                    setOrdinaCantieriCampo,
-                    setOrdinaCantieriDirezione,
-                    ordinaCantieriCampo
-                  )
-                }
-              >
-                Inizio ↕
-              </th>
-
-              <th
-                style={{ ...excelTh, cursor: 'pointer' }}
-                onClick={() =>
-                  ordinaRegistro(
-                    'data_fine_lavori',
-                    setOrdinaCantieriCampo,
-                    setOrdinaCantieriDirezione,
-                    ordinaCantieriCampo
-                  )
-                }
-              >
-                Fine ↕
-              </th>
-
-              <th
-                style={{ ...excelTh, cursor: 'pointer' }}
-                onClick={() =>
-                  ordinaRegistro(
-                    'lavori_conclusi',
-                    setOrdinaCantieriCampo,
-                    setOrdinaCantieriDirezione,
-                    ordinaCantieriCampo
-                  )
-                }
-              >
-                Concluso ↕
-              </th>
-
-              <th style={excelTh}>Azioni</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {cantieriFiltrati.map((c, i) => {
+                    }`}</style>)
+  const righeRegistro = cantieriFiltrati.map((c, i) => {
+              const azioneModifica = (                      <button
+                        onClick={() => { preparaModificaRegistroCantiere(c); setMostraModifica(true) }}
+                        style={buttonSecondary}
+                      >
+                        ✏️
+                      </button>)
               const riga = <tr
                 key={c.id || i}
                 style={{
@@ -299,12 +222,7 @@ export default function RegistroCantieriPanel({
                     </div>
                   ) : (
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        onClick={() => { preparaModificaRegistroCantiere(c); setMostraModifica(true) }}
-                        style={buttonSecondary}
-                      >
-                        ✏️
-                      </button>
+                      {azioneModifica}
 
                       <button
                         onClick={() => eliminaCantiere(
@@ -333,8 +251,97 @@ export default function RegistroCantieriPanel({
                   </div>
 
                 </VistaOperativa>
-              ) : riga
-            })}
+              ) : soloAzioni ? <span key={c.id || i}>{azioneModifica}</span> : riga
+            })
+  if (soloAzioni) return <div style={{ minWidth: 0 }}>{stileRegistro}{righeRegistro}</div>
+
+  return (
+    <div style={excelBox}>
+                  {stileRegistro}
+      <div style={excelToolbar}>
+        <strong>🏗️ Registro cantieri</strong>
+      </div>
+
+      <div style={{ containerType: 'inline-size', containerName: 'registro-cantieri', minWidth: 0 }}>
+        <table className="registro-cantieri-tabella" style={excelTable}>
+          <thead>
+            <tr>
+              <th
+                style={{ ...excelTh, cursor: 'pointer' }}
+                onClick={() =>
+                  ordinaRegistro(
+                    'nome',
+                    setOrdinaCantieriCampo,
+                    setOrdinaCantieriDirezione,
+                    ordinaCantieriCampo
+                  )
+                }
+              >
+                Nome ↕
+              </th>
+
+              <th
+                style={{ ...excelTh, cursor: 'pointer' }}
+                onClick={() =>
+                  ordinaRegistro(
+                    'preventivo',
+                    setOrdinaCantieriCampo,
+                    setOrdinaCantieriDirezione,
+                    ordinaCantieriCampo
+                  )
+                }
+              >
+                Preventivo ↕
+              </th>
+
+              <th
+                style={{ ...excelTh, cursor: 'pointer' }}
+                onClick={() =>
+                  ordinaRegistro(
+                    'data_inizio_lavori',
+                    setOrdinaCantieriCampo,
+                    setOrdinaCantieriDirezione,
+                    ordinaCantieriCampo
+                  )
+                }
+              >
+                Inizio ↕
+              </th>
+
+              <th
+                style={{ ...excelTh, cursor: 'pointer' }}
+                onClick={() =>
+                  ordinaRegistro(
+                    'data_fine_lavori',
+                    setOrdinaCantieriCampo,
+                    setOrdinaCantieriDirezione,
+                    ordinaCantieriCampo
+                  )
+                }
+              >
+                Fine ↕
+              </th>
+
+              <th
+                style={{ ...excelTh, cursor: 'pointer' }}
+                onClick={() =>
+                  ordinaRegistro(
+                    'lavori_conclusi',
+                    setOrdinaCantieriCampo,
+                    setOrdinaCantieriDirezione,
+                    ordinaCantieriCampo
+                  )
+                }
+              >
+                Concluso ↕
+              </th>
+
+              <th style={excelTh}>Azioni</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {righeRegistro}
           </tbody>
         </table>
       </div>

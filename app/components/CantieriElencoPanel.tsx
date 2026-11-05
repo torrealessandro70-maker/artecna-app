@@ -1,10 +1,11 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import VistaOperativa from './VistaOperativa'
 import { mappaPreventiviElenco, totalePreventivoElenco, confrontaPreventiviElenco } from '../utils/cantiereElenco'
 
 type Props = {
+  renderModificaCantiere?: (cantiere: Props['cantieri'][number]) => ReactNode
   cantieri: any[]
   preventivi: any[]
   ricercaCantiere: string
@@ -35,6 +36,7 @@ type Props = {
 
 export default function CantieriElencoPanel({
   cantieri,
+  renderModificaCantiere,
   preventivi,
   ricercaCantiere,
   setRicercaCantiere,
@@ -290,7 +292,8 @@ export default function CantieriElencoPanel({
                     </td>
 
                     <td style={excelTd}>
-                      <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {renderModificaCantiere?.(c)}
                        <button
          onClick={() => {
              setCantiereIdScheda(String(c.id || ''))

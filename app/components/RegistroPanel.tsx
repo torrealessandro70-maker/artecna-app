@@ -5,7 +5,6 @@ import { supabase } from '../../lib/supabaseClient'
 import PreventivoManualePanel, { type DocumentoManuale } from './PreventivoManualePanel'
 import PreventivoManualeFocus from './PreventivoManualeFocus'
 import RegistroHeaderToolbar from './RegistroHeaderToolbar'
-import RegistroCantieriPanel from './RegistroCantieriPanel'
 import RegistroPreventiviPanel from './RegistroPreventiviPanel'
 import RevisionePreventivoAiPanel from './RevisionePreventivoAiPanel'
 import RegistroRapportiniPanel from './RegistroRapportiniPanel'
@@ -46,41 +45,7 @@ export default function RegistroPanel(props: any) {
         buttonSecondary={p.buttonSecondary}
       />
 
-   {p.registroTab === 'cantieri' && (
-  <RegistroCantieriPanel
-    cantieri={p.cantieri}
-    registroCerca={p.registroCerca}
-    formatMoney={p.formatMoney}
-    ordinaRegistro={p.ordinaRegistro}
-    ordinaCantieriCampo={p.ordinaCantieriCampo}
-    ordinaCantieriDirezione={p.ordinaCantieriDirezione}
-    setOrdinaCantieriCampo={p.setOrdinaCantieriCampo}
-    setOrdinaCantieriDirezione={p.setOrdinaCantieriDirezione}
-    cantiereRegistroEdit={p.cantiereRegistroEdit}
-    cantiereRegistroNome={p.cantiereRegistroNome}
-    setCantiereRegistroNome={p.setCantiereRegistroNome}
-    cantiereRegistroPreventivo={p.cantiereRegistroPreventivo}
-    setCantiereRegistroPreventivo={p.setCantiereRegistroPreventivo}
-    cantiereRegistroInizio={p.cantiereRegistroInizio}
-    setCantiereRegistroInizio={p.setCantiereRegistroInizio}
-    cantiereRegistroFine={p.cantiereRegistroFine}
-    setCantiereRegistroFine={p.setCantiereRegistroFine}
-    cantiereRegistroConcluso={p.cantiereRegistroConcluso}
-    setCantiereRegistroConcluso={p.setCantiereRegistroConcluso}
-    salvaModificaRegistroCantiere={p.salvaModificaRegistroCantiere}
-    annullaModificaRegistroCantiere={p.annullaModificaRegistroCantiere}
-    preparaModificaRegistroCantiere={p.preparaModificaRegistroCantiere}
-    eliminaCantiere={p.eliminaCantiere}
-    excelBox={p.excelBox}
-    excelToolbar={p.excelToolbar}
-    excelTable={p.excelTable}
-    excelTh={p.excelTh}
-    excelTd={p.excelTd}
-    excelInput={p.excelInput}
-    buttonPrimary={p.buttonPrimary}
-    buttonSecondary={p.buttonSecondary}
-  />
-)}
+   {p.registroTab === 'cantieri' && <button type="button" onClick={p.apriElencoCantieri} style={p.buttonSecondary}>Apri Registro cantieri</button>}
      {p.registroTab === 'preventivi' && <>
        <button type="button" disabled={manuale !== undefined} onClick={() => setNuovo(v => !v)}>+ Nuovo preventivo</button>
        {nuovo && <div aria-label="Modalità nuovo preventivo"><button type="button" onClick={() => { p.setSezioneAttiva('sopralluoghi'); setNuovo(false) }}>Genera con AI</button><button type="button" onClick={() => { setManuale(null); setNuovo(false) }}>Compila manualmente</button></div>}

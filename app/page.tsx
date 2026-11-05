@@ -4845,6 +4845,7 @@ const [
 ] = useState<any[]>([])
 const [vociAnalizzate, setVociAnalizzate] = useState<(VoceAnalizzata & { testoOrigine?: string })[]>([])
 const [sezioneAttiva, setSezioneAttiva] = useState('home')
+const vistaCantieriAttiva = sezioneAttiva === 'cantieri' ? sottoSezioneCantieri : null
 
 const [vociPreventivoAi, setVociPreventivoAi] =
   useState<any[]>([])
@@ -12329,13 +12330,46 @@ WebkitOverflowScrolling: 'touch',
   />
 )}
 
-{sezioneAttiva === 'cantieri' && cantiereSelezionatoDaId?.id && <section>
+{vistaCantieriAttiva === 'scheda' && cantiereSelezionatoDaId?.id && <section>
   <button type="button" onClick={() => setMostraManualeCantiere(v => !v)}>+ Nuovo preventivo manuale per questo Cantiere</button>
   {mostraManualeCantiere && <PreventivoManualeFocus contesto={cantiereSelezionatoDaId.nome} onChiudi={() => setMostraManualeCantiere(false)}><PreventivoManualePanel key={cantiereSelezionatoDaId.id} db={supabase} cantieri={cantieri} cantiereId={cantiereSelezionatoDaId.id} chiudi={() => setMostraManualeCantiere(false)} salvato={caricaEconomia} excel={generaExcelDaPreventivoAi} /></PreventivoManualeFocus>}
 </section>}
 {/* ================= CANTIERI - ELENCO ================= */}
-{sezioneAttiva === 'cantieri' && sottoSezioneCantieri === 'elenco' && (
+{vistaCantieriAttiva === 'elenco' && (
   <CantieriElencoPanel
+    renderModificaCantiere={c => (  <RegistroCantieriPanel soloAzioni
+    cantieri={[c]}
+    registroCerca=""
+    formatMoney={formatMoney}
+    ordinaRegistro={ordinaRegistro}
+    ordinaCantieriCampo={ordinaCantieriCampo}
+    ordinaCantieriDirezione={ordinaCantieriDirezione}
+    setOrdinaCantieriCampo={setOrdinaCantieriCampo}
+    setOrdinaCantieriDirezione={setOrdinaCantieriDirezione}
+    cantiereRegistroEdit={cantiereRegistroEdit}
+    cantiereRegistroNome={cantiereRegistroNome}
+    setCantiereRegistroNome={setCantiereRegistroNome}
+    cantiereRegistroPreventivo={cantiereRegistroPreventivo}
+    setCantiereRegistroPreventivo={setCantiereRegistroPreventivo}
+    cantiereRegistroInizio={cantiereRegistroInizio}
+    setCantiereRegistroInizio={setCantiereRegistroInizio}
+    cantiereRegistroFine={cantiereRegistroFine}
+    setCantiereRegistroFine={setCantiereRegistroFine}
+    cantiereRegistroConcluso={cantiereRegistroConcluso}
+    setCantiereRegistroConcluso={setCantiereRegistroConcluso}
+    salvaModificaRegistroCantiere={salvaModificaRegistroCantiere}
+    annullaModificaRegistroCantiere={annullaModificaRegistroCantiere}
+    preparaModificaRegistroCantiere={preparaModificaRegistroCantiere}
+    eliminaCantiere={eliminaCantiere}
+    excelBox={excelBox}
+    excelToolbar={excelToolbar}
+    excelTable={excelTable}
+    excelTh={excelTh}
+    excelTd={excelTd}
+    excelInput={excelInput}
+    buttonPrimary={buttonPrimary}
+    buttonSecondary={buttonSecondary}
+  />)}
     cantieri={cantieri}
     preventivi={preventivi}
     ricercaCantiere={ricercaCantiere}
@@ -12363,12 +12397,7 @@ WebkitOverflowScrolling: 'touch',
   />
 )}
 
-{(
-  pagineAperte.includes('cantieri-scheda') ||
-  (!modalitaMulti &&
-    sezioneAttiva === 'cantieri' &&
-    sottoSezioneCantieri === 'scheda')
-) && (
+{vistaCantieriAttiva === 'scheda' && (
 <>
 <CantieriContainer
   progressoAnalisiDocumento={progressoAnalisiDocumento}
@@ -12748,12 +12777,7 @@ strutturaPreventivoEsistente,
   
 
 {/* ================= CANTIERI - ANALISI DOCUMENTO ================= */}
-{(
-  pagineAperte.includes('cantieri-analisi') ||
-  (!modalitaMulti &&
-    sezioneAttiva === 'cantieri' &&
-    sottoSezioneCantieri === 'analisi')
-) && (
+{vistaCantieriAttiva === 'analisi' && (
  <CantieriAnalisiDocumentoPanel
   cardStyle={cardStyle}
   cantieri={cantieri}
@@ -12775,12 +12799,7 @@ onDocumentAction={gestisciAzioneDocumento}
 )}
 
  {/* ================= CANTIERI - ECONOMIA CANTIERE ================= */}
-{(
-  pagineAperte.includes('cantieri-economia') ||
-  (!modalitaMulti &&
-    sezioneAttiva === 'cantieri' &&
-    sottoSezioneCantieri === 'economia')
-) && (
+{vistaCantieriAttiva === 'economia' && (
 <CantieriEconomiaPanel
   progressoAnalisiDocumento={progressoAnalisiDocumento}
   cantiereNomeVisualizzato={cantiereSchedaDerivato}
@@ -13331,6 +13350,7 @@ onDocumentAction: gestisciAzioneDocumento,
 {/* ================= REGISTRO ================= */}
 {sezioneAttiva === 'registro' && (
   <RegistroPanel
+    apriElencoCantieri={() => { setSezioneAttiva('cantieri'); setSottoSezioneCantieri('elenco') }}
     setSezioneAttiva={setSezioneAttiva}
     ricaricaPreventivi={caricaEconomia}
   sezioneAttiva={sezioneAttiva}
