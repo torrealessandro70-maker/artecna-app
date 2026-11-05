@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import PreventivoManualePanel, { type DocumentoManuale } from './PreventivoManualePanel'
 import PreventivoManualeFocus from './PreventivoManualeFocus'
@@ -17,7 +17,19 @@ import FattureEmessePopupLayer from './FattureEmessePopupLayer'
 export default function RegistroPanel(props: any) {
   const [nuovo, setNuovo] = useState(false)
   const [manuale, setManuale] = useState<DocumentoManuale | null | undefined>(undefined)
-  const p = props
+  const ingresso = props.documentoIngresso
+  const p = ingresso ? { ...props, registroCerca: '', preventivi: [ingresso], mostraRegistroPreventiviCaricati: true,
+    preventivoAiGenerato: props.preventivoAiGenerato?.id === ingresso.id ? props.preventivoAiGenerato : null,
+    mostraRevisionePreventivoAi: props.preventivoAiGenerato?.id === ingresso.id && props.mostraRevisionePreventivoAi } : props
+  const { setPreventivoRegistroEdit, setPreventivoRegistroCantiere, setPreventivoRegistroNomeFile, setPreventivoRegistroImporto, setPreventivoRegistroNote } = props
+  useEffect(() => {
+    if (!ingresso?.id) return
+    setPreventivoRegistroEdit(String(ingresso.id))
+    setPreventivoRegistroCantiere(ingresso.cantiere || '')
+    setPreventivoRegistroNomeFile(ingresso.nome_file || '')
+    setPreventivoRegistroImporto(String(ingresso.importo_totale || ''))
+    setPreventivoRegistroNote(ingresso.note || '')
+  }, [ingresso, setPreventivoRegistroEdit, setPreventivoRegistroCantiere, setPreventivoRegistroNomeFile, setPreventivoRegistroImporto, setPreventivoRegistroNote])
   const revisioneVisibile =
     p.sezioneAttiva === 'registro' &&
     p.registroTab === 'preventivi' &&
@@ -29,7 +41,7 @@ export default function RegistroPanel(props: any) {
 
  return (
   <>
-    <RegistroHeaderToolbar
+    {!ingresso && <RegistroHeaderToolbar
         registroTab={p.registroTab}
         setRegistroTab={p.setRegistroTab}
         registroCerca={p.registroCerca}
@@ -43,13 +55,13 @@ export default function RegistroPanel(props: any) {
         setRegistroFiltroCantiere={p.setRegistroFiltroCantiere}
         cantieriRegistroDisponibili={p.cantieriRegistroDisponibili}
         buttonSecondary={p.buttonSecondary}
-      />
+      />}
 
    {p.registroTab === 'cantieri' && <button type="button" onClick={p.apriElencoCantieri} style={p.buttonSecondary}>Apri Registro cantieri</button>}
      {p.registroTab === 'preventivi' && <>
-       <button type="button" disabled={manuale !== undefined} onClick={() => setNuovo(v => !v)}>+ Nuovo preventivo</button>
+       {!ingresso && <button type="button" disabled={manuale !== undefined} onClick={() => setNuovo(v => !v)}>+ Nuovo preventivo</button>}
        {nuovo && <div aria-label="Modalità nuovo preventivo"><button type="button" onClick={() => { p.setSezioneAttiva('sopralluoghi'); setNuovo(false) }}>Genera con AI</button><button type="button" onClick={() => { setManuale(null); setNuovo(false) }}>Compila manualmente</button></div>}
-       {manuale !== undefined && <PreventivoManualeFocus contesto="Registro · Preventivi" etichettaRitorno="← Torna al Registro" onChiudi={() => { if (window.confirm('Chiudere il preventivo? Le modifiche non salvate saranno perse.')) setManuale(undefined) }}><PreventivoManualePanel key={manuale?.id || 'nuovo'} db={supabase} cantieri={p.cantieri} iniziale={manuale || undefined} chiudi={() => setManuale(undefined)} salvato={p.ricaricaPreventivi} excel={p.generaExcelDaPreventivoAi} /></PreventivoManualeFocus>}
+       {manuale !== undefined && <PreventivoManualeFocus contesto="Registro · Preventivi" etichettaRitorno={ingresso ? "← Torna al preventivo" : "← Torna al Registro"} onChiudi={() => { if (window.confirm('Chiudere il preventivo? Le modifiche non salvate saranno perse.')) setManuale(undefined) }}><PreventivoManualePanel key={manuale?.id || 'nuovo'} db={supabase} cantieri={p.cantieri} iniziale={manuale || undefined} chiudi={() => setManuale(undefined)} salvato={p.ricaricaPreventivi} excel={p.generaExcelDaPreventivoAi} /></PreventivoManualeFocus>}
   <RegistroPreventiviPanel
     apriManuale={documento => { if (manuale === undefined || window.confirm("Scartare le modifiche non salvate e aprire questo preventivo?")) setManuale(documento) }}
     preventivi={p.preventivi}
@@ -85,7 +97,7 @@ export default function RegistroPanel(props: any) {
     mostraRevisionePreventivoAi={revisioneVisibile}
     preventivoAiGenerato={p.preventivoAiGenerato}
     pannelloRevisione={revisioneVisibile ? (
-      <PreventivoManualeFocus titolo="Revisione AI" contesto={preventivoRevisione?.nome_file || 'Registro · Preventivi'} etichettaRitorno="← Torna al Registro" onChiudi={() => p.setMostraRevisionePreventivoAi(false)}>
+      <PreventivoManualeFocus titolo="Revisione AI" contesto={preventivoRevisione?.nome_file || 'Registro · Preventivi'} etichettaRitorno={ingresso ? "← Torna al preventivo" : "← Torna al Registro"} onChiudi={() => p.setMostraRevisionePreventivoAi(false)}>
       {preventivoRevisione?.natura !== 'integrativo' && preventivoRevisione?.origine_ai && !preventivoRevisione.approvato && p.preventivoRegistroEdit === String(preventivoRevisione.id) && <button type="button" onClick={() => p.approvaPreventivoAiECreaCantiere(preventivoRevisione)} style={{ ...p.buttonPrimary, backgroundColor: '#16a34a', marginBottom: 16 }}>✅ Approva e crea cantiere</button>}
       <RevisionePreventivoAiPanel
     prezziRiferimento={p.prezziRiferimento}

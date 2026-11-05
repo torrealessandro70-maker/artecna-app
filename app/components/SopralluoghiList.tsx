@@ -14,6 +14,7 @@ const excelTd: CSSProperties = {
 }
 
 type Props = {
+  onApriPreventivo?: (sopralluogoId: string) => void
   azioneNuovo?: ReactNode
   sopralluoghi: any[]
   mostraElencoSopralluoghi: boolean
@@ -34,6 +35,7 @@ type Props = {
 }
 
 export default function SopralluoghiList({
+  onApriPreventivo,
   azioneNuovo,
   sopralluoghi,
   mostraElencoSopralluoghi,
@@ -415,7 +417,7 @@ onKeyDown={(event) => {
       type="button"
       onClick={(event) => {
         event.stopPropagation()
-        alert('Preventivo AI: azione in arrivo')
+        onApriPreventivo?.(String(s.id))
       }}
       style={{
         ...buttonSecondary,

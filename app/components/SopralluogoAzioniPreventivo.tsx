@@ -3,6 +3,7 @@
 import { useState, type CSSProperties } from 'react'
 
 type Props = {
+  soloPreventivo?: boolean
   sopralluogoAperto: any
   preventivoAiGenerato: any
   generaPreventivoDaSopralluogo: (s: any) => void | Promise<void>
@@ -16,6 +17,7 @@ type Props = {
 }
 
 export default function SopralluogoAzioniPreventivo({
+  soloPreventivo = false,
   sopralluogoAperto,
   preventivoAiGenerato,
   generaPreventivoDaSopralluogo,
@@ -163,6 +165,7 @@ export default function SopralluogoAzioniPreventivo({
               Apri Preventivo AI
             </button>
           )}
+          {!soloPreventivo && <>
           <button
             type="button"
             role="menuitem"
@@ -196,6 +199,7 @@ export default function SopralluogoAzioniPreventivo({
           >
             Esporta Fascicolo (prossimamente)
           </button>
+          </>}
         </div>
       )}
 

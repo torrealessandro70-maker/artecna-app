@@ -121,6 +121,7 @@ import AgendaContainer from './components/agenda/AgendaContainer'
 import SopralluoghiPanel from './components/SopralluoghiPanel'
 import FattureEmessePopupLayer from './components/FattureEmessePopupLayer'
 import RegistroPanel from './components/RegistroPanel'
+import PreventivoSopralluogoFocus from './components/PreventivoSopralluogoFocus'
 import { impostaPreventivoContrattuale } from './utils/preventivoContrattuale'
 import CantieriElencoPanel from './components/CantieriElencoPanel'
 import CantieriSchedaPanel from './components/CantieriSchedaPanel'
@@ -3708,6 +3709,7 @@ const [cantiereRegistroFine, setCantiereRegistroFine] = useState('')
 const [cantiereRegistroConcluso, setCantiereRegistroConcluso] = useState(false)
 
 const [preventivoRegistroEdit, setPreventivoRegistroEdit] = useState<string | null>(null)
+const [preventivoSopralluogoId, setPreventivoSopralluogoId] = useState<string | null>(null)
 const [preventivoAiGenerato, setPreventivoAiGenerato] =
   useState<any | null>(null)
 
@@ -13144,6 +13146,7 @@ onDocumentAction={gestisciAzioneDocumento}
 {/* ================= SOPRALLUOGHI ================= */}
 {sezioneAttiva === 'sopralluoghi' && (
   <SopralluoghiContainer
+    onApriPreventivo={(id: string) => { if (sopralluoghi.some(s => String(s.id) === id)) setPreventivoSopralluogoId(id) }}
     key={contestoQuadernoCantiere?.id || 'generale'}
     contestoCantiere={contestoQuadernoCantiere}
     tornaAlCantiere={tornaAlCantiereDaQuaderno}
@@ -13348,13 +13351,18 @@ onDocumentAction: gestisciAzioneDocumento,
   />
 )}
 {/* ================= REGISTRO ================= */}
-{sezioneAttiva === 'registro' && (
-  <RegistroPanel
+{(sezioneAttiva === 'registro' || (sezioneAttiva === 'sopralluoghi' && preventivoSopralluogoId)) && (
+  <PreventivoSopralluogoFocus formatMoney={formatMoney} key={preventivoSopralluogoId || 'registro'} sopralluogo={preventivoSopralluogoId ? sopralluoghi.find(s => String(s.id) === preventivoSopralluogoId) : undefined} preventivi={preventivi}
+    onChiudi={() => setPreventivoSopralluogoId(null)}
+    iniziale={preventivoSopralluogoId ? <SopralluogoAzioniPreventivo sopralluogoAperto={sopralluoghi.find(s => String(s.id) === preventivoSopralluogoId)} preventivoAiGenerato={null} generaPreventivoDaSopralluogo={generaPreventivoDaSopralluogo} generaPreventivoAiDaSopralluogo={generaPreventivoAiDaSopralluogo} apriPreventivoAiGeneratoInModifica={apriPreventivoAiGeneratoInModifica} convertiSopralluogoInCantiere={convertiSopralluogoInCantiere} generaPdfSopralluogo={generaPdfSopralluogo} buttonPrimary={buttonPrimary} soloPreventivo /> : null}>
+  {(documentoIngresso) => <RegistroPanel
+    key={documentoIngresso?.id || 'registro'}
+    documentoIngresso={documentoIngresso}
     apriElencoCantieri={() => { setSezioneAttiva('cantieri'); setSottoSezioneCantieri('elenco') }}
     setSezioneAttiva={setSezioneAttiva}
     ricaricaPreventivi={caricaEconomia}
-  sezioneAttiva={sezioneAttiva}
-  registroTab={registroTab}
+  sezioneAttiva={preventivoSopralluogoId ? 'registro' : sezioneAttiva}
+  registroTab={preventivoSopralluogoId ? 'preventivi' : registroTab}
   setRegistroTab={setRegistroTab}
   registroCerca={registroCerca}
   setRegistroCerca={setRegistroCerca}
@@ -13587,7 +13595,8 @@ salvaRevisionePreventivoAi={salvaRevisionePreventivoAi}
   excelInput={excelInput}
   buttonPrimary={buttonPrimary}
   buttonSecondary={buttonSecondary}
-/>
+/>}
+  </PreventivoSopralluogoFocus>
 )}
 
 {/* ================= AGENDA / TIME ENGINE ================= */}
