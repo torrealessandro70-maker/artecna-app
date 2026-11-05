@@ -27,6 +27,8 @@ export default function QuadernoProgettiPanel({ supabase, attivo, buttonPrimary,
   const pendentiRef = useRef(false)
   const salvataggioRef = useRef(false)
   const fileOccupatoRef = useRef(false)
+  const [progettoArchivioId, setProgettoArchivioId] = useState<string | null>(null)
+  const [archivioFocusAperto, setArchivioFocusAperto] = useState(false)
 
   const carica = useCallback(async () => {
     setCaricamento(true)
@@ -147,8 +149,8 @@ export default function QuadernoProgettiPanel({ supabase, attivo, buttonPrimary,
       {progetti.map(progetto => <li key={progetto.id}>
         <strong>{progetto.titolo || 'Senza titolo'}</strong>{' · '}
         {new Date(progetto.updated_at).toLocaleString('it-IT')}{' '}
-        <button style={buttonSecondary} disabled={gestioneBusy || !!progetto.gestione_id || aperto === progetto.id} onClick={() => {
-          if (puoCambiare()) { setImportato(undefined); setAperto(progetto.id) }
+        <button style={buttonSecondary} disabled={gestioneBusy || !!progetto.gestione_id || (aperto === progetto.id && (progettoArchivioId !== aperto || archivioFocusAperto))} onClick={() => {
+          if (puoCambiare()) { setImportato(undefined); setAperto(progetto.id); setProgettoArchivioId(progetto.id); setArchivioFocusAperto(true) }
         }}>Apri {progetto.titolo}</button>
         <details style={{ display: 'inline-block', marginLeft: 8 }}>
           <summary aria-label={'Azioni progetto ' + progetto.titolo}>⋯</summary>
@@ -161,8 +163,8 @@ export default function QuadernoProgettiPanel({ supabase, attivo, buttonPrimary,
     <GestioniQuadernoPendenti supabase={supabase} revisione={revisioneGestione} disabled={gestioneBusy || pendenti}
       onBusy={busy => { gestioneBusyRef.current = busy; setGestioneBusy(busy); if (busy) setAperto(null) }}
       onConclusa={() => { setRevisioneGestione(n => n + 1); void carica() }} />
-    {aperto && <QuadernoCollegatoFocus aperto attivo={Boolean(onChiudi && progettoInizialeId)} contesto={progetti.find(p => p.id === aperto)?.titolo}
-      etichettaRitorno="← Torna al cantiere" onChiudi={() => { if (puoCambiare()) onChiudi?.() }}>
+    {aperto && <QuadernoCollegatoFocus aperto={Boolean(onChiudi && progettoInizialeId) || archivioFocusAperto} attivo={Boolean(onChiudi && progettoInizialeId) || progettoArchivioId === aperto} contesto={progetti.find(p => p.id === aperto)?.titolo}
+      etichettaRitorno={onChiudi && progettoInizialeId ? '← Torna al cantiere' : '← Torna all’Archivio'} onChiudi={() => { if (puoCambiare()) { if (onChiudi && progettoInizialeId) onChiudi(); else setArchivioFocusAperto(false) } }}>
     {onChiudi && progettoInizialeId && <button type="button" onClick={() => { if (puoCambiare()) onChiudi() }}>Chiudi Quaderno e rileggi fonti</button>}
     <SopralluogoAppunti key={aperto} progettoQuadernoId={aperto} importazioneFile={importato}
       mostraAppuntiSopralluogo setMostraAppuntiSopralluogo={() => undefined} integrato
