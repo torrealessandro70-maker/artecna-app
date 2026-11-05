@@ -63,8 +63,21 @@ export default function CantieriElencoPanel({
   const aperturaRef = useRef<HTMLButtonElement>(null)
   const preventiviPerCantiere = useMemo(() => mappaPreventiviElenco(preventivi), [preventivi])
   return (
-    <div style={cardStyle}>
+    <div style={{ ...cardStyle, minWidth: 0 }}>
       <h2>Elenco cantieri</h2>
+      <style>{`@container elenco-cantieri (max-width: 900px) {
+        .elenco-cantieri-tabella thead { display: none; }
+        .elenco-cantieri-tabella, .elenco-cantieri-tabella tbody, .elenco-cantieri-tabella tr, .elenco-cantieri-tabella td { display: block; width: 100%; min-width: 0 !important; box-sizing: border-box; }
+        .elenco-cantieri-tabella td { white-space: normal !important; overflow-wrap: anywhere; }
+        .elenco-cantieri-tabella td::before { display: block; font-weight: 700; }
+        .elenco-cantieri-tabella td:nth-child(1)::before { content: 'Nome'; }
+        .elenco-cantieri-tabella td:nth-child(2)::before { content: 'Preventivo'; }
+        .elenco-cantieri-tabella td:nth-child(3)::before { content: 'Inizio'; }
+        .elenco-cantieri-tabella td:nth-child(4)::before { content: 'Fine'; }
+        .elenco-cantieri-tabella td:nth-child(5)::before { content: 'Concluso'; }
+        .elenco-cantieri-tabella td:nth-child(6)::before { content: 'Azioni'; }
+        .elenco-cantieri-tabella td > div { flex-wrap: wrap; }
+      }`}</style>
 
       <button type="button" ref={aperturaRef} onClick={() => setMostraNuovo(true)} style={buttonPrimary}>Nuovo cantiere</button>
       <input aria-label="Cerca cantiere" placeholder="Cerca cantiere..." value={ricercaCantiere || ''}
@@ -119,7 +132,7 @@ export default function CantieriElencoPanel({
           style={{
             border: '1px solid #cbd5e1',
             borderRadius: 8,
-            overflow: 'auto',
+            overflow: 'auto', containerType: 'inline-size', containerName: 'elenco-cantieri', minWidth: 0,
             background: '#fff',
           }}
         >
@@ -127,7 +140,7 @@ export default function CantieriElencoPanel({
             🏗️ Registro cantieri
           </h3>
 
-          <table
+          <table className="elenco-cantieri-tabella"
             style={{
               ...excelTable,
               width: '100%',

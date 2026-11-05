@@ -7,7 +7,6 @@ import { fotoNelCantiere } from '../engines/photo-storage/cantiere-context'
 type SchedaCantierePagina = 'panoramica' | 'lavori' | 'documenti' | 'economia' | 'varianti' | 'fascicolo' | 'timeline'
 type LavoriSezione = 'rapportini' | 'foto' | 'presenze' | 'materiali' | 'attrezzature'
 import RapportiniCantierePanel from './RapportiniCantierePanel'
-import SelectCantiere from './SelectCantiere'
 import MaterialiCantierePanel from './MaterialiCantierePanel'
 import AttrezzatureCantierePanel from './AttrezzatureCantierePanel'
 import TimelineCantierePanel from './TimelineCantierePanel'
@@ -108,38 +107,8 @@ export default function CantieriSchedaPanel(props: any) {
           </h2>
         </div>
 
-        <div style={{ flex: '0 1 360px', minWidth: 0, width: '100%' }}>
-          <p style={{ margin: '0 0 8px', color: '#334155', fontSize: 13, fontWeight: 600 }}>
-            Cambia cantiere
-          </p>
-          <SelectCantiere
-            cantieri={p.cantieri}
-            value={p.cantiereScheda || ''}
-            onChange={p.setCantiereScheda}
-            onChangeId={p.setCantiereIdScheda}
-            inputStyle={{
-              padding: 10, width: '100%', maxWidth: '100%', boxSizing: 'border-box',
-              border: '1px solid #94a3b8', borderRadius: 8, background: '#fff',
-              color: '#0f172a', marginBottom: 12,
-            }}
-            buttonSecondary={p.buttonSecondary}
-          />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <input
-              aria-label="Cerca cantiere"
-              placeholder="Cerca cantiere..."
-              value={p.ricercaCantiereEconomia}
-              onChange={(e) => p.setRicercaCantiereEconomia(e.target.value)}
-              style={{ ...p.inputStyle, flex: '1 1 160px', minWidth: 0, width: '100%', boxSizing: 'border-box' }}
-            />
-            <button
-              type="button"
-              onClick={() => p.setMostraConclusiEconomia(!p.mostraConclusiEconomia)}
-              style={p.buttonSecondary}
-            >
-              {p.mostraConclusiEconomia ? 'Nascondi conclusi' : 'Mostra conclusi'}
-            </button>
-          </div>
+        <div style={{ minWidth: 0, maxWidth: '100%' }}>
+          <button type="button" onClick={() => p.setSottoSezioneCantieri('elenco')} style={{ ...p.buttonSecondary, minHeight: 44, maxWidth: '100%', whiteSpace: 'normal' }}>← Torna ai cantieri</button>
           {p.cantiereSelezionatoDaId && (
             <details style={{ marginTop: 12, color: '#475569', fontSize: 13 }}>
               <summary style={{ cursor: 'pointer', padding: '8px 0' }}>Altro</summary>

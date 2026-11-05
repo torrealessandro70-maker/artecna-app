@@ -129,7 +129,7 @@ export default function CantieriEconomiaPanel(props: Props) {
           <h2 style={{ margin: '3px 0 14px' }}>
             {p.cantiereNomeVisualizzato || 'Seleziona un cantiere'}
           </h2>
-          <EconomiaSelezioneCantierePanel
+          {!p.soloCantiereCorrente && <EconomiaSelezioneCantierePanel
             setCantiereIdScheda={p.setCantiereIdScheda}
             cantieri={p.cantieri}
             cantiereScheda={p.cantiereScheda}
@@ -140,7 +140,7 @@ export default function CantieriEconomiaPanel(props: Props) {
             setMostraConclusiEconomia={p.setMostraConclusiEconomia}
             inputStyle={p.inputStyle}
             buttonSecondary={p.buttonSecondary}
-          />
+          />}
         </div>
 
       </header>

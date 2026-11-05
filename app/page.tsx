@@ -12185,18 +12185,6 @@ WebkitOverflowScrolling: 'touch',
       </div>
     )}
 
-    {pagineAperte.includes('cantieri-elenco') && (
-      <div style={{ ...cardStyle, minWidth: 420, maxWidth: 480 }}>
-        <h3>🏗️ Elenco cantieri</h3>
-        {cantieri.slice(0, 8).map((c, i) => (
-          <div key={c.id || i} style={{ borderBottom: '1px solid #eee', padding: '6px 0' }}>
-            <strong>{c.nome}</strong><br />
-            Preventivo: {formatMoney(Number(c.preventivo || 0))}
-          </div>
-        ))}
-      </div>
-    )}
-
     {pagineAperte.includes('cantieri-economia') && (
       <div style={{ ...cardStyle, minWidth: 420, maxWidth: 480 }}>
         <h3>📁 Fascicolo cantiere</h3>
@@ -12346,12 +12334,7 @@ WebkitOverflowScrolling: 'touch',
   {mostraManualeCantiere && <PreventivoManualeFocus contesto={cantiereSelezionatoDaId.nome} onChiudi={() => setMostraManualeCantiere(false)}><PreventivoManualePanel key={cantiereSelezionatoDaId.id} db={supabase} cantieri={cantieri} cantiereId={cantiereSelezionatoDaId.id} chiudi={() => setMostraManualeCantiere(false)} salvato={caricaEconomia} excel={generaExcelDaPreventivoAi} /></PreventivoManualeFocus>}
 </section>}
 {/* ================= CANTIERI - ELENCO ================= */}
-{(
-  pagineAperte.includes('cantieri-elenco') ||
-  (!modalitaMulti &&
-    sezioneAttiva === 'cantieri' &&
-    sottoSezioneCantieri === 'elenco')
-) && (
+{sezioneAttiva === 'cantieri' && sottoSezioneCantieri === 'elenco' && (
   <CantieriElencoPanel
     cantieri={cantieri}
     preventivi={preventivi}

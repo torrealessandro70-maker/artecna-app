@@ -71,7 +71,7 @@ const {
         <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#475569', minHeight: 44 }}>
           Altri strumenti del cantiere
         </summary>
-      <CantieriEconomiaPanel {...props} />
+      <CantieriEconomiaPanel {...props} soloCantiereCorrente />
       </details>
     </>
   )

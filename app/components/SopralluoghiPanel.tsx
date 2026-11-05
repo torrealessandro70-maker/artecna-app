@@ -118,7 +118,7 @@ export default function SopralluoghiPanel(props: Props) {
   }, [props.sopralluogoModificaId])
 
   return (
-    <div style={props.cardStyle}>
+    <div style={{ ...props.cardStyle, minWidth: 0, overflowWrap: 'anywhere' }}>
       <h2>📍 Sopralluoghi</h2>
       {props.contestoCantiere && <div data-cantiere-id={props.contestoCantiere.id} style={{ marginBottom: 16 }}>
         <button type="button" onClick={props.tornaAlCantiere} style={props.buttonSecondary}>← Torna al cantiere</button>

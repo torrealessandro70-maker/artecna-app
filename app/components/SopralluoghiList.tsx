@@ -233,7 +233,24 @@ const toggleInLavorazione = (id: string) => {
 
   return (
     <>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'end', marginBottom: 12 }}>
+      <style>{`@container sopralluoghi-lista (max-width: 1100px) {
+        .sopralluoghi-tabella thead { display: none; }
+        .sopralluoghi-tabella, .sopralluoghi-tabella tbody, .sopralluoghi-tabella tr, .sopralluoghi-tabella td { display: block; width: 100%; min-width: 0 !important; box-sizing: border-box; }
+        .sopralluoghi-tabella td { white-space: normal !important; overflow-wrap: anywhere; }
+        .sopralluoghi-tabella td::before { display: block; font-weight: 700; }
+        .sopralluoghi-tabella td:nth-child(1)::before { content: 'Data'; }
+        .sopralluoghi-tabella td:nth-child(2)::before { content: 'Cliente'; }
+        .sopralluoghi-tabella td:nth-child(3)::before { content: 'Indirizzo'; }
+        .sopralluoghi-tabella td:nth-child(4)::before { content: 'Intervento / Note'; }
+        .sopralluoghi-tabella td:nth-child(5)::before { content: 'Stato'; }
+        .sopralluoghi-tabella td:nth-child(6)::before { content: 'Azioni'; }
+        .sopralluoghi-tabella button { min-width: 0 !important; max-width: 100%; white-space: normal !important; overflow-wrap: anywhere; }
+      }
+      [aria-label="Navigazione sopralluoghi"] { min-width: 0; max-width: 100%; }
+      [aria-label="Navigazione sopralluoghi"] button { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+      .sopralluoghi-filtri label { min-width: 0; max-width: 100%; }
+      .sopralluoghi-filtri input { min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; }`}</style>
+      <div className="sopralluoghi-filtri" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'end', marginBottom: 12 }}>
         <label style={{ display: 'grid', gap: 4 }}>
           Da
           <input type="date" value={dataDaSopralluogo} onChange={(event) => setDataDaSopralluogo(event.target.value)} />
@@ -265,7 +282,7 @@ const toggleInLavorazione = (id: string) => {
           marginBottom: 10,
         }}
       >
-        <h3>🚧 Lavori attivi</h3>
+
 
         <div aria-label="Navigazione sopralluoghi" style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         {azioneNuovo}
@@ -307,7 +324,7 @@ const toggleInLavorazione = (id: string) => {
   </div>
 </div>
 
-    <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{attiviFiltrati.map((s) => (
+    <div style={{ overflowX: 'auto', containerType: 'inline-size', containerName: 'sopralluoghi-lista', minWidth: 0 }}><table className="sopralluoghi-tabella" style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{attiviFiltrati.map((s) => (
     <tr key={s.id}
 role="button"
 tabIndex={0}
@@ -351,6 +368,10 @@ onKeyDown={(event) => {
   >
     ✏️ Continua sopralluogo
   </button>
+<button type="button" onClick={(event) => {
+    event.stopPropagation()
+    if (confirm('Chiudere e archiviare questo sopralluogo? Questa organizzazione è locale al browser.')) toggleInLavorazione(String(s.id))
+  }} style={{ ...buttonSecondary, minHeight: 44 }}>Chiudi e archivia</button>
 <button
       type="button"
       onClick={(event) => {
@@ -405,7 +426,7 @@ onKeyDown={(event) => {
         <p>Nessun sopralluogo trovato</p>
       ) : (
        <div style={{ display: 'grid', gap: 10 }}>
-  <div style={{ overflowX: 'auto' }}><table style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{archivioFiltrato
+  <div style={{ overflowX: 'auto', containerType: 'inline-size', containerName: 'sopralluoghi-lista', minWidth: 0 }}><table className="sopralluoghi-tabella" style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{archivioFiltrato
     .slice(0, filtriAttivi || mostraElencoSopralluoghi ? undefined : 1)
     .map((s, i) => (
               <tr key={s.id || i} style={{ background: '#fff' }}>
