@@ -2026,8 +2026,9 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
         {anteprima.proposta.anomalie.filter(a => a.indiceVoce === undefined).map((a, i) =>
           <p key={i}>Adapter: {a.codice.replaceAll('_', ' ')}</p>)}
         <div style={{ overflowX: 'auto', marginTop: 12 }}>
-          <table className="anteprima-lavorazioni-variante" style={{ borderCollapse: 'collapse', width: '100%', minWidth: 780, fontSize: 14 }}>
+          <table className="anteprima-lavorazioni-variante" style={{ borderCollapse: 'collapse', tableLayout: 'fixed', width: '100%', minWidth: 780, fontSize: 14 }}>
             <caption style={{ textAlign: 'left', padding: 8 }}>Lavorazioni sorgente — sola lettura</caption>
+            <colgroup>{['38%', '7%', '10%', '14%', '14%', '17%'].map((width, i) => <col key={i} style={{ width }} />)}</colgroup>
             <thead><tr>{['Descrizione', 'UM', 'Quantità', 'Prezzo sorgente', 'Totale sorgente', 'Verifica'].map(t =>
               <th key={t} scope="col" style={{ ...cella, textAlign: 'left', background: '#f1f5f9' }}>{t}</th>)}</tr></thead>
             <tbody>{anteprima.proposta.lavorazioni.map((voce, indice) => {
@@ -2062,12 +2063,16 @@ function AnteprimaPreventivoVariante({ cantiereId, elencoVarianti, variantiCorre
       .acquisizione-variante { min-width: 0; overflow-wrap: anywhere; container: acquisizione-variante / inline-size; }
       .acquisizione-variante select, .acquisizione-variante input { max-width: 100%; box-sizing: border-box; }
       .acquisizione-variante button { white-space: normal; max-width: 100%; overflow-wrap: anywhere; }
+      .anteprima-lavorazioni-variante th { white-space: nowrap; }
+      .anteprima-lavorazioni-variante td:nth-child(n+3):nth-child(-n+5) { white-space: nowrap; overflow-wrap: normal; text-align: right; }
       @container acquisizione-variante (width < 900px) {
         .anteprima-lavorazioni-variante { display: block; min-width: 0 !important; }
+        .anteprima-lavorazioni-variante colgroup { display: none; }
         .anteprima-lavorazioni-variante caption, .anteprima-lavorazioni-variante tbody { display: block; }
         .anteprima-lavorazioni-variante thead { display: none; }
         .anteprima-lavorazioni-variante tr { display: block; margin-bottom: 12px; }
-        .anteprima-lavorazioni-variante td { display: block; overflow-wrap: anywhere; }
+        .anteprima-lavorazioni-variante td { display: block; width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
+        .anteprima-lavorazioni-variante td:nth-child(n+3):nth-child(-n+5) { text-align: left; }
         .anteprima-lavorazioni-variante td::before { content: attr(data-label); display: block; font-weight: 600; color: #475569; }
       }
     `}</style>

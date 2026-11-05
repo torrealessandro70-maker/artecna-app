@@ -9,6 +9,26 @@ const nodes = x => x == null ? [] : Array.isArray(x) ? x.flatMap(nodes) : typeof
 const text = x => x == null ? '' : Array.isArray(x) ? x.map(text).join('') : typeof x === 'object' ? text(x.props?.children) : String(x)
 const find = (tree, type, label) => nodes(tree).find(n => n.type === type && text(n).includes(label))
 const tick = () => new Promise(resolve => setImmediate(resolve))
+test('tabella sorgente: 17 righe, colonne proporzionate e dati originali separati dal layout', async () => {
+  const m = mount({ contrattoId: pid, candidates: [{ id: pid, numeroLavorazioni: 17, nomeFile: 'Pidatella' }] }); let tree = await m.open()
+  await find(tree, 'button', 'Consulta preventivo contrattuale').props.onClick(); tree = await m.settle()
+  const table = nodes(tree).find(n => n.type === 'table' && n.props.className === 'anteprima-lavorazioni-variante')
+  assert(table); assert.equal(table.props.style.tableLayout, 'fixed'); assert.equal(table.props.style.width, '100%')
+  assert.deepEqual(Array.from(nodes(table).filter(n => n.type === 'col'), n => n.props.style.width), ['38%', '7%', '10%', '14%', '14%', '17%'])
+  assert.deepEqual(Array.from(nodes(table).filter(n => n.type === 'th'), text), ['Descrizione', 'UM', 'Quantità', 'Prezzo sorgente', 'Totale sorgente', 'Verifica'])
+  const rows = nodes(find(table, 'tbody', '')).filter(n => n.type === 'tr'); assert.equal(rows.length, 17)
+  const cells = nodes(rows[0]).filter(n => n.type === 'td'); assert.deepEqual(cells.slice(0, 5).map(text), ['Lavorazione 0', 'm', '1', '10', '10'])
+  assert.equal(m.writes.length, 0)
+})
+test('layout circoscritto: intestazioni e numeri non spezzati, card sotto 900; handler e righe invariati', () => {
+  const file = path.join(__dirname, 'VariantiCantierePanel.tsx'), s = fs.readFileSync(file, 'utf8')
+  assert(s.includes('.anteprima-lavorazioni-variante th { white-space: nowrap; }'))
+  assert(s.includes('td:nth-child(n+3):nth-child(-n+5) { white-space: nowrap; overflow-wrap: normal; text-align: right; }'))
+  assert(s.includes('@container acquisizione-variante (width < 900px)')); assert(s.includes('.anteprima-lavorazioni-variante colgroup { display: none; }')); assert(s.includes('content: attr(data-label)'))
+  const old = require('node:child_process').execFileSync('git', ['show', '3ea2784ec64a3f88c07fd9e42640760f97306631:app/components/VariantiCantierePanel.tsx'], { encoding: 'utf8', maxBuffer: 2e6 })
+  const extract = source => { const sf = ts.createSourceFile('panel.tsx', source.replace(/\r/g, ''), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), handlers = [], bodies = []; function walk(n) { if (ts.isJsxAttribute(n) && /^on[A-Z]/.test(n.name.getText(sf))) handlers.push(n.getText(sf)); if (ts.isJsxElement(n) && n.openingElement.tagName.getText(sf) === 'tbody' && n.getText(sf).includes('anteprima.proposta.lavorazioni')) bodies.push(n.getText(sf)); ts.forEachChild(n, walk) } walk(sf); return { handlers, bodies } }
+  assert.deepEqual(extract(s), extract(old))
+})
 function mount({ variants = [], candidates = [{ id: testa, numeroLavorazioni: 7, nomeFile: 'Testa' }], response, sources = [], contrattoId = null, mockAcquisizione = false } = {}) {
   const slots = [], calls = [], reads = [], writes = []; let cursor = 0, effects = []
   const react = {
