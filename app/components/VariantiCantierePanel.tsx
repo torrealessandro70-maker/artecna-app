@@ -3,7 +3,8 @@
 import EsclusioneRigaEconomia from './EsclusioneRigaEconomia'
 import VistaOperativa from './VistaOperativa'
 
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { gruppoVariante, titoliGruppiVarianti, type GruppoVariante } from '../lib/gruppiVarianti'
 import { supabase } from '../../lib/supabaseClient'
 import { provenienzaFatturaEconomia } from '../engines/economia/fattureMateriali'
 import { elencaPreventiviSorgenteVariante, caricaLavorazioniPreventivoSorgente, type PreventivoSorgenteCandidato } from '../engines/varianti/repositoryPreventiviSorgente'
@@ -2123,6 +2124,14 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
   const [stato, setStato] = useState<Stato>({ tipo: 'loading' })
   const [formAperto, setFormAperto] = useState(false)
   const [varianteApertaId, setVarianteApertaId] = useState<string | null>(null)
+  const [gruppoAperto, setGruppoAperto] = useState<{ tipo: GruppoVariante; ids: string[] } | null>(null)
+  const [conteggiLocali, setConteggiLocali] = useState<{ cantiereId?: string | null; valori: Record<string, number | undefined> }>({ valori: {} })
+  const riceviConteggio = useCallback((id: string, conteggio: number | undefined) => {
+    setConteggiLocali(precedenti => {
+      const valori = precedenti.cantiereId === cantiereId ? precedenti.valori : {}
+      return valori[id] === conteggio && precedenti.cantiereId === cantiereId ? precedenti : { cantiereId, valori: { ...valori, [id]: conteggio } }
+    })
+  }, [cantiereId])
   const aperturaEconomia = useRef<string | null>(null)
   const [richiestaAperturaAnteprima, setRichiestaAperturaAnteprima] = useState(0)
   const anteprimaRef = useRef<HTMLDivElement | null>(null)
@@ -2148,6 +2157,7 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
     invioInCorso.current = false
     setRichiestaAperturaAnteprima(0)
     setVarianteApertaId(null)
+    setGruppoAperto(null)
     aperturaEconomia.current = null
     setFormAperto(false)
     setTitolo('')
@@ -2308,6 +2318,10 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
   }, [stato, bozzeCreate, proposteConfermate, approvazioniConfermate])
   const elencoContrattuale = useMemo<Stato>(() => stato.tipo === 'elenco'
     ? { ...stato, righe } : stato, [stato, righe])
+  const conteggi = conteggiLocali.cantiereId === cantiereId ? conteggiLocali.valori : {}
+  const gruppi = (Object.keys(titoliGruppiVarianti) as GruppoVariante[]).map(tipo => ({
+    tipo, righe: righe.filter(v => gruppoVariante(v.stato, conteggi[v.id]) === tipo),
+  }))
 
   useEffect(() => {
     if (stato.tipo === 'elenco' && stato.cantiereId === cantiereId && varianteApertaId &&
@@ -2433,9 +2447,16 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
       {stato.tipo === 'errore' && <p role="alert">{stato.messaggio}</p>}
       {bozzeNonRilette && <p role="status">L'elenco aggiornato non restituisce tutte le bozze appena salvate. Sono mostrate le conferme di questa apertura del pannello; la rilettura non è confermata.</p>}
       {!economiaRapportini && stato.tipo === 'elenco' && righe.length === 0 && <p>Nessuna variante tradizionale presente per questo cantiere.</p>}
+      {!economiaRapportini && stato.tipo === 'elenco' && <nav aria-label="Gruppi varianti" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {!gruppi[0].righe.length && <p style={{ width: '100%', margin: '4px 0' }}>Nessuna variante operativa con lavorazioni.</p>}
+        {gruppi.filter(g => g.righe.length > 0).map(g => <button key={g.tipo} type="button" style={{ minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', minHeight: 44 }}
+          onClick={() => setGruppoAperto({ tipo: g.tipo, ids: g.righe.map(v => v.id) })}>{titoliGruppiVarianti[g.tipo]} ({g.righe.length})</button>)}
+      </nav>}
       {righe.length > 0 && (
-        <div style={{ display: 'grid', gap: 12 }}>
-          {(economiaRapportini ? righe.filter(v => v.id === varianteApertaId) : righe).map(variante => (
+        <VistaOperativa attiva={!economiaRapportini} visibile={Boolean(gruppoAperto)} titolo={gruppoAperto ? titoliGruppiVarianti[gruppoAperto.tipo] : 'Varianti'}
+          etichettaRitorno="← Torna a Varianti" onChiudi={() => setGruppoAperto(null)}>
+        <div className="varianti-gruppo-lista" style={{ display: 'grid', gap: 12, minWidth: 0 }}>
+          {(economiaRapportini ? righe.filter(v => v.id === varianteApertaId) : righe.filter(v => gruppoAperto && (gruppoVariante(v.stato, conteggi[v.id]) === gruppoAperto.tipo || (v.id === varianteApertaId && gruppoAperto.ids.includes(v.id))))).map(variante => (
             <article key={variante.id} style={{ padding: economiaRapportini ? 16 : 12, minWidth: 0, overflowWrap: 'anywhere', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
               {economiaRapportini ? <>
               <h4 style={{ marginTop: 0 }}>
@@ -2458,6 +2479,7 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
                   <span>Data: {variante.data_variante ? variante.data_variante.slice(0, 10).split('-').reverse().join('/') : 'Non indicata'}</span>
                   <span>Delta: {variante.importo_delta_approvato === null ? 'Non disponibile' : Number(variante.importo_delta_approvato).toLocaleString('it-IT', { style: 'currency', currency: 'EUR', signDisplay: 'exceptZero' })}</span>
                 </p>
+                <p style={{ margin: '0 0 8px', fontSize: 12, overflowWrap: 'anywhere' }}>UUID: {variante.id}{conteggi[variante.id] !== undefined && <> · Lavorazioni: {conteggi[variante.id]}</>}</p>
               </>}
               {varianteApertaId === variante.id && <>
               {!economiaRapportini && variante.stato === 'bozza' && <RinominaVarianteBozza id={variante.id} stato={variante.stato} titoloAttuale={variante.titolo || ''}
@@ -2512,6 +2534,7 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
                 key={'generazione:' + cantiereId + ':' + variante.id} supabase={supabase} varianteId={variante.id}
                 onSalvato={() => { aggiornaVariante(variante.id); onDocumentoConfermato?.() }} />}
               <LavorazioniVariantePanel key={`${cantiereId}:${variante.id}`} varianteId={variante.id}
+                onConteggioCaricato={economiaRapportini ? undefined : riceviConteggio}
                 cantiereId={cantiereId} statoVariante={variante.stato}
                 sintetico={economiaRapportini}
                 refreshEsterno={refreshLavorazioni[variante.id] ?? 0}
@@ -2529,6 +2552,8 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
             </article>
           ))}
         </div>
+        <style>{`#area-lavoro-principale:has(> [data-attivita-operativa]:not(:has(> .varianti-gruppo-lista))) > [data-attivita-operativa]:has(> .varianti-gruppo-lista) { display: none; }`}</style>
+        </VistaOperativa>
       )}
     </section>
   )
@@ -2846,7 +2871,7 @@ const erroriPropostaRpc: Record<string, string> = {
   P2017: 'Conflitto durante la proposta. Riprova.',
 }
 
-function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refreshEsterno = 0, onNuoviLavori, onProposta, renderApprovazione, selettoreContrattuale, sintetico = false }: {
+function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refreshEsterno = 0, onNuoviLavori, onProposta, renderApprovazione, selettoreContrattuale, sintetico = false, onConteggioCaricato }: {
   varianteId: string
   cantiereId?: string | null
   statoVariante: string
@@ -2856,6 +2881,7 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
   renderApprovazione?: (lavorazioniLette: readonly LavorazioneVariante[] | null) => ReactNode
   selettoreContrattuale?: (controlli: { occupato: boolean; onInCorso: (valore: boolean) => void }) => ReactNode
   sintetico?: boolean
+  onConteggioCaricato?: (varianteId: string, conteggio: number | undefined) => void
 }) {
   const [righe, setRighe] = useState<LavorazioneVariante[]>([])
   const [confermate, setConfermate] = useState<LavorazioneVariante[]>([])
@@ -3057,6 +3083,8 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
   const visibili = [...righe, ...confermate.filter(c => !righe.some(r => r.numero_riga === c.numero_riga))]
     .sort((a, b) => a.numero_riga - b.numero_riga)
   const nonRilette = confermate.some(c => !righe.some(r => r.numero_riga === c.numero_riga))
+  const conteggioCaricato = lettura === 'elenco' && !nonRilette ? visibili.length : undefined
+  useEffect(() => { onConteggioCaricato?.(varianteId, conteggioCaricato) }, [onConteggioCaricato, varianteId, conteggioCaricato])
   const totale = visibili.reduce((somma, riga) => somma + numeroLavorazione(riga.delta_contratto), 0)
   const euro = (valore: number | string) => numeroLavorazione(valore).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
   const inputStyle = { display: 'block', width: '100%', boxSizing: 'border-box' as const, padding: 8 }

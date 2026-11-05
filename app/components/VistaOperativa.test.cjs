@@ -18,6 +18,7 @@ function hooks() {
   }
   return { react, start() { cursor = 0 }, flush() { const pending = effects; effects = []; pending.forEach(f => f()) } }
 }
+const grouping = {}; vm.runInNewContext(compile(fs.readFileSync(path.join(__dirname, '../lib/gruppiVarianti.ts'), 'utf8')), { exports: grouping });
 const focus = {}; vm.runInNewContext(compile(source('VistaOperativa.tsx')), { exports: focus, require(id) { if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }; return {} } })
 function mount({ rows = [{ id: 'storica', titolo: 'Storica', stato: 'approvata', numero: 1, importo_delta_approvato: null }] } = {}) {
   const h = hooks(), reads = [], exports = {}
@@ -26,13 +27,14 @@ function mount({ rows = [{ id: 'storica', titolo: 'Storica', stato: 'approvata',
     if (id === 'react') return h.react
     if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }
     if (id === './VistaOperativa') return focus
+    if (id === '../lib/gruppiVarianti') return grouping
     if (id.endsWith('/supabaseClient')) return { supabase: db }
     return {}
   } })
   const props = { cantiereId: 'cantiere-a' }
   return { reads, render() { h.start(); const tree = exports.default(props); h.flush(); return tree }, async settle() { let tree; for (let i = 0; i < 3; i++) { tree = this.render(); await new Promise(setImmediate) } return tree } }
 }
-const operational = tree => nodes(tree).find(n => n.type === focus.default)
+const operational = tree => nodes(tree).find(n => n.type === focus.default && n.props.titolo === 'Nuova variante')
 function fill(tree, value) {
   const input = nodes(operational(tree)).find(n => n.type === 'input' && n.props.required)
   input.props.onChange({ target: { value } })
@@ -49,7 +51,7 @@ test('Nuova variante entra nella vista operativa senza scritture', async () => {
 })
 
 test('ritorno conserva testo locale, variante selezionata ed elenco montato', async () => {
-  const m = mount(); let tree = await m.settle()
+  const m = mount(); let tree = await m.settle(); find(tree, 'button', 'Varianti approvate (').props.onClick(); tree = m.render()
   find(tree, 'button', 'Apri variante').props.onClick()
   find(m.render(), 'button', 'Nuova variante').props.onClick()
   fill(m.render(), 'Bozza locale da conservare')
@@ -111,7 +113,7 @@ test('toolbar unica senza guida duplicata, riposo senza form', async () => {
 })
 
 test('card compatta distingue numero, titolo e badge reale senza mutare i dati', async () => {
-  const m = mount(), tree = await m.settle(), card = find(tree, 'article')
+  const m = mount(); let tree = await m.settle(); find(tree, 'button', 'Varianti approvate (').props.onClick(); tree = m.render(); const card = find(tree, 'article')
   assert.equal(card.props.style.padding, 12); assert.equal(card.props.style.minWidth, 0)
   assert(text(find(card, 'h4')).includes('Variante 1 — Storica'))
   assert(nodes(card).some(n => n.type === 'span' && text(n) === 'Approvata'))
@@ -147,7 +149,7 @@ test('layout form e anteprima si adattano al contenitore senza cambiare calcoli'
 
 for (const [stato, badge] of [['bozza','Bozza'],['proposta','Proposta'],['approvata','Approvata'],['rifiutata','Rifiutata'],['annullata','Annullata']]) test('card mostra stato reale separato dal titolo storico: ' + stato, async () => {
   const record = { id: 'storica', titolo: 'Preventivo integrativo - bozza', stato, numero: 12, data_variante: '2026-10-13', importo_delta_approvato: '1411.78' }
-  const m = mount({ rows: [record] }), card = find(await m.settle(), 'article')
+  const m = mount({ rows: [record] }); let tree = await m.settle(); find(tree, 'button', stato === 'approvata' ? 'Varianti approvate (' : 'Altre varianti da verificare (').props.onClick(); const card = find(m.render(), 'article')
   assert.equal(text(find(card, 'h4')), 'Variante 12 — Preventivo integrativo')
   assert(nodes(card).some(n => n.type === 'span' && text(n) === badge))
   assert(text(card).includes('13/10/2026')); assert(text(card).includes('1411,78'))
