@@ -3106,22 +3106,43 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
         <table><thead><tr>{['Data','Descrizione','Operaio','Ore','€/h','Totale'].map(t => <th key={t}>{t}</th>)}</tr></thead>
         <tbody>{origini.filter(r => r.tipo === 'manodopera').map((r,i) => <tr key={i}><td>{r.data?.split('-').reverse().join('/') || 'Non disponibile'}</td><td>{r.descrizione}</td><td>{r.operaio}</td><td>{r.quantita}</td><td>{importoConsultazioneEconomia(r.prezzo)}</td><td>{importoConsultazioneEconomia(r.totale)}</td></tr>)}</tbody></table>
       </details>}
+      <div className="lavorazioni-variante-contenitore" style={{ minWidth: 0, containerType: 'inline-size', containerName: 'lavorazioni-variante' }}>
       {!sintetico && visibili.length > 0 && (
         <div style={{ overflowX: 'auto', marginTop: 12 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <table className="lavorazioni-variante-tabella" style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <colgroup>{['4%', '49%', '7%', '10%', '15%', '15%'].map((width, i) => <col key={i} style={{ width }} />)}</colgroup>
             <thead><tr><th scope="col">N.</th><th scope="col">Descrizione</th><th scope="col">UM</th><th scope="col">Quantità</th><th scope="col">Prezzo unitario</th><th scope="col">Delta contratto</th></tr></thead>
             <tbody>{visibili.map(riga => <tr key={riga.numero_riga}>
-              <td>{riga.numero_riga}</td><td style={{ whiteSpace: 'pre-wrap' }}>{riga.descrizione}</td><td>{riga.unita_misura || '—'}</td>
-              <td>{numeroLavorazione(riga.quantita_delta).toLocaleString('it-IT', { maximumFractionDigits: 20 })}</td>
-              <td>{euro(riga.prezzo_unitario)}</td><td>{euro(riga.delta_contratto)}</td>
+              <td data-label="N.">{riga.numero_riga}</td><td data-label="Descrizione" style={{ whiteSpace: 'pre-wrap' }}>{riga.descrizione}</td><td data-label="U.M.">{riga.unita_misura || '—'}</td>
+              <td data-label="Quantità">{numeroLavorazione(riga.quantita_delta).toLocaleString('it-IT', { maximumFractionDigits: 20 })}</td>
+              <td data-label="Prezzo unitario">{euro(riga.prezzo_unitario)}</td><td data-label="Delta contratto">{euro(riga.delta_contratto)}</td>
             </tr>)}</tbody>
           </table>
         </div>
       )}
       {lettura === 'elenco' && !nonRilette
-        ? <p><strong>{statoVariante === 'proposta' ? 'Proposta da approvare' : 'Totale variante'}: {euro(totale)}</strong></p>
+        ? <p className="lavorazioni-variante-totale"><strong>{statoVariante === 'proposta' ? 'Proposta da approvare' : 'Totale variante'}: <span style={{ whiteSpace: 'nowrap' }}>{euro(totale)}</span></strong></p>
         : <p>Totale variante da aggiornare.{visibili.length > 0 && <> Somma delle righe visualizzate: {euro(totale)}.</>}</p>}
       {lettura === 'elenco' && nonRilette && <p role="status">La rilettura non include tutte le lavorazioni appena confermate. Sono mantenute visibili le righe restituite dal salvataggio.</p>}
+      <style>{`
+        .lavorazioni-variante-tabella th, .lavorazioni-variante-tabella td { padding: 8px 6px; border: 1px solid #dbe3ee; vertical-align: top; }
+        .lavorazioni-variante-tabella th, .lavorazioni-variante-tabella td:not([data-label="Descrizione"]) { white-space: nowrap; overflow-wrap: normal; }
+        .lavorazioni-variante-tabella td[data-label="Descrizione"] { overflow-wrap: anywhere; }
+        .lavorazioni-variante-tabella td:nth-child(n+4) { text-align: right; }
+        .lavorazioni-variante-totale { margin-top: 16px; padding-top: 12px; border-top: 2px solid #cbd5e1; }
+        @container lavorazioni-variante (width < 1200px) {
+          .lavorazioni-variante-tabella, .lavorazioni-variante-tabella tbody, .lavorazioni-variante-tabella tr, .lavorazioni-variante-tabella td { display: block; width: 100%; min-width: 0; box-sizing: border-box; }
+          .lavorazioni-variante-tabella thead, .lavorazioni-variante-tabella colgroup { display: none; }
+          .lavorazioni-variante-tabella tr { margin-bottom: 16px; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+          .lavorazioni-variante-tabella td { border: 0; font-size: clamp(16px, 2cqi, 24px); }
+          .lavorazioni-variante-tabella td:nth-child(n+3) { border-top: 1px solid #e2e8f0; text-align: left; }
+          .lavorazioni-variante-tabella td::before { content: attr(data-label); display: block; font-weight: 600; color: #475569; white-space: normal; }
+          .lavorazioni-variante-tabella td[data-label="N."] { font-weight: 700; }
+          .lavorazioni-variante-tabella td[data-label="N."]::before, .lavorazioni-variante-tabella td[data-label="Descrizione"]::before { display: none; }
+          .lavorazioni-variante-totale { font-size: clamp(16px, 2cqi, 24px); }
+        }
+      `}</style>
+      </div>
     </section>
   )
 }
