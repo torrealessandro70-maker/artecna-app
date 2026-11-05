@@ -1,7 +1,8 @@
 'use client'
 
-import { useId, type CSSProperties } from 'react'
+import { useId, useState, type CSSProperties } from 'react'
 import PrezzoMaterialeInput from './PrezzoMaterialeInput'
+import VistaOperativa from './VistaOperativa'
 
 type Props = {
   contestuale?: boolean
@@ -75,6 +76,7 @@ export default function MaterialiEconomiaPanel({
   formatMoney,
 }: Props) {
   const descrizioniId = useId()
+  const [inserimentoAperto, setInserimentoAperto] = useState(false)
   const materialiVisibili = materialiCantiere
     .filter((m) => {
       if (m.cantiere !== cantiereScheda) return false
@@ -125,29 +127,7 @@ export default function MaterialiEconomiaPanel({
         : valoreB.localeCompare(valoreA)
     })
 
-  return (
-    <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-      <strong>Materiali:</strong> {formatMoney(totaleMaterialiEconomia)}
-
-      {!contestuale && <button
-        onClick={() => setMostraDettaglioMateriali(!mostraDettaglioMateriali)}
-        style={{ ...buttonSecondary, marginLeft: 10 }}
-      >
-        {mostraDettaglioMateriali ? 'Nascondi materiali' : 'Vedi materiali'}
-      </button>}
-
-      {(contestuale || mostraDettaglioMateriali) && (
-        <div
-          style={{
-            marginTop: 12,
-            overflow: 'auto',
-            border: '1px solid #cbd5e1',
-            borderRadius: 10,
-            background: '#fff',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-            maxHeight: contestuale ? undefined : '65vh',
-          }}
-        >
+  const formMateriale = (
           <div
             style={{
               padding: 15,
@@ -168,15 +148,7 @@ export default function MaterialiEconomiaPanel({
             >
               <h3>➕ Inserimento materiale manuale</h3>
 
-              {!contestuale && <input
-                placeholder="Cerca materiale..."
-                value={cercaMaterialeManuale}
-                onChange={(e) => setCercaMaterialeManuale(e.target.value)}
-                style={{
-                  ...inputStyle,
-                  maxWidth: 280,
-                }}
-              />}
+
             </div>
 
             <input
@@ -203,7 +175,7 @@ export default function MaterialiEconomiaPanel({
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(160px, 100%), 1fr))',
                 gap: 10,
               }}
             >
@@ -262,6 +234,49 @@ export default function MaterialiEconomiaPanel({
               💾 Salva materiale
             </button>
           </div>
+  )
+
+  return (
+    <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
+      <strong>Materiali:</strong> {formatMoney(totaleMaterialiEconomia)}
+
+      {!contestuale && <button
+        onClick={() => setMostraDettaglioMateriali(!mostraDettaglioMateriali)}
+        style={{ ...buttonSecondary, marginLeft: 10 }}
+      >
+        {mostraDettaglioMateriali ? 'Nascondi materiali' : 'Vedi materiali'}
+      </button>}
+
+      {!contestuale && <>
+        <button type="button" onClick={() => setInserimentoAperto(true)} style={{ ...buttonSecondary, marginLeft: 10, minHeight: 44, maxWidth: '100%', whiteSpace: 'normal' }}>Inserimento materiali manuali</button>
+        <VistaOperativa titolo="Inserimento materiali manuali" contesto={cantiereScheda + ' · Economia'} visibile={inserimentoAperto}
+          etichettaRitorno="← Torna a Economia" onChiudi={() => setInserimentoAperto(false)}>
+          <div className="materiali-inserimento" style={{ width: '100%', minWidth: 0 }}>{formMateriale}</div>
+          <style>{`.materiali-inserimento input, .materiali-inserimento textarea { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; } .materiali-inserimento button { min-height: 44px; max-width: 100%; white-space: normal; }`}</style>
+        </VistaOperativa>
+      </>}
+      {(contestuale || mostraDettaglioMateriali) && (
+        <div
+          style={{
+            marginTop: 12,
+            overflow: 'auto',
+            border: '1px solid #cbd5e1',
+            borderRadius: 10,
+            background: '#fff',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            maxHeight: contestuale ? undefined : '65vh',
+          }}
+        >
+          {contestuale && formMateriale}
+              {!contestuale && <input
+                placeholder="Cerca materiale..."
+                value={cercaMaterialeManuale}
+                onChange={(e) => setCercaMaterialeManuale(e.target.value)}
+                style={{
+                  ...inputStyle,
+                  maxWidth: 280,
+                }}
+              />}
 
           {materialiCantiere.filter((m) => m.cantiere === cantiereScheda)
             .length === 0 ? (
