@@ -2186,10 +2186,16 @@ const generaExcelDaPreventivoAi = async (
 
     const ws = worksheet
 
-    ws.getCell('B10').value = ''
-    ws.getCell('E10').value = ''
-    ws.getCell('B11').value = ''
-    ws.getCell('E11').value = ''
+    // Il template prevede Cliente, Telefono, Indirizzo, Data e Tipo lavoro.
+    // Usa il documento corrente, senza richiedere nuovamente i dati della testata.
+    const testataManuale = p.origine_ai === false && p.natura !== 'integrativo'
+    ws.getCell('B10').value = testataManuale ? p.cliente_ai || '' : ''
+    ws.getCell('E10').value = testataManuale ? p.telefono_ai || '' : ''
+    ws.getCell('B11').value = testataManuale ? p.indirizzo_ai || '' : ''
+    const dataTestata = String(p.data_preventivo || '')
+    ws.getCell('E11').value = testataManuale ? (/^\d{4}-\d{2}-\d{2}$/.test(dataTestata)
+      ? dataTestata.split('-').reverse().join('/') : dataTestata) : ''
+    if (testataManuale) ws.getCell('B12').value = [p.nome_file, p.cantiere].filter(Boolean).join(' — ')
 
     ws.getCell('A15').value =
       `DESCRIZIONE INTERVENTO\n\n${

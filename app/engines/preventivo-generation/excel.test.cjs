@@ -2,6 +2,25 @@ const {test}=require('node:test'),a=require('node:assert/strict'),fs=require('fs
 const root=path.resolve(__dirname,'../../..'),template=fs.readFileSync(path.join(root,'public/templates/preventivo-template.xlsx'))
 function exporter(source,capture){const sf=ts.createSourceFile('page.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let fn;function visit(n){if(ts.isVariableDeclaration(n)&&n.name.getText(sf)==='generaExcelDaPreventivoAi')fn=n.initializer.getText(sf);ts.forEachChild(n,visit)}visit(sf);a(fn);const code=ts.transpileModule('module.exports='+fn,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,m={exports:null};vm.runInNewContext(code,{module:m,ExcelJS,Blob,fetch:async()=>new Response(template),saveAs:(blob,name)=>capture.push({blob,name}),alert:message=>{throw Error(message)},console:{warn(){},error(){}}});return m.exports}
 async function book(item){const b=new ExcelJS.Workbook();await b.xlsx.load(await item.blob.arrayBuffer());return b.getWorksheet(1)}
+test('manuale: testata compilata e file reale riletto, formule e celle economiche identiche al parent',async()=>{
+ const source=fs.readFileSync(path.join(root,'app/page.tsx'),'utf8'),parent=execFileSync('git',['show','0defc02f8295802858e823bed6fe1ba3aeec186a:app/page.tsx'],{cwd:root,encoding:'utf8',maxBuffer:3e6}),out=[],old=[]
+ const doc={origine_ai:false,cliente_ai:'Cliente Test',cantiere:'Cantiere Test',indirizzo_ai:'Via Test 10',telefono_ai:'Telefono test',nome_file:'Offerta Test',data_preventivo:'2026-11-05',descrizione_ai:'Oggetto dei lavori',json_voci_ai:[{descrizione:'Lavorazione manuale di prova',unita_misura:'mq',quantita:10,prezzo_unitario:25,origine_documento:'manuale'}]}
+ const snapshot=structuredClone(doc);a.equal(await exporter(source,out)(doc),true);a.equal(await exporter(parent,old)(doc),true);a.deepEqual(doc,snapshot)
+ const file=path.join(process.env.TEMP || process.env.TMP,'artecna-testata-manuale-test.xlsx');fs.writeFileSync(file,Buffer.from(await out[0].blob.arrayBuffer()));const wb=new ExcelJS.Workbook();await wb.xlsx.readFile(file);const ws=wb.getWorksheet(1),baseline=await book(old[0]);
+ for(const [cell,value] of Object.entries({B10:'Cliente Test',B11:'Via Test 10',E10:'Telefono test',E11:'05/11/2026',B12:'Offerta Test — Cantiere Test',A15:'DESCRIZIONE INTERVENTO\n\nOggetto dei lavori',B22:'Lavorazione manuale di prova',C22:'mq',D22:10,E22:25}))a.equal(ws.getCell(cell).value,value,cell)
+ const changed=new Set(['B10','B11','E10','E11','B12']);baseline.eachRow({includeEmpty:true},row=>row.eachCell({includeEmpty:true},cell=>{if(!changed.has(cell.address)){a.deepEqual(ws.getCell(cell.address).value,cell.value,cell.address);a.deepEqual(ws.getCell(cell.address).style,cell.style,cell.address+' style')}}));a.equal(ws.getCell('F22').formula,'D22*E22');a.equal(ws.getCell('F48').value.result,250)
+})
+test('descrizioni manuale/prezzario/documento/AI indipendenti dall’origine; nessun dato di testata inventato',async()=>{
+ const source=fs.readFileSync(path.join(root,'app/page.tsx'),'utf8'),out=[]
+ for(const origine of ['manuale','prezzario','documento','ai']){
+  const descrizione=origine==='manuale'?'Fornitura e posa di elemento prova ARTECNA':`Descrizione da ${origine}`
+  const doc={origine_ai:false,json_voci_ai:[{descrizione,origine_documento:origine,quantita:1,prezzo_unitario:25,unita_misura:'mq'}]};a.equal(await exporter(source,out)(doc),true);const ws=await book(out.at(-1));a.equal(ws.getCell('B22').value,descrizione);a.equal(doc.json_voci_ai[0].origine_documento,origine);for(const cell of ['B10','B11','E10','E11','B12'])a.equal(ws.getCell(cell).value,'')
+ }
+})
+test('export documento AI invariato anche nella testata',async()=>{
+ const source=fs.readFileSync(path.join(root,'app/page.tsx'),'utf8'),parent=execFileSync('git',['show','0defc02f8295802858e823bed6fe1ba3aeec186a:app/page.tsx'],{cwd:root,encoding:'utf8',maxBuffer:3e6}),out=[],old=[],doc={origine_ai:true,cliente_ai:'Cliente AI',cantiere:'Cantiere AI',indirizzo_ai:'Indirizzo AI',data_preventivo:'2026-11-05',json_voci_ai:[{descrizione:'Voce documento',quantita:1,prezzo_unitario:10,unita_misura:'mq'}]}
+ await exporter(source,out)(doc);await exporter(parent,old)(doc);const ws=await book(out[0]),baseline=await book(old[0]);baseline.eachRow({includeEmpty:true},r=>r.eachCell({includeEmpty:true},c=>a.deepEqual(ws.getCell(c.address).value,c.value,c.address)))
+})
 test('ExcelJS reale/template comune: celle legacy identiche alla baseline; integrativo con delta, riferimenti e nessuna condizione inventata',async()=>{
  const before=execFileSync('git',['show','1f65385315059275f01f7d622b72ed4054a7565b:app/page.tsx'],{cwd:root,encoding:'utf8',maxBuffer:2e6}),after=fs.readFileSync(path.join(root,'app/page.tsx'),'utf8'),old=[],current=[]
  const voce={descrizione:'Lavorazione sintetica',quantita:2,prezzo_unitario:20,unita_misura:'m²'},legacy={cliente_ai:'Cliente sintetico',descrizione_ai:'Descrizione',json_voci_ai:[voce]}

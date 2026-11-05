@@ -501,7 +501,10 @@ return (
     {voce.da_verificare && <p role="status">Da verificare</p>}
     <label><input type="checkbox" checked={voce.revisione_confermata === true} onChange={e => aggiornaVociConCronologia(vociPreventivoAi.map((v, i) => i === index ? { ...v, revisione_confermata: e.target.checked, da_verificare: !e.target.checked } : v))} /> Ho verificato operazione, riferimento, quantità e prezzo</label>
   </fieldset>}
+  {manuale && <p>Origine voce: Manuale — {voce.riferimento_scelto ? 'da riferimento prezzi' : 'inserita manualmente'}</p>}
+  {manuale && <label htmlFor={`descrizione-lavorazione-${index}`}>Descrizione lavorazione</label>}
   <textarea
+    id={manuale ? `descrizione-lavorazione-${index}` : undefined}
     value={voce.descrizione || ''}
     onChange={(e) => {
      const nuove = vociPreventivoAi.map((voce, i) =>

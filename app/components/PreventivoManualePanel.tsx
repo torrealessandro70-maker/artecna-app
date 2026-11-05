@@ -96,11 +96,11 @@ export default function PreventivoManualePanel({ db, cantieri, iniziale, cantier
       {memoriaRiservata && <p role="status">Memoria prezzi riservata al titolare autorizzato. Restano disponibili prezzario e voci libere.</p>}
       {errore && <p role="status">{errore}</p>}
       {!pronto && <p>Caricamento riferimenti prezzi…</p>}
-      {pronto && tipo === 'contrattuale' && <RevisionePreventivoAiPanel manuale confermaInCorso={busy || incerto} messaggioAi="Origine: manuale" descrizionePreventivoAi={descrizione} setDescrizionePreventivoAi={setDescrizione}
+      {pronto && tipo === 'contrattuale' && <RevisionePreventivoAiPanel manuale confermaInCorso={busy || incerto} messaggioAi="Preventivo compilato manualmente" descrizionePreventivoAi={descrizione} setDescrizionePreventivoAi={setDescrizione}
         vociPreventivoAi={voci} setVociPreventivoAi={setVoci} vociPreventivoAiOriginali={iniziale?.json_voci_ai || []}
         prezziRiferimento={prezzi} memoriaRiferimento={memoria} storicoRiferimento={storico} calcolaMediaPrezziSimili={() => null} verificaPrezzoAnomalo={() => ''}
         formatMoney={v => Number(v).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })} miglioraVocePreventivoAi={() => {}} salvaInMemoriaPrezzi={() => {}}
-        salvaRevisionePreventivoAi={salva} generaExcelDefinitivoPreventivoAi={async () => { try { validaManuale(voci); await excel(documento()) } catch (e) { setErrore(e instanceof Error ? e.message : 'Excel non generato') } }}
+        salvaRevisionePreventivoAi={salva} generaExcelDefinitivoPreventivoAi={async () => { try { validaManuale(voci); await excel({ ...iniziale, ...documento() }) } catch (e) { setErrore(e instanceof Error ? e.message : 'Excel non generato') } }}
         preventivoRegistroCantiere={documento().cantiere} setMostraRevisionePreventivoAi={v => { if (!v && window.confirm('Chiudere il preventivo? Le modifiche non salvate saranno perse.')) chiudi() }}
         excelTable={{ borderCollapse: 'collapse' }} excelTh={{ padding: 8 }} excelTd={{ padding: 8 }} buttonPrimary={{ padding: 8 }} buttonSecondary={{ padding: 8 }} />}
     </fieldset>
