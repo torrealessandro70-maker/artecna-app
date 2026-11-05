@@ -82,7 +82,7 @@ test('dashboard mantiene acconti esatti in alto; solo la tab attiva rende il suo
   assert(!nodes(t).some(n => n.type === './AccontiEconomiaPanel')); assert.equal(m.writes.length, 0)
 })
 
-const raccolte = Array.from({ length: 5 }, (_, i) => ({ id: `00000000-0000-4000-8000-00000000000${i + 1}`, cantiere_id: cid, numero: i + 1, revisione: 2, stato: 'chiusa', titolo: `ARTECNA_Template_Import_Varianti_Extra_v${i + 2}.xlsx`, data: '2026-10-05', totale: [3268.2, 1200, 875.5, 500, 4312.4][i], righe_non_valorizzate: 0 }))
+const raccolte = Array.from({ length: 6 }, (_, i) => ({ id: `00000000-0000-4000-8000-00000000000${i + 1}`, cantiere_id: cid, numero: i + 1, revisione: 2, stato: 'chiusa', titolo: `ARTECNA_Template_Import_Varianti_Extra_v${i + 2}.xlsx`, data: '2026-10-05', totale: [3268.2, 1200, 875.5, 500, 4312.4, 600][i], righe_non_valorizzate: 0 }))
 function collectionMount({ operativo = true, empty = false, allowCreate = false } = {}) {
   const h = hooks(), reads = [], writes = [], opened = [], original = read('app/components/VariantiCantierePanel.tsx') + '\nexport { RaccolteEconomiaRegistrate };'
   const db = { rpc: async (name, args) => {
@@ -96,30 +96,30 @@ function collectionMount({ operativo = true, empty = false, allowCreate = false 
   const render = () => h.render(() => exports.RaccolteEconomiaRegistrate(props)), settle = async () => { let t; for (let i = 0; i < 4; i++) { t = render(); await tick() } return t }
   return { props, render, settle, reads, writes, opened }
 }
-test('raccolte 1–5: card compatte con stessi numeri, date, revisioni e totali', async () => {
+test('raccolte 1–6: card compatte con stessi numeri, date, revisioni e totali', async () => {
   const m = collectionMount(), t = await m.settle(), cards = nodes(t).filter(n => n.type === 'article')
-  assert.equal(cards.length, 5)
+  assert.equal(cards.length, 6)
   cards.forEach((c, i) => { assert(text(c).includes('Raccolta n. ' + (i + 1))); assert(text(c).includes('05/10/2026')); assert(text(c).includes('Rev. 2')); assert(text(c).includes(money(raccolte[i].totale))); assert(text(c).includes('0 righe non valorizzate')); assert.equal(c.props.style.padding, 12) })
   assert.equal(m.writes.length, 0)
 })
 test('Apri chiama il reader originale, focus operativo isolato, Torna conserva elenco e cantiere', async () => {
   const m = collectionMount(); let t = await m.settle(); await button(t, 'Apri').props.onClick(); t = await m.settle()
-  const f = nodes(t).find(n => n.type === './VistaOperativa'); assert.equal(f.props.attiva, true); assert.equal(f.props.titolo, 'Raccolta n. 1 — Lavori in economia'); assert.equal(f.props.etichettaRitorno, '← Torna a Economia')
+  const f = nodes(t).find(n => n.type === './VistaOperativa' && n.props.titolo !== 'Raccolte lavori in economia'); assert.equal(f.props.attiva, true); assert.equal(f.props.titolo, 'Raccolta n. 1 — Lavori in economia'); assert.equal(f.props.etichettaRitorno, '← Torna alle raccolte')
   assert.equal(m.reads.filter(r => r.name === 'leggi_raccolta_economia_cliente').length, 1)
   assert.equal(m.reads.at(-1).args.p_raccolta_id, raccolte[0].id)
-  f.props.onChiudi(); t = m.render(); assert.equal(nodes(t).filter(n => n.type === 'article').length, 5); assert.equal(m.props.cantiereId, cid); assert.equal(m.writes.length, 0)
+  f.props.onChiudi(); t = m.render(); assert.equal(nodes(t).filter(n => n.type === 'article').length, 6); assert.equal(m.props.cantiereId, cid); assert.equal(m.writes.length, 0)
 })
 test('consultazione non operativa resta inline e callback proposta conserva lo stesso ID', async () => {
   for (const operativo of [false, true]) {
-    const m = collectionMount({ operativo }); await button(await m.settle(), 'Apri').props.onClick(); const t = await m.settle(), f = nodes(t).find(n => n.type === './VistaOperativa')
+    const m = collectionMount({ operativo }); await button(await m.settle(), 'Apri').props.onClick(); const t = await m.settle(), f = nodes(t).find(n => n.type === './VistaOperativa' && n.props.titolo !== 'Raccolte lavori in economia')
     assert.equal(f.props.attiva, operativo)
     nodes(t).find(n => n.type === './UsaRaccoltaEconomiaInVariante').props.onApri('variante-originale'); assert.deepEqual(m.opened, ['variante-originale']); assert.equal(m.writes.length, 0)
   }
 })
 test('Crea nuova raccolta apre solo il form; Torna e Annulla non scrivono e conservano il titolo', async () => {
-  const m = collectionMount({ empty: true }); button(await m.settle(), 'Crea nuova raccolta').props.onClick(); let t = m.render(), f = nodes(t).find(n => n.type === './VistaOperativa')
+  const m = collectionMount({ empty: true }); button(await m.settle(), 'Crea nuova raccolta').props.onClick(); let t = m.render(), f = nodes(t).find(n => n.type === './VistaOperativa' && n.props.titolo !== 'Raccolte lavori in economia')
   assert.equal(f.props.titolo, 'Nuova raccolta lavori in economia'); assert.equal(f.props.etichettaRitorno, '← Torna a Economia')
-  nodes(f).find(n => n.type === 'input').props.onChange({ target: { value: 'Titolo locale' } }); f.props.onChiudi(); t = m.render(); assert(!nodes(t).some(n => n.type === './VistaOperativa'))
+  nodes(f).find(n => n.type === 'input').props.onChange({ target: { value: 'Titolo locale' } }); f.props.onChiudi(); t = m.render(); assert(!nodes(t).some(n => n.type === './VistaOperativa' && n.props.titolo !== 'Raccolte lavori in economia'))
   button(t, 'Crea nuova raccolta').props.onClick(); t = m.render(); assert.equal(nodes(t).find(n => n.type === 'input').props.value, 'Titolo locale')
   button(t, 'Annulla creazione').props.onClick(); assert.equal(m.writes.length, 0)
 })
@@ -143,3 +143,11 @@ test('layout basato sul contenitore: KPI impilabili, tab a capo, dettagli operat
   assert(s.includes('minmax(min(100%, 220px), 1fr)')); assert(s.includes("flexWrap: 'wrap'")); assert(v.includes('@container raccolta-economia'))
   assert(v.includes('data-label={colonne[i]}')); assert(!s.includes('window.innerWidth'))
 })
+
+
+
+test('Raccolte: accesso compatto, elenco in focus, dettaglio e ritorni senza scritture', async () => {
+ const m = collectionMount(); let t = await m.settle(); const list = () => nodes(t).find(n => n.type === './VistaOperativa' && n.props.titolo === 'Raccolte lavori in economia');
+ assert.equal(list().props.visibile, false); assert(!nodes(t).some(n => n.type === 'details')); button(t, 'Raccolte lavori in economia').props.onClick(); t = m.render(); assert.equal(list().props.visibile, true); assert.equal(nodes(list()).filter(n => n.type === 'article').length, 6);
+ await button(t, 'Apri').props.onClick(); t = await m.settle(); assert.equal(list().props.visibile, false); const detail = nodes(t).find(n => n.type === './VistaOperativa' && n.props.titolo.startsWith('Raccolta n.')); assert.equal(detail.props.etichettaRitorno, '← Torna alle raccolte'); detail.props.onChiudi(); t = m.render(); assert.equal(list().props.visibile, true); list().props.onChiudi(); t = m.render(); assert.equal(list().props.visibile, false); assert.equal(m.writes.length, 0);
+});

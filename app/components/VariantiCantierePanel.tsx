@@ -804,6 +804,7 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
   variantiInfo?: readonly { id: string; titolo: string | null; stato: string }[]
 }) {
   const [elenco, setElenco] = useState<RaccoltaConsultazioneEconomia[]>([])
+  const [elencoAperto, setElencoAperto] = useState(false)
   const [caricamentoElenco, setCaricamentoElenco] = useState(true)
   const [erroreElenco, setErroreElenco] = useState('')
   const [rilettura, setRilettura] = useState(0)
@@ -935,7 +936,8 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
   const numero = (v: number) => Number.isFinite(v) ? v.toLocaleString('it-IT', { maximumFractionDigits: 6 }) : 'Non valido'
   const tornaElenco = () => { tokenDettaglio.current += 1; setApertaId(null); setDettaglio(null); setErroreDettaglio(''); setCaricamentoDettaglio(false) }
   return <section aria-label="Lavori in economia registrati" style={{ marginTop: 16 }}>
-    <h4 style={{ margin: '0 0 8px', fontSize: 17 }}>Raccolte lavori in economia</h4>
+    {operativo && <button type="button" onClick={() => setElencoAperto(true)}>Raccolte lavori in economia</button>}
+    <VistaOperativa attiva={operativo} visibile={elencoAperto && !apertaId && !confermaCreazione} titolo="Raccolte lavori in economia" etichettaRitorno="← Torna a Economia" onChiudi={() => setElencoAperto(false)} occupata={operazioneInCorso || creazioneInCorso}>
     {onCreata && <div>
       <button type="button" style={{ minHeight: 44, padding: '8px 14px', border: '1px solid #1d4ed8', borderRadius: 8, background: '#1d4ed8', color: '#fff' }} disabled={caricamentoElenco || Boolean(erroreElenco) || operazioneInCorso || creazioneInCorso || creazioneBloccata.current}
         onClick={() => setConfermaCreazione(true)}>Crea nuova raccolta</button>
@@ -955,7 +957,7 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
       {messaggioCreazione && <p role="status">{messaggioCreazione}</p>}
     </div>}
     {apertaId ? <VistaOperativa attiva={operativo} titolo={`Raccolta n. ${dettaglio?.raccolta.numero ?? elenco.find(r => r.id === apertaId)?.numero ?? '—'} — Lavori in economia`}
-      etichettaRitorno="← Torna a Economia" onChiudi={tornaElenco} occupata={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso}>
+      etichettaRitorno={operativo ? '← Torna alle raccolte' : '← Torna a Economia'} onChiudi={tornaElenco} occupata={valorizzazioneInCorso || operazioneInCorso || creazioneInCorso}>
       <div className={operativo ? 'raccolta-economia-focus' : undefined} style={{ minWidth: 0, containerType: 'inline-size', containerName: 'raccolta-economia' }}>
       <button type="button" disabled={valorizzazioneInCorso} onClick={tornaElenco}>Torna all'elenco</button>
       {caricamentoDettaglio && <p role="status">Caricamento raccolta Economia...</p>}
@@ -1001,6 +1003,7 @@ function RaccolteEconomiaRegistrate({ cantiereId, aggiornamento, varianti, elenc
           onEliminata={() => { setRilettura(v => v + 1); onCreata?.() }} />
       </article>)}</div>)}
     </>}
+    </VistaOperativa>
   </section>
 }
 
