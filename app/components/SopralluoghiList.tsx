@@ -233,7 +233,16 @@ const toggleInLavorazione = (id: string) => {
 
   return (
     <>
-      <style>{`@container sopralluoghi-lista (max-width: 1100px) {
+      <style>{`.sopralluoghi-attivi-stato { display: inline-block; max-width: 100%; box-sizing: border-box; padding: 3px 4px; border-radius: 6px; background: #f1f5f9; color: #334155; font-size: 12px; line-height: 1.35; font-weight: 600; word-break: normal; overflow-wrap: normal; }
+      @container sopralluoghi-lista (min-width: 1100.01px) {
+        .sopralluoghi-attivi-tabella td:nth-child(2), .sopralluoghi-attivi-tabella td:nth-child(3) { white-space: normal; word-break: normal; overflow-wrap: break-word; }
+        .sopralluoghi-attivi-stato { white-space: nowrap; }
+        .sopralluoghi-attivi-tabella td:last-child > div { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .sopralluoghi-attivi-tabella td:last-child button { min-width: 0 !important; width: 100% !important; max-width: 100%; min-height: 44px; box-sizing: border-box; padding: 6px 8px !important; font-size: 13px; white-space: normal; overflow-wrap: normal; word-break: normal; }
+        .sopralluoghi-attivi-tabella td:last-child button:first-child { grid-column: 1 / -1; }
+      }
+      @container sopralluoghi-lista (max-width: 1100px) { .sopralluoghi-attivi-tabella colgroup { display: none; } }
+      @container sopralluoghi-lista (max-width: 1100px) {
         .sopralluoghi-tabella thead { display: none; }
         .sopralluoghi-tabella, .sopralluoghi-tabella tbody, .sopralluoghi-tabella tr, .sopralluoghi-tabella td { display: block; width: 100%; min-width: 0 !important; box-sizing: border-box; }
         .sopralluoghi-tabella td { white-space: normal !important; overflow-wrap: anywhere; }
@@ -324,7 +333,7 @@ const toggleInLavorazione = (id: string) => {
   </div>
 </div>
 
-    <div style={{ overflowX: 'auto', containerType: 'inline-size', containerName: 'sopralluoghi-lista', minWidth: 0 }}><table className="sopralluoghi-tabella" style={excelTable}><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{attiviFiltrati.map((s) => (
+    <div style={{ overflowX: 'auto', containerType: 'inline-size', containerName: 'sopralluoghi-lista', minWidth: 0 }}><table className="sopralluoghi-tabella sopralluoghi-attivi-tabella" style={{ ...excelTable, tableLayout: 'fixed' }}><colgroup><col style={{ width: '9%' }} /><col style={{ width: '16%' }} /><col style={{ width: '18%' }} /><col style={{ width: '29%' }} /><col style={{ width: '12%' }} /><col style={{ width: '16%' }} /></colgroup><thead><tr>{['Data', 'Cliente', 'Indirizzo', 'Intervento / Note', 'Stato', 'Azioni'].map(intestazioneOrdinabile)}</tr></thead><tbody>{attiviFiltrati.map((s) => (
     <tr key={s.id}
 role="button"
 tabIndex={0}
@@ -349,7 +358,7 @@ onKeyDown={(event) => {
         <td style={excelTd}>{evidenziaTesto(s.cliente || '-')}</td>
         <td style={excelTd}>{evidenziaTesto(s.indirizzo || '-')}</td>
         <td style={{ ...excelTd, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{evidenziaTesto([s.tipo_lavoro, s.note].filter(Boolean).join('\n') || '-')}</td>
-        <td style={excelTd}>{s.stato || '-'}</td>
+        <td style={excelTd}><span className="sopralluoghi-attivi-stato">{s.stato === 'da_preventivare' ? 'Da preventivare' : s.stato === 'preventivo_creato' ? 'Preventivo creato' : s.stato === 'convertito_in_cantiere' ? 'Convertito in cantiere' : s.stato || '-'}</span></td>
 <td style={excelTd}>
 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><button
     type="button"
