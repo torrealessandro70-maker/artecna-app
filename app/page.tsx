@@ -1,5 +1,8 @@
 'use client'
 
+import PreflightEliminazioneDialog from './components/PreflightEliminazioneDialog'
+import { richiediPreflight, eliminazioneConsentita, type EsitoPreflight } from './utils/preflightEliminazione'
+
 import { leggiAnteprimaXml, leggiMetadatiFiscali } from './engines/fatture/documento-fiscale'
 import type { AnteprimaFattura } from './engines/fatture/import-documenti'
 import { modificaERicarica, EVENTO_FATTURE_AGGIORNATE, type ModificheFattura, type EsitoModifica, type StatoCantieri } from './engines/contabilita-ditta/modificaFattura'
@@ -1284,6 +1287,12 @@ const caricaFotoSopralluoghi = async (sopralluogoId?: string) => {
 
 const eliminaSopralluogo = async (id?: string) => {
   if (!id) return
+
+  if (preflightInCorso.current) return
+  preflightInCorso.current = true
+  const esito = await richiediPreflight(supabase, 'sopralluogo', id)
+  preflightInCorso.current = false
+  if (!eliminazioneConsentita(esito)) { setEsitoPreflight(esito); return }
 
   const conferma = confirm(
     'Eliminare questo sopralluogo? Verranno eliminate anche le foto collegate.'
@@ -4747,6 +4756,8 @@ const [ultimoSopralluogo, setUltimoSopralluogo] =
   const [cantiereScheda, setCantiereScheda] = useState('')
   const [cantiereIdScheda, setCantiereIdScheda] = useState('')
   const [eliminazioneCantiere, setEliminazioneCantiere] = useState<{ id: string; nome: string; fase: 1 | 2 } | null>(null)
+  const preflightInCorso = useRef(false)
+  const [esitoPreflight, setEsitoPreflight] = useState<EsitoPreflight | null>(null)
   const [testoConfermaCantiere, setTestoConfermaCantiere] = useState('')
   const [eliminazioneCantiereInCorso, setEliminazioneCantiereInCorso] = useState(false)
   const [erroreEliminazioneCantiere, setErroreEliminazioneCantiere] = useState('')
@@ -7058,13 +7069,17 @@ const eliminaPreventivoCantiere = async (id?: string) => {
 
 
 
-  const eliminaCantiere = (_nome: string, idCantiere: string) => {
-    if (invioEliminazioneCantiere.current || eliminazioneCantiere) return
+  const eliminaCantiere = async (_nome: string, idCantiere: string) => {
+    if (preflightInCorso.current || invioEliminazioneCantiere.current || eliminazioneCantiere) return
     const cantiere = cantieri.find(c => c.id === idCantiere)
     if (!cantiere?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cantiere.id) || cantieriEliminatiRef.current.has(cantiere.id)) {
       alert('Cantiere non identificato da un UUID valido. Ricarica l’elenco.')
       return
     }
+    preflightInCorso.current = true
+    const esito = await richiediPreflight(supabase, 'cantiere', cantiere.id)
+    preflightInCorso.current = false
+    if (!eliminazioneConsentita(esito)) { setEsitoPreflight(esito); return }
     focusPrimaEliminazione.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setTestoConfermaCantiere('')
     setErroreEliminazioneCantiere('')
@@ -12769,6 +12784,17 @@ strutturaPreventivoEsistente,
 </>
 )}
 {esitoEliminazioneCantiere && <p role="status" style={{ color: '#334155', padding: 12 }}>{esitoEliminazioneCantiere}</p>}
+{esitoPreflight && <PreflightEliminazioneDialog esito={esitoPreflight}
+  onChiudi={() => setEsitoPreflight(null)}
+  onSegnaConcluso={esitoPreflight.entita === 'cantiere' ? () => {
+    const c = cantieri.find(c => c.id === esitoPreflight.id)
+    if (!c) return
+    preparaModificaRegistroCantiere(c)
+    setCantiereRegistroConcluso(true)
+    setSezioneAttiva('cantieri')
+    setSottoSezioneCantieri('elenco')
+    setEsitoPreflight(null)
+  } : undefined} />}
 {eliminazioneCantiere && (
   <dialog ref={dialogEliminazioneCantiere} aria-labelledby="titolo-eliminazione-cantiere" aria-describedby="descrizione-eliminazione-cantiere"
     onCancel={event => { event.preventDefault(); chiudiEliminazioneCantiere() }}

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Offline navigation regression harness, no DB/provider. */
 const {test}=require('node:test'),a=require('node:assert/strict'),fs=require('fs'),path=require('path'),vm=require('vm'),ts=require('typescript'),cp=require('child_process')
 const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText
-const source=f=>fs.readFileSync(path.join(__dirname,f),'utf8'),helper={}
+const source=f=>fs.readFileSync(path.join(__dirname,f),'utf8').replace(/\r/g,''),helper={}
 vm.runInNewContext(compile(source('../lib/navigazioneQuadernoCantiere.ts')),{exports:helper})
 const A={id:'a',nome:'Omonimo',preventivo_contrattuale_id:'contratto'},B={id:'b',nome:'Omonimo'},s1={id:'s1',cliente:'Primo'},s2={id:'s2',cliente:'Secondo'},foreign={id:'s3',cliente:'Estraneo'}
 const p1={id:'p1',cantiere_id:'a',sopralluogo_id:'s1'},p2={id:'p2',cantiere_id:'a',sopralluogo_id:'s2'},p3={id:'p3',cantiere_id:'b',sopralluogo_id:'s3'}
