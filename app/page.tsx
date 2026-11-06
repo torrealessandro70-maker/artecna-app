@@ -677,6 +677,7 @@ const [isMobile, setIsMobile] = useState(false)
 
 
 const [sidebarAperta, setSidebarAperta] = useState(true)
+const sidebarVisibile = isMobile ? menuMobileAperto : sidebarAperta
 
 const [cameraRapportinoAttiva, setCameraRapportinoAttiva] = useState(false)
 const webcamRapportinoRef = useRef<Webcam>(null)
@@ -11511,7 +11512,11 @@ textarea:not(.impostazioni-input) {
 
 
 <button
-  onClick={() => setSidebarAperta(!sidebarAperta)}
+  type="button"
+  aria-controls="menu-laterale-principale"
+  aria-expanded={sidebarVisibile}
+  aria-label={sidebarVisibile ? 'Chiudi menu' : 'Apri menu'}
+  onClick={() => isMobile ? setMenuMobileAperto(!menuMobileAperto) : setSidebarAperta(!sidebarAperta)}
   style={{
     position: 'fixed',
     top: 12,
@@ -11527,12 +11532,24 @@ textarea:not(.impostazioni-input) {
     transition: 'left 0.25s ease',
   }}
 >
- {sidebarAperta ? '✕' : '☰ Menu'}
+ {sidebarVisibile ? '✕' : '☰ Menu'}
 </button>
 
+{isMobile && menuMobileAperto && <button type="button" aria-label="Chiudi menu laterale"
+  onClick={() => setMenuMobileAperto(false)}
+  style={{ position: 'fixed', inset: '0 0 0 min(260px, 85vw)', zIndex: 1500, border: 0, borderRadius: 0, background: 'rgba(15,23,42,0.45)' }} />}
+
 <aside
+  id="menu-laterale-principale"
+  aria-label="Menu principale"
+  inert={!sidebarVisibile}
+  onKeyDown={(e) => { if (isMobile && e.key === 'Escape') setMenuMobileAperto(false) }}
   style={{
-    width: sidebarAperta ? 260 : 0,
+    width: sidebarVisibile ? 260 : 0,
+    maxWidth: isMobile ? '85vw' : undefined,
+    position: isMobile ? 'fixed' : undefined,
+    inset: isMobile ? '0 auto 0 0' : undefined,
+    zIndex: isMobile ? 1600 : undefined,
     background: '#0f172a',
     color: '#fff',
     height: '100vh',
@@ -12101,7 +12118,7 @@ textarea:not(.impostazioni-input) {
   style={{
     flex: 1,
     minWidth: 0,
-    padding: '80px 25px 25px 25px',
+    padding: isMobile ? '80px 12px 16px' : '80px 25px 25px 25px',
     height: '100vh',
     overflowY: 'auto',
     fontFamily: fontFamily,

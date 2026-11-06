@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  ResponsiveContainer,
   BarChart,
   Bar,
   XAxis,
@@ -12,6 +11,7 @@ import {
   Pie,
   Legend,
 } from 'recharts'
+import GraficoDimensionato from './GraficoDimensionato'
 
 export default function EconomiaGraficiPanel(props: any) {
   const p = props
@@ -36,7 +36,7 @@ export default function EconomiaGraficiPanel(props: any) {
           padding: 10,
         }}
       >
-        <ResponsiveContainer width="100%" height="100%">
+        <GraficoDimensionato>
           <BarChart
             data={[
               { nome: 'Preventivo', valore: p.preventivoCantiere },
@@ -65,7 +65,7 @@ export default function EconomiaGraficiPanel(props: any) {
               })}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
+        </GraficoDimensionato>
       </div>
 
       <div
@@ -77,7 +77,7 @@ export default function EconomiaGraficiPanel(props: any) {
           padding: 10,
         }}
       >
-        <ResponsiveContainer width="100%" height="100%">
+        <GraficoDimensionato>
           <PieChart>
             <Pie
               data={[
@@ -132,7 +132,7 @@ export default function EconomiaGraficiPanel(props: any) {
             <Tooltip />
             <Legend />
           </PieChart>
-        </ResponsiveContainer>
+        </GraficoDimensionato>
       </div>
     </div>
   )

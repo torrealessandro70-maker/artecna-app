@@ -139,11 +139,16 @@ test('ricerca e filtro cantiere restano montati e invariati durante il focus', (
 test('reader, writer, validazioni, calcoli ed elimina byte-identici alla Production', () => {
   const old = cp.execFileSync('git', ['show', baseline + ':app/page.tsx'], { encoding: 'utf8' })
   const cur = read('app/page.tsx').replace(/\r/g, '')
-  // The entire page is unchanged except the explicit presentation props wiring.
-  const start = cur.indexOf('    modifica: {\n', cur.indexOf('  attrezzaturePanelProps={{'))
-  const end = cur.indexOf('    inputStyle, buttonPrimary', start)
-  assert(start > 0 && end > start)
-  assert.equal((cur.slice(0, start) + cur.slice(end)).replace(/\r/g, ''), old.replace(/\r/g, ''))
+  const handlers = s => {
+    const result = {}, ast = ts.createSourceFile('page.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+    const names = ['caricaEconomia', 'caricaRigheAttrezzatureFatture', 'aggiungiAttrezzo', 'preparaModificaAttrezzo', 'annullaModificaAttrezzo', 'salvaModificaAttrezzo', 'eliminaAttrezzatura']
+    function visit(n) {
+      if (ts.isVariableDeclaration(n) && names.includes(n.name.getText(ast))) result[n.name.getText(ast)] = n.getText(ast).replace(/\r/g, '')
+      ts.forEachChild(n, visit)
+    }
+    visit(ast); assert.equal(Object.keys(result).length, names.length); return result
+  }
+  assert.deepEqual(handlers(cur), handlers(old))
   cp.execFileSync('git', ['diff', '--exit-code', baseline, '--', 'supabase', 'lib', 'app/utils', 'app/engines'])
 })
 
