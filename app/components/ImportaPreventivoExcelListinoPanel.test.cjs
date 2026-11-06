@@ -23,6 +23,8 @@ function mount(options = {}) {
   const compare = rows => rows.map(riga => ({ riga, errori: Number(riga.form.prezzo_unitario) > 0 ? [] : ['Prezzo mancante'], matches: riga.form.codice === 'C' ? [{ id: 'actual-C', codice: 'C', descrizione: 'Voce esistente', unita_misura: 'cad', prezzo_unitario: 60 }] : [], duplicatiFile: [] }))
   const mocks = {
     leggiPreventivoListino: async f => { reads.push(f.name); return { righe: options.rows || fixture(), avvisi: ['Avviso fixture'] } },
+    rigaCandidataPreventivo: r => !r.classificazione || ['voce_listino','incompleta_reale'].includes(r.classificazione),
+    classeCampiVoce: r => Number(r.form.prezzo_unitario)>0?'voce_listino':'incompleta_reale',
     confrontaPreventivoListino: compare, haConflittoPreventivo: p => p.matches.length > 0,
     codiceNuovaVocePreventivo: r => r.form.codice,
     importaPreventivoListino: async (...args) => { writes.push(args); return options.import ? options.import(...args) : { salvate: args[2].map(s => s.id) } },
@@ -48,7 +50,7 @@ test('separate entry opens isolated VistaOperativa and returns locally without r
 test('upload is read only, all rows visible, initial selection empty and incomplete/duplicate checkboxes disabled', async () => {
   const m = mount(), t = await upload(m)
   assert.equal(nodes(t).filter(n => n.type === 'article').length, 3)
-  assert(text(t).includes('Voci lette: 3 · Selezionate: 0 · Da completare: 1 · Possibili duplicati: 1'))
+  assert(text(t).includes('Voci candidate: 3 · Selezionate: 0 · Da completare realmente: 1 · Possibili duplicati: 1'))
   assert.equal(field(t, 'Importa Opere riga 3').props.disabled, true); assert.equal(field(t, 'Importa Impianti riga 2').props.disabled, true)
   assert.equal(field(t, 'Prezzo unitario € Opere riga 2').props.readOnly, true)
   assert.equal(field(t, 'Prezzo unitario € Opere riga 3').props.readOnly, false)
@@ -90,7 +92,7 @@ test('Reset file clears the real input, preview, edits, selections, conflicts, w
   const reads=m.reads.length
   button(m.render(),'Reset file').props.onClick();t=m.render()
   assert.equal(input.props.ref.current.value,''); assert.equal(m.reads.length,reads);assert.equal(m.writes.length,0)
-  assert(text(t).includes('Nessun file scelto')); assert(!text(t).includes('attendibile.xlsx'));assert(!text(t).includes('Correzione locale'));assert(!text(t).includes('Avviso fixture'));assert(!text(t).includes('Voci lette:'))
+  assert(text(t).includes('Nessun file scelto')); assert(!text(t).includes('attendibile.xlsx'));assert(!text(t).includes('Correzione locale'));assert(!text(t).includes('Avviso fixture'));assert(!text(t).includes('Voci candidate:'))
   assert.equal(nodes(t).filter(n=>n.type==='article'||n.type==='dialog'||n.type==='select').length,0)
   await field(t,'Preventivo Excel per Listino').props.onChange({target:{files:[{name:'attendibile.xlsx'}],value:'attendibile.xlsx'}});t=m.render()
   assert.equal(m.reads.filter(r=>r==='attendibile.xlsx').length,2);assert.equal(nodes(t).filter(n=>n.type==='article').length,3)
@@ -147,8 +149,41 @@ test('mobile cards use wrapping grids and touch controls, parent keeps old Listi
   assert(parent.includes('setRows(await leggiListinoManuale(supabase))')); assert(parent.includes('voci importate nel Listino ARTECNA'))
 })
 
-test('UX scope leaves parser, conflicts, prices, writer and legacy import identical to Production', () => {
+test('shared parser, writer and legacy import remain identical to Production', () => {
   const {execFileSync}=require('node:child_process'),root=path.resolve(__dirname,'../..')
-  for(const p of ['app/engines/price-import/preventivo-listino.ts','app/engines/price-import/listino-manuale.ts','app/engines/document-parser/excel.ts','app/engines/document-parser/header-detector.ts','app/components/ImportaFileArtecnaPanel.tsx','app/components/ListinoArtecnaPanel.tsx'])
+  for(const p of ['app/engines/price-import/listino-manuale.ts','app/engines/document-parser/excel.ts','app/engines/document-parser/header-detector.ts','app/components/ImportaFileArtecnaPanel.tsx','app/components/ListinoArtecnaPanel.tsx'])
     assert.equal(fs.readFileSync(path.join(root,p),'utf8').replace(/\r\n/g,'\n'),execFileSync('git',['show','8f6933be9eb99f3a7e7912516256f0a68765d146:'+p],{cwd:root,encoding:'utf8'}).replace(/\r\n/g,'\n'),p)
+})
+
+test('classified support, structural and uncertain rows stay in diagnostic details, never selectable cards or import count',async()=>{
+ const extras=['supporto_voce','strutturale','da_verificare'].map((classificazione,i)=>({...fixture()[0],id:'excluded-'+i,foglio:'Supporto',riga:i+1,classificazione,motivoClassificazione:'Motivo verificato',supportoDi:classificazione==='supporto_voce'?{id:'0:2',foglio:'Opere',riga:2}:undefined,datiSupporto:classificazione==='supporto_voce'?{descrizione:'Sintesi',unita:'m2',prezzo:12.345}:undefined}))
+ const m=mount({rows:[...fixture(),...extras]});let t=await upload(m)
+ assert.equal(nodes(t).filter(n=>n.type==='article').length,3);assert(text(t).includes('Dettagli righe escluse (3)'));assert(text(t).includes('Righe di supporto: 1'));assert(text(t).includes('Righe strutturali escluse: 1'));assert(text(t).includes('Da verificare: 1'));assert(text(t).includes('Supporto della voce: Opere · riga 2'))
+ button(t,'Seleziona tutto').props.onClick();t=m.render();assert.equal(text(importButton(t)),'Importa 1 voci selezionate');assert.equal(m.writes.length,0)
+})
+
+test('hidden badge and explicit enabling protect select-all; disabling and Reset clear local approval',async()=>{
+ const rows=fixture();rows[0]={...rows[0],classificazione:'voce_listino',nascosta:true}
+ const m=mount({rows});let t=await upload(m);assert(text(t).includes('Riga nascosta nel file'));assert(text(t).includes('Righe nascoste: 1'))
+ assert.equal(field(t,'Importa Opere riga 2').props.disabled,true);button(t,'Seleziona tutto').props.onClick();assert.equal(text(importButton(m.render())),'Importa 0 voci selezionate')
+ const reads=m.reads.length;field(m.render(),'Abilita riga nascosta Opere riga 2').props.onChange({target:{checked:true}});t=m.render();assert.equal(field(t,'Importa Opere riga 2').props.disabled,false)
+ button(t,'Seleziona tutto').props.onClick();assert.equal(text(importButton(m.render())),'Importa 1 voci selezionate');assert.equal(m.reads.length,reads);assert.equal(m.writes.length,0)
+ field(m.render(),'Abilita riga nascosta Opere riga 2').props.onChange({target:{checked:false}});assert.equal(text(importButton(m.render())),'Importa 0 voci selezionate')
+ button(m.render(),'Reset file').props.onClick();t=await upload(m);assert.equal(field(t,'Abilita riga nascosta Opere riga 2').props.checked,false)
+})
+
+test('genuine incomplete row becomes voce_listino after manual completion without reading or writing',async()=>{
+ const rows=fixture();rows[1]={...rows[1],classificazione:'incompleta_reale'};const m=mount({rows});let t=await upload(m)
+ assert.equal(field(t,'Importa Opere riga 3').props.disabled,true);const reads=m.reads.length
+ field(t,'Prezzo unitario € Opere riga 3').props.onChange({target:{value:'15'}});t=m.render();assert.equal(field(t,'Importa Opere riga 3').props.disabled,false)
+ button(t,'Seleziona tutto').props.onClick();assert.equal(text(importButton(m.render())),'Importa 2 voci selezionate');assert.equal(m.reads.length,reads);assert.equal(m.writes.length,0)
+})
+
+test('Reset, sticky toolbar and final confirmation keep the certified Production implementation',()=>{
+ const {execFileSync}=require('node:child_process'),p='app/components/ImportaPreventivoExcelListinoPanel.tsx',root=path.resolve(__dirname,'../..')
+ const previous=execFileSync('git',['show','a987ef091aead0687e4abed8513c977dfc9a4298:'+p],{cwd:root,encoding:'utf8'}).replace(/\r\n/g,'\n'),current=fs.readFileSync(path.join(root,p),'utf8').replace(/\r\n/g,'\n')
+ const part=(s,start,end)=>s.slice(s.indexOf(start),end?s.indexOf(end,s.indexOf(start)):undefined)
+ assert.equal(part(current,'  const resetFile =','  const edita ='),part(previous,'  const resetFile =','  const edita ='))
+ assert.equal(part(current,'        <div role="region" aria-label="Azioni importazione Excel"','        {avvisi.length'),part(previous,'        <div role="region" aria-label="Azioni importazione Excel"','        {avvisi.length'))
+ assert.equal(part(current,'        {confermaAperta && <dialog'),part(previous,'        {confermaAperta && <dialog'))
 })

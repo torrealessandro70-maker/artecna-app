@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import VistaOperativa from './VistaOperativa'
 import { leggiListinoManuale, type FormListino, type VoceListino } from '../engines/price-import/listino-manuale'
-import { codiceNuovaVocePreventivo, confrontaPreventivoListino, haConflittoPreventivo, importaPreventivoListino, leggiPreventivoListino, type RigaPreventivoListino } from '../engines/price-import/preventivo-listino'
+import { classeCampiVoce, codiceNuovaVocePreventivo, confrontaPreventivoListino, haConflittoPreventivo, importaPreventivoListino, leggiPreventivoListino, rigaCandidataPreventivo, type RigaPreventivoListino } from '../engines/price-import/preventivo-listino'
 
 const campoStyle: CSSProperties = { width: '100%', minWidth: 0, boxSizing: 'border-box', padding: 10 }
 const bottoneStyle: CSSProperties = { minHeight: 44, padding: '10px 14px', maxWidth: '100%', whiteSpace: 'normal' }
@@ -24,8 +24,9 @@ export default function ImportaPreventivoExcelListinoPanel({ supabase, disabled,
   const [selezionate, setSelezionate] = useState<string[]>([])
   const [decisioni, setDecisioni] = useState<Record<string, 'salta' | 'nuova'>>({})
   const [errore, setErrore] = useState(''), [messaggio, setMessaggio] = useState(''), [daRileggere, setDaRileggere] = useState(false)
-  const proposte = confrontaPreventivoListino(righe, listino, manodoperaDisponibile)
-  const importabile = (p: typeof proposte[number]) => !daRileggere && !p.errori.length && (!haConflittoPreventivo(p) || decisioni[p.riga.id] === 'nuova')
+  const candidate = righe.filter(rigaCandidataPreventivo), escluse = righe.filter(r => !rigaCandidataPreventivo(r))
+  const proposte = confrontaPreventivoListino(candidate, listino, manodoperaDisponibile)
+  const importabile = (p: typeof proposte[number]) => !daRileggere && !p.errori.length && (!p.riga.nascosta || p.riga.nascostaAbilitata) && (!haConflittoPreventivo(p) || decisioni[p.riga.id] === 'nuova')
   const scelte = proposte.filter(p => selezionate.includes(p.riga.id) && importabile(p))
   const occupa = (value: boolean) => { lock.current = value; setOccupata(value); onBusyChange(value) }
   useEffect(() => {
@@ -41,7 +42,11 @@ export default function ImportaPreventivoExcelListinoPanel({ supabase, disabled,
     setAvvisi([]); setErrore(''); setMessaggio(''); setDaRileggere(false); setConfermaAperta(false)
   }
   const edita = (id: string, campo: keyof FormListino, value: string) => {
-    setRighe(correnti => correnti.map(r => r.id === id ? { ...r, form: { ...r.form, [campo]: value } } : r))
+    setRighe(correnti => correnti.map(r => {
+      if (r.id !== id) return r
+      const modificata = { ...r, form: { ...r.form, [campo]: value } }
+      return { ...modificata, classificazione: classeCampiVoce(modificata) }
+    }))
     setSelezionate([]); setDecisioni({})
   }
   const rileggi = async () => {
@@ -88,7 +93,17 @@ export default function ImportaPreventivoExcelListinoPanel({ supabase, disabled,
         </div>
         {avvisi.length > 0 && <details><summary>Avvisi di lettura ({avvisi.length})</summary><ul>{avvisi.map((v, i) => <li key={i}>{v}</li>)}</ul></details>}
         <h3>Anteprima — {nomeFile}</h3>
-        <p role="status" aria-live="polite">Voci lette: {righe.length} · Selezionate: {scelte.length} · Da completare: {proposte.filter(p => p.errori.length).length} · Possibili duplicati: {proposte.filter(haConflittoPreventivo).length}</p>
+        <p role="status" aria-live="polite">Voci candidate: {candidate.length} · Selezionate: {scelte.length} · Da completare realmente: {proposte.filter(p => p.errori.length).length} · Possibili duplicati: {proposte.filter(haConflittoPreventivo).length} · Righe di supporto: {escluse.filter(r => r.classificazione === 'supporto_voce').length} · Righe strutturali escluse: {escluse.filter(r => r.classificazione === 'strutturale').length} · Da verificare: {escluse.filter(r => r.classificazione === 'da_verificare').length} · Righe nascoste: {candidate.filter(r => r.nascosta).length}</p>
+        {escluse.length > 0 && <details aria-label="Righe escluse e di supporto">
+          <summary>Dettagli righe escluse ({escluse.length})</summary>
+          <ul style={{ paddingLeft: 20, overflowWrap: 'anywhere' }}>{escluse.map(r => <li key={r.id} style={{ marginBlock: 16 }}>
+            <strong>{r.foglio} · riga {r.riga} · {r.classificazione}</strong>
+            <p>{r.motivoClassificazione}</p>
+            {r.datiSupporto && <p>{r.datiSupporto.descrizione} · U.M.: {r.datiSupporto.unita || 'non verificata'} · Prezzo documentale: {r.datiSupporto.prezzo ?? 'non verificato'}</p>}
+            {r.supportoDi && <p>Supporto della voce: {r.supportoDi.foglio} · riga {r.supportoDi.riga}. Nessuna seconda voce importabile.</p>}
+            <details><summary>Testo originale della riga esclusa</summary><p style={{ whiteSpace: 'pre-wrap' }}>{r.testoOriginale}</p></details>
+          </li>)}</ul>
+        </details>}
         <p>I conflitti non vengono aggiornati automaticamente. Puoi saltarli o aggiungere una nuova voce; per modificare una voce esistente usa Modifica nel Listino.</p>
         {!manodoperaDisponibile && <p>I valori manodopera del documento saranno conservati nelle Note: i relativi campi non sono disponibili nel Listino corrente.</p>}
         <div aria-label="Voci del preventivo Excel" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: 16, minWidth: 0 }}>
@@ -105,6 +120,16 @@ export default function ImportaPreventivoExcelListinoPanel({ supabase, disabled,
                 <strong>{p.errori.length ? 'Da completare' : conflitto ? 'Possibile duplicato' : 'Pronta'}</strong>
               </header>
               <p>{r.foglio} · riga {r.riga}{r.quantita === undefined ? '' : ` · Quantità: ${r.quantita}`}</p>
+              {r.nascosta && <div>
+                <strong>Riga nascosta nel file</strong>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, marginBlock: 8 }}>
+                  <input type="checkbox" aria-label={`Abilita riga nascosta ${r.foglio} riga ${r.riga}`} disabled={occupata} checked={!!r.nascostaAbilitata}
+                    onChange={e => {
+                      setRighe(rows => rows.map(row => row.id === id ? { ...row, nascostaAbilitata: e.target.checked } : row))
+                      setSelezionate(ids => ids.filter(value => value !== id))
+                    }} style={{ width: 22, height: 22 }} />Abilita la selezione di questa riga nascosta
+                </label>
+              </div>}
               {p.errori.length > 0 && <ul>{p.errori.map(e => <li key={e}>{e}</li>)}</ul>}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 12, minWidth: 0 }}>
                 {(Object.keys(labels) as (keyof FormListino)[]).map(campo => <label key={campo} style={{ display: 'grid', gap: 6, minWidth: 0, gridColumn: campo === 'descrizione' || campo === 'note' ? '1 / -1' : undefined }}>

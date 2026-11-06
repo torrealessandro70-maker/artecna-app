@@ -4,11 +4,17 @@ import { parseExcelDocument } from '../document-parser/excel'
 import { detectDocumentHeader } from '../document-parser/header-detector'
 import { normalizePriceDescription, normalizeUnitOfMeasure } from '../price-resolution/normalizer'
 import { leggiListinoManuale, preparaVoceListino, salvaVoceListino, type FormListino, type VoceListino } from './listino-manuale'
+import { classificaRighePreventivo, rigaCandidataPreventivo, type ClasseRigaPreventivo, type ContestoFoglioListino } from './classificazione-preventivo-listino'
+export { rigaCandidataPreventivo, classeCampiVoce } from './classificazione-preventivo-listino'
 
 export type RigaPreventivoListino = {
   id: string; foglio: string; riga: number; form: FormListino
   codiceOriginale: string; prezzoDocumentale?: number; quantita?: number
   testoOriginale: string; avvisi: string[]
+  classificazione?: ClasseRigaPreventivo; motivoClassificazione?: string
+  supportoDi?: { id: string; foglio: string; riga: number }
+  datiSupporto?: { descrizione: string; unita: string; prezzo?: number; formula?: string }
+  nascosta?: boolean; nascostaAbilitata?: boolean
 }
 export type ConfrontoPreventivoListino = {
   riga: RigaPreventivoListino; errori: string[]; matches: VoceListino[]; duplicatiFile: string[]
@@ -27,8 +33,9 @@ const adattaIntestazione = (value: unknown) => {
 export async function leggiPreventivoListino(file: File): Promise<{ righe: RigaPreventivoListino[]; avvisi: string[] }> {
   if (!/\.(xlsx|xls)$/i.test(file.name)) throw Error('Caricare un preventivo XLSX o XLS.')
   const buffer = await file.arrayBuffer()
-  const workbook = XLSX.read(buffer, { type: 'array' })
+  const workbook = XLSX.read(buffer, { type: 'array', cellStyles: true })
   const righe: RigaPreventivoListino[] = [], avvisi: string[] = []
+  const contesti: ContestoFoglioListino[] = []
   for (const [indice, foglio] of workbook.SheetNames.entries()) {
     const sheet = workbook.Sheets[foglio]
     if (!sheet?.['!ref']) continue
@@ -38,6 +45,7 @@ export async function leggiPreventivoListino(file: File): Promise<{ righe: RigaP
     const prezziAmbigui = intestazioni.filter(h => detectDocumentHeader([['Descrizione', h]])?.columns.prezzoUnitario === 1).length > 1
     const origine = XLSX.utils.decode_range(sheet['!ref']).s
     const offset = origine.r
+    contesti.push({ nome: foglio, rows, header, offset, colonna: origine.c })
     const single = XLSX.utils.book_new()
     const adattato = { ...sheet }
     if (header) intestazioni.forEach((value, col) => {
@@ -84,7 +92,7 @@ export async function leggiPreventivoListino(file: File): Promise<{ righe: RigaP
     }
   }
   if (!righe.length) throw Error('Il file non contiene righe da analizzare.')
-  return { righe, avvisi }
+  return { righe: classificaRighePreventivo(righe, contesti, workbook), avvisi }
 }
 
 const codiceConfronto = (s: string) => s.trim().toLocaleLowerCase('it-IT')
@@ -129,6 +137,7 @@ export async function importaPreventivoListino(db: SupabaseClient, proposte: rea
   if (ids.size !== selezione.length) throw Error('Selezione duplicata.')
   const scelte = proposte.filter(p => ids.has(p.riga.id))
   if (!scelte.length || scelte.length !== ids.size) throw Error('Seleziona almeno una voce valida.')
+  if (scelte.some(p => !rigaCandidataPreventivo(p.riga) || (p.riga.nascosta && !p.riga.nascostaAbilitata))) throw Error('Riga esclusa o nascosta non abilitata esplicitamente: importazione bloccata.')
   if (scelte.some(p => p.errori.length || (haConflittoPreventivo(p) && selezione.find(s => s.id === p.riga.id)?.conflitto !== 'nuova'))) throw Error('Completa le righe e risolvi esplicitamente i conflitti.')
   const attuali = await leggiListinoManuale(db)
   const fresh = confrontaPreventivoListino(proposte.map(p => p.riga), attuali, manodopera)
