@@ -168,7 +168,11 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
       </div>
       <nav aria-label="Sezioni economia" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingBottom: 12, marginBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
         {([['riepilogo', 'Riepilogo'], ['costi', 'Costi'], ['sal', 'SAL e acconti'], ['rapportini', 'Rapportini']] as const).map(([sezione, label]) => (
-          <button key={sezione} type="button" aria-pressed={economiaSezione === sezione} onClick={() => setEconomiaSezione(sezione)}
+          <button key={sezione} type="button" aria-pressed={economiaSezione === sezione} onClick={() => {
+            setEconomiaSezione(sezione)
+            // L'approvazione può aver materializzato nuove righe dopo il caricamento iniziale.
+            if (sezione === 'sal') void p.sal.caricaSalLavorazioni()
+          }}
             style={{ minHeight: 44, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 8, whiteSpace: 'normal', cursor: 'pointer', border: '1px solid #cbd5e1', background: economiaSezione === sezione ? '#0f172a' : '#fff', color: economiaSezione === sezione ? '#fff' : '#334155' }}>
             {label}
           </button>

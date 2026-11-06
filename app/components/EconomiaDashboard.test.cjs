@@ -55,7 +55,7 @@ test('errore/caricamento dei costi non diventano falsamente zero', () => {
 })
 
 function dashboard() {
-  const h = hooks(), writes = [], save = () => writes.push('save')
+  const h = hooks(), writes = [], reads = [], save = () => writes.push('save')
   const mocks = {
     './CostiFornitoriRettificati': { CostiFornitoriVista: costView, useCostiFornitori: () => ({ dati: supplier, errore: '' }) },
     '../engines/fatture/note-credito': credits,
@@ -65,8 +65,23 @@ function dashboard() {
   const Component = load('app/components/EconomiaCantierePanel.tsx', mocks, h.react).default
   const props = { cantiere: { id: cid, nome: 'Fixture' }, panelProps: { contrattoBase: { preventivoId: 'contratto', importo: 30000 }, periodo: { economiaDataDa: '', economiaDataA: '' }, riepilogo: { formatMoney: money, totaleMaterialiEconomia: 0, totaleCostiCantiere: 1000, totaleManodoperaCantiere: 1000, totaleAttrezziEconomia: 0 }, costi: { materialiCantiere: [] }, sal: { supabase: {}, salLavorazioni: [], salvaSalLavorazione: save }, acconti: { statoAcconti: 'caricato', accontiCantiere: [{ id: 'a', cantiere_id: cid, cantiere: 'Fixture', importo: 17665.02 }], salvaAcconto: save } } }
   const render = () => h.render(() => Component(props)), settle = async () => { let t; for (let i = 0; i < 4; i++) { t = render(); await tick() } return t }
-  return { render, settle, props, writes }
+  props.panelProps.sal.caricaSalLavorazioni = async () => { reads.push('sal') }
+  return { render, settle, props, writes, reads }
 }
+
+test('ingresso e riapertura SAL rileggono le righe materializzate senza scritture', async () => {
+  const m = dashboard(); let t = await m.settle()
+  assert.equal(m.reads.length, 0)
+  m.props.panelProps.sal.caricaSalLavorazioni = async () => {
+    m.reads.push('sal')
+    m.props.panelProps.sal.salLavorazioni = [{ id: 1, source_variante_lavorazione_id: 232, percentuale: 0, importo_maturato: 0 }]
+  }
+  button(t, 'SAL e acconti').props.onClick(); await tick(); t = m.render()
+  assert.equal(nodes(t).find(n => n.type === './SalDettagliatoPanel').props.salLavorazioni[0].source_variante_lavorazione_id, 232)
+  button(t, 'Riepilogo').props.onClick(); t = m.render()
+  button(t, 'SAL e acconti').props.onClick(); await tick()
+  assert.equal(m.reads.length, 2); assert.equal(m.writes.length, 0)
+})
 test('dashboard mantiene acconti esatti in alto; solo la tab attiva rende il suo contenuto', async () => {
   const m = dashboard(); let t = await m.settle()
   assert(text(t).includes(money(17665.02))); assert.equal(button(t, 'Riepilogo').props['aria-pressed'], true)
@@ -132,11 +147,11 @@ test('formule, hook, reader e writer restano identici al parent', () => {
   const file = 'app/components/EconomiaCantierePanel.tsx', current = read(file).replace(/\r\n/g, '\n'), before = cp.execFileSync('git', ['show', 'HEAD:' + file], { encoding: 'utf8' }).replace(/\r\n/g, '\n')
   assert.equal(current.split('  return (')[0], before.split('  return (')[0])
   for (const file of ['app/components/VariantiCantierePanel.tsx','app/components/PrestazioniRapportiniEconomia.tsx']) {
-    const extract = s => { s = s.replace(/\r\n/g, '\n'); const ast = ts.createSourceFile(file, s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), result = {}; function walk(n) { if (ts.isFunctionDeclaration(n) && n.name && n.modifiers?.some(m => m.kind === ts.SyntaxKind.AsyncKeyword)) result[n.name.text + Object.keys(result).length] = n.getText(ast); ts.forEachChild(n, walk) } walk(ast); return result }
+    const extract = s => { s = s.replace(/\r\n/g, '\n'); const ast = ts.createSourceFile(file, s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), result = {}; function walk(n) { if (ts.isFunctionDeclaration(n) && n.name?.text === 'DisponibilitaVarianteSal') return; if (ts.isFunctionDeclaration(n) && n.name && n.modifiers?.some(m => m.kind === ts.SyntaxKind.AsyncKeyword)) result[n.name.text + Object.keys(result).length] = n.getText(ast); ts.forEachChild(n, walk) } walk(ast); return result }
     assert.deepEqual(extract(read(file)), extract(cp.execFileSync('git', ['show', 'HEAD:' + file], { encoding: 'utf8' })))
   }
   // AccontiEconomiaPanel può evolvere nel layout; i callback sono certificati da GestioneAccontiFocus.
-  for (const file of ['app/engines','supabase','lib','app/components/AccontiSalPanel.tsx','app/components/SalDettagliatoPanel.tsx','app/components/PrezziRapportiniEconomia.tsx','app/components/PrezziMaterialiEconomia.tsx']) assert.equal(cp.spawnSync('git', ['diff','--quiet','HEAD','--',file]).status, 0, file)
+  for (const file of ['app/engines','supabase','lib','app/components/AccontiSalPanel.tsx','app/components/SalDettagliatoPanel.tsx','app/components/PrezziRapportiniEconomia.tsx','app/components/PrezziMaterialiEconomia.tsx']) assert.equal(cp.spawnSync('git', ['diff','--quiet','HEAD','--',file,':(exclude)supabase/migrations/20261106_approva_variante_importa_sal.sql']).status, 0, file)
 })
 test('layout basato sul contenitore: KPI impilabili, tab a capo, dettagli operativi adattivi', () => {
   const s = read('app/components/EconomiaCantierePanel.tsx'), v = read('app/components/VariantiCantierePanel.tsx')

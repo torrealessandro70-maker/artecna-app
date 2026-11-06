@@ -2510,7 +2510,7 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
               <button type="button" aria-expanded={varianteApertaId === variante.id}
                 aria-controls={`variante-area-${variante.id}`}
                 onClick={() => setVarianteApertaId(aperta => aperta === variante.id ? null : variante.id)}>
-                {varianteApertaId === variante.id ? 'Chiudi variante' : 'Apri variante'}
+                {varianteApertaId === variante.id ? 'Nascondi dettaglio' : 'Apri variante'}
               </button>
               {varianteApertaId === variante.id && <div id={`variante-area-${variante.id}`}>
       {!economiaRapportini && stampaContesto && <details><summary>Stampa varianti</summary><button type="button" disabled={stampaInCorso || stato.tipo !== 'elenco'} onClick={() => void stampaVarianti()}>Stampa varianti</button>
@@ -2536,6 +2536,7 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
               <LavorazioniVariantePanel key={`${cantiereId}:${variante.id}`} varianteId={variante.id}
                 onConteggioCaricato={economiaRapportini ? undefined : riceviConteggio}
                 cantiereId={cantiereId} statoVariante={variante.stato}
+                preventivoId={variante.preventivo_contrattuale_id}
                 sintetico={economiaRapportini}
                 refreshEsterno={refreshLavorazioni[variante.id] ?? 0}
                 onNuoviLavori={!economiaRapportini && cantiereId ? vaiAnteprima : undefined}
@@ -2813,6 +2814,7 @@ function SelettoreComponentiContrattuali({ variante, cantiereId, elencoVarianti,
 }
 
 type LavorazioneVariante = {
+  id?: number | string
   variante_id: string
   numero_riga: number
   descrizione: string
@@ -2871,9 +2873,10 @@ const erroriPropostaRpc: Record<string, string> = {
   P2017: 'Conflitto durante la proposta. Riprova.',
 }
 
-function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refreshEsterno = 0, onNuoviLavori, onProposta, renderApprovazione, selettoreContrattuale, sintetico = false, onConteggioCaricato }: {
+function LavorazioniVariantePanel({ varianteId, cantiereId, preventivoId, statoVariante, refreshEsterno = 0, onNuoviLavori, onProposta, renderApprovazione, selettoreContrattuale, sintetico = false, onConteggioCaricato }: {
   varianteId: string
   cantiereId?: string | null
+  preventivoId?: string | null
   statoVariante: string
   refreshEsterno?: number
   onNuoviLavori?: () => void
@@ -3099,6 +3102,9 @@ function LavorazioniVariantePanel({ varianteId, cantiereId, statoVariante, refre
         onProposta={modificabile && lettura === 'elenco' && righe.length > 0 ? () => portaAlControllo(propostaRef.current) : undefined}
         onApprova={renderApprovazione ? () => portaAlControllo(approvazioneRef.current) : undefined} />}
       <h5 ref={lavorazioniRef} tabIndex={-1}>{sintetico ? 'Stato proposta / approvazione' : 'Lavorazioni della variante'}</h5>
+      {statoVariante === 'approvata' && lettura === 'elenco' && !nonRilette && (
+        <DisponibilitaVarianteSal lavorazioni={righe} cantiereId={cantiereId} preventivoId={preventivoId} />
+      )}
       {modificabile && <div ref={contrattoRef} tabIndex={-1}>{selettoreContrattuale?.({ occupato: salvataggio || propostaInCorso, onInCorso: setCorrezioneInCorso })}</div>}
       {renderApprovazione && <div ref={approvazioneRef} tabIndex={-1}>
         {renderApprovazione(lettura === 'elenco' && !nonRilette ? righe : null)}
@@ -3187,6 +3193,63 @@ type EsitoApprovazione = {
   riferimento_approvazione: string
 }
 
+function DisponibilitaVarianteSal({ lavorazioni, cantiereId, preventivoId }: {
+  lavorazioni: readonly LavorazioneVariante[]
+  cantiereId?: string | null
+  preventivoId?: string | null
+}) {
+  type Disponibilita = 'pronta' | 'mancante' | 'storica' | 'errore'
+  const [esito, setEsito] = useState<{
+    lavorazioni: readonly LavorazioneVariante[]
+    cantiereId: typeof cantiereId
+    preventivoId: typeof preventivoId
+    stato: Disponibilita
+  } | null>(null)
+  useEffect(() => {
+    let attivo = true
+    const aggiorna = (stato: Disponibilita) => {
+      if (attivo) setEsito({ lavorazioni, cantiereId, preventivoId, stato })
+    }
+    async function verifica() {
+      const candidate = lavorazioni.filter(r => r.operazione === 'nuova' || r.operazione === 'aumento')
+      if (candidate.length === 0) { aggiorna('pronta'); return }
+      const ids = candidate.map(r => Number(r.id))
+      if (!cantiereId || ids.some(id => !Number.isSafeInteger(id) || id <= 0)) { aggiorna('errore'); return }
+      try {
+        // Una lettura aggregata paginata, mai una query per lavorazione.
+        const presenti = new Set<number>()
+        for (let offset = 0; ; offset += 200) {
+          const { data, error } = await supabase.from('sal_lavorazioni')
+            .select('source_variante_lavorazione_id').eq('cantiere_id', cantiereId)
+            .in('source_variante_lavorazione_id', ids)
+            .order('source_variante_lavorazione_id', { ascending: true }).range(offset, offset + 199)
+          if (!attivo) return
+          if (error || !Array.isArray(data) || data.some(r => !Number.isSafeInteger(Number(r.source_variante_lavorazione_id)) || !ids.includes(Number(r.source_variante_lavorazione_id)))) {
+            throw new Error('Disponibilità SAL non verificabile')
+          }
+          data.forEach(r => presenti.add(Number(r.source_variante_lavorazione_id)))
+          if (data.length < 200) break
+        }
+        if (ids.every(id => presenti.has(id))) { aggiorna('pronta'); return }
+        // Il recupero esistente è ammesso solo sul contratto corrente.
+        const { data: cantiere, error } = await supabase.from('cantieri')
+          .select('id,preventivo_contrattuale_id').eq('id', cantiereId).maybeSingle()
+        if (!attivo) return
+        if (error || !cantiere || cantiere.id !== cantiereId || !preventivoId) throw new Error('Contratto non verificabile')
+        aggiorna(cantiere.preventivo_contrattuale_id === preventivoId ? 'mancante' : 'storica')
+      } catch { aggiorna('errore') }
+    }
+    void verifica()
+    return () => { attivo = false }
+  }, [lavorazioni, cantiereId, preventivoId])
+  const stato = esito?.lavorazioni === lavorazioni && esito.cantiereId === cantiereId && esito.preventivoId === preventivoId
+    ? esito.stato : 'lettura'
+  if (stato === 'mancante') return <p role="status"><strong>Approvata — da importare nel SAL</strong>. Usa il comando esistente Importa nel SAL nella sezione SAL per completare il recupero.</p>
+  if (stato === 'errore') return <p role="status">Disponibilità nel SAL non verificabile. Riapri il dettaglio per riprovare.</p>
+  if (stato === 'storica') return <p role="status">Variante relativa a un contratto storico: non importabile nel SAL corrente.</p>
+  return null
+}
+
 const erroriApprovazioneRpc: Record<string, string> = {
   P2027: 'Sessione utente non valida.',
   P2028: 'Riferimento approvazione obbligatorio.',
@@ -3195,6 +3258,13 @@ const erroriApprovazioneRpc: Record<string, string> = {
   P2031: 'Il contratto di riferimento è cambiato o non è valido.',
   P2032: 'Le lavorazioni della variante non producono un delta valido.',
   P2033: "Conflitto durante l'approvazione. Riprova.",
+  P2070: 'Sessione non valida: approvazione annullata, SAL non aggiornato.',
+  P2071: 'Accesso al SAL non autorizzato: approvazione annullata.',
+  P2072: 'Variante non importabile nel SAL: approvazione annullata.',
+  P2073: 'Contratto SAL non coerente: approvazione annullata.',
+  P2074: 'Lavorazioni SAL non disponibili: approvazione annullata.',
+  P2075: 'Collegamenti SAL incoerenti: approvazione annullata.',
+  P2076: 'Conflitto durante l’importazione nel SAL: approvazione annullata. Riprova.',
 }
 
 function ApprovazioneVarianteForm({ variante, cantiereId, lavorazioniLette, onApprovata }: {

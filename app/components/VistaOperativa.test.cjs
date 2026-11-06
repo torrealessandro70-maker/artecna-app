@@ -2,7 +2,7 @@
 const { test } = require('node:test'), assert = require('node:assert/strict')
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), ts = require('typescript'), cp = require('node:child_process')
 const compile = s => ts.transpileModule(s, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText
-const source = f => fs.readFileSync(path.join(__dirname, f), 'utf8')
+const source = f => fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n')
 const nodes = x => x == null ? [] : Array.isArray(x) ? x.flatMap(nodes) : typeof x === 'object' ? [x, ...nodes(x.props?.children)] : []
 const text = x => x == null ? '' : Array.isArray(x) ? x.map(text).join('') : typeof x === 'object' ? text(x.props?.children) : String(x)
 const find = (tree, type, label = '') => nodes(tree).find(n => n.type === type && text(n).includes(label))
@@ -57,7 +57,7 @@ test('ritorno conserva testo locale, variante selezionata ed elenco montato', as
   fill(m.render(), 'Bozza locale da conservare')
   operational(m.render()).props.onChiudi()
   tree = m.render(); assert.equal(operational(tree), undefined)
-  assert(find(tree, 'button', 'Chiudi variante'))
+  assert(find(tree, 'button', 'Nascondi dettaglio'))
   find(tree, 'button', 'Nuova variante').props.onClick()
   tree = m.render()
   assert.equal(nodes(operational(tree)).find(n => n.type === 'input' && n.props.required).props.value, 'Bozza locale da conservare')
@@ -94,7 +94,7 @@ test('portal nel workspace esistente: intestazione, tutta larghezza, ripristino 
 })
 
 test('errori e stato occupato restano nel contenuto operativo, salvataggio invariato', () => {
-  const cur = source('VariantiCantierePanel.tsx'), old = cp.execFileSync('git', ['show', 'HEAD:app/components/VariantiCantierePanel.tsx'], { encoding: 'utf8' })
+  const cur = source('VariantiCantierePanel.tsx'), old = cp.execFileSync('git', ['show', 'HEAD:app/components/VariantiCantierePanel.tsx'], { encoding: 'utf8' }).replace(/\r\n/g, '\n')
   const handlers = s => s.slice(s.indexOf('  function resetForm() {', s.indexOf('export default function VariantiCantierePanel')), s.indexOf('  function confermaProposta('))
   assert.equal(handlers(cur), handlers(old))
   const focusMarkup = cur.slice(cur.indexOf('<VistaOperativa titolo="Nuova variante"'), cur.indexOf('</VistaOperativa>', cur.indexOf('<VistaOperativa titolo="Nuova variante"')))
@@ -129,7 +129,7 @@ test('titolo storico normalizzato solo in presentazione, nessun cambio di numeri
 })
 
 test('Apri variante conserva esattamente il callback e tutti gli handler economici', () => {
-  const cur = source('VariantiCantierePanel.tsx'), old = cp.execFileSync('git', ['show', 'HEAD:app/components/VariantiCantierePanel.tsx'], { encoding: 'utf8' })
+  const cur = source('VariantiCantierePanel.tsx'), old = cp.execFileSync('git', ['show', 'HEAD:app/components/VariantiCantierePanel.tsx'], { encoding: 'utf8' }).replace(/\r\n/g, '\n')
   const callback = 'onClick={() => setVarianteApertaId(aperta => aperta === variante.id ? null : variante.id)}'
   assert(cur.includes(callback)); assert(old.includes(callback))
   const logic = s => s.slice(s.indexOf('  async function caricaSorgentiSalvate'), s.indexOf('  return <div style={{ margin:'))
