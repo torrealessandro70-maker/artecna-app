@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { leggiListinoManuale, salvaVoceListino, eliminaVoceListinoArtecna, type FormListino, type VoceListino } from '../engines/price-import/listino-manuale'
 import { analizzaStoricoListino, applicaProposteStorico, type PropostaStorico } from '../engines/price-import/storico-listino'
 import ImportaFileArtecnaPanel from './ImportaFileArtecnaPanel'
+import ImportaPreventivoExcelListinoPanel from './ImportaPreventivoExcelListinoPanel'
 import { formattaManodopera, leggiSupportoManodopera } from '../engines/price-import/manodopera'
 import { evidenziaRicerca, portaRigaInVista, stileRighePrezzari } from '../utils/ricercaPrezzari'
 
@@ -61,6 +62,11 @@ export default function ListinoArtecnaPanel({ supabase, onSaved }: { supabase: S
     }}>Aggiorna da storico ARTECNA</button>
     <ImportaFileArtecnaPanel supabase={supabase} disabled={busy || loading || !!form} onBusyChange={setBusy} onSaved={async () => {
       setRows(await leggiListinoManuale(supabase)); setProposte(null); setSelezionate([]); await onSaved()
+    }} />
+    <ImportaPreventivoExcelListinoPanel supabase={supabase} disabled={busy || loading || !!form} manodoperaDisponibile={manodoperaDisponibile} onBusyChange={setBusy} onSaved={async count => {
+      setRows(await leggiListinoManuale(supabase)); setProposte(null); setSelezionate([])
+      if (count > 0) setMessage(`${count} voci importate nel Listino ARTECNA`)
+      await onSaved()
     }} />
     {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
     {loading ? <p>Caricamento listino...</p> : <div ref={contenitoreRighe} role="region" aria-label="Righe Listino ARTECNA" tabIndex={0} style={stileRighePrezzari}>

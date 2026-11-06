@@ -95,7 +95,10 @@ test('azioni Elimina restano associate al proprio ID e richiedono conferma prima
 test('reader, ricerca, handler, form e importazione sono identici al parent; nessuna modifica prezzi',()=>{
  const base='c831e0c4b75c3f4dbae1372603cee3f50bd87366'
  const previous=execFileSync('git',['show',base+':app/components/ListinoArtecnaPanel.tsx'],{cwd:root,encoding:'utf8'}).replace(/\r\n/g,'\n')
+ // Exclude only the new, independent entry; all legacy handlers and form stay byte-for-byte checked.
  const current=fs.readFileSync(file,'utf8').replace(/\r\n/g,'\n')
+   .replace(/^import ImportaPreventivoExcelListinoPanel[^\n]*\n/m,'')
+   .replace(/    <ImportaPreventivoExcelListinoPanel[\s\S]*?    }\} \/>\n/,'')
  assert.equal(current.slice(0,current.indexOf('  return <section')),previous.slice(0,previous.indexOf('  return <section')).replace('HTMLTableRowElement','HTMLElement'))
  assert.equal(current.slice(current.indexOf('    {proposte &&')),previous.slice(previous.indexOf('    {proposte &&')))
  const handlers=source=>{const ast=ts.createSourceFile('ui.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),result=[];function visit(n){if(ts.isJsxAttribute(n)&&/^on[A-Z]/.test(n.name.text))result.push(n.getText(ast).replace(/\s+/g,' '));ts.forEachChild(n,visit)}visit(ast);return result.sort()}
