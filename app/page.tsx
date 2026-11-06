@@ -132,7 +132,6 @@ import CantieriSchedaPanel from './components/CantieriSchedaPanel'
 import CantieriAnalisiDocumentoPanel from './components/CantieriAnalisiDocumentoPanel'
 
 
-import CantieriContainer from './components/CantieriContainer'
 import PagamentiContainer from './components/PagamentiContainer'
 import PresenzeCostiOperaiPanel from './components/PresenzeCostiOperaiPanel'
 import { buildPhotoRecordsWithStorage } from './engines/photo-storage'
@@ -12435,7 +12434,7 @@ WebkitOverflowScrolling: 'touch',
 
 {vistaCantieriAttiva === 'scheda' && (
 <>
-<CantieriContainer
+<CantieriSchedaPanel
   progressoAnalisiDocumento={progressoAnalisiDocumento}
   timelinePanelProps={{ foto: fotoCantiere, rapportini, preventivi, acconti: accontiCantiere,
     presenze: timbrature, materiali: materialiCantiere, attrezzature: attrezziCantiere, formatMoney }}
