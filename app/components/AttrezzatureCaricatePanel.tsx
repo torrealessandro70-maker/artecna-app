@@ -1,6 +1,7 @@
 'use client'
 
-import { useId, useState, type CSSProperties } from 'react'
+import { useId, useRef, useState, type CSSProperties } from 'react'
+import VistaOperativa from './VistaOperativa'
 import PrezzoMaterialeInput from './PrezzoMaterialeInput'
 import { calcolaAttrezzoManuale } from '../utils/attrezzoManuale'
 
@@ -18,6 +19,12 @@ type Props = {
     salva: () => void | Promise<void>
   }
   suggerimentiDescrizione?: string[]
+  modifica?: {
+    id: string | null
+    apri: (a: Props['attrezziCantiere'][number]) => void
+    chiudi: () => void
+    form: NonNullable<Props['form']>
+  }
   inputStyle?: CSSProperties
   buttonPrimary?: CSSProperties
   excelTable?: CSSProperties
@@ -33,7 +40,7 @@ type Props = {
 }
 
 export default function AttrezzatureCaricatePanel({
-  contestuale = false, totaleAttrezzature, form,
+  contestuale = false, totaleAttrezzature, form: formNuova, modifica,
   suggerimentiDescrizione = [], inputStyle, buttonPrimary, excelTable, excelTh, excelTd,
   mostraAttrezziCantiere,
   setMostraAttrezziCantiere,
@@ -44,6 +51,11 @@ export default function AttrezzatureCaricatePanel({
  onElimina,
 }: Props) {
   const descrizioniId = useId()
+  const [nuovaAperta, setNuovaAperta] = useState(false)
+  const [modificaApertaId, setModificaApertaId] = useState<string | null>(null)
+  const ritornoFocusRef = useRef<HTMLButtonElement | null>(null)
+  const inModifica = Boolean(modificaApertaId && modifica?.id === modificaApertaId)
+  const form = inModifica ? modifica!.form : formNuova
   const [ordine, setOrdine] = useState({ campo: 'data_documento', direzione: 'desc' })
   const ordina = (campo: string) => setOrdine((precedente) => ({
     campo, direzione: precedente.campo === campo && precedente.direzione === 'asc' ? 'desc' : 'asc',
@@ -63,9 +75,17 @@ export default function AttrezzatureCaricatePanel({
       <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8, minWidth: 0 }}>
         <strong>Totale attrezzature cantiere:</strong> {formatMoney(totaleAttrezzature ?? 0)}
         <div style={{ marginTop: 12, overflow: 'auto', border: '1px solid #cbd5e1', borderRadius: 10, background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-          {form && (
+          {formNuova && <button type="button" onClick={(e) => {
+            ritornoFocusRef.current = e.currentTarget
+            setModificaApertaId(null)
+            setNuovaAperta(true)
+          }} style={{ ...buttonPrimary, minHeight: 44, margin: 12 }}>+ Nuova attrezzatura</button>}
+          {form && (nuovaAperta || inModifica) && (
+            <VistaOperativa titolo={inModifica ? 'Modifica attrezzatura' : 'Nuova attrezzatura'}
+              contesto={cantiereScheda} etichettaRitorno="← Torna ad Attrezzature"
+              ritornoFocusRef={ritornoFocusRef}
+              onChiudi={() => { setNuovaAperta(false); setModificaApertaId(null); if (inModifica) modifica!.chiudi() }}>
             <div style={{ padding: 15, border: '1px solid #cbd5e1', borderRadius: 12, marginBottom: 20, background: '#f8fafc' }}>
-              <h3>Inserimento attrezzatura manuale</h3>
               <input aria-label="Descrizione attrezzatura" placeholder="Descrizione attrezzatura" list={descrizioniId}
                 value={form.descrizione} onChange={(e) => form.setDescrizione(e.target.value)}
                 style={{ ...campoStyle, marginBottom: 8 }} />
@@ -73,7 +93,7 @@ export default function AttrezzatureCaricatePanel({
                 {suggerimentiDescrizione.filter((nome) => nome.toLocaleLowerCase('it-IT').includes(form.descrizione.toLocaleLowerCase('it-IT')))
                   .map((nome) => <option key={nome} value={nome} />)}
               </datalist>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(160px, 100%), 1fr))', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: 10 }}>
                 {[
                   { titolo: 'Quantità', valore: form.quantita, imposta: form.setQuantita },
                   { titolo: 'Prezzo unitario €', valore: form.prezzo, imposta: form.setPrezzo, calcolatrice: true },
@@ -91,8 +111,9 @@ export default function AttrezzatureCaricatePanel({
               <textarea aria-label="Nota" placeholder="Nota" value={form.nota} onChange={(e) => form.setNota(e.target.value)}
                 style={{ ...campoStyle, minHeight: 70, marginTop: 10 }} />
               <p aria-live="polite"><strong>Totale:</strong> {manuale ? formatMoney(manuale.totale) : 'Inserisci quantità e prezzo validi'}</p>
-              <button type="button" onClick={form.salva} style={{ ...buttonPrimary, marginTop: 12 }}>Salva attrezzatura</button>
+              <button type="button" onClick={form.salva} style={{ ...buttonPrimary, minHeight: 44, marginTop: 12 }}>Salva attrezzatura</button>
             </div>
+            </VistaOperativa>
           )}
           {righe.length === 0 ? <p style={{ padding: 12 }}>Nessuna attrezzatura corrispondente ai filtri per questo cantiere.</p> : (
             <table style={{ ...excelTable, tableLayout: 'auto', minWidth: 800, width: '100%', borderCollapse: 'collapse' }}>
@@ -119,7 +140,14 @@ export default function AttrezzatureCaricatePanel({
                   <td style={cellaStyle}><strong>{formatMoney(Number(a.totale || 0))}</strong></td>
                   <td style={cellaStyle}>{a.file_url ? <a href={a.file_url} target="_blank" rel="noopener noreferrer">{a.nome_file || 'Apri file'}</a> : a.nome_file || '-'}</td>
                   <td style={cellaStyle}>{a.nota || '-'}</td>
-                  <td style={cellaStyle}><button type="button" onClick={() => onElimina(a)}
+                  <td style={cellaStyle}>
+                    {modifica && a.id && <button type="button" onClick={(e) => {
+                      ritornoFocusRef.current = e.currentTarget
+                      setNuovaAperta(false)
+                      setModificaApertaId(a.id)
+                      modifica.apri(a)
+                    }} style={{ ...buttonSecondary, minHeight: 44 }}>Modifica</button>}
+                    <button type="button" onClick={() => onElimina(a)}
                     style={{ ...buttonSecondary, backgroundColor: '#dc2626', color: '#fff' }}>Elimina</button></td>
                 </tr>
               ))}</tbody>

@@ -12592,6 +12592,21 @@ strutturaPreventivoEsistente,
   attrezzaturePanelProps={{
     mostraAttrezziCantiere, setMostraAttrezziCantiere, attrezziCantiere, cantiereScheda,
     onElimina: eliminaAttrezzatura,
+    modifica: {
+      id: attrezzoInModifica,
+      apri: preparaModificaAttrezzo,
+      chiudi: annullaModificaAttrezzo,
+      form: {
+        descrizione: descrizioneAttrezzoModifica, setDescrizione: setDescrizioneAttrezzoModifica,
+        quantita: quantitaAttrezzoModifica, setQuantita: setQuantitaAttrezzoModifica,
+        prezzo: prezzoAttrezzoModifica, setPrezzo: setPrezzoAttrezzoModifica,
+        fornitore: fornitoreAttrezzoModifica, setFornitore: setFornitoreAttrezzoModifica,
+        data: dataDocumentoAttrezzoModifica, setData: setDataDocumentoAttrezzoModifica,
+        nomeFile: nomeFileAttrezzoModifica, setNomeFile: setNomeFileAttrezzoModifica,
+        nota: notaAttrezzoModifica, setNota: setNotaAttrezzoModifica,
+        salva: salvaModificaAttrezzo,
+      },
+    },
     inputStyle, buttonPrimary, buttonSecondary, excelTable, excelTh, excelTd, formatMoney,
     form: {
       descrizione: descrizioneAttrezzo, setDescrizione: setDescrizioneAttrezzo,
