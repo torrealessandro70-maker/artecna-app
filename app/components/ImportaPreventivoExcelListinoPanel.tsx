@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import VistaOperativa from './VistaOperativa'
 import { leggiListinoManuale, type FormListino, type VoceListino } from '../engines/price-import/listino-manuale'
@@ -17,6 +17,8 @@ export default function ImportaPreventivoExcelListinoPanel({ supabase, disabled,
 }) {
   const [aperta, setAperta] = useState(false), [occupata, setOccupata] = useState(false)
   const lock = useRef(false), ritornoFocus = useRef<HTMLButtonElement>(null)
+  const inputFile = useRef<HTMLInputElement>(null), dialogConferma = useRef<HTMLDialogElement>(null)
+  const [confermaAperta, setConfermaAperta] = useState(false)
   const [righe, setRighe] = useState<RigaPreventivoListino[]>([]), [listino, setListino] = useState<VoceListino[]>([])
   const [nomeFile, setNomeFile] = useState(''), [avvisi, setAvvisi] = useState<string[]>([])
   const [selezionate, setSelezionate] = useState<string[]>([])
@@ -26,6 +28,18 @@ export default function ImportaPreventivoExcelListinoPanel({ supabase, disabled,
   const importabile = (p: typeof proposte[number]) => !daRileggere && !p.errori.length && (!haConflittoPreventivo(p) || decisioni[p.riga.id] === 'nuova')
   const scelte = proposte.filter(p => selezionate.includes(p.riga.id) && importabile(p))
   const occupa = (value: boolean) => { lock.current = value; setOccupata(value); onBusyChange(value) }
+  useEffect(() => {
+    const dialog = dialogConferma.current
+    if (!confermaAperta || !dialog) return
+    dialog.showModal()
+    return () => dialog.close()
+  }, [confermaAperta])
+  const resetFile = () => {
+    if (lock.current) return
+    if (inputFile.current) inputFile.current.value = ''
+    setNomeFile(''); setRighe([]); setListino([]); setSelezionate([]); setDecisioni({})
+    setAvvisi([]); setErrore(''); setMessaggio(''); setDaRileggere(false); setConfermaAperta(false)
+  }
   const edita = (id: string, campo: keyof FormListino, value: string) => {
     setRighe(correnti => correnti.map(r => r.id === id ? { ...r, form: { ...r.form, [campo]: value } } : r))
     setSelezionate([]); setDecisioni({})
@@ -46,10 +60,10 @@ export default function ImportaPreventivoExcelListinoPanel({ supabase, disabled,
       onChiudi={() => setAperta(false)} occupata={occupata} ritornoFocusRef={ritornoFocus}>
       <p>Seleziona personalmente le voci del preventivo che vuoi aggiungere. Caricamento, correzioni e selezione non scrivono nel Listino.</p>
       <label style={{ display: 'grid', gap: 8, minWidth: 0, marginBottom: 16 }}>Preventivo Excel (.xlsx / .xls)
-        <input type="file" accept=".xlsx,.xls" aria-label="Preventivo Excel per Listino" disabled={occupata} style={campoStyle} onChange={async e => {
+        <input ref={inputFile} type="file" accept=".xlsx,.xls" aria-label="Preventivo Excel per Listino" disabled={occupata} style={campoStyle} onChange={async e => {
           const file = e.target.files?.[0]; e.target.value = ''
           if (!file || lock.current) return
-          occupa(true); setErrore(''); setMessaggio(''); setSelezionate([]); setDecisioni({}); setDaRileggere(false); setRighe([]); setAvvisi([]); setNomeFile(file.name)
+          occupa(true); setErrore(''); setMessaggio(''); setSelezionate([]); setDecisioni({}); setDaRileggere(false); setRighe([]); setAvvisi([]); setNomeFile(file.name); setConfermaAperta(false)
           try {
             const parsed = await leggiPreventivoListino(file)
             const corrente = await leggiListinoManuale(supabase)
@@ -58,19 +72,25 @@ export default function ImportaPreventivoExcelListinoPanel({ supabase, disabled,
           finally { occupa(false) }
         }} />
       </label>
+      {!nomeFile && <p>Nessun file scelto</p>}
+      {!righe.length && <button type="button" style={bottoneStyle} disabled={occupata || !nomeFile} onClick={resetFile}>Reset file</button>}
       {occupata && <p role="status">Operazione in corso…</p>}
       {errore && <p role="alert">{errore}</p>}{messaggio && <p role="status">{messaggio}</p>}
       {daRileggere && <button type="button" style={bottoneStyle} disabled={occupata} onClick={rileggi}>Rileggi Listino e confronta di nuovo</button>}
-      {avvisi.length > 0 && <details><summary>Avvisi di lettura ({avvisi.length})</summary><ul>{avvisi.map((v, i) => <li key={i}>{v}</li>)}</ul></details>}
       {righe.length > 0 && <>
+        <div role="region" aria-label="Azioni importazione Excel" style={{ position: 'sticky', top: 64, zIndex: 20, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBlock: 16, padding: 12, border: '1px solid #cbd5e1', borderRadius: 12, background: '#fff', boxShadow: '0 2px 8px #0f172a18' }}>
+          <button type="button" style={bottoneStyle} disabled={occupata} onClick={resetFile}>Reset file</button>
+          <button type="button" style={bottoneStyle} disabled={occupata || daRileggere} onClick={() => setSelezionate(proposte.filter(importabile).map(p => p.riga.id))}>Seleziona tutto</button>
+          <button type="button" style={bottoneStyle} disabled={occupata} onClick={() => setSelezionate([])}>Deseleziona tutto</button>
+          <button type="button" style={{ ...bottoneStyle, background: '#1d4ed8', color: '#fff', border: 0 }} disabled={occupata || daRileggere || !scelte.length} onClick={() => {
+            if (!lock.current && scelte.length && !daRileggere) setConfermaAperta(true)
+          }}>Importa {scelte.length} voci selezionate</button>
+        </div>
+        {avvisi.length > 0 && <details><summary>Avvisi di lettura ({avvisi.length})</summary><ul>{avvisi.map((v, i) => <li key={i}>{v}</li>)}</ul></details>}
         <h3>Anteprima — {nomeFile}</h3>
         <p role="status" aria-live="polite">Voci lette: {righe.length} · Selezionate: {scelte.length} · Da completare: {proposte.filter(p => p.errori.length).length} · Possibili duplicati: {proposte.filter(haConflittoPreventivo).length}</p>
         <p>I conflitti non vengono aggiornati automaticamente. Puoi saltarli o aggiungere una nuova voce; per modificare una voce esistente usa Modifica nel Listino.</p>
         {!manodoperaDisponibile && <p>I valori manodopera del documento saranno conservati nelle Note: i relativi campi non sono disponibili nel Listino corrente.</p>}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
-          <button type="button" style={bottoneStyle} disabled={occupata || daRileggere} onClick={() => setSelezionate(proposte.filter(importabile).map(p => p.riga.id))}>Seleziona tutto</button>
-          <button type="button" style={bottoneStyle} disabled={occupata} onClick={() => setSelezionate([])}>Deseleziona tutto</button>
-        </div>
         <div aria-label="Voci del preventivo Excel" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: 16, minWidth: 0 }}>
           {proposte.map(p => {
             const r = p.riga, id = r.id, conflitto = haConflittoPreventivo(p)
@@ -111,9 +131,14 @@ export default function ImportaPreventivoExcelListinoPanel({ supabase, disabled,
             </article>
           })}
         </div>
-        <button type="button" style={{ ...bottoneStyle, marginTop: 20 }} disabled={occupata || daRileggere || !scelte.length} onClick={async () => {
-          if (lock.current || !scelte.length) return
-          if (!window.confirm(`Stai per aggiungere ${scelte.length} voci al Listino ARTECNA. Continuare?`)) return
+        {confermaAperta && <dialog ref={dialogConferma} aria-labelledby="conferma-importazione-excel" onCancel={e => { e.preventDefault(); if (!lock.current) setConfermaAperta(false) }}
+          style={{ width: 'min(480px, calc(100% - 32px))', maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', boxSizing: 'border-box', padding: 24, border: '1px solid #cbd5e1', borderRadius: 16 }}>
+          <h3 id="conferma-importazione-excel">Conferma importazione</h3>
+          <p>Stai per aggiungere {scelte.length} voci al Listino ARTECNA. Continuare?</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          <button type="button" autoFocus disabled={occupata} style={bottoneStyle} onClick={() => setConfermaAperta(false)}>Annulla</button>
+          <button type="button" style={bottoneStyle} disabled={occupata || daRileggere || !scelte.length} onClick={async () => {
+          if (lock.current || !confermaAperta || daRileggere || !scelte.length) return
           occupa(true); setErrore(''); setMessaggio('')
           try {
             const risultato = await importaPreventivoListino(supabase, proposte, scelte.map(p => ({ id: p.riga.id, conflitto: decisioni[p.riga.id] || 'salta' })), nomeFile, manodoperaDisponibile, true)
@@ -126,8 +151,10 @@ export default function ImportaPreventivoExcelListinoPanel({ supabase, disabled,
             if (!risultato.errore) { setRighe([]); setAvvisi([]); setAperta(false) }
           } catch (e) {
             setErrore(e instanceof Error ? e.message : 'Errore importazione.'); setDaRileggere(true); setSelezionate([])
-          } finally { occupa(false) }
-        }}>Importa voci selezionate</button>
+          } finally { setConfermaAperta(false); occupa(false) }
+        }}>Conferma importazione</button>
+          </div>
+        </dialog>}
       </>}
     </VistaOperativa>}
   </section>
