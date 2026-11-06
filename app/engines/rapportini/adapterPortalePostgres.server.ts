@@ -4,6 +4,8 @@ import { attachDatabasePool } from '@vercel/functions'
 import { CA_SUPABASE } from './caSupabase.server'
 
 const invocazioni = {
+  prenota_allegato_rapportino_desktop: { sql: 'public.prenota_allegato_rapportino_desktop($1::uuid,$2::uuid,$3::uuid,$4::date,$5::uuid,$6::text,$7::text,$8::bigint)', parametri: ['p_user_id', 'p_rapportino_id', 'p_cantiere_id', 'p_data', 'p_chiave_client_allegato', 'p_sha256', 'p_mime_type', 'p_byte_size'] },
+  finalizza_allegato_rapportino_desktop: { sql: 'public.finalizza_allegato_rapportino_desktop($1::uuid,$2::uuid,$3::uuid)', parametri: ['p_user_id', 'p_allegato_id', 'p_lease_id'] },
   prenota_allegato_rapportino_portale: { sql: 'public.prenota_allegato_rapportino_portale($1::text,$2::uuid,$3::uuid,$4::date,$5::uuid,$6::text,$7::text,$8::bigint)', parametri: ['p_sessione', 'p_rapportino_id', 'p_cantiere_id', 'p_data', 'p_chiave_client_allegato', 'p_sha256', 'p_mime_type', 'p_byte_size'] },
   finalizza_allegato_rapportino_portale: { sql: 'public.finalizza_allegato_rapportino_portale($1::text,$2::uuid,$3::uuid)', parametri: ['p_sessione', 'p_allegato_id', 'p_lease_id'] },
   crea_sessione_rapportino: { sql: 'public.crea_sessione_rapportino($1::text,$2::text)', parametri: ['p_pin', 'p_token'] },
