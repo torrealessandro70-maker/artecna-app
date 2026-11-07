@@ -10,3 +10,4 @@ supabase/migrations/20261029_clienti_sorgenti_lettura.sql text eol=lf
 supabase/migrations/20261107*.sql text eol=lf
 supabase/migrations/20261107000500_contabilita_guardie.sql -text !eol
 supabase/validators/cantiere-prerequisiti/baseline.sql -text whitespace=-trailing-space
+supabase/validators/cantiere-prerequisiti/production-precheck-readonly.sql text eol=lf

@@ -1,0 +1,618 @@
+{
+  "sourceSha256": "4e5bdd0d6befabbbc90cad17617419af96f9f92437f5915941827f4ff22b11c1",
+  "relations": [
+    {
+      "schema": "public",
+      "table": "materiali_cantiere",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "fatture_fornitori_righe",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "variante_documenti",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "rapportini",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "foto_cantiere",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "timbrature",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "attrezzi_cantiere",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "pagamenti_fornitori",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "incassi_non_fatturati",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "fatture_fornitori",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "variante_lavorazioni",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "variante_sorgenti",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "preventivi_cantiere",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "preventivo_lavorazioni",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "varianti_cantiere",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "cantieri",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "sal_lavorazioni",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "operai",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "pagamenti_operai",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "impostazioni_app",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "spese_impresa",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "sopralluoghi",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "foto_sopralluogo",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "prezzi_lavorazioni",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "memoria_prezzi",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "prezziario_sicilia",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "utilizzo_ai",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "note_sopralluogo",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "note_allegati",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "agenda_attivita",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "utenti_cantiere",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "variante_fonti_visive",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "variante_osservatore_analisi",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "economia_raccolte",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "economia_sorgenti",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "economia_righe",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "artecna_rapportini",
+      "table": "richieste",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "rapportino_prestazioni",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "rapportino_materiali",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "quaderno_allegati",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "quaderno_progetti",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "acconti_cantiere",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "fatture_emesse",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "variante_fonti_memory",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "quaderno_richiami_sopralluogo",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "quaderno_gestioni",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "quaderno_copie_allegati",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres",
+        "service_role"
+      ]
+    },
+    {
+      "schema": "artecna_distruzione",
+      "table": "contesto",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "artecna_distruzione",
+      "table": "cleanup_storage",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "artecna_rapportini",
+      "table": "sessioni_portale",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "artecna_rapportini",
+      "table": "allegati",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "artecna_rapportini",
+      "table": "f3c3_capability",
+      "rls": false,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "utenti_impresa",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "materiali_impresa",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "artecna_guardie",
+      "table": "fatture_classificazione_richieste",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "artecna_contabilita",
+      "table": "attribuzioni_clienti",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    },
+    {
+      "schema": "public",
+      "table": "fornitori_rettifiche",
+      "rls": true,
+      "forced_rls": false,
+      "maintain": [
+        "postgres"
+      ]
+    }
+  ]
+}
