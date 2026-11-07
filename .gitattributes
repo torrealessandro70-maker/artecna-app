@@ -6,3 +6,7 @@ supabase/migrations/20261026_preventivo_memoria_prezzi_lettura.sql text eol=lf
 supabase/migrations/20261028_clienti_incassi_attribuzioni.sql text eol=lf
 supabase/migrations/20261029_clienti_sorgenti_sicurezza.sql text eol=lf
 supabase/migrations/20261029_clienti_sorgenti_lettura.sql text eol=lf
+# Preserve catalog function bodies byte-for-byte: baseline guards hash prosrc.
+supabase/migrations/20261107*.sql text eol=lf
+supabase/migrations/20261107000500_contabilita_guardie.sql -text !eol
+supabase/validators/cantiere-prerequisiti/baseline.sql -text whitespace=-trailing-space
