@@ -6,6 +6,7 @@ export interface StorageJob {
 export interface WorkerConnection {
   query(sql: string, values?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>
   release(error?: Error): void
+  verifySession?(job: StorageJob): Promise<void>
 }
 export interface WorkerPool { connect(): Promise<WorkerConnection> }
 export interface StorageRemover {
@@ -31,9 +32,11 @@ export async function consumeStorageJob(pool: WorkerPool, storage: StorageRemove
     }
     await db.query('COMMIT')
     if (!job) return 'idle'
+    await db.verifySession?.(job)
     let outcome: Awaited<ReturnType<StorageRemover['remove']>>
     try { outcome = await storage.remove(job.bucket, job.path) }
     catch { outcome = { ok: false, permanent: false, reason: 'STORAGE_TRANSPORT' } }
+    await db.verifySession?.(job)
     await db.query('BEGIN')
     await db.query('SELECT artecna_distruzione.storage_finish($1::bigint,$2::uuid,$3::boolean,$4::boolean,$5::text)',
       [job.id, job.token, outcome.ok, outcome.ok ? false : outcome.permanent, outcome.ok ? null : outcome.reason])

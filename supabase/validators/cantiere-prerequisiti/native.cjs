@@ -12,6 +12,6 @@ exports.withNative=async function(run){
   execute('pg_ctl',['-D',data,'-l',path.join(directory,'server.log'),'-o',`-h 127.0.0.1 -p ${port} -c fsync=off -c max_connections=20`,'-w','start']);started=true
   const db=await connect();await db.query(fs.readFileSync(path.join(__dirname,'baseline.sql'),'utf8'))
   for(const file of fs.readdirSync(path.join(root,'supabase/migrations')).filter(n=>/^20261107\d{6}_/.test(n)).sort())await db.query(fs.readFileSync(path.join(root,'supabase/migrations',file),'utf8'))
-  await run(db,connect)
+  await run(db,connect,{host:'127.0.0.1',port,database:'postgres',user:'artecna_storage_worker_login',connectionTimeoutMillis:5000,query_timeout:5000})
  }finally{if(started)execute('pg_ctl',['-D',data,'-m','immediate','-w','stop']);await Promise.allSettled(clients.map(c=>c.end()))}
 }
