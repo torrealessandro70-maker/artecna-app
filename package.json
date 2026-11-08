@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:hard-delete-runtime": "node --test supabase/validators/cantiere-prerequisiti/hard-delete-runtime.test.cjs",
+    "test:hard-delete-contract": "node --test --test-concurrency=1 supabase/validators/cantiere-prerequisiti/hard-delete-runtime.test.cjs supabase/validators/cantiere-prerequisiti/hardDeleteFinal.test.cjs supabase/validators/cantiere-prerequisiti/installerFinal.test.cjs supabase/validators/cantiere-prerequisiti/installerRuntime.test.cjs supabase/validators/cantiere-prerequisiti/prerequisiti.test.cjs supabase/validators/cantiere-prerequisiti/contabilita.test.cjs supabase/validators/cantiere-prerequisiti/worker.test.cjs supabase/validators/cantiere-prerequisiti/session.test.cjs supabase/validators/cantiere-prerequisiti/gate.test.cjs app/utils/preflightEliminazione.test.cjs app/utils/hardDeleteFinalUi.test.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.3",

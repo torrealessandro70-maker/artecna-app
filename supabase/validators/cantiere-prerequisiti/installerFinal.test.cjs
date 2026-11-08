@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {withNative}=require('./native.cjs'),{certifiedInstallerFixture,identityQuery,membershipQuery,expected}=require('./installerBaseline.cjs');
-const sql=fs.readFileSync(path.join(__dirname,'../../migrations/20261108000800_cantiere_hard_delete_finale.sql'),'utf8');
+const sql=fs.readFileSync(path.join(__dirname,'../../migrations/20261108000800_cantiere_hard_delete_finale.sql'),'utf8').replace(/\r\n/g,'\n');
 test('installer 008 R2: PostgreSQL 17.6, NOSUPERUSER, grantor distinti, transazione atomica',{timeout:240000},t=>withNative(async(db,connect)=>{
  const admin=await connect('fixture_admin'),q=async(c,s,p)=>(await c.query(s,p)).rows;
  const snapshot=async()=>({rpc:(await q(db,identityQuery))[0].identity,memberships:(await q(db,membershipQuery))[0].memberships,schema:(await q(db,"SELECT nspacl::text acl,nspowner::regrole::text owner FROM pg_namespace WHERE nspname='public'"))[0],new_helper:(await q(db,"SELECT to_regprocedure('artecna_distruzione.hard_delete_catalog()') helper"))[0].helper});

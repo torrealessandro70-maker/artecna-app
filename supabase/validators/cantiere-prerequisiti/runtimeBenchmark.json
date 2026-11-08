@@ -1,0 +1,761 @@
+[
+  {
+    "scale": 0,
+    "phases": [
+      {
+        "phase": "catalog",
+        "ms": 15.582800000000134
+      },
+      {
+        "phase": "targets",
+        "ms": 30.783299999999144
+      },
+      {
+        "phase": "blockers",
+        "ms": 52.55569999999898
+      },
+      {
+        "phase": "preserved_before",
+        "ms": 5.559800000000905
+      },
+      {
+        "phase": "preserved_after",
+        "ms": 1.8254000000015367
+      }
+    ],
+    "total_ms": 571.3413,
+    "cold_ms": 571.3413,
+    "warm_ms": 334.1166999999987,
+    "profile": [
+      {
+        "ms": 0.897,
+        "phase": "jwt_owner"
+      },
+      {
+        "ms": 0.689,
+        "phase": "lock"
+      },
+      {
+        "ms": 27.987,
+        "phase": "targets"
+      },
+      {
+        "ms": 47.801,
+        "phase": "blockers"
+      },
+      {
+        "ms": 7.507,
+        "phase": "preserved_before"
+      },
+      {
+        "ms": 3.885,
+        "phase": "storage_and_detach"
+      },
+      {
+        "ms": 3.093,
+        "phase": "delete:artecna_rapportini.richieste"
+      },
+      {
+        "ms": 0.391,
+        "phase": "delete:public.sal_lavorazioni"
+      },
+      {
+        "ms": 1.99,
+        "phase": "delete:public.variante_fonti_memory"
+      },
+      {
+        "ms": 1.112,
+        "phase": "delete:public.variante_fonti_visive"
+      },
+      {
+        "ms": 0.541,
+        "phase": "delete:public.variante_osservatore_analisi"
+      },
+      {
+        "ms": 0.916,
+        "phase": "delete:public.variante_documenti"
+      },
+      {
+        "ms": 0.521,
+        "phase": "delete:public.variante_lavorazioni"
+      },
+      {
+        "ms": 3.331,
+        "phase": "delete:public.variante_sorgenti"
+      },
+      {
+        "ms": 84.666,
+        "phase": "delete:public.economia_righe"
+      },
+      {
+        "ms": 1.103,
+        "phase": "delete:public.economia_sorgenti"
+      },
+      {
+        "ms": 2.792,
+        "phase": "delete:public.economia_raccolte"
+      },
+      {
+        "ms": 5.839,
+        "phase": "delete:public.timbrature"
+      },
+      {
+        "ms": 0.425,
+        "phase": "delete:public.rapportino_materiali"
+      },
+      {
+        "ms": 6.676,
+        "phase": "delete:public.rapportino_prestazioni"
+      },
+      {
+        "ms": 1.651,
+        "phase": "delete:artecna_rapportini.f3c3_capability"
+      },
+      {
+        "ms": 3.354,
+        "phase": "delete:artecna_rapportini.allegati"
+      },
+      {
+        "ms": 8.477,
+        "phase": "delete:public.foto_cantiere"
+      },
+      {
+        "ms": 8.534,
+        "phase": "delete:public.rapportini"
+      },
+      {
+        "ms": 4.57,
+        "phase": "delete:public.preventivo_lavorazioni"
+      },
+      {
+        "ms": 0.501,
+        "phase": "delete:public.preventivi_cantiere"
+      },
+      {
+        "ms": 8.931,
+        "phase": "delete:public.varianti_cantiere"
+      },
+      {
+        "ms": 7.245,
+        "phase": "delete:public.preventivi_cantiere"
+      },
+      {
+        "ms": 0.414,
+        "phase": "delete:public.materiali_cantiere"
+      },
+      {
+        "ms": 0.469,
+        "phase": "delete:public.attrezzi_cantiere"
+      },
+      {
+        "ms": 0.514,
+        "phase": "delete:public.pagamenti_fornitori"
+      },
+      {
+        "ms": 1.905,
+        "phase": "delete:public.acconti_cantiere"
+      },
+      {
+        "ms": 0.439,
+        "phase": "delete:public.incassi_non_fatturati"
+      },
+      {
+        "ms": 0.356,
+        "phase": "delete:public.memoria_prezzi"
+      },
+      {
+        "ms": 10.37,
+        "phase": "verification_final"
+      },
+      {
+        "ms": 3.19,
+        "phase": "preserved_after"
+      }
+    ],
+    "old_per_table": []
+  },
+  {
+    "scale": 1,
+    "old_preserved_ms": 5063.465700000001,
+    "setup_ms": 5100.805
+  },
+  {
+    "scale": 1,
+    "phases": [
+      {
+        "phase": "catalog",
+        "ms": 16.77230000000054
+      },
+      {
+        "phase": "targets",
+        "ms": 61.24439999999959
+      },
+      {
+        "phase": "blockers",
+        "ms": 78.07610000000204
+      },
+      {
+        "phase": "preserved_before",
+        "ms": 4.608399999997346
+      },
+      {
+        "phase": "preserved_after",
+        "ms": 2.6895000000004075
+      }
+    ],
+    "total_ms": 538.8048000000017,
+    "cold_ms": 538.8048000000017,
+    "warm_ms": 381.0124999999971,
+    "profile": [
+      {
+        "ms": 0.79,
+        "phase": "jwt_owner"
+      },
+      {
+        "ms": 0.693,
+        "phase": "lock"
+      },
+      {
+        "ms": 14.151,
+        "phase": "targets"
+      },
+      {
+        "ms": 81.947,
+        "phase": "blockers"
+      },
+      {
+        "ms": 4.1,
+        "phase": "preserved_before"
+      },
+      {
+        "ms": 6.052,
+        "phase": "storage_and_detach"
+      },
+      {
+        "ms": 5.613,
+        "phase": "delete:artecna_rapportini.richieste"
+      },
+      {
+        "ms": 0.491,
+        "phase": "delete:public.sal_lavorazioni"
+      },
+      {
+        "ms": 0.597,
+        "phase": "delete:public.variante_fonti_memory"
+      },
+      {
+        "ms": 0.545,
+        "phase": "delete:public.variante_fonti_visive"
+      },
+      {
+        "ms": 0.344,
+        "phase": "delete:public.variante_osservatore_analisi"
+      },
+      {
+        "ms": 0.439,
+        "phase": "delete:public.variante_documenti"
+      },
+      {
+        "ms": 0.514,
+        "phase": "delete:public.variante_lavorazioni"
+      },
+      {
+        "ms": 3.972,
+        "phase": "delete:public.variante_sorgenti"
+      },
+      {
+        "ms": 128.351,
+        "phase": "delete:public.economia_righe"
+      },
+      {
+        "ms": 1.312,
+        "phase": "delete:public.economia_sorgenti"
+      },
+      {
+        "ms": 1.939,
+        "phase": "delete:public.economia_raccolte"
+      },
+      {
+        "ms": 4.488,
+        "phase": "delete:public.timbrature"
+      },
+      {
+        "ms": 0.384,
+        "phase": "delete:public.rapportino_materiali"
+      },
+      {
+        "ms": 6.126,
+        "phase": "delete:public.rapportino_prestazioni"
+      },
+      {
+        "ms": 0.351,
+        "phase": "delete:artecna_rapportini.f3c3_capability"
+      },
+      {
+        "ms": 1.665,
+        "phase": "delete:artecna_rapportini.allegati"
+      },
+      {
+        "ms": 5.129,
+        "phase": "delete:public.foto_cantiere"
+      },
+      {
+        "ms": 6.894,
+        "phase": "delete:public.rapportini"
+      },
+      {
+        "ms": 4.779,
+        "phase": "delete:public.preventivo_lavorazioni"
+      },
+      {
+        "ms": 0.508,
+        "phase": "delete:public.preventivi_cantiere"
+      },
+      {
+        "ms": 3.306,
+        "phase": "delete:public.varianti_cantiere"
+      },
+      {
+        "ms": 5.142,
+        "phase": "delete:public.preventivi_cantiere"
+      },
+      {
+        "ms": 0.519,
+        "phase": "delete:public.materiali_cantiere"
+      },
+      {
+        "ms": 1.087,
+        "phase": "delete:public.attrezzi_cantiere"
+      },
+      {
+        "ms": 1.172,
+        "phase": "delete:public.pagamenti_fornitori"
+      },
+      {
+        "ms": 0.98,
+        "phase": "delete:public.acconti_cantiere"
+      },
+      {
+        "ms": 1.552,
+        "phase": "delete:public.incassi_non_fatturati"
+      },
+      {
+        "ms": 1.549,
+        "phase": "delete:public.memoria_prezzi"
+      },
+      {
+        "ms": 23.606,
+        "phase": "verification_final"
+      },
+      {
+        "ms": 10.124,
+        "phase": "preserved_after"
+      }
+    ],
+    "old_per_table": [
+      {
+        "table": "artecna_contabilita.archivio_attribuzioni",
+        "ms": 1.2394999999996799
+      },
+      {
+        "table": "artecna_contabilita.archivio_quote",
+        "ms": 0.8735000000015134
+      },
+      {
+        "table": "artecna_contabilita.attribuzioni_clienti",
+        "ms": 0.7796999999991385
+      },
+      {
+        "table": "artecna_guardie.fatture_classificazione_richieste",
+        "ms": 2.0380000000004657
+      },
+      {
+        "table": "artecna_rapportini.allegati",
+        "ms": 1.1216999999996915
+      },
+      {
+        "table": "artecna_rapportini.f3c3_capability",
+        "ms": 0.6732999999985623
+      },
+      {
+        "table": "artecna_rapportini.richieste",
+        "ms": 1.4689999999973224
+      },
+      {
+        "table": "artecna_rapportini.sessioni_portale",
+        "ms": 1.0440999999991618
+      },
+      {
+        "table": "public.acconti_cantiere",
+        "ms": 0.8041999999986729
+      },
+      {
+        "table": "public.agenda_attivita",
+        "ms": 0.7317999999977474
+      },
+      {
+        "table": "public.attrezzi_cantiere",
+        "ms": 0.6470999999983178
+      },
+      {
+        "table": "public.cantieri",
+        "ms": 0.8804999999993015
+      },
+      {
+        "table": "public.economia_raccolte",
+        "ms": 1.0733000000000175
+      },
+      {
+        "table": "public.economia_righe",
+        "ms": 166.21759999999995
+      },
+      {
+        "table": "public.economia_sorgenti",
+        "ms": 4.259200000000419
+      },
+      {
+        "table": "public.fatture_emesse",
+        "ms": 1.1761999999980617
+      },
+      {
+        "table": "public.fatture_fornitori",
+        "ms": 55.43249999999898
+      },
+      {
+        "table": "public.fatture_fornitori_righe",
+        "ms": 16.166300000000774
+      },
+      {
+        "table": "public.fornitori_rettifiche",
+        "ms": 0.9658999999992375
+      },
+      {
+        "table": "public.foto_cantiere",
+        "ms": 519.5731999999989
+      },
+      {
+        "table": "public.foto_sopralluogo",
+        "ms": 2627.8013999999966
+      },
+      {
+        "table": "public.impostazioni_app",
+        "ms": 25.38590000000113
+      },
+      {
+        "table": "public.incassi_non_fatturati",
+        "ms": 0.7260000000023865
+      },
+      {
+        "table": "public.materiali_cantiere",
+        "ms": 4.4751000000032946
+      },
+      {
+        "table": "public.materiali_impresa",
+        "ms": 1.2972999999983585
+      },
+      {
+        "table": "public.memoria_prezzi",
+        "ms": 0.8006999999997788
+      },
+      {
+        "table": "public.note_allegati",
+        "ms": 0.7285999999949127
+      },
+      {
+        "table": "public.note_sopralluogo",
+        "ms": 76.1484000000055
+      },
+      {
+        "table": "public.operai",
+        "ms": 0.7811000000001513
+      },
+      {
+        "table": "public.pagamenti_fornitori",
+        "ms": 0.6546000000016647
+      },
+      {
+        "table": "public.pagamenti_operai",
+        "ms": 0.9121999999988475
+      },
+      {
+        "table": "public.preventivi_cantiere",
+        "ms": 1.6892000000007101
+      },
+      {
+        "table": "public.preventivo_lavorazioni",
+        "ms": 15.584100000000035
+      },
+      {
+        "table": "public.prezzi_lavorazioni",
+        "ms": 478.2557000000015
+      },
+      {
+        "table": "public.prezziario_sicilia",
+        "ms": 1.261899999997695
+      },
+      {
+        "table": "public.quaderno_allegati",
+        "ms": 0.6871000000028289
+      },
+      {
+        "table": "public.quaderno_copie_allegati",
+        "ms": 0.6686999999947147
+      },
+      {
+        "table": "public.quaderno_gestioni",
+        "ms": 0.7097999999969034
+      },
+      {
+        "table": "public.quaderno_progetti",
+        "ms": 0.874100000000908
+      },
+      {
+        "table": "public.quaderno_richiami_sopralluogo",
+        "ms": 0.752200000002631
+      },
+      {
+        "table": "public.rapportini",
+        "ms": 3.1788999999989755
+      },
+      {
+        "table": "public.rapportino_materiali",
+        "ms": 1.0190000000002328
+      },
+      {
+        "table": "public.rapportino_prestazioni",
+        "ms": 3.595600000000559
+      },
+      {
+        "table": "public.sal_lavorazioni",
+        "ms": 3.4522999999971944
+      },
+      {
+        "table": "public.sopralluoghi",
+        "ms": 1.4576999999990221
+      },
+      {
+        "table": "public.spese_impresa",
+        "ms": 1.0944000000017695
+      },
+      {
+        "table": "public.timbrature",
+        "ms": 6.454600000004575
+      },
+      {
+        "table": "public.utenti_cantiere",
+        "ms": 0.9474000000045635
+      },
+      {
+        "table": "public.utenti_impresa",
+        "ms": 0.620600000002014
+      },
+      {
+        "table": "public.utilizzo_ai",
+        "ms": 0.5877999999938766
+      },
+      {
+        "table": "public.variante_documenti",
+        "ms": 0.5706999999965774
+      },
+      {
+        "table": "public.variante_fonti_memory",
+        "ms": 0.5847999999969034
+      },
+      {
+        "table": "public.variante_fonti_visive",
+        "ms": 0.5982000000003609
+      },
+      {
+        "table": "public.variante_lavorazioni",
+        "ms": 2.6006999999954132
+      },
+      {
+        "table": "public.variante_osservatore_analisi",
+        "ms": 0.6503000000011525
+      },
+      {
+        "table": "public.variante_sorgenti",
+        "ms": 0.8490999999994528
+      },
+      {
+        "table": "public.varianti_cantiere",
+        "ms": 1.2347000000008848
+      }
+    ]
+  },
+  {
+    "scale": 10,
+    "phases": [
+      {
+        "phase": "catalog",
+        "ms": 15.013899999990826
+      },
+      {
+        "phase": "targets",
+        "ms": 26.430500000002212
+      },
+      {
+        "phase": "blockers",
+        "ms": 222.68279999999504
+      },
+      {
+        "phase": "preserved_before",
+        "ms": 11.40570000000298
+      },
+      {
+        "phase": "preserved_after",
+        "ms": 8.217099999994389
+      }
+    ],
+    "total_ms": 526.1068999999989,
+    "cold_ms": 526.1068999999989,
+    "warm_ms": 442.1290000000008,
+    "profile": [
+      {
+        "ms": 0.672,
+        "phase": "jwt_owner"
+      },
+      {
+        "ms": 0.64,
+        "phase": "lock"
+      },
+      {
+        "ms": 26.711,
+        "phase": "targets"
+      },
+      {
+        "ms": 218.55,
+        "phase": "blockers"
+      },
+      {
+        "ms": 9.58,
+        "phase": "preserved_before"
+      },
+      {
+        "ms": 22.601,
+        "phase": "storage_and_detach"
+      },
+      {
+        "ms": 4.816,
+        "phase": "delete:artecna_rapportini.richieste"
+      },
+      {
+        "ms": 0.359,
+        "phase": "delete:public.sal_lavorazioni"
+      },
+      {
+        "ms": 0.507,
+        "phase": "delete:public.variante_fonti_memory"
+      },
+      {
+        "ms": 0.495,
+        "phase": "delete:public.variante_fonti_visive"
+      },
+      {
+        "ms": 0.277,
+        "phase": "delete:public.variante_osservatore_analisi"
+      },
+      {
+        "ms": 0.273,
+        "phase": "delete:public.variante_documenti"
+      },
+      {
+        "ms": 0.49,
+        "phase": "delete:public.variante_lavorazioni"
+      },
+      {
+        "ms": 2.854,
+        "phase": "delete:public.variante_sorgenti"
+      },
+      {
+        "ms": 77.953,
+        "phase": "delete:public.economia_righe"
+      },
+      {
+        "ms": 2.552,
+        "phase": "delete:public.economia_sorgenti"
+      },
+      {
+        "ms": 1.721,
+        "phase": "delete:public.economia_raccolte"
+      },
+      {
+        "ms": 7.131,
+        "phase": "delete:public.timbrature"
+      },
+      {
+        "ms": 0.364,
+        "phase": "delete:public.rapportino_materiali"
+      },
+      {
+        "ms": 6.288,
+        "phase": "delete:public.rapportino_prestazioni"
+      },
+      {
+        "ms": 0.39,
+        "phase": "delete:artecna_rapportini.f3c3_capability"
+      },
+      {
+        "ms": 1.465,
+        "phase": "delete:artecna_rapportini.allegati"
+      },
+      {
+        "ms": 6.052,
+        "phase": "delete:public.foto_cantiere"
+      },
+      {
+        "ms": 7.76,
+        "phase": "delete:public.rapportini"
+      },
+      {
+        "ms": 6.089,
+        "phase": "delete:public.preventivo_lavorazioni"
+      },
+      {
+        "ms": 0.498,
+        "phase": "delete:public.preventivi_cantiere"
+      },
+      {
+        "ms": 3.55,
+        "phase": "delete:public.varianti_cantiere"
+      },
+      {
+        "ms": 4.642,
+        "phase": "delete:public.preventivi_cantiere"
+      },
+      {
+        "ms": 0.475,
+        "phase": "delete:public.materiali_cantiere"
+      },
+      {
+        "ms": 0.35,
+        "phase": "delete:public.attrezzi_cantiere"
+      },
+      {
+        "ms": 0.297,
+        "phase": "delete:public.pagamenti_fornitori"
+      },
+      {
+        "ms": 0.324,
+        "phase": "delete:public.acconti_cantiere"
+      },
+      {
+        "ms": 0.291,
+        "phase": "delete:public.incassi_non_fatturati"
+      },
+      {
+        "ms": 0.31,
+        "phase": "delete:public.memoria_prezzi"
+      },
+      {
+        "ms": 24.872,
+        "phase": "verification_final"
+      },
+      {
+        "ms": 8.684,
+        "phase": "preserved_after"
+      }
+    ],
+    "old_per_table": []
+  }
+]

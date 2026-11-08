@@ -1,0 +1,31 @@
+name: Hard-delete regression contract V1
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  hard-delete:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Pinned PostgreSQL 17.6 isolated binaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $runtime=Join-Path $PWD '.run/cantiere-prereq-runtime'
+          New-Item -ItemType Directory -Path $runtime -Force|Out-Null
+          $archive=Join-Path $runtime 'postgresql-17.6.zip'
+          Invoke-WebRequest 'https://get.enterprisedb.com/postgresql/postgresql-17.6-1-windows-x64-binaries.zip' -OutFile $archive
+          if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'd378882abd001a186735acd6f6ba716bca6ccd192e800412d4fd15ed25376b3e'){throw 'PostgreSQL archive mismatch'}
+          Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $runtime 'minimal')
+      - run: npm run test:hard-delete-contract

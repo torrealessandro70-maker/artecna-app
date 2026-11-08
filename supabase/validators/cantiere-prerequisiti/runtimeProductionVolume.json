@@ -1,0 +1,229 @@
+{
+  "provenance": "Production READ ONLY 2026-11-08; counts and sizes only",
+  "rows": {
+    "artecna_contabilita.archivio_attribuzioni": 0,
+    "artecna_contabilita.archivio_quote": 0,
+    "artecna_contabilita.attribuzioni_clienti": 0,
+    "artecna_distruzione.cleanup_storage": 7,
+    "artecna_distruzione.contesto": 0,
+    "artecna_distruzione.contesto_prerequisiti": 0,
+    "artecna_distruzione.hard_delete_catalog_expected": 1,
+    "artecna_distruzione.hard_delete_plan": 0,
+    "artecna_distruzione.legacy_da_risolvere": 986,
+    "artecna_distruzione.legacy_sorgenti": 14,
+    "artecna_distruzione.quote_da_eliminare": 0,
+    "artecna_distruzione.storage_anomalie": 0,
+    "artecna_distruzione.storage_copertura": 1,
+    "artecna_distruzione.storage_oggetti": 156,
+    "artecna_distruzione.storage_riferimenti": 156,
+    "artecna_distruzione.storage_sorgenti": 23,
+    "artecna_guardie.fatture_classificazione_richieste": 47,
+    "artecna_rapportini.allegati": 7,
+    "artecna_rapportini.f3c3_capability": 0,
+    "artecna_rapportini.richieste": 46,
+    "artecna_rapportini.sessioni_portale": 61,
+    "public.acconti_cantiere": 18,
+    "public.agenda_attivita": 7,
+    "public.attrezzi_cantiere": 0,
+    "public.cantieri": 20,
+    "public.economia_raccolte": 9,
+    "public.economia_righe": 202,
+    "public.economia_sorgenti": 73,
+    "public.fatture_emesse": 23,
+    "public.fatture_fornitori": 231,
+    "public.fatture_fornitori_righe": 1079,
+    "public.fornitori_rettifiche": 0,
+    "public.foto_cantiere": 105,
+    "public.foto_sopralluogo": 41,
+    "public.impostazioni_app": 5,
+    "public.incassi_non_fatturati": 0,
+    "public.materiali_cantiere": 297,
+    "public.materiali_impresa": 33,
+    "public.memoria_prezzi": 0,
+    "public.note_allegati": 13,
+    "public.note_sopralluogo": 41,
+    "public.operai": 6,
+    "public.pagamenti_fornitori": 0,
+    "public.pagamenti_operai": 27,
+    "public.preventivi_cantiere": 41,
+    "public.preventivo_lavorazioni": 147,
+    "public.prezzi_lavorazioni": 12768,
+    "public.prezziario_sicilia": 0,
+    "public.quaderno_allegati": 0,
+    "public.quaderno_copie_allegati": 0,
+    "public.quaderno_gestioni": 2,
+    "public.quaderno_progetti": 4,
+    "public.quaderno_richiami_sopralluogo": 2,
+    "public.rapportini": 52,
+    "public.rapportino_materiali": 10,
+    "public.rapportino_prestazioni": 80,
+    "public.sal_lavorazioni": 230,
+    "public.sopralluoghi": 21,
+    "public.spese_impresa": 39,
+    "public.timbrature": 222,
+    "public.utenti_cantiere": 20,
+    "public.utenti_impresa": 1,
+    "public.utilizzo_ai": 1,
+    "public.variante_documenti": 0,
+    "public.variante_fonti_memory": 1,
+    "public.variante_fonti_visive": 1,
+    "public.variante_lavorazioni": 160,
+    "public.variante_osservatore_analisi": 0,
+    "public.variante_sorgenti": 10,
+    "public.varianti_cantiere": 20
+  },
+  "photo_payload": {
+    "rows": 41,
+    "report": "PHOTO_PAYLOAD_VOLUME",
+    "base64_bytes": 126823283,
+    "distribution": [
+      {
+        "n": 1,
+        "bytes": 1243395
+      },
+      {
+        "n": 1,
+        "bytes": 1248927
+      },
+      {
+        "n": 1,
+        "bytes": 1269459
+      },
+      {
+        "n": 1,
+        "bytes": 1274255
+      },
+      {
+        "n": 1,
+        "bytes": 1308403
+      },
+      {
+        "n": 1,
+        "bytes": 1316723
+      },
+      {
+        "n": 1,
+        "bytes": 1340207
+      },
+      {
+        "n": 1,
+        "bytes": 1371995
+      },
+      {
+        "n": 1,
+        "bytes": 1439243
+      },
+      {
+        "n": 1,
+        "bytes": 1521947
+      },
+      {
+        "n": 1,
+        "bytes": 1721607
+      },
+      {
+        "n": 2,
+        "bytes": 2250495
+      },
+      {
+        "n": 2,
+        "bytes": 2289047
+      },
+      {
+        "n": 1,
+        "bytes": 2395411
+      },
+      {
+        "n": 2,
+        "bytes": 2505851
+      },
+      {
+        "n": 1,
+        "bytes": 2506667
+      },
+      {
+        "n": 2,
+        "bytes": 2512387
+      },
+      {
+        "n": 2,
+        "bytes": 2604883
+      },
+      {
+        "n": 2,
+        "bytes": 2791187
+      },
+      {
+        "n": 1,
+        "bytes": 2798635
+      },
+      {
+        "n": 2,
+        "bytes": 2898199
+      },
+      {
+        "n": 1,
+        "bytes": 3204091
+      },
+      {
+        "n": 2,
+        "bytes": 3336199
+      },
+      {
+        "n": 1,
+        "bytes": 3551811
+      },
+      {
+        "n": 2,
+        "bytes": 3624911
+      },
+      {
+        "n": 1,
+        "bytes": 4289391
+      },
+      {
+        "n": 1,
+        "bytes": 6024011
+      },
+      {
+        "n": 1,
+        "bytes": 6092663
+      },
+      {
+        "n": 1,
+        "bytes": 6968455
+      },
+      {
+        "n": 1,
+        "bytes": 7178231
+      },
+      {
+        "n": 2,
+        "bytes": 8565719
+      }
+    ],
+    "max_base64_bytes": 8565719
+  },
+  "target_witness_sizes": {
+    "target_foto": {
+      "rows": 2,
+      "base64_bytes": 173,
+      "max_base64_bytes": 173
+    },
+    "fonti_visive": [
+      {
+        "source_type": "foto_cantiere",
+        "n": 1
+      }
+    ],
+    "shared_quaderno": {
+      "rows": 1,
+      "text_bytes": 84,
+      "json_bytes": 924
+    },
+    "shared_foto_sopralluogo": {
+      "rows": 0,
+      "base64_bytes": 0
+    }
+  }
+}
