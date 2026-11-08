@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 // Offline only: the certified schema fixture plus migrations 001–007 are the inputs.
-const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const {withNative}=require('../supabase/validators/cantiere-prerequisiti/native.cjs');
+const {expected:rpcBaseline,identityQuery,membershipQuery,certifiedInstallerFixture}=require('../supabase/validators/cantiere-prerequisiti/installerBaseline.cjs');
 const root=path.resolve(__dirname,'..'),output=path.join(root,'supabase/migrations/20261108000800_cantiere_hard_delete_finale.sql');
 const quote=s=>"'"+s.replaceAll("'","''")+"'";
 const direct=['cantieri','rapportini','foto_cantiere','timbrature','materiali_cantiere','attrezzi_cantiere','pagamenti_fornitori','acconti_cantiere','incassi_non_fatturati','sal_lavorazioni','preventivo_lavorazioni','preventivi_cantiere','varianti_cantiere','utenti_cantiere','economia_raccolte','memoria_prezzi'];
@@ -25,15 +26,16 @@ const legal={
  'artecna_contabilita.archivio_attribuzioni':'true'
 };
 const sqlCatalog=`SELECT md5(coalesce(string_agg(x,'' ORDER BY x COLLATE "C"),'')) FROM (
- SELECT 'c:'||n.nspname||'.'||c.relname||':'||a.attname||':'||format_type(a.atttypid,a.atttypmod)||':'||a.attnotnull x FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped WHERE c.relkind='r' AND (n.nspname='public' OR n.nspname LIKE 'artecna_%') AND c.relname NOT LIKE 'hard_delete_%'
- UNION ALL SELECT 'f:'||k.conrelid::regclass::text||':'||k.conname||':'||pg_get_constraintdef(k.oid)||':'||k.convalidated FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE k.contype IN ('f','p','u','c') AND (n.nspname='public' OR n.nspname LIKE 'artecna_%') AND c.relname NOT LIKE 'hard_delete_%'
- UNION ALL SELECT 't:'||t.tgrelid::regclass::text||':'||pg_get_triggerdef(t.oid)||':'||t.tgenabled::text||':'||md5(p.prosrc) FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE NOT t.tgisinternal AND (n.nspname='public' OR n.nspname LIKE 'artecna_%')
- UNION ALL SELECT 'p:'||n.nspname||'.'||p.proname||':'||pg_get_function_identity_arguments(p.oid)||':'||md5(p.prosrc)||':'||p.prosecdef||':'||coalesce(p.proconfig::text,'') FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE (n.nspname='public' OR n.nspname LIKE 'artecna_%') AND p.proname NOT LIKE 'hard_delete_%'
+ SELECT 'c:'||n.nspname||'.'||c.relname||':'||a.attname||':'||format_type(a.atttypid,a.atttypmod)||':'||a.attnotnull x FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped WHERE c.relkind='r' AND (n.nspname='public' OR starts_with(n.nspname,'artecna_')) AND c.relname NOT LIKE 'hard_delete_%'
+ UNION ALL SELECT 'f:'||k.conrelid::regclass::text||':'||k.conname||':'||pg_get_constraintdef(k.oid,true)||':'||k.convalidated FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE k.contype IN ('f','p','u','c') AND (n.nspname='public' OR starts_with(n.nspname,'artecna_')) AND c.relname NOT LIKE 'hard_delete_%'
+ UNION ALL SELECT 't:'||t.tgrelid::regclass::text||':'||pg_get_triggerdef(t.oid,true)||':'||t.tgenabled::text||':'||md5(p.prosrc) FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE NOT t.tgisinternal AND (n.nspname='public' OR starts_with(n.nspname,'artecna_'))
+ UNION ALL SELECT 'p:'||n.nspname||'.'||p.proname||':'||pg_get_function_identity_arguments(p.oid)||':'||md5(p.prosrc)||':'||p.prosecdef||':'||coalesce(p.proconfig::text,'') FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE (n.nspname='public' OR starts_with(n.nspname,'artecna_')) AND p.proname NOT LIKE 'hard_delete_%' AND p.prokind='f' AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e')
 ) s`;
 withNative(async db=>{
  const query=async(s,p)=>(await db.query(s,p)).rows;
  await query('SET search_path=pg_catalog,pg_temp');
  const baselineHash=(await query(sqlCatalog))[0].md5;
+ assert.deepEqual((await query(identityQuery))[0].identity,rpcBaseline);
  const tables=(await query("SELECT n.nspname||'.'||c.relname tab FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relkind='r' AND (n.nspname='public' OR n.nspname IN ('artecna_rapportini','artecna_contabilita','artecna_guardie')) ORDER BY 1")).map(x=>x.tab);
  const pk={};for(const tab of tables)pk[tab]=(await query("SELECT a.attname FROM pg_constraint c CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY k(n,o) JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.n WHERE c.conrelid=$1::regclass AND c.contype='p' ORDER BY k.o",[tab])).map(x=>x.attname);
  for(const tab of Object.keys(predicates))assert(pk[tab]?.length,tab);
@@ -42,9 +44,25 @@ withNative(async db=>{
  let sql=`-- Final canonical hard delete. Prepared locally; no Production execution.
 BEGIN;
 SET LOCAL search_path=pg_catalog,pg_temp;
-DO $$ BEGIN IF current_user<>'postgres' THEN RAISE EXCEPTION 'Installer inatteso'; END IF; END $$;
+SET LOCAL standard_conforming_strings=on;
+SET LOCAL check_function_bodies=on;
+SELECT pg_advisory_xact_lock(hashtextextended('artecna-hard-delete-installer-008',0));
+DO $baseline$ BEGIN
+ IF current_user<>'postgres' OR session_user<>'postgres' THEN RAISE EXCEPTION 'Installer inatteso'; END IF;
+ IF (${identityQuery}) IS DISTINCT FROM ${quote(JSON.stringify(rpcBaseline))}::jsonb THEN RAISE EXCEPTION 'RPC baseline Production divergente' USING ERRCODE='P2113'; END IF;
+ IF (${sqlCatalog}) IS DISTINCT FROM '${baselineHash}' THEN RAISE EXCEPTION 'Catalogo certificato 001-007 divergente' USING ERRCODE='P2113'; END IF;
+ IF (SELECT count(*) FROM pg_auth_members WHERE roleid='artecna_cantieri_delete_rpc'::regrole AND member='postgres'::regrole)<>1
+ OR NOT EXISTS(SELECT 1 FROM pg_auth_members WHERE roleid='artecna_cantieri_delete_rpc'::regrole AND member='postgres'::regrole AND grantor=to_regrole('supabase_admin') AND admin_option AND NOT inherit_option AND NOT set_option)
+ THEN RAISE EXCEPTION 'Membership originale non certificata' USING ERRCODE='42501'; END IF;
+ IF NOT has_schema_privilege('artecna_cantieri_delete_rpc','public','CREATE') AND (NOT has_schema_privilege(current_user,'public','CREATE WITH GRANT OPTION') OR (SELECT nspacl IS NULL FROM pg_namespace WHERE nspname='public')) THEN RAISE EXCEPTION 'Capability CREATE temporanea non ripristinabile' USING ERRCODE='42501'; END IF;
+END $baseline$;
+CREATE TEMP TABLE artecna_008_install_state ON COMMIT DROP AS SELECT
+ (${membershipQuery}) memberships,(${identityQuery}) rpc_identity,
+ 'public.elimina_cantiere_definitivamente(uuid,text)'::regprocedure::oid rpc_oid,
+ (SELECT nspacl::text FROM pg_namespace WHERE nspname='public') schema_acl,
+ (SELECT nspowner FROM pg_namespace WHERE nspname='public') schema_owner,
+ NOT has_schema_privilege('artecna_cantieri_delete_rpc','public','CREATE') needs_create;
 CREATE FUNCTION artecna_distruzione.hard_delete_catalog() RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $catalog$ ${sqlCatalog} $catalog$;
-DO $$ BEGIN IF artecna_distruzione.hard_delete_catalog() IS DISTINCT FROM '${baselineHash}' THEN RAISE EXCEPTION 'Catalogo certificato 001-007 divergente' USING ERRCODE='P2113'; END IF; END $$;
 CREATE TABLE artecna_distruzione.hard_delete_catalog_expected (signature text NOT NULL);
 -- Transient identity-only plan: serialized PKs, never a file/JSON source domain.
 CREATE TABLE artecna_distruzione.hard_delete_plan (tx xid8 NOT NULL,backend integer NOT NULL,cantiere uuid NOT NULL,targets text NOT NULL CHECK(jsonb_typeof(targets::jsonb)='object'),PRIMARY KEY(tx,backend));
@@ -125,11 +143,23 @@ RETURN result;END $$;
 `;
  // Add internal exclusion keys for legal changes; same identities excluded both
  // before and after detach, never re-derived from vanished ownership columns.
- // Extend OUT fields while keeping the canonical input signature and legacy
- // columns. DROP is RESTRICT: an unexpected database dependency stops migration.
- sql+=`DROP FUNCTION public.elimina_cantiere_definitivamente(uuid,text);
-CREATE FUNCTION public.elimina_cantiere_definitivamente(p_cantiere_id uuid,p_conferma text)
-RETURNS TABLE(cantiere_id uuid,eliminato boolean,storage_nuovi bigint,conteggi jsonb,storage_jobs_created bigint,storage_objects_preserved_shared bigint,legal_records_preserved bigint,legacy_resolved_deleted bigint,manifest_fingerprint text)
+ // Keep the existing OUT contract: counters remain structured in conteggi.
+ // CREATE OR REPLACE preserves OID, owner and the exact existing EXECUTE ACL.
+ sql+=`DO $$ BEGIN IF (${identityQuery}) IS DISTINCT FROM (SELECT rpc_identity FROM pg_temp.artecna_008_install_state) OR (${membershipQuery}) IS DISTINCT FROM (SELECT memberships FROM pg_temp.artecna_008_install_state) THEN RAISE EXCEPTION 'Baseline cambiata prima della capability' USING ERRCODE='42501'; END IF; END $$;
+GRANT artecna_cantieri_delete_rpc TO postgres WITH ADMIN FALSE, INHERIT FALSE, SET TRUE GRANTED BY postgres;
+-- INSTALLER_TEMP_GRANT_READY
+DO $$ BEGIN
+ IF (SELECT count(*) FROM pg_auth_members WHERE roleid='artecna_cantieri_delete_rpc'::regrole AND member='postgres'::regrole)<>2
+ OR NOT EXISTS(SELECT 1 FROM pg_auth_members WHERE roleid='artecna_cantieri_delete_rpc'::regrole AND member='postgres'::regrole AND grantor='postgres'::regrole AND NOT admin_option AND NOT inherit_option AND set_option)
+ OR (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.member,m.grantor) FROM pg_auth_members m WHERE m.roleid='artecna_cantieri_delete_rpc'::regrole AND NOT(m.member='postgres'::regrole AND m.grantor='postgres'::regrole)) IS DISTINCT FROM (SELECT memberships FROM pg_temp.artecna_008_install_state)
+ THEN RAISE EXCEPTION 'Grant temporaneo inatteso' USING ERRCODE='42501'; END IF;
+ IF (SELECT needs_create FROM pg_temp.artecna_008_install_state) THEN EXECUTE 'GRANT CREATE ON SCHEMA public TO artecna_cantieri_delete_rpc'; END IF;
+END $$;
+-- INSTALLER_TEMP_CREATE_READY
+SET ROLE artecna_cantieri_delete_rpc;
+-- INSTALLER_SET_ROLE_READY
+CREATE OR REPLACE FUNCTION public.elimina_cantiere_definitivamente(p_cantiere_id uuid,p_conferma text)
+RETURNS TABLE(cantiere_id uuid,eliminato boolean,storage_nuovi bigint,conteggi jsonb)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE cid uuid:=p_cantiere_id;targets jsonb;preserved jsonb;after_keep jsonb;blockers text[];tab text;n bigint;expected bigint;total bigint;oldmax bigint;objects jsonb;shared bigint;legal_count bigint;legacy_count bigint;
 BEGIN
@@ -186,13 +216,19 @@ ${Object.keys(predicates).map(tab=>`IF EXISTS(SELECT 1 FROM ${tab} t WHERE EXIST
  after_keep:=artecna_distruzione.hard_delete_preserved(cid,targets);
  IF preserved IS DISTINCT FROM after_keep THEN RAISE EXCEPTION 'Dati estranei/shared modificati' USING ERRCODE='P2114',DETAIL=(SELECT string_agg(key,', ' ORDER BY key) FROM jsonb_each(preserved) WHERE value IS DISTINCT FROM after_keep->key); END IF;
  conteggi:=conteggi||jsonb_build_object('storage_jobs_created',storage_nuovi,'storage_objects_preserved_shared',shared,'legal_records_preserved',legal_count,'legacy_resolved_deleted',legacy_count,'manifest_fingerprint',md5(targets::text),'public.cantieri',1,'public.utenti_cantiere',jsonb_array_length(targets->'public.utenti_cantiere'));
- storage_jobs_created:=storage_nuovi;storage_objects_preserved_shared:=shared;legal_records_preserved:=legal_count;legacy_resolved_deleted:=legacy_count;manifest_fingerprint:=md5(targets::text);
  cantiere_id:=cid;eliminato:=true;RETURN NEXT;
 END $$;
-ALTER FUNCTION public.elimina_cantiere_definitivamente(uuid,text) OWNER TO artecna_cantieri_delete_rpc;
-REVOKE ALL ON FUNCTION public.elimina_cantiere_definitivamente(uuid,text) FROM PUBLIC,anon,service_role;
+-- INSTALLER_CREATE_READY
+RESET ROLE;
+-- INSTALLER_REPLACEMENT_READY
+DO $$ BEGIN
+ IF (${identityQuery}) IS DISTINCT FROM __RPC_NEW_IDENTITY__::jsonb OR 'public.elimina_cantiere_definitivamente(uuid,text)'::regprocedure::oid<>(SELECT rpc_oid FROM pg_temp.artecna_008_install_state) THEN RAISE EXCEPTION 'Nuova RPC divergente' USING ERRCODE='P2113'; END IF;
+ IF (SELECT needs_create FROM pg_temp.artecna_008_install_state) THEN EXECUTE 'REVOKE CREATE ON SCHEMA public FROM artecna_cantieri_delete_rpc RESTRICT'; END IF;
+END $$;
+-- INSTALLER_CREATE_REVOKED
+REVOKE artecna_cantieri_delete_rpc FROM postgres GRANTED BY postgres RESTRICT;
+-- INSTALLER_SET_REVOKED
 REVOKE DELETE ON public.cantieri FROM PUBLIC,anon,authenticated,service_role;
-GRANT EXECUTE ON FUNCTION public.elimina_cantiere_definitivamente(uuid,text) TO authenticated;
 CREATE OR REPLACE FUNCTION public.preflight_eliminazione_cantiere(p_cantiere_id uuid) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE b text[];result jsonb; BEGIN
  IF artecna_guardie.utente_jwt_corrente() IS NULL OR NOT EXISTS(SELECT 1 FROM public.cantieri c JOIN public.utenti_cantiere u ON u.cantiere_id=c.id WHERE c.id=p_cantiere_id AND u.user_id=artecna_guardie.utente_jwt_corrente() AND u.ruolo='owner') THEN RAISE EXCEPTION 'Accesso negato' USING ERRCODE='42501'; END IF;
@@ -217,7 +253,16 @@ DO $acl$ DECLARE p record; BEGIN FOR p IN SELECT oid::regprocedure sig FROM pg_p
 END LOOP;END $acl$;
 REVOKE ALL ON artecna_distruzione.hard_delete_plan,artecna_distruzione.hard_delete_catalog_expected FROM PUBLIC,anon,authenticated,service_role;
 INSERT INTO artecna_distruzione.hard_delete_catalog_expected SELECT artecna_distruzione.hard_delete_catalog();
+DO $$ BEGIN
+ IF (${membershipQuery}) IS DISTINCT FROM (SELECT memberships FROM pg_temp.artecna_008_install_state) THEN RAISE EXCEPTION 'Membership finale divergente' USING ERRCODE='42501'; END IF;
+ IF (SELECT nspacl::text FROM pg_namespace WHERE nspname='public') IS DISTINCT FROM (SELECT schema_acl FROM pg_temp.artecna_008_install_state) OR (SELECT nspowner FROM pg_namespace WHERE nspname='public') IS DISTINCT FROM (SELECT schema_owner FROM pg_temp.artecna_008_install_state) THEN RAISE EXCEPTION 'ACL/owner schema non ripristinati' USING ERRCODE='42501'; END IF;
+ IF (${identityQuery}) IS DISTINCT FROM __RPC_NEW_IDENTITY__::jsonb THEN RAISE EXCEPTION 'Owner/ACL/source RPC finale divergenti' USING ERRCODE='42501'; END IF;
+END $$;
+-- INSTALLER_COMMIT_READY
 COMMIT;
 `;
+ const replacementSource=sql.match(/CREATE OR REPLACE FUNCTION public\.elimina_cantiere_definitivamente[\s\S]*?AS \$\$([\s\S]*?)END \$\$;/)[1]+'END ';
+ const nextIdentity={...rpcBaseline,source:replacementSource,source_md5:crypto.createHash('md5').update(replacementSource).digest('hex')};
+ sql=sql.replaceAll('__RPC_NEW_IDENTITY__',quote(JSON.stringify(nextIdentity)));
  fs.writeFileSync(output,sql);console.log(output);
-}).catch(e=>{console.error(e);process.exitCode=1});
+},{productionActor:true,beforeMigrations:certifiedInstallerFixture}).catch(e=>{console.error(e);process.exitCode=1});

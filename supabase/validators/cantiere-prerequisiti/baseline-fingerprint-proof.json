@@ -1,0 +1,33 @@
+{
+  "production_writes": 0,
+  "diagnostic_sha256": "dd7b7acd6fbb871afa43129be6f9b6b6d4de88eeba6a94fbffbed7cd95586ca5",
+  "rpc_identical": true,
+  "rpc_source_md5": "dbde1dd45b9a9d65830e102993e6701e",
+  "old_composite_local": "12b28fb77ee583a0ea1d7f75b0fdaf43",
+  "old_composite_production": "b67736342261e82da2567d330d502eec",
+  "new_canonical_local": "86db00e737a2053366f2dd257f22fb17",
+  "new_canonical_production": "86db00e737a2053366f2dd257f22fb17",
+  "differences": [
+    {
+      "component": "f:public.rapportino_materiali:rapportino_materiali_descrizione_ck",
+      "local": "f:public.rapportino_materiali:rapportino_materiali_descrizione_ck:CHECK (((descrizione = btrim(descrizione)) AND (length(descrizione) >= 1) AND (length(descrizione) <= 2000))):true",
+      "production": "f:public.rapportino_materiali:rapportino_materiali_descrizione_ck:CHECK (((descrizione = btrim(descrizione)) AND ((length(descrizione) >= 1) AND (length(descrizione) <= 2000)))):true"
+    },
+    {
+      "component": "f:public.rapportino_materiali:rapportino_materiali_um_ck",
+      "local": "f:public.rapportino_materiali:rapportino_materiali_um_ck:CHECK (((unita_misura = btrim(unita_misura)) AND (length(unita_misura) >= 1) AND (length(unita_misura) <= 50))):true",
+      "production": "f:public.rapportino_materiali:rapportino_materiali_um_ck:CHECK (((unita_misura = btrim(unita_misura)) AND ((length(unita_misura) >= 1) AND (length(unita_misura) <= 50)))):true"
+    },
+    {
+      "component": "f:public.rapportino_prestazioni:rapportino_prestazioni_chiave_client_check",
+      "local": "f:public.rapportino_prestazioni:rapportino_prestazioni_chiave_client_check:CHECK (((length(btrim(chiave_client)) >= 1) AND (length(btrim(chiave_client)) <= 200) AND (chiave_client = btrim(chiave_client)))):true",
+      "production": "f:public.rapportino_prestazioni:rapportino_prestazioni_chiave_client_check:CHECK ((((length(btrim(chiave_client)) >= 1) AND (length(btrim(chiave_client)) <= 200)) AND (chiave_client = btrim(chiave_client)))):true"
+    },
+    {
+      "component": "p:public.uuid_generate_v4:",
+      "local": "p:public.uuid_generate_v4::9afd3956f15577e0212d26d2902256bd:false:",
+      "production": null
+    }
+  ],
+  "fix": "Exclude extension-owned functions and use the same pretty catalog deparsers and literal schema prefix as the certified export/classifier; independently pin the complete real RPC identity."
+}

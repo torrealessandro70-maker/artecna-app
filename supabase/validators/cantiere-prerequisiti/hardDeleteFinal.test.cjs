@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {test}=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto'),fs=require('node:fs'),path=require('node:path');
 const {withNative}=require('./native.cjs');
+const {certifiedInstallerFixture}=require('./installerBaseline.cjs');
 const migration=fs.readFileSync(path.join(__dirname,'../../migrations/20261108000800_cantiere_hard_delete_finale.sql'),'utf8');
 test('RPC finale sul catalogo certificato PostgreSQL 17.6', {timeout:240000},()=>withNative(async(db,connect)=>{
  const q=async(s,p=[]) => (await db.query(s,p)).rows;
+ // Domain seeding uses the local administrator. The dedicated installer suite
+ // runs the complete migration as NOSUPERUSER with the real grantor profile.
+ const admin=await connect('fixture_admin');await admin.query('ALTER ROLE postgres SUPERUSER');
  await q(migration);
  async function fixture(){const u=randomUUID(),a=randomUUID(),b=randomUUID();await q('INSERT INTO auth.users VALUES($1)',[u]);await q("INSERT INTO public.cantieri(id,nome) VALUES($1,'Omonimo'),($2,'Omonimo')",[a,b]);await q("INSERT INTO public.utenti_cantiere(cantiere_id,user_id,ruolo) VALUES($1,$3,'owner'),($2,$3,'owner')",[a,b,u]);await q("SELECT set_config('request.jwt.claim.sub',$1,false)",[u]);return {a,b,u};}
  async function rpc(a,confirmation='ELIMINA'){await q('SET ROLE authenticated');try{return (await q('SELECT * FROM public.elimina_cantiere_definitivamente($1,$2)',[a,confirmation]))[0];}finally{await q('RESET ROLE').catch(()=>{});}}
@@ -115,4 +119,4 @@ test('RPC finale sul catalogo certificato PostgreSQL 17.6', {timeout:240000},()=
   await q("UPDATE artecna_distruzione.cleanup_storage SET lease_until=clock_timestamp()-interval '1 second',retry_at=clock_timestamp()-interval '1 second' WHERE path=$1",[exclusive]);
   assert.equal(await consumeStorageJob(pool,remover),'completed');assert.deepEqual(calls,[exclusive,exclusive]);assert(!files.has(exclusive));assert(files.has(shared));assert.equal((await q("SELECT count(*)::int n FROM artecna_distruzione.cleanup_storage WHERE path=$1 AND stato='completed'",[exclusive]))[0].n,1);assert.equal((await q('SELECT count(*)::int n FROM artecna_distruzione.cleanup_storage WHERE path=$1',[shared]))[0].n,0);
  });
-}));
+},{productionActor:true,beforeMigrations:certifiedInstallerFixture}));

@@ -1,5 +1,11 @@
 # Hard delete Cantiere finale: verifica locale
 
+Aggiornamento: l'installer R1 del commit 3440bc9 è stato fermato dal precheck
+Production prima della DDL. La revisione corrente è descritta in
+[cantiere-hard-delete-installer-r2.md](cantiere-hard-delete-installer-r2.md):
+baseline reale, replacement senza DROP/ALTER OWNER, quattro OUT originali e
+capability SET/CREATE solo transazionali. Il rapporto sotto conserva la storia R1.
+
 Data: 8 novembre 2026. Parent richiesto:
 `e295e29141eabba581dfaaf3346b1158cd56d824`.
 
