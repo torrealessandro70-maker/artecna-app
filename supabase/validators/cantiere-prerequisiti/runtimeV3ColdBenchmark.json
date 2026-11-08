@@ -1,0 +1,140 @@
+[
+  {
+    "scale": 1,
+    "times": [
+      {
+        "round": 1,
+        "helper": "catalog",
+        "cold_ms": 64.868,
+        "client_wall_ms": 68.86899999999878
+      },
+      {
+        "round": 1,
+        "helper": "targets",
+        "cold_ms": 197.385,
+        "client_wall_ms": 199.85670000000027
+      },
+      {
+        "round": 1,
+        "helper": "blockers",
+        "cold_ms": 234.941,
+        "client_wall_ms": 237.5564000000013
+      },
+      {
+        "round": 1,
+        "helper": "preserved",
+        "cold_ms": 76.93,
+        "client_wall_ms": 79.6352999999981
+      },
+      {
+        "round": 1,
+        "helper": "rpc",
+        "cold_ms": 695.0096999999987,
+        "client_wall_ms": 695.0096999999987,
+        "warm_ms": 254.01390000000174
+      },
+      {
+        "round": 2,
+        "helper": "catalog",
+        "cold_ms": 53.327,
+        "client_wall_ms": 55.647799999998824
+      },
+      {
+        "round": 2,
+        "helper": "targets",
+        "cold_ms": 173.177,
+        "client_wall_ms": 181.47509999999966
+      },
+      {
+        "round": 2,
+        "helper": "blockers",
+        "cold_ms": 258.695,
+        "client_wall_ms": 261.364800000003
+      },
+      {
+        "round": 2,
+        "helper": "preserved",
+        "cold_ms": 60.557,
+        "client_wall_ms": 63.06750000000102
+      },
+      {
+        "round": 2,
+        "helper": "rpc",
+        "cold_ms": 586.4799000000021,
+        "client_wall_ms": 586.4799000000021,
+        "warm_ms": 272.0623000000014
+      }
+    ],
+    "photo_payload": "incompressible 500000 bytes per unrelated row, EXTERNAL",
+    "work_mem_kb": 2184
+  },
+  {
+    "scale": 10,
+    "times": [
+      {
+        "round": 1,
+        "helper": "catalog",
+        "cold_ms": 68.466,
+        "client_wall_ms": 77.21739999999409
+      },
+      {
+        "round": 1,
+        "helper": "targets",
+        "cold_ms": 200.276,
+        "client_wall_ms": 202.6186000000016
+      },
+      {
+        "round": 1,
+        "helper": "blockers",
+        "cold_ms": 376.531,
+        "client_wall_ms": 379.15439999999944
+      },
+      {
+        "round": 1,
+        "helper": "preserved",
+        "cold_ms": 73.4,
+        "client_wall_ms": 76.00870000000577
+      },
+      {
+        "round": 1,
+        "helper": "rpc",
+        "cold_ms": 703.2163999999902,
+        "client_wall_ms": 703.2163999999902,
+        "warm_ms": 457.89280000000144
+      },
+      {
+        "round": 2,
+        "helper": "catalog",
+        "cold_ms": 51.302,
+        "client_wall_ms": 53.52880000000005
+      },
+      {
+        "round": 2,
+        "helper": "targets",
+        "cold_ms": 182.38,
+        "client_wall_ms": 184.7719999999972
+      },
+      {
+        "round": 2,
+        "helper": "blockers",
+        "cold_ms": 383.81,
+        "client_wall_ms": 386.8093000000081
+      },
+      {
+        "round": 2,
+        "helper": "preserved",
+        "cold_ms": 63.066,
+        "client_wall_ms": 65.71020000000135
+      },
+      {
+        "round": 2,
+        "helper": "rpc",
+        "cold_ms": 829.0902999999962,
+        "client_wall_ms": 829.0902999999962,
+        "warm_ms": 509.4143999999942
+      }
+    ],
+    "photo_payload": "incompressible 500000 bytes per unrelated row, EXTERNAL",
+    "work_mem_kb": 2184
+  }
+]

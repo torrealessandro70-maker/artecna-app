@@ -1,0 +1,3268 @@
+{
+  "run": "20261108-173013-b7bec60546984c78add1ce5bf31ae2b7",
+  "target": "84fa127b-7415-4903-b2f5-000f253ee2ee",
+  "complete": true,
+  "session": {
+    "report": "SESSION",
+    "read_only": "on",
+    "block_size": "8192",
+    "jit_available": false,
+    "server_version": "17.6",
+    "statement_timeout": "2min"
+  },
+  "helpers": [
+    {
+      "helper": "catalog",
+      "runs": [
+        179.012,
+        15.991,
+        15.746
+      ],
+      "min": 15.746,
+      "max": 179.012
+    },
+    {
+      "helper": "targets",
+      "runs": [
+        285.529,
+        26.503,
+        25.568
+      ],
+      "min": 25.568,
+      "max": 285.529
+    },
+    {
+      "helper": "blockers",
+      "runs": [
+        142.301,
+        95.87,
+        98.982
+      ],
+      "min": 95.87,
+      "max": 142.301
+    },
+    {
+      "helper": "preserved",
+      "runs": [
+        1804.762,
+        316.567,
+        213.327
+      ],
+      "min": 213.327,
+      "max": 1804.762
+    }
+  ],
+  "catalog": [
+    {
+      "ms": 3.964,
+      "kind": "CATALOG_COMPONENT",
+      "rows": 727,
+      "component": "columns"
+    },
+    {
+      "ms": 1.496,
+      "kind": "CATALOG_SCAN_ONLY",
+      "component": "columns"
+    },
+    {
+      "ms": 6.742,
+      "kind": "CATALOG_COMPONENT",
+      "rows": 324,
+      "component": "constraints"
+    },
+    {
+      "ms": 1.391,
+      "kind": "CATALOG_SCAN_ONLY",
+      "component": "constraints"
+    },
+    {
+      "ms": 4.973,
+      "kind": "CATALOG_COMPONENT",
+      "rows": 106,
+      "component": "triggers"
+    },
+    {
+      "ms": 1.634,
+      "kind": "CATALOG_SCAN_ONLY",
+      "component": "triggers"
+    },
+    {
+      "ms": 9.94,
+      "kind": "CATALOG_COMPONENT",
+      "rows": 250,
+      "component": "functions"
+    },
+    {
+      "ms": 2.131,
+      "kind": "CATALOG_SCAN_ONLY",
+      "component": "functions"
+    }
+  ],
+  "targets": [
+    {
+      "ms": 0.914,
+      "kind": "TARGET_COMPONENT",
+      "rows": 54,
+      "label": "ids_operativi",
+      "plan": {
+        "ms": 0.25,
+        "planning_ms": 0.202,
+        "shared_hit": 63,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "economia_righe",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 202,
+            "loops": 1,
+            "estimated_rows": 213,
+            "rows_removed": 0,
+            "rows_scanned": 202,
+            "hit": 48,
+            "read": 0
+          },
+          {
+            "table": "economia_raccolte",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 3,
+            "loops": 1,
+            "estimated_rows": 3,
+            "rows_removed": 6,
+            "rows_scanned": 9,
+            "hit": 1,
+            "read": 0
+          },
+          {
+            "table": "materiali_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 297,
+            "rows_scanned": 297,
+            "hit": 13,
+            "read": 0
+          },
+          {
+            "table": "acconti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 18,
+            "rows_scanned": 18,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT array_agg(id) FROM (\n  SELECT $1 id UNION SELECT e.id FROM public.economia_righe e JOIN public.economia_raccolte r ON r.id=e.raccolta_id WHERE r.cantiere_id=$1\n  UNION SELECT id FROM public.materiali_cantiere WHERE cantiere_id=$1\n  UNION SELECT id FROM public.acconti_cantiere WHERE cantiere_id=$1\n ) q"
+      }
+    },
+    {
+      "ms": 0.248,
+      "kind": "TARGET_COMPONENT",
+      "rows": 1,
+      "label": "public.cantieri",
+      "plan": {
+        "ms": 0.045,
+        "planning_ms": 0.047,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "cantieri",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 1,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 19,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.cantieri t WHERE t.id=$1"
+      }
+    },
+    {
+      "ms": 0.283,
+      "kind": "TARGET_COMPONENT",
+      "rows": 4,
+      "label": "public.rapportini",
+      "plan": {
+        "ms": 0.079,
+        "planning_ms": 0.038,
+        "shared_hit": 3,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "rapportini",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 4,
+            "rows_removed": 48,
+            "rows_scanned": 52,
+            "hit": 3,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.rapportini t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.301,
+      "kind": "TARGET_COMPONENT",
+      "rows": 2,
+      "label": "public.foto_cantiere",
+      "plan": {
+        "ms": 0.082,
+        "planning_ms": 0.058,
+        "shared_hit": 9,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "foto_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 2,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 103,
+            "rows_scanned": 105,
+            "hit": 9,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.foto_cantiere t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.293,
+      "kind": "TARGET_COMPONENT",
+      "rows": 3,
+      "label": "public.timbrature",
+      "plan": {
+        "ms": 0.093,
+        "planning_ms": 0.04,
+        "shared_hit": 5,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "timbrature",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 3,
+            "loops": 1,
+            "estimated_rows": 4,
+            "rows_removed": 219,
+            "rows_scanned": 222,
+            "hit": 5,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.timbrature t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.293,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.materiali_cantiere",
+      "plan": {
+        "ms": 0.087,
+        "planning_ms": 0.041,
+        "shared_hit": 13,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "materiali_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 297,
+            "rows_scanned": 297,
+            "hit": 13,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.materiali_cantiere t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.239,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.attrezzi_cantiere",
+      "plan": {
+        "ms": 0.043,
+        "planning_ms": 0.036,
+        "shared_hit": 2,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "attrezzi_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 2,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.attrezzi_cantiere t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.292,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.pagamenti_fornitori",
+      "plan": {
+        "ms": 0.035,
+        "planning_ms": 0.037,
+        "shared_hit": 0,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "pagamenti_fornitori",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.pagamenti_fornitori t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.228,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.acconti_cantiere",
+      "plan": {
+        "ms": 0.04,
+        "planning_ms": 0.035,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "acconti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 18,
+            "rows_scanned": 18,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.acconti_cantiere t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.276,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.incassi_non_fatturati",
+      "plan": {
+        "ms": 0.057,
+        "planning_ms": 0.036,
+        "shared_hit": 0,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "incassi_non_fatturati",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.incassi_non_fatturati t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.312,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.sal_lavorazioni",
+      "plan": {
+        "ms": 0.072,
+        "planning_ms": 0.046,
+        "shared_hit": 9,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "sal_lavorazioni",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 230,
+            "rows_scanned": 230,
+            "hit": 9,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.sal_lavorazioni t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.371,
+      "kind": "TARGET_COMPONENT",
+      "rows": 19,
+      "label": "public.preventivo_lavorazioni",
+      "plan": {
+        "ms": 0.134,
+        "planning_ms": 0.037,
+        "shared_hit": 11,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "preventivo_lavorazioni",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 19,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 128,
+            "rows_scanned": 147,
+            "hit": 11,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.preventivo_lavorazioni t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.289,
+      "kind": "TARGET_COMPONENT",
+      "rows": 1,
+      "label": "public.preventivi_cantiere",
+      "plan": {
+        "ms": 0.065,
+        "planning_ms": 0.049,
+        "shared_hit": 12,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "preventivi_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 1,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 40,
+            "rows_scanned": 41,
+            "hit": 12,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.preventivi_cantiere t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.287,
+      "kind": "TARGET_COMPONENT",
+      "rows": 4,
+      "label": "public.varianti_cantiere",
+      "plan": {
+        "ms": 0.066,
+        "planning_ms": 0.05,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "varianti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 16,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.varianti_cantiere t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.355,
+      "kind": "TARGET_COMPONENT",
+      "rows": 1,
+      "label": "public.utenti_cantiere",
+      "plan": {
+        "ms": 0.056,
+        "planning_ms": 0.046,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "utenti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 1,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 19,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('cantiere_id',t.\"cantiere_id\",'user_id',t.\"user_id\") ORDER BY jsonb_build_object('cantiere_id',t.\"cantiere_id\",'user_id',t.\"user_id\")::text),'[]') FROM public.utenti_cantiere t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.311,
+      "kind": "TARGET_COMPONENT",
+      "rows": 3,
+      "label": "public.economia_raccolte",
+      "plan": {
+        "ms": 0.054,
+        "planning_ms": 0.048,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "economia_raccolte",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 3,
+            "loops": 1,
+            "estimated_rows": 3,
+            "rows_removed": 6,
+            "rows_scanned": 9,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.economia_raccolte t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.263,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.memoria_prezzi",
+      "plan": {
+        "ms": 0.03,
+        "planning_ms": 0.049,
+        "shared_hit": 2,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "memoria_prezzi_cantiere_uuid"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "memoria_prezzi",
+            "access": "Index Scan",
+            "index": "memoria_prezzi_cantiere_uuid",
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 2,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.memoria_prezzi t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.496,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.variante_lavorazioni",
+      "plan": {
+        "ms": 0.101,
+        "planning_ms": 0.127,
+        "shared_hit": 6,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "variante_lavorazioni",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 160,
+            "loops": 1,
+            "estimated_rows": 162,
+            "rows_removed": 0,
+            "rows_scanned": 160,
+            "hit": 5,
+            "read": 0
+          },
+          {
+            "table": "varianti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 16,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.variante_lavorazioni t WHERE t.variante_id IN (SELECT id FROM public.varianti_cantiere WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.412,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.variante_documenti",
+      "plan": {
+        "ms": 0.048,
+        "planning_ms": 0.116,
+        "shared_hit": 5,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "variante_documenti_path_uq"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "varianti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 16,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          },
+          {
+            "table": "variante_documenti",
+            "access": "Bitmap Heap Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 4,
+            "estimated_rows": 2,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 4,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.variante_documenti t WHERE t.variante_id IN (SELECT id FROM public.varianti_cantiere WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.467,
+      "kind": "TARGET_COMPONENT",
+      "rows": 1,
+      "label": "public.variante_sorgenti",
+      "plan": {
+        "ms": 0.067,
+        "planning_ms": 0.129,
+        "shared_hit": 6,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "variante_sorgenti_lettura_idx"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "varianti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 16,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          },
+          {
+            "table": "variante_sorgenti",
+            "access": "Index Only Scan",
+            "index": "variante_sorgenti_lettura_idx",
+            "actual_rows": 0,
+            "loops": 4,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 5,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.variante_sorgenti t WHERE t.variante_id IN (SELECT id FROM public.varianti_cantiere WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.424,
+      "kind": "TARGET_COMPONENT",
+      "rows": 1,
+      "label": "public.variante_fonti_memory",
+      "plan": {
+        "ms": 0.098,
+        "planning_ms": 0.121,
+        "shared_hit": 6,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "variante_fonti_memory_pkey"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "varianti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 16,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          },
+          {
+            "table": "variante_fonti_memory",
+            "access": "Bitmap Heap Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 4,
+            "estimated_rows": 4,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 5,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('variante_id',t.\"variante_id\",'source_type',t.\"source_type\",'source_id',t.\"source_id\") ORDER BY jsonb_build_object('variante_id',t.\"variante_id\",'source_type',t.\"source_type\",'source_id',t.\"source_id\")::text),'[]') FROM public.variante_fonti_memory t WHERE t.variante_id IN (SELECT id FROM public.varianti_cantiere WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.398,
+      "kind": "TARGET_COMPONENT",
+      "rows": 1,
+      "label": "public.variante_fonti_visive",
+      "plan": {
+        "ms": 0.088,
+        "planning_ms": 0.12,
+        "shared_hit": 6,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "variante_fonti_visive_pkey"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "varianti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 16,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          },
+          {
+            "table": "variante_fonti_visive",
+            "access": "Index Only Scan",
+            "index": "variante_fonti_visive_pkey",
+            "actual_rows": 0,
+            "loops": 4,
+            "estimated_rows": 3,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 5,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('variante_id',t.\"variante_id\",'source_type',t.\"source_type\",'source_id',t.\"source_id\") ORDER BY jsonb_build_object('variante_id',t.\"variante_id\",'source_type',t.\"source_type\",'source_id',t.\"source_id\")::text),'[]') FROM public.variante_fonti_visive t WHERE t.variante_id IN (SELECT id FROM public.varianti_cantiere WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.41,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.variante_osservatore_analisi",
+      "plan": {
+        "ms": 0.046,
+        "planning_ms": 0.116,
+        "shared_hit": 9,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "variante_osservatore_ultima_idx"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "varianti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 16,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          },
+          {
+            "table": "variante_osservatore_analisi",
+            "access": "Bitmap Heap Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 4,
+            "estimated_rows": 2,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 8,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.variante_osservatore_analisi t WHERE t.variante_id IN (SELECT id FROM public.varianti_cantiere WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.766,
+      "kind": "TARGET_COMPONENT",
+      "rows": 53,
+      "label": "public.economia_righe",
+      "plan": {
+        "ms": 0.42,
+        "planning_ms": 0.116,
+        "shared_hit": 49,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "economia_righe",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 202,
+            "loops": 1,
+            "estimated_rows": 213,
+            "rows_removed": 0,
+            "rows_scanned": 202,
+            "hit": 48,
+            "read": 0
+          },
+          {
+            "table": "economia_raccolte",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 3,
+            "loops": 1,
+            "estimated_rows": 3,
+            "rows_removed": 6,
+            "rows_scanned": 9,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.economia_righe t WHERE t.raccolta_id IN (SELECT id FROM public.economia_raccolte WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.592,
+      "kind": "TARGET_COMPONENT",
+      "rows": 1,
+      "label": "public.economia_sorgenti",
+      "plan": {
+        "ms": 0.089,
+        "planning_ms": 0.177,
+        "shared_hit": 19,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "economia_sorgenti",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 73,
+            "loops": 1,
+            "estimated_rows": 74,
+            "rows_removed": 0,
+            "rows_scanned": 73,
+            "hit": 18,
+            "read": 0
+          },
+          {
+            "table": "economia_raccolte",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 3,
+            "loops": 1,
+            "estimated_rows": 3,
+            "rows_removed": 6,
+            "rows_scanned": 9,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.economia_sorgenti t WHERE t.raccolta_id IN (SELECT id FROM public.economia_raccolte WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.494,
+      "kind": "TARGET_COMPONENT",
+      "rows": 3,
+      "label": "public.rapportino_prestazioni",
+      "plan": {
+        "ms": 0.145,
+        "planning_ms": 0.132,
+        "shared_hit": 5,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "rapportino_prestazioni",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 80,
+            "loops": 1,
+            "estimated_rows": 50,
+            "rows_removed": 0,
+            "rows_scanned": 80,
+            "hit": 2,
+            "read": 0
+          },
+          {
+            "table": "rapportini",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 4,
+            "rows_removed": 48,
+            "rows_scanned": 52,
+            "hit": 3,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.rapportino_prestazioni t WHERE t.rapportino_id IN (SELECT id FROM public.rapportini WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.394,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "public.rapportino_materiali",
+      "plan": {
+        "ms": 0.052,
+        "planning_ms": 0.107,
+        "shared_hit": 7,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "rapportino_materiali_identita"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "rapportini",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 4,
+            "rows_removed": 48,
+            "rows_scanned": 52,
+            "hit": 3,
+            "read": 0
+          },
+          {
+            "table": "rapportino_materiali",
+            "access": "Index Scan",
+            "index": "rapportino_materiali_identita",
+            "actual_rows": 0,
+            "loops": 4,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 4,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.rapportino_materiali t WHERE t.rapportino_id IN (SELECT id FROM public.rapportini WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.486,
+      "kind": "TARGET_COMPONENT",
+      "rows": 3,
+      "label": "artecna_rapportini.richieste",
+      "plan": {
+        "ms": 0.115,
+        "planning_ms": 0.091,
+        "shared_hit": 12,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "richieste",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 46,
+            "loops": 1,
+            "estimated_rows": 450,
+            "rows_removed": 0,
+            "rows_scanned": 46,
+            "hit": 9,
+            "read": 0
+          },
+          {
+            "table": "rapportini",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 4,
+            "rows_removed": 48,
+            "rows_scanned": 52,
+            "hit": 3,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('canale',t.\"canale\",'utente_id',t.\"utente_id\",'richiesta_id',t.\"richiesta_id\") ORDER BY jsonb_build_object('canale',t.\"canale\",'utente_id',t.\"utente_id\",'richiesta_id',t.\"richiesta_id\")::text),'[]') FROM artecna_rapportini.richieste t WHERE t.rapportino_id IN (SELECT id FROM public.rapportini WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.311,
+      "kind": "TARGET_COMPONENT",
+      "rows": 1,
+      "label": "artecna_rapportini.allegati",
+      "plan": {
+        "ms": 0.04,
+        "planning_ms": 0.052,
+        "shared_hit": 2,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "allegati_cantiere"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "allegati",
+            "access": "Index Scan",
+            "index": "allegati_cantiere",
+            "actual_rows": 1,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 1,
+            "hit": 2,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM artecna_rapportini.allegati t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.434,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "artecna_rapportini.f3c3_capability",
+      "plan": {
+        "ms": 0.051,
+        "planning_ms": 0.09,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "allegati_cantiere"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "f3c3_capability",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 848,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 1,
+            "read": 0
+          },
+          {
+            "table": "foto_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "allegati",
+            "access": "Index Scan",
+            "index": "allegati_cantiere",
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('foto_id',t.\"foto_id\") ORDER BY jsonb_build_object('foto_id',t.\"foto_id\")::text),'[]') FROM artecna_rapportini.f3c3_capability t WHERE t.foto_id IN (SELECT id FROM public.foto_cantiere WHERE cantiere_id=$1) OR t.allegato_id IN (SELECT id FROM artecna_rapportini.allegati WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.302,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "keep:public.fatture_emesse",
+      "plan": {
+        "ms": 0.036,
+        "planning_ms": 0.036,
+        "shared_hit": 4,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "fatture_emesse",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 23,
+            "rows_scanned": 23,
+            "hit": 4,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.fatture_emesse t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.49,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "keep:public.fatture_fornitori_righe",
+      "plan": {
+        "ms": 0.197,
+        "planning_ms": 0.056,
+        "shared_hit": 30,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "fatture_fornitori_righe",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 1079,
+            "rows_scanned": 1079,
+            "hit": 30,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.fatture_fornitori_righe t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.734,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "keep:public.fornitori_rettifiche",
+      "plan": {
+        "ms": 0.075,
+        "planning_ms": 0.183,
+        "shared_hit": 0,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "fornitori_rettifiche",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 150,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "economia_righe",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 213,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "economia_raccolte",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 3,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "materiali_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.fornitori_rettifiche t WHERE t.cantiere_id=$1 OR t.economia_riga_id IN (SELECT e.id FROM public.economia_righe e JOIN public.economia_raccolte r ON r.id=e.raccolta_id WHERE r.cantiere_id=$1) OR t.materiale_cantiere_id IN (SELECT id FROM public.materiali_cantiere WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.263,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "keep:artecna_contabilita.attribuzioni_clienti",
+      "plan": {
+        "ms": 0.025,
+        "planning_ms": 0.043,
+        "shared_hit": 0,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "attribuzioni_clienti",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM artecna_contabilita.attribuzioni_clienti t WHERE t.cantiere_id=$1"
+      }
+    },
+    {
+      "ms": 0.294,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "keep:public.agenda_attivita",
+      "plan": {
+        "ms": 0.031,
+        "planning_ms": 0.048,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "agenda_attivita",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 7,
+            "rows_scanned": 7,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM public.agenda_attivita t WHERE t.collegamento->>'tipo'='cantiere' AND t.collegamento->>'id'=$1::text"
+      }
+    },
+    {
+      "ms": 0.679,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "keep:artecna_contabilita.archivio_quote",
+      "plan": {
+        "ms": 0.064,
+        "planning_ms": 0.242,
+        "shared_hit": 0,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "archivio_quote",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 350,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "economia_righe",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 213,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "economia_raccolte",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 3,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "materiali_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "fatture_fornitori_righe",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 1,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM artecna_contabilita.archivio_quote t WHERE t.fattura_riga_id IN(SELECT e.fattura_riga_id FROM public.economia_righe e JOIN public.economia_raccolte r ON r.id=e.raccolta_id WHERE r.cantiere_id=$1 UNION SELECT m.fattura_riga_id FROM public.materiali_cantiere m WHERE m.cantiere_id=$1 UNION SELECT f.id FROM public.fatture_fornitori_righe f WHERE f.cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.452,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "keep:artecna_contabilita.archivio_attribuzioni",
+      "plan": {
+        "ms": 0.063,
+        "planning_ms": 0.129,
+        "shared_hit": 9,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "fatture_emesse_pkey",
+          "archivio_attribuzioni_runtime_fattura_id"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "fatture_emesse",
+            "access": "Index Scan",
+            "index": "fatture_emesse_pkey",
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 1,
+            "rows_removed": 23,
+            "rows_scanned": 23,
+            "hit": 9,
+            "read": 0
+          },
+          {
+            "table": "attribuzioni_clienti",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 2,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "archivio_attribuzioni",
+            "access": "Index Scan",
+            "index": "archivio_attribuzioni_runtime_fattura_id",
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 3,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.\"id\") ORDER BY jsonb_build_object('id',t.\"id\")::text),'[]') FROM artecna_contabilita.archivio_attribuzioni t WHERE t.fattura_id IN(SELECT id FROM public.fatture_emesse WHERE cantiere_id=$1 UNION SELECT fattura_id FROM artecna_contabilita.attribuzioni_clienti WHERE cantiere_id=$1)"
+      }
+    },
+    {
+      "ms": 0.589,
+      "kind": "TARGET_COMPONENT",
+      "rows": 0,
+      "label": "keep:artecna_guardie.fatture_classificazione_richieste",
+      "plan": {
+        "ms": 0.078,
+        "planning_ms": 0.296,
+        "shared_hit": 8,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "runtime_ownership_edges_uuid"
+        ],
+        "candidate_keys": [],
+        "scans": [
+          {
+            "table": "fatture_classificazione_richieste",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 1,
+            "loops": 1,
+            "estimated_rows": 47,
+            "rows_removed": 0,
+            "rows_scanned": 1,
+            "hit": 2,
+            "read": 0
+          },
+          {
+            "table": "runtime_ownership_edges",
+            "access": "Index Scan",
+            "index": "runtime_ownership_edges_uuid",
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 77,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 6,
+            "read": 0
+          }
+        ],
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('user_id',t.\"user_id\",'richiesta_id',t.\"richiesta_id\") ORDER BY jsonb_build_object('user_id',t.\"user_id\",'richiesta_id',t.\"richiesta_id\")::text),'[]') FROM artecna_guardie.fatture_classificazione_richieste t WHERE EXISTS(SELECT 1 FROM artecna_distruzione.runtime_ownership_edges e WHERE e.user_id=t.user_id AND e.richiesta_id=t.richiesta_id AND e.referenced_uuid=ANY($4))"
+      }
+    }
+  ],
+  "shared": [
+    {
+      "ms": 0.637,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:3:keep:shared:public.cantieri"
+    },
+    {
+      "ms": 0.545,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:4:keep:shared:public.foto_cantiere"
+    },
+    {
+      "ms": 0.524,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:5:keep:shared:public.rapportini"
+    },
+    {
+      "ms": 0.634,
+      "kind": "SHARED_COMPONENT",
+      "rows": 3,
+      "label": "shared:6:keep:shared:public.rapportini"
+    },
+    {
+      "ms": 0.545,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:9:keep:shared:public.preventivi_cantiere"
+    },
+    {
+      "ms": 0.472,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:10:keep:shared:public.cantieri"
+    },
+    {
+      "ms": 0.682,
+      "kind": "SHARED_COMPONENT",
+      "rows": 3,
+      "label": "shared:11:keep:shared:public.economia_raccolte"
+    },
+    {
+      "ms": 0.868,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:12:keep:shared:public.economia_sorgenti"
+    },
+    {
+      "ms": 0.659,
+      "kind": "SHARED_COMPONENT",
+      "rows": 0,
+      "label": "shared:13:keep:shared:public.fatture_fornitori_righe"
+    },
+    {
+      "ms": 0.684,
+      "kind": "SHARED_COMPONENT",
+      "rows": 3,
+      "label": "shared:14:keep:shared:public.rapportino_prestazioni"
+    },
+    {
+      "ms": 0.603,
+      "kind": "SHARED_COMPONENT",
+      "rows": 3,
+      "label": "shared:15:keep:shared:public.economia_raccolte"
+    },
+    {
+      "ms": 0.629,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:29:keep:shared:artecna_rapportini.allegati"
+    },
+    {
+      "ms": 0.565,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:30:keep:shared:public.cantieri"
+    },
+    {
+      "ms": 0.586,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:36:keep:shared:public.cantieri"
+    },
+    {
+      "ms": 0.548,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:37:keep:shared:public.preventivi_cantiere"
+    },
+    {
+      "ms": 0.543,
+      "kind": "SHARED_COMPONENT",
+      "rows": 0,
+      "label": "shared:38:keep:shared:public.varianti_cantiere"
+    },
+    {
+      "ms": 0.601,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:39:keep:shared:public.cantieri"
+    },
+    {
+      "ms": 0.616,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:40:keep:shared:public.preventivi_cantiere"
+    },
+    {
+      "ms": 0.558,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:41:keep:shared:public.cantieri"
+    },
+    {
+      "ms": 0.565,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:43:keep:shared:public.operai"
+    },
+    {
+      "ms": 0.591,
+      "kind": "SHARED_COMPONENT",
+      "rows": 3,
+      "label": "shared:44:keep:shared:public.rapportini"
+    },
+    {
+      "ms": 0.656,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:45:keep:shared:public.varianti_cantiere"
+    },
+    {
+      "ms": 0.554,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:49:keep:shared:public.cantieri"
+    },
+    {
+      "ms": 0.729,
+      "kind": "SHARED_COMPONENT",
+      "rows": 3,
+      "label": "shared:50:keep:shared:public.rapportino_prestazioni"
+    },
+    {
+      "ms": 0.571,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:51:keep:shared:public.cantieri"
+    },
+    {
+      "ms": 0.567,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:53:keep:shared:public.quaderno_progetti"
+    },
+    {
+      "ms": 0.569,
+      "kind": "SHARED_COMPONENT",
+      "rows": 2,
+      "label": "shared:54:keep:shared:public.varianti_cantiere"
+    },
+    {
+      "ms": 0.535,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:55:keep:shared:public.foto_cantiere"
+    },
+    {
+      "ms": 0.48,
+      "kind": "SHARED_COMPONENT",
+      "rows": 0,
+      "label": "shared:56:keep:shared:public.foto_sopralluogo"
+    },
+    {
+      "ms": 0.586,
+      "kind": "SHARED_COMPONENT",
+      "rows": 2,
+      "label": "shared:57:keep:shared:public.varianti_cantiere"
+    },
+    {
+      "ms": 0.551,
+      "kind": "SHARED_COMPONENT",
+      "rows": 3,
+      "label": "shared:63:keep:shared:public.economia_raccolte"
+    },
+    {
+      "ms": 0.547,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:64:keep:shared:public.preventivi_cantiere"
+    },
+    {
+      "ms": 0.53,
+      "kind": "SHARED_COMPONENT",
+      "rows": 3,
+      "label": "shared:65:keep:shared:public.varianti_cantiere"
+    },
+    {
+      "ms": 0.506,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:66:keep:shared:public.cantieri"
+    },
+    {
+      "ms": 0.545,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:67:keep:shared:public.preventivi_cantiere"
+    },
+    {
+      "ms": 0.63,
+      "kind": "SHARED_COMPONENT",
+      "rows": 0,
+      "label": "shared:68:keep:shared:public.fatture_fornitori_righe"
+    },
+    {
+      "ms": 0.622,
+      "kind": "SHARED_COMPONENT",
+      "rows": 0,
+      "label": "shared:70:keep:shared:public.fatture_fornitori"
+    },
+    {
+      "ms": 0.369,
+      "kind": "SHARED_COMPONENT",
+      "rows": 0,
+      "label": "shared:71:keep:shared:public.fatture_fornitori_righe"
+    },
+    {
+      "ms": 0.382,
+      "kind": "SHARED_COMPONENT",
+      "rows": 0,
+      "label": "shared:72:keep:shared:public.materiali_impresa"
+    },
+    {
+      "ms": 0.353,
+      "kind": "SHARED_COMPONENT",
+      "rows": 0,
+      "label": "shared:73:keep:shared:artecna_contabilita.archivio_quote"
+    },
+    {
+      "ms": 0.347,
+      "kind": "SHARED_COMPONENT",
+      "rows": 0,
+      "label": "shared:74:keep:shared:artecna_contabilita.archivio_attribuzioni"
+    },
+    {
+      "ms": 0.378,
+      "kind": "SHARED_COMPONENT",
+      "rows": 0,
+      "label": "shared:75:keep:shared:artecna_guardie.fatture_classificazione_richieste"
+    },
+    {
+      "ms": 0.601,
+      "kind": "SHARED_COMPONENT",
+      "rows": 1,
+      "label": "shared:76:keep:shared:public.quaderno_progetti"
+    }
+  ],
+  "witnesses": [
+    {
+      "witness": "artecna_rapportini.allegati",
+      "rows": 0,
+      "ms": 0.528,
+      "bytes": {
+        "matched_rows": 0,
+        "stored_row_bytes": 0,
+        "serialized_row_bytes": 0
+      },
+      "plan": {
+        "ms": 0.086,
+        "planning_ms": 0.175,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          1
+        ],
+        "scans": [
+          {
+            "table": "allegati",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 7,
+            "loops": 1,
+            "estimated_rows": 240,
+            "rows_removed": 0,
+            "rows_scanned": 7,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:artecna_rapportini.allegati','[]')) AS k(\"id\" uuid)) k JOIN artecna_rapportini.allegati t ON t.\"id\"=k.\"id\" WHERE NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(coalesce($2->'artecna_rapportini.allegati','[]')) AS x(\"id\" uuid) WHERE t.\"id\"=x.\"id\") OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "public.cantieri",
+      "rows": 0,
+      "ms": 0.448,
+      "bytes": {
+        "matched_rows": 0,
+        "stored_row_bytes": 0,
+        "serialized_row_bytes": 0
+      },
+      "plan": {
+        "ms": 0.095,
+        "planning_ms": 0.137,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          1
+        ],
+        "scans": [
+          {
+            "table": "cantieri",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 20,
+            "loops": 1,
+            "estimated_rows": 17,
+            "rows_removed": 0,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:public.cantieri','[]')) AS k(\"id\" uuid)) k JOIN public.cantieri t ON t.\"id\"=k.\"id\" WHERE NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(coalesce($2->'public.cantieri','[]')) AS x(\"id\" uuid) WHERE t.\"id\"=x.\"id\") OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "public.economia_raccolte",
+      "rows": 0,
+      "ms": 0.421,
+      "bytes": {
+        "matched_rows": 0,
+        "stored_row_bytes": 0,
+        "serialized_row_bytes": 0
+      },
+      "plan": {
+        "ms": 0.094,
+        "planning_ms": 0.163,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          3
+        ],
+        "scans": [
+          {
+            "table": "economia_raccolte",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 9,
+            "loops": 1,
+            "estimated_rows": 9,
+            "rows_removed": 0,
+            "rows_scanned": 9,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:public.economia_raccolte','[]')) AS k(\"id\" uuid)) k JOIN public.economia_raccolte t ON t.\"id\"=k.\"id\" WHERE NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(coalesce($2->'public.economia_raccolte','[]')) AS x(\"id\" uuid) WHERE t.\"id\"=x.\"id\") OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "public.economia_sorgenti",
+      "rows": 0,
+      "ms": 0.561,
+      "bytes": {
+        "matched_rows": 0,
+        "stored_row_bytes": 0,
+        "serialized_row_bytes": 0
+      },
+      "plan": {
+        "ms": 0.21,
+        "planning_ms": 0.165,
+        "shared_hit": 32,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          1
+        ],
+        "scans": [
+          {
+            "table": "economia_sorgenti",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 73,
+            "loops": 1,
+            "estimated_rows": 74,
+            "rows_removed": 0,
+            "rows_scanned": 73,
+            "hit": 32,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:public.economia_sorgenti','[]')) AS k(\"id\" uuid)) k JOIN public.economia_sorgenti t ON t.\"id\"=k.\"id\" WHERE NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(coalesce($2->'public.economia_sorgenti','[]')) AS x(\"id\" uuid) WHERE t.\"id\"=x.\"id\") OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "public.foto_cantiere",
+      "rows": 0,
+      "ms": 342.841,
+      "bytes": {
+        "matched_rows": 0,
+        "stored_row_bytes": 0,
+        "serialized_row_bytes": 0
+      },
+      "plan": {
+        "ms": 267.908,
+        "planning_ms": 0.214,
+        "shared_hit": 4118,
+        "shared_read": 0,
+        "temp_read": 8256,
+        "temp_written": 8256,
+        "indexes": [],
+        "candidate_keys": [
+          1
+        ],
+        "scans": [
+          {
+            "table": "foto_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 105,
+            "loops": 1,
+            "estimated_rows": 125,
+            "rows_removed": 0,
+            "rows_scanned": 105,
+            "hit": 4118,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:public.foto_cantiere','[]')) AS k(\"id\" uuid)) k JOIN public.foto_cantiere t ON t.\"id\"=k.\"id\" WHERE NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(coalesce($2->'public.foto_cantiere','[]')) AS x(\"id\" uuid) WHERE t.\"id\"=x.\"id\") OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "public.operai",
+      "rows": 1,
+      "ms": 1.581,
+      "bytes": {
+        "matched_rows": 1,
+        "stored_row_bytes": 106,
+        "serialized_row_bytes": 270
+      },
+      "plan": {
+        "ms": 0.195,
+        "planning_ms": 0.115,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          1
+        ],
+        "scans": [
+          {
+            "table": "operai",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 6,
+            "loops": 1,
+            "estimated_rows": 310,
+            "rows_removed": 0,
+            "rows_scanned": 6,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:public.operai','[]')) AS k(\"id\" uuid)) k JOIN public.operai t ON t.\"id\"=k.\"id\"  OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "public.preventivi_cantiere",
+      "rows": 0,
+      "ms": 1.798,
+      "bytes": {
+        "matched_rows": 0,
+        "stored_row_bytes": 0,
+        "serialized_row_bytes": 0
+      },
+      "plan": {
+        "ms": 0.385,
+        "planning_ms": 0.155,
+        "shared_hit": 81,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          1
+        ],
+        "scans": [
+          {
+            "table": "preventivi_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 41,
+            "loops": 1,
+            "estimated_rows": 38,
+            "rows_removed": 0,
+            "rows_scanned": 41,
+            "hit": 81,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:public.preventivi_cantiere','[]')) AS k(\"id\" uuid)) k JOIN public.preventivi_cantiere t ON t.\"id\"=k.\"id\" WHERE NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(coalesce($2->'public.preventivi_cantiere','[]')) AS x(\"id\" uuid) WHERE t.\"id\"=x.\"id\") OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "public.quaderno_progetti",
+      "rows": 1,
+      "ms": 0.61,
+      "bytes": {
+        "matched_rows": 1,
+        "stored_row_bytes": 1305,
+        "serialized_row_bytes": 1356
+      },
+      "plan": {
+        "ms": 0.113,
+        "planning_ms": 0.1,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          1
+        ],
+        "scans": [
+          {
+            "table": "quaderno_progetti",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 4,
+            "loops": 1,
+            "estimated_rows": 320,
+            "rows_removed": 0,
+            "rows_scanned": 4,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:public.quaderno_progetti','[]')) AS k(\"id\" uuid)) k JOIN public.quaderno_progetti t ON t.\"id\"=k.\"id\"  OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "public.rapportini",
+      "rows": 0,
+      "ms": 0.811,
+      "bytes": {
+        "matched_rows": 0,
+        "stored_row_bytes": 0,
+        "serialized_row_bytes": 0
+      },
+      "plan": {
+        "ms": 0.182,
+        "planning_ms": 0.14,
+        "shared_hit": 3,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          3
+        ],
+        "scans": [
+          {
+            "table": "rapportini",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 52,
+            "loops": 1,
+            "estimated_rows": 51,
+            "rows_removed": 0,
+            "rows_scanned": 52,
+            "hit": 3,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:public.rapportini','[]')) AS k(\"id\" uuid)) k JOIN public.rapportini t ON t.\"id\"=k.\"id\" WHERE NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(coalesce($2->'public.rapportini','[]')) AS x(\"id\" uuid) WHERE t.\"id\"=x.\"id\") OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "public.rapportino_prestazioni",
+      "rows": 0,
+      "ms": 0.746,
+      "bytes": {
+        "matched_rows": 0,
+        "stored_row_bytes": 0,
+        "serialized_row_bytes": 0
+      },
+      "plan": {
+        "ms": 0.239,
+        "planning_ms": 0.14,
+        "shared_hit": 2,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          3
+        ],
+        "scans": [
+          {
+            "table": "rapportino_prestazioni",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 80,
+            "loops": 1,
+            "estimated_rows": 50,
+            "rows_removed": 0,
+            "rows_scanned": 80,
+            "hit": 2,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:public.rapportino_prestazioni','[]')) AS k(\"id\" uuid)) k JOIN public.rapportino_prestazioni t ON t.\"id\"=k.\"id\" WHERE NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(coalesce($2->'public.rapportino_prestazioni','[]')) AS x(\"id\" uuid) WHERE t.\"id\"=x.\"id\") OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "public.varianti_cantiere",
+      "rows": 0,
+      "ms": 0.649,
+      "bytes": {
+        "matched_rows": 0,
+        "stored_row_bytes": 0,
+        "serialized_row_bytes": 0
+      },
+      "plan": {
+        "ms": 0.124,
+        "planning_ms": 0.137,
+        "shared_hit": 1,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          3
+        ],
+        "scans": [
+          {
+            "table": "varianti_cantiere",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 20,
+            "loops": 1,
+            "estimated_rows": 13,
+            "rows_removed": 0,
+            "rows_scanned": 20,
+            "hit": 1,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5((to_jsonb(t))::text) h FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'keep:shared:public.varianti_cantiere','[]')) AS k(\"id\" uuid)) k JOIN public.varianti_cantiere t ON t.\"id\"=k.\"id\" WHERE NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(coalesce($2->'public.varianti_cantiere','[]')) AS x(\"id\" uuid) WHERE t.\"id\"=x.\"id\") OFFSET 0) frozen"
+      }
+    },
+    {
+      "witness": "transition:quote",
+      "rows": 0,
+      "ms": 1.668,
+      "plan": {
+        "ms": 0.252,
+        "planning_ms": 0.367,
+        "shared_hit": 24,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [
+          "economia_righe_raccolta_fattura_riga_unique",
+          "materiali_cantiere_fattura_riga_idx"
+        ],
+        "candidate_keys": [
+          53
+        ],
+        "scans": [
+          {
+            "table": "economia_righe",
+            "access": "Bitmap Heap Scan",
+            "index": null,
+            "actual_rows": 71,
+            "loops": 1,
+            "estimated_rows": 38,
+            "rows_removed": 0,
+            "rows_scanned": 71,
+            "hit": 24,
+            "read": 0
+          },
+          {
+            "table": "materiali_cantiere",
+            "access": "Bitmap Heap Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 0,
+            "estimated_rows": 20,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "archivio_quote",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 350,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(md5(j::text),'' ORDER BY md5(j::text)),''))) FROM (SELECT jsonb_build_object('tipo','economia','fattura_riga_id',t.fattura_riga_id,'quantita',t.quantita,'netto',t.quantita*t.prezzo_unitario,'costo',t.quantita*t.prezzo_unitario,'descrizione',artecna_distruzione.sanifica_archivio(to_jsonb(t.descrizione),ARRAY(SELECT jsonb_array_elements_text($2->'keep:runtime:ids'))::uuid[])#>>'{}') j FROM jsonb_to_recordset(coalesce($2->'public.economia_righe','[]')) AS k(\"id\" uuid) JOIN public.economia_righe t ON t.\"id\"=k.\"id\" WHERE t.fattura_riga_id IS NOT NULL\nUNION ALL SELECT jsonb_build_object('tipo','materiale','fattura_riga_id',t.fattura_riga_id,'quantita',t.quantita,'netto',t.quantita*t.prezzo_unitario,'costo',t.totale,'descrizione',artecna_distruzione.sanifica_archivio(to_jsonb(t.descrizione),ARRAY(SELECT jsonb_array_elements_text($2->'keep:runtime:ids'))::uuid[])#>>'{}') j FROM jsonb_to_recordset(coalesce($2->'public.materiali_cantiere','[]')) AS k(\"id\" uuid) JOIN public.materiali_cantiere t ON t.\"id\"=k.\"id\" WHERE t.fattura_riga_id IS NOT NULL\nUNION ALL SELECT jsonb_build_object('tipo',t.tipo,'fattura_riga_id',t.fattura_riga_id,'quantita',t.quantita,'netto',t.netto,'costo',t.costo,'descrizione',t.descrizione) j FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'public.fatture_fornitori_righe','[]')||coalesce($2->'keep:public.fatture_fornitori_righe','[]')||coalesce($2->'keep:shared:public.fatture_fornitori_righe','[]')) AS k(\"id\" uuid)) k JOIN artecna_contabilita.archivio_quote t ON t.fattura_riga_id=k.id) rows"
+      }
+    },
+    {
+      "witness": "transition:attribuzioni",
+      "rows": 0,
+      "ms": 0.905,
+      "plan": {
+        "ms": 0.073,
+        "planning_ms": 0.25,
+        "shared_hit": 0,
+        "shared_read": 0,
+        "temp_read": 0,
+        "temp_written": 0,
+        "indexes": [],
+        "candidate_keys": [
+          0
+        ],
+        "scans": [
+          {
+            "table": "attribuzioni_clienti",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 390,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          },
+          {
+            "table": "archivio_attribuzioni",
+            "access": "Seq Scan",
+            "index": null,
+            "actual_rows": 0,
+            "loops": 1,
+            "estimated_rows": 600,
+            "rows_removed": 0,
+            "rows_scanned": 0,
+            "hit": 0,
+            "read": 0
+          }
+        ],
+        "query": "SELECT jsonb_build_object('count',count(*),'digest',md5(coalesce(string_agg(md5(j::text),'' ORDER BY md5(j::text)),''))) FROM (SELECT jsonb_build_object('fattura_id',t.fattura_id,'cliente',artecna_distruzione.sanifica_archivio(to_jsonb(t.cliente_confermato),ARRAY(SELECT jsonb_array_elements_text($2->'keep:runtime:ids'))::uuid[])#>>'{}','importo',t.importo,'verificato',t.verificato,'creato_at',t.creato_at,'scollegato',t.scollegato_at IS NOT NULL) j FROM jsonb_to_recordset(coalesce($2->'keep:artecna_contabilita.attribuzioni_clienti','[]')) AS k(\"id\" uuid) JOIN artecna_contabilita.attribuzioni_clienti t ON t.\"id\"=k.\"id\"\nUNION ALL SELECT jsonb_build_object('fattura_id',t.fattura_id,'cliente',t.cliente,'importo',t.importo,'verificato',t.verificato,'creato_at',t.creato_at,'scollegato',t.scollegato) j FROM (SELECT DISTINCT * FROM jsonb_to_recordset(coalesce($2->'public.fatture_emesse','[]')||coalesce($2->'keep:public.fatture_emesse','[]')||coalesce($2->'keep:shared:public.fatture_emesse','[]')) AS k(\"id\" uuid)) k JOIN artecna_contabilita.archivio_attribuzioni t ON t.fattura_id=k.id) rows"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "kind": "EDGE_CARDINALITY",
+      "counts": {
+        "edges": 571,
+        "source": "artecna_guardie.fatture_classificazione_richieste",
+        "source_rows": 47,
+        "distinct_uuids": 308,
+        "target_plan_edges": 0,
+        "target_uuid_edges": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "artecna_contabilita.archivio_attribuzioni",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "artecna_contabilita.archivio_quote",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "artecna_contabilita.attribuzioni_clienti",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "artecna_guardie.fatture_classificazione_richieste",
+      "column": "richiesta_id",
+      "counts": {
+        "edges": 47,
+        "distinct_uuids": 47
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "artecna_guardie.fatture_classificazione_richieste",
+      "column": "user_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "artecna_rapportini.allegati",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "artecna_rapportini.f3c3_capability",
+      "column": "foto_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "artecna_rapportini.richieste",
+      "column": "richiesta_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "artecna_rapportini.richieste",
+      "column": "utente_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.audit_log_entries",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.custom_oauth_providers",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.flow_state",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.identities",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.instances",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.mfa_amr_claims",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.mfa_challenges",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.mfa_factors",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.mfa_recovery_code_sets",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.mfa_recovery_codes",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.oauth_authorizations",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.oauth_client_states",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.oauth_clients",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.oauth_consents",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.one_time_tokens",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.saml_providers",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.saml_relay_states",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.scim_tokens",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.scim_users",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.sessions",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.sso_domains",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.sso_providers",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.users",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.webauthn_challenges",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "auth.webauthn_credentials",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.acconti_cantiere",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.agenda_attivita",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.attrezzi_cantiere",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.cantieri",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.economia_raccolte",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.economia_righe",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.economia_sorgenti",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.fatture_emesse",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.fatture_fornitori",
+      "column": "id",
+      "counts": {
+        "edges": 47,
+        "distinct_uuids": 34
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.fatture_fornitori_righe",
+      "column": "id",
+      "counts": {
+        "edges": 459,
+        "distinct_uuids": 216
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.fornitori_rettifiche",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.foto_cantiere",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.foto_sopralluogo",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.incassi_non_fatturati",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.materiali_cantiere",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.materiali_impresa",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.memoria_prezzi",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.note_allegati",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.note_sopralluogo",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.operai",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.pagamenti_fornitori",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.pagamenti_operai",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.preventivi_cantiere",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.prezzi_lavorazioni",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.prezziario_sicilia",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.quaderno_allegati",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.quaderno_copie_allegati",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.quaderno_gestioni",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.quaderno_progetti",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.quaderno_richiami_sopralluogo",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.rapportini",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.rapportino_materiali",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.rapportino_prestazioni",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.sopralluoghi",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.spese_impresa",
+      "column": "id",
+      "counts": {
+        "edges": 18,
+        "distinct_uuids": 11
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.timbrature",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.utenti_cantiere",
+      "column": "cantiere_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.utenti_cantiere",
+      "column": "user_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.utenti_impresa",
+      "column": "user_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.utilizzo_ai",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.variante_documenti",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.variante_fonti_memory",
+      "column": "source_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.variante_fonti_memory",
+      "column": "variante_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.variante_fonti_visive",
+      "column": "source_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.variante_fonti_visive",
+      "column": "variante_id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.variante_osservatore_analisi",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.variante_sorgenti",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    },
+    {
+      "kind": "EDGE_TARGET_DISTRIBUTION",
+      "table": "public.varianti_cantiere",
+      "column": "id",
+      "counts": {
+        "edges": 0,
+        "distinct_uuids": 0
+      }
+    }
+  ],
+  "edge_statistics": [
+    {
+      "relname": "runtime_ownership_edges",
+      "idx_scan": 3,
+      "seq_scan": 6,
+      "heap_bytes": 49152,
+      "n_dead_tup": 0,
+      "n_live_tup": 571,
+      "schemaname": "artecna_distruzione",
+      "total_bytes": 180224,
+      "last_analyze": null,
+      "seq_tup_read": 2284,
+      "idx_tup_fetch": 0,
+      "last_autoanalyze": "2026-11-08T17:16:57.381616+00:00",
+      "n_mod_since_analyze": 0
+    }
+  ],
+  "edge_indexes": [
+    {
+      "bytes": 65536,
+      "relname": "runtime_ownership_edges",
+      "idx_scan": 0,
+      "schemaname": "artecna_distruzione",
+      "idx_tup_read": 0,
+      "indexrelname": "runtime_ownership_edges_pkey",
+      "idx_tup_fetch": 0
+    },
+    {
+      "bytes": 40960,
+      "relname": "runtime_ownership_edges",
+      "idx_scan": 3,
+      "schemaname": "artecna_distruzione",
+      "idx_tup_read": 0,
+      "indexrelname": "runtime_ownership_edges_uuid",
+      "idx_tup_fetch": 0
+    }
+  ],
+  "edge_plans": [
+    {
+      "ms": 0.053,
+      "planning_ms": 0.197,
+      "shared_hit": 6,
+      "shared_read": 0,
+      "temp_read": 0,
+      "temp_written": 0,
+      "indexes": [
+        "runtime_ownership_edges_uuid"
+      ],
+      "candidate_keys": [],
+      "scans": [
+        {
+          "table": "runtime_ownership_edges",
+          "access": "Index Scan",
+          "index": "runtime_ownership_edges_uuid",
+          "actual_rows": 0,
+          "loops": 1,
+          "estimated_rows": 77,
+          "rows_removed": 0,
+          "rows_scanned": 0,
+          "hit": 6,
+          "read": 0
+        }
+      ],
+      "query": "SELECT user_id,richiesta_id FROM artecna_distruzione.runtime_ownership_edges WHERE referenced_uuid=ANY($4)"
+    }
+  ],
+  "photo_indexes": [
+    {
+      "indexdef": "CREATE UNIQUE INDEX foto_cantiere_allegato_v1_key ON public.foto_cantiere USING btree (allegato_v1_id)",
+      "indexname": "foto_cantiere_allegato_v1_key",
+      "tablename": "foto_cantiere",
+      "schemaname": "public"
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX foto_cantiere_pkey ON public.foto_cantiere USING btree (id)",
+      "indexname": "foto_cantiere_pkey",
+      "tablename": "foto_cantiere",
+      "schemaname": "public"
+    }
+  ],
+  "photo_stats": [
+    {
+      "relname": "foto_cantiere",
+      "idx_scan": 198,
+      "seq_scan": 137,
+      "heap_bytes": 73728,
+      "n_dead_tup": 22,
+      "n_live_tup": 0,
+      "schemaname": "public",
+      "total_bytes": 42467328,
+      "last_analyze": null,
+      "seq_tup_read": 14385,
+      "idx_tup_fetch": 386,
+      "last_autoanalyze": null,
+      "n_mod_since_analyze": 31
+    }
+  ],
+  "locks": {
+    "report": "ACTIVE_LOCKS",
+    "sessions": [
+      {
+        "pid": 877,
+        "state": null,
+        "blockers": [],
+        "wait_event": "Extension",
+        "xact_age_ms": null,
+        "wait_event_type": "Extension"
+      },
+      {
+        "pid": 876,
+        "state": null,
+        "blockers": [],
+        "wait_event": "Extension",
+        "xact_age_ms": null,
+        "wait_event_type": "Extension"
+      }
+    ]
+  },
+  "pg_stat_statements": {
+    "available": true,
+    "queries_captured": 35
+  },
+  "notes": [
+    "Run1 is first use in this diagnostic session; global buffers are not flushed.",
+    "EXPLAIN uses equivalent SELECTs with supplied target parameters; cached helper plans can differ.",
+    "Buffer counters are inclusive at the root, not summed across parent/child nodes.",
+    "Physical read-byte estimate = shared read blocks x 8192; logical serialization bytes are reported separately.",
+    "Index/table cumulative counters can be delayed and are not proof of this individual query plan."
+  ]
+}

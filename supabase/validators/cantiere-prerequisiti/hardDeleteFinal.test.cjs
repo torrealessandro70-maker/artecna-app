@@ -4,12 +4,13 @@ const {withNative}=require('./native.cjs');
 const {certifiedInstallerFixture}=require('./installerBaseline.cjs');
 const migration=fs.readFileSync(path.join(__dirname,'../../migrations/20261108000800_cantiere_hard_delete_finale.sql'),'utf8').replace(/\r\n/g,'\n');
 const runtime=fs.readFileSync(path.join(__dirname,'../../migrations/20261108000900_cantiere_hard_delete_runtime_v2.sql'),'utf8').replace(/\r\n/g,'\n');
+const coldRuntime=fs.readFileSync(path.join(__dirname,'../../migrations/20261108001000_cantiere_hard_delete_runtime_v3.sql'),'utf8').replace(/\r\n/g,'\n');
 test('RPC finale sul catalogo certificato PostgreSQL 17.6', {timeout:240000},()=>withNative(async(db,connect)=>{
  const q=async(s,p=[]) => (await db.query(s,p)).rows;
  // Domain seeding uses the local administrator. The dedicated installer suite
  // runs the complete migration as NOSUPERUSER with the real grantor profile.
  const admin=await connect('fixture_admin');await admin.query('ALTER ROLE postgres SUPERUSER');
- await q(migration);await q(runtime);
+ await q(migration);await q(runtime);await q(coldRuntime);
  async function fixture(){const u=randomUUID(),a=randomUUID(),b=randomUUID();await q('INSERT INTO auth.users VALUES($1)',[u]);await q("INSERT INTO public.cantieri(id,nome) VALUES($1,'Omonimo'),($2,'Omonimo')",[a,b]);await q("INSERT INTO public.utenti_cantiere(cantiere_id,user_id,ruolo) VALUES($1,$3,'owner'),($2,$3,'owner')",[a,b,u]);await q("SELECT set_config('request.jwt.claim.sub',$1,false)",[u]);return {a,b,u};}
  async function rpc(a,confirmation='ELIMINA'){await q('SET ROLE authenticated');try{return (await q('SELECT * FROM public.elimina_cantiere_definitivamente($1,$2)',[a,confirmation]))[0];}finally{await q('RESET ROLE').catch(()=>{});}}
  async function preflight(a){await q('SELECT artecna_distruzione.hard_delete_blockers($1)',[a]);return (await q('SELECT public.preflight_eliminazione_cantiere($1) r',[a]))[0].r;}
@@ -47,6 +48,9 @@ test('RPC finale sul catalogo certificato PostgreSQL 17.6', {timeout:240000},()=
   const key=randomUUID();await q("INSERT INTO artecna_rapportini.allegati(id,rapportino_id,cantiere_id,chiave_client_allegato,sha256,bucket,file_path,mime_type,byte_size,stato,expires_at) VALUES($1,$2,$3,$4,decode(repeat('ab',32),'hex'),'rapportini-v1',$5,'image/jpeg',100,'prenotato',now()+interval '1 hour')",[al,r,a,key,`rapportini/${a}/${r}/${key}.jpg`]);
   const lease=randomUUID();await q("UPDATE artecna_rapportini.allegati SET lease_id=$2,lease_until=now()+interval '1 minute' WHERE id=$1",[al,lease]);
   await q('SET SESSION AUTHORIZATION artecna_rapportini_backend');await q('SELECT public.finalizza_allegato_rapportino_desktop($1,$2,$3)',[u,al,lease]);await q('RESET SESSION AUTHORIZATION');
+  // The fixture explicitly extends writer ACLs above; certify only that local
+  // fixture setup before testing the delete, whose runtime guard now pins ACLs.
+  await q('UPDATE artecna_distruzione.hard_delete_catalog_expected SET signature=artecna_distruzione.hard_delete_catalog()');
   const result=await rpc(a);assert.equal(result.conteggi['artecna_rapportini.allegati'],1);assert.equal(result.conteggi['public.foto_cantiere'],1);assert.equal(result.conteggi['public.rapportino_materiali'],1);
  });
  await scenario('C: variante completa con documenti, sorgenti, lavorazioni e integrativo',async({a})=>{
@@ -56,6 +60,7 @@ test('RPC finale sul catalogo certificato PostgreSQL 17.6', {timeout:240000},()=
   await q("INSERT INTO public.variante_lavorazioni(variante_id,numero_riga,operazione,descrizione,quantita_delta,prezzo_unitario,delta_contratto,variante_sorgente_id,indice_voce_sorgente) VALUES($1,1,'nuova','Lavoro',1,10,10,$2,0)",[v,s]);
   await q("INSERT INTO public.variante_documenti(variante_id,nome_file,storage_path) VALUES($1,'Documento','variante.pdf')",[v]);
   await q('GRANT INSERT,SELECT ON public.preventivi_cantiere TO artecna_varianti_rpc');await q('SET ROLE artecna_varianti_rpc');await q("INSERT INTO public.preventivi_cantiere(cantiere,cantiere_id,natura,variante_id,preventivo_contrattuale_id,provenienza_generazione) VALUES('Omonimo',$1,'integrativo',$2,$3,jsonb_build_object('firma',repeat('a',64)))",[a,v,base]);await q('RESET ROLE');
+  await q('UPDATE artecna_distruzione.hard_delete_catalog_expected SET signature=artecna_distruzione.hard_delete_catalog()');
   const result=await rpc(a);assert.equal(result.conteggi['public.varianti_cantiere'],1);assert.equal(result.conteggi['public.preventivi_cantiere'],2);assert.equal(result.conteggi['public.variante_sorgenti'],1);
  });
  await scenario('F: prestazione, timbratura, Economia Rapportino e ponte Variante tramite writer canonici',async({a,u})=>{
