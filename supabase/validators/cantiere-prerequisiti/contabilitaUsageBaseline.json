@@ -1,0 +1,137 @@
+{
+  "schema": {
+    "acl": "{postgres=UC/postgres}",
+    "name": "artecna_contabilita",
+    "owner": "postgres",
+    "usage": false,
+    "create": false,
+    "record": "schema",
+    "acl_expanded": [
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "CREATE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "USAGE"
+      }
+    ]
+  },
+  "relations": [
+    {
+      "name": "artecna_contabilita.archivio_attribuzioni",
+      "owner": "postgres",
+      "acl": "{postgres=arwdDxtm/postgres}"
+    },
+    {
+      "name": "artecna_contabilita.archivio_quote",
+      "owner": "postgres",
+      "acl": "{postgres=arwdDxtm/postgres}"
+    },
+    {
+      "name": "artecna_contabilita.attribuzioni_clienti",
+      "owner": "postgres",
+      "acl": "{postgres=arwdDxtm/postgres,artecna_cantieri_delete_rpc=r/postgres}"
+    }
+  ],
+  "functions": [
+    {
+      "signature": "artecna_contabilita.autorizza(uuid)",
+      "owner": "postgres",
+      "acl": "{postgres=X/postgres}",
+      "security_definer": true,
+      "config": [
+        "search_path=pg_catalog, pg_temp"
+      ],
+      "source_md5": "6c2f16f1d87df3434ac712e81bfa0f1d"
+    },
+    {
+      "signature": "artecna_contabilita.proteggi_origine()",
+      "owner": "postgres",
+      "acl": "{postgres=X/postgres}",
+      "security_definer": true,
+      "config": [
+        "search_path=pg_catalog, pg_temp"
+      ],
+      "source_md5": "01de63df46ced4b8390ff007e5b05125"
+    },
+    {
+      "signature": "artecna_contabilita.proteggi_truncate()",
+      "owner": "postgres",
+      "acl": "{postgres=X/postgres}",
+      "security_definer": true,
+      "config": [
+        "search_path=pg_catalog, pg_temp"
+      ],
+      "source_md5": "8fae8bb0df69ec22943db0fc81a04caf"
+    }
+  ],
+  "role": {
+    "name": "artecna_cantieri_delete_rpc",
+    "record": "role",
+    "inherit": false,
+    "bypassrls": true,
+    "superuser": false,
+    "createrole": false
+  },
+  "memberships": [
+    {
+      "set": false,
+      "role": "artecna_cantieri_delete_rpc",
+      "admin": true,
+      "member": "postgres",
+      "record": "membership",
+      "grantor": "supabase_admin",
+      "inherit": false
+    }
+  ],
+  "sequences": [],
+  "types": [
+    {
+      "acl": null,
+      "name": "artecna_contabilita.attribuzioni_clienti",
+      "owner": "postgres",
+      "usage": true,
+      "record": "type"
+    },
+    {
+      "acl": null,
+      "name": "artecna_contabilita.attribuzioni_clienti[]",
+      "owner": "postgres",
+      "usage": true,
+      "record": "type"
+    },
+    {
+      "acl": null,
+      "name": "artecna_contabilita.archivio_quote",
+      "owner": "postgres",
+      "usage": true,
+      "record": "type"
+    },
+    {
+      "acl": null,
+      "name": "artecna_contabilita.archivio_quote[]",
+      "owner": "postgres",
+      "usage": true,
+      "record": "type"
+    },
+    {
+      "acl": null,
+      "name": "artecna_contabilita.archivio_attribuzioni",
+      "owner": "postgres",
+      "usage": true,
+      "record": "type"
+    },
+    {
+      "acl": null,
+      "name": "artecna_contabilita.archivio_attribuzioni[]",
+      "owner": "postgres",
+      "usage": true,
+      "record": "type"
+    }
+  ]
+}

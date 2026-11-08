@@ -1,0 +1,84 @@
+{
+  "verdict": "HARD_DELETE_CONTABILITA_USAGE_FIX_READY_LOCAL",
+  "base_commit": "812511847be33c5ca80dac319fe648cfd3fc0ed7",
+  "production_changes": 0,
+  "production_connections": "one authorized READ ONLY catalog capture; no RPC execution",
+  "effective_role": "artecna_cantieri_delete_rpc",
+  "first_denied_object": "artecna_contabilita.attribuzioni_clienti",
+  "first_denied_location": "RPC line 178 at IF",
+  "delta_acl": "GRANT USAGE ON SCHEMA artecna_contabilita TO artecna_cantieri_delete_rpc",
+  "catalog_signature_update_required": true,
+  "catalog_signature_computed_at_application": true,
+  "migration_sha256": "275f9d49e6616934186dcb762df54e6eaf689377b40332a784cfde06f798cbc3",
+  "tests": {
+    "original": 155,
+    "new": 16,
+    "total": 171,
+    "failures": 0,
+    "skipped": 0,
+    "postgres": "17.6",
+    "fixture_scales": [
+      1,
+      10
+    ]
+  },
+  "quality": {
+    "typescript": "GREEN",
+    "lint": "GREEN",
+    "offline_build": "GREEN",
+    "client_boundary_chunks": 51,
+    "static_scope": "GREEN"
+  },
+  "files": [
+    {
+      "name": "package.json",
+      "sha256": "17b2832fc0009b96517e0cab43a7802147f2b96b2b6002a96319f51ea8db3c41"
+    },
+    {
+      "name": "supabase/migrations/20261109001100_cantiere_delete_contabilita_schema_usage.sql",
+      "sha256": "275f9d49e6616934186dcb762df54e6eaf689377b40332a784cfde06f798cbc3"
+    },
+    {
+      "name": "docs/cantiere-contabilita-usage-fix.md",
+      "sha256": "fac7d61141dd4f02e4298dbb9c20ed7235670ebbf95034090784ceecf2ba2a51"
+    },
+    {
+      "name": "supabase/validators/cantiere-prerequisiti/contabilitaUsage.test.cjs",
+      "sha256": "83bcb3ae5c997083a3ea4f18239ac3a180aa51e81461ca4bdd29e08f95f0f0d5"
+    },
+    {
+      "name": "supabase/validators/cantiere-prerequisiti/contabilitaUsageFixture.cjs",
+      "sha256": "ae46812d4aefece592fd67d02492d494384216ae622a8dd65044441bd3873915"
+    },
+    {
+      "name": "supabase/validators/cantiere-prerequisiti/contabilitaUsageBaseline.json",
+      "sha256": "9ebba62b1a7cc86cf0ca794ee06a4af5bac7541042590187caae2265b82f3a94"
+    }
+  ],
+  "logs": [
+    {
+      "path": ".run/contabilita-usage-contract-155.log",
+      "sha256": "24ddff8d0fa1f5cee58a998f2360b04f5fc9cab2797022933d7b498fc81c0e05"
+    },
+    {
+      "path": ".run/contabilita-usage-tests-final.log",
+      "sha256": "f5b8ca7cc2d11338134c7e91afccb004b1fa6d817a022e0a274ca99b60af0f18"
+    },
+    {
+      "path": ".run/contabilita-usage-tsc.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".run/contabilita-usage-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".run/contabilita-usage-build.log",
+      "sha256": "8b848f2fff00102f4510bd4648958f9cb13782d59c267d8409a561be57e2f17d"
+    },
+    {
+      "path": ".run/contabilita-usage-client-scan.log",
+      "sha256": "4259c26ea60e7d7f7e364b2974797ffb662a23c3e418b96784956c69116d1969"
+    }
+  ]
+}
