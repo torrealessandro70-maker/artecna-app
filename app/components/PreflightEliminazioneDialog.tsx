@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { categoriePreflight, type EsitoPreflight } from '../utils/preflightEliminazione'
+import { blockerHardDelete, categoriePreflight, type EsitoPreflight } from '../utils/preflightEliminazione'
 
 export default function PreflightEliminazioneDialog({ esito, onChiudi, onSegnaConcluso }: {
   esito: EsitoPreflight; onChiudi: () => void; onSegnaConcluso?: () => void
@@ -21,10 +21,12 @@ export default function PreflightEliminazioneDialog({ esito, onChiudi, onSegnaCo
     <h2 id="titolo-preflight-eliminazione">{bloccato ? 'Eliminazione bloccata' : 'Verifica non disponibile'}</h2>
     <p>{bloccato
       ? esito.entita === 'cantiere'
-        ? 'Questo cantiere contiene dati economici o storici e non può essere eliminato in sicurezza.'
+        ? 'La verifica ha rilevato condizioni da risolvere prima di eliminare definitivamente questo cantiere.'
         : 'Questo sopralluogo contiene dati collegati e non può essere eliminato in sicurezza.'
       : 'Non è stato possibile completare la verifica. Nessuna eliminazione avviata. Riprova più tardi.'}</p>
-    {bloccato && <ul>{esito.categorie.map(c => <li key={c}>{categoriePreflight[c]}</li>)}</ul>}
+    {bloccato && <ul>{esito.blockers?.length
+      ? [...new Set(esito.blockers)].map(b => <li key={b}>{blockerHardDelete[b]}</li>)
+      : esito.categorie.map(c => <li key={c}>{categoriePreflight[c]}</li>)}</ul>}
     {bloccato && esito.entita === 'cantiere' && onSegnaConcluso &&
       <p>Puoi conservarne lo storico segnando i lavori come conclusi. Il comando apre la modifica esistente: salva per confermare.</p>}
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'flex-end' }}>

@@ -12777,7 +12777,7 @@ strutturaPreventivoEsistente,
   <button type="button" style={{ ...buttonSecondary, color: '#b91c1c', border: '1px solid #fecaca', marginTop: 12 }}
     disabled={eliminazioneCantiereInCorso || !cantiereSelezionatoDaId?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cantiereSelezionatoDaId.id)}
     onClick={() => { if (cantiereSelezionatoDaId?.id) eliminaCantiere(cantiereSelezionatoDaId.nome, cantiereSelezionatoDaId.id) }}>
-    Elimina cantiere
+    Elimina definitivamente
   </button>
 </details>
 </>
@@ -12802,7 +12802,7 @@ strutturaPreventivoEsistente,
     <p style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{eliminazioneCantiere.nome}</p>
     {eliminazioneCantiere.fase === 1 ? (
       <>
-        <p id="descrizione-eliminazione-cantiere">L'operazione è irreversibile. Verranno eliminati il cantiere e tutti i dati collegati, compresi SAL, preventivi, varianti, rapportini, foto e gli altri dati appartenenti al cantiere.</p>
+        <p id="descrizione-eliminazione-cantiere">Verifica completata: il cantiere può essere eliminato. L'operazione è irreversibile. Verranno eliminati SAL, preventivi, varianti, rapportini, foto e gli altri dati operativi appartenenti al cantiere. Documenti contabili obbligatori e dati condivisi saranno conservati. I file esclusivi saranno rimossi successivamente dal servizio di pulizia.</p>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
           <button type="button" style={buttonSecondary} disabled={eliminazioneCantiereInCorso} onClick={chiudiEliminazioneCantiere}>Annulla</button>
           <button type="button" ref={continuaEliminazioneCantiere} style={buttonSecondary} disabled={eliminazioneCantiereInCorso}

@@ -10,12 +10,20 @@ export const categoriePreflight = {
 } as const
 export type EntitaPreflight = 'sopralluogo' | 'cantiere'
 export type CategoriaPreflight = keyof typeof categoriePreflight
+export const blockerHardDelete = {
+  catalogo: 'Catalogo o manifest non coerente con la versione certificata.',
+  legacy_ambiguo: 'Esistono dati legacy che possono appartenere a questo cantiere: risolvere prima la loro assegnazione.',
+  upload_in_corso: 'Un allegato ha un caricamento in corso. Attendere la conclusione prima di riprovare.',
+  ownership_discordante: 'Alcuni dati hanno collegamenti discordanti tra cantieri.',
+  relazione_esterna: 'Una relazione con dati esterni al cantiere richiede una verifica.',
+} as const
 export type EsitoPreflight = {
   versione: 1; entita: EntitaPreflight; id: string
   stato: 'eliminabile' | 'bloccato' | 'non_verificabile'
   verifica_completa: boolean; categorie: CategoriaPreflight[]
   azione_consigliata: 'conferma_eliminazione' | 'segna_concluso' | 'nessuna'
   verificato_at: string
+  blockers?: (keyof typeof blockerHardDelete)[]
 }
 type ClientPreflight = {
   rpc: (nome: string, parametri: Record<string, string>) => PromiseLike<{ data: unknown; error: unknown }>
@@ -38,7 +46,9 @@ export async function richiediPreflight(db: ClientPreflight, entita: EntitaPrefl
     const e = data as EsitoPreflight
     if (e.versione !== 1 || e.entita !== entita || e.id !== id ||
       typeof e.verificato_at !== 'string' || !Number.isFinite(Date.parse(e.verificato_at)) ||
-      !Array.isArray(e.categorie) || !e.categorie.every(c => Object.hasOwn(categoriePreflight, c))) return fallback
+      !Array.isArray(e.categorie) || !e.categorie.every(c => Object.hasOwn(categoriePreflight, c)) ||
+      (e.blockers !== undefined && (!Array.isArray(e.blockers) || !e.blockers.every(b => Object.hasOwn(blockerHardDelete, b))))) return fallback
+    if (e.blockers?.length && e.stato !== 'bloccato') return fallback
     if (eliminazioneConsentita(e)) return e
     if (e.stato === 'bloccato' && e.verifica_completa === true && e.categorie.length > 0 &&
       e.azione_consigliata === (entita === 'cantiere' ? 'segna_concluso' : 'nessuna')) return e
