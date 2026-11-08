@@ -56,3 +56,22 @@ Offline commands (local PostgreSQL runtime required):
 No Production SQL/RPC, Storage API, password configuration, push or deployment
 is part of this preparation. consumer_storage_canonico remains
 READY_FOR_CONFIGURATION.
+
+R4: membership grantors are evidence, not semantic identity. The collector keys
+memberships by granted role/member and preserves every distinct ADMIN/INHERIT/SET
+tuple. Identical tuples from different grantors are equivalent; any conflicting
+tuple, unexpected member/role, attribute, owner or ACL still causes drift. Actual
+grantors and all options are returned in worker_membership_evidence. The separate
+DIRECT_ADMIN_CONFIRMED and CREATEROLE/language authority gates remain mandatory.
+
+Logical catalog STOP is a valid READ ONLY SQL result: print the JSON/inventory,
+ROLLBACK and return without an artificial division-by-zero error. The read-only
+runner evaluates the verdict and exits nonzero on STOP. The application driver
+must quit before read-write if the verdict is not GREEN; its runner independently
+rejects missing commits or a STOP report even when psql exited successfully.
+
+R4 also fixes the external R3 read-only runner's --file routing: it erroneously
+selected ApplyRecovery.sql instead of 01_recovery_precheck_readonly.sql. The
+recorded R3 STOP prevented any new migration, but the runner target itself was
+incorrect. readonlyRunnerPolicy explicitly rejects an application SQL target,
+duplicate/missing targets or application attempt markers in a read-only runner.
