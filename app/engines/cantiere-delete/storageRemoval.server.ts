@@ -4,7 +4,7 @@ import type { StorageRemover } from './storageWorker.server'
 
 /** Existing server-side credential names, no ENV writes, no fallback to anon.
  * No request is made by constructing the adapter. It is not wired to a route. */
-export function configuredStorageRemover(): StorageRemover | undefined {
+export function configuredStorageRemover(): (StorageRemover & { probe(): Promise<{ ok: true; operation: 'list_buckets' }> }) | undefined {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) return undefined
@@ -20,9 +20,14 @@ export function configuredStorageRemover(): StorageRemover | undefined {
   } catch { return undefined }
 }
 
-export function createStorageRemover(client: Pick<SupabaseClient, 'storage'>): StorageRemover {
+export function createStorageRemover(client: Pick<SupabaseClient, 'storage'>) {
   return {
-    async remove(bucket, path) {
+    async probe(): Promise<{ ok: true; operation: 'list_buckets' }> {
+      const { error } = await client.storage.listBuckets()
+      if (error) throw new Error('STORAGE_PROBE_UNAVAILABLE')
+      return { ok: true, operation: 'list_buckets' }
+    },
+    async remove(bucket: string, path: string): ReturnType<StorageRemover['remove']> {
       // Identity comes exclusively from the canonical DB claim, never HTTP input.
       if (!bucket || bucket.includes('/') || !path) return { ok: false, permanent: true, reason: 'INVALID_OBJECT_IDENTITY' }
       const { error } = await client.storage.from(bucket).remove([path])

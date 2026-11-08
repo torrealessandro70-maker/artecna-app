@@ -52,8 +52,8 @@ test('worker invocation: PostgreSQL 17.6 diretto, login reale, Storage controlla
   await q('REVOKE artecna_storage_worker FROM artecna_storage_worker_login');await assert.rejects(open());await q('GRANT artecna_storage_worker TO artecna_storage_worker_login WITH INHERIT TRUE, SET FALSE')
  })
  await t.test('entrypoint HTTP gate non distruttivo; env separata; sessione chiusa',async()=>{
-  const handler=createStorageCleanupHandler({secret:'synthetic',databaseUrl:dsn,open,remover(){throw Error('gate must not construct remover')}})
-  const r=await handler(new Request('http://localhost/api/internal/storage-cleanup?mode=gate',{method:'POST',headers:{authorization:'Bearer synthetic'}}));assert.equal(r.status,200);assert.deepEqual(await r.json(),{gate:'SESSION_OK',outcomes:[]})
+  const handler=createStorageCleanupHandler({secret:'synthetic',databaseUrl:dsn,open,probe:async()=>({ok:true,operation:'list_buckets'}),remover(){throw Error('gate must not construct remover')}})
+  const r=await handler(new Request('http://localhost/api/internal/storage-cleanup?mode=gate',{method:'POST',headers:{authorization:'Bearer synthetic'}}));assert.equal(r.status,200);const evidence=await r.json();assert.equal(evidence.mode,'gate');assert.equal(evidence.pid_before,evidence.pid_after);assert.equal(evidence.advisory_released,true);assert.equal(evidence.no_claim,true);assert.equal(evidence.storage_probe.ok,true)
  })
  await t.test('riferimenti vivi/multipli conservano oggetto; HTTP run completa solo ultimo riferimento',async()=>{
   const x=await ref('shared-native'),y=await ref('shared-native');await remove(x)

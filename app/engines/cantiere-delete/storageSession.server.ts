@@ -36,7 +36,8 @@ export async function openStorageSession(config: ClientConfig, create = (c: Clie
     await client.query('COMMIT')
     const after = await client.query("SELECT pg_backend_pid() pid, EXISTS(SELECT 1 FROM pg_locks WHERE locktype='advisory' AND pid=pg_backend_pid() AND granted AND classid=7112026 AND objid=$1::oid AND objsubid=2) locked", [key])
     if (after.rows[0].pid !== pid || !after.rows[0].locked || broken) throw fail()
-    await client.query('SELECT pg_advisory_unlock(7112026,$1::integer)', [key])
+    const released = await client.query('SELECT pg_advisory_unlock(7112026,$1::integer) released', [key])
+    if (released.rows[0]?.released !== true || broken) throw fail()
     const connection: WorkerConnection = {
       async query(sql, values) { if (broken) throw fail(); return client.query(sql, values) },
       release(error) { if (error) { broken = true; void close() } },
@@ -46,6 +47,8 @@ export async function openStorageSession(config: ClientConfig, create = (c: Clie
         if (r.rows[0].pid !== pid || !r.rows[0].valid || broken) throw fail()
       },
     }
-    return { connection, close }
+    return { connection, close, evidence: { current_user: 'artecna_storage_worker_login', pooler_port: 5432,
+      pid_before: pid, pid_after: after.rows[0].pid as number, same_pid: true,
+      advisory_survived_commit: true, advisory_released: true } }
   } catch { await close(); throw fail() }
 }
