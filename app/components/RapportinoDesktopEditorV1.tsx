@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import FotoRapportinoDesktopV1 from './FotoRapportinoDesktopV1'
+import { validaDataAllegato, validaUUIDAllegato } from '../engines/rapportini/contrattoAllegati'
 import { supabase } from '../../lib/supabaseClient'
 import RapportinoStrutturatoEditorV1 from './RapportinoStrutturatoEditorV1'
 import { creaTrasportoDesktopRapportinoV1 } from '../engines/rapportini/trasportoDesktopRapportinoV1'
@@ -26,6 +28,10 @@ export default function RapportinoDesktopEditorV1({ cantiereId, data, rapportino
   const [errore, setErrore] = useState(''), [messaggio, setMessaggio] = useState('')
   const [lettura, setLettura] = useState<StatoRapportinoV2>()
   const [ricarica, setRicarica] = useState(0)
+  const [fotoBusy, setFotoBusy] = useState(false)
+  const fotoBusyRef = useRef(false)
+  const statoFoto = useCallback((busy: boolean) => { fotoBusyRef.current = busy; setFotoBusy(busy) }, [])
+  const chiudi = () => { if (!fotoBusyRef.current) onClose() }
   useEffect(() => {
     const richiesta = ++richiestaStato.current, controller = new AbortController()
     controlloInCorso.current = true
@@ -59,7 +65,8 @@ export default function RapportinoDesktopEditorV1({ cantiereId, data, rapportino
   return <section aria-label="Editor Rapportino Desktop" role="dialog" aria-modal="true"
     style={{ position: 'fixed', inset: 20, zIndex: 2000, overflow: 'auto', background: '#fff', padding: 24, border: '2px solid #2563eb', borderRadius: 12 }}>
     <h2>Rapportino — {data}</h2>
-    <button type="button" disabled={salvataggioAttivo} onClick={onClose}>Chiudi</button>
+    <button type="button" disabled={salvataggioAttivo || fotoBusy} onClick={chiudi}>Chiudi</button>
+    {fotoBusy && <p role="status">Operazione foto in corso: attendi il completamento prima di chiudere.</p>}
     {statoInCorso && <p role="status">Lettura autorevole del Rapportino…</p>}
     {errore && <p role="alert">{errore}</p>}
     {messaggio && <p role="status">{messaggio}</p>}
@@ -68,10 +75,10 @@ export default function RapportinoDesktopEditorV1({ cantiereId, data, rapportino
     {lettura && lettura.versione_prestazioni !== 0 && <RapportinoStrutturatoEditorV1
       key={`${cantiereId}/${data}/${rapportinoId ?? ''}/${ricarica}`}
       canale="desktop" cantiereId={cantiereId} data={data} rapportinoId={rapportinoId}
-      trasporto={trasporto} letturaIniziale={lettura} onClose={onClose} onSaved={onSaved}
+      trasporto={trasporto} letturaIniziale={lettura} onClose={chiudi} onSaved={onSaved}
       contesto={{ autorizzato: true, cantiereId, cantiereSelezionatoId: cantiereId, dataRapportino: data,
         operaiDisponibili: operai, statoRapportino, richiestaStato, controlloInCorso, salvataggioInCorso,
-        statoInCorso, salvataggioAttivo, setStatoRapportino, setStatoInCorso, setSalvataggioAttivo,
+        statoInCorso, salvataggioAttivo: salvataggioAttivo || fotoBusy, setStatoRapportino, setStatoInCorso, setSalvataggioAttivo,
         setMostraForm, setErrore, setMessaggioSalvataggio: setMessaggio }}>
       {({ coordinatore, editor }) => <>
         {mostraForm && editor}
@@ -82,6 +89,9 @@ export default function RapportinoDesktopEditorV1({ cantiereId, data, rapportino
       </>}
     </RapportinoStrutturatoEditorV1>}
     {!lettura && !occupato && <button type="button" onClick={rileggi}>Ripeti lettura</button>}
-    <p>Foto: il flusso esistente resta disponibile; la coda foto Desktop sarà collegata separatamente.</p>
+    {lettura && lettura.versione_prestazioni !== 0 && <FotoRapportinoDesktopV1
+      contesto={{ cantiere_id: validaUUIDAllegato(cantiereId), data: validaDataAllegato(data),
+        rapportino_id: statoRapportino?.rapportinoId ? validaUUIDAllegato(statoRapportino.rapportinoId) : null }}
+      disabled={occupato} onBusyChange={statoFoto} />}
   </section>
 }

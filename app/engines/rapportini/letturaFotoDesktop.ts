@@ -10,7 +10,8 @@ export async function leggiBlobFotoDesktop(input: { allegato: string; rapportino
   token: string, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<Blob> {
   const allegato = validaUUIDAllegato(input.allegato), rapportino = validaUUIDAllegato(input.rapportino), foto = validaUUIDAllegato(input.foto)
   if (!token) throw new ErroreLetturaFotoDesktop(401)
-  const options = { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' as const, signal, redirect: 'error' as const }
+  const options = { headers: { Authorization: `Bearer ${token}` }, credentials: 'omit' as const,
+    cache: 'no-store' as const, signal, redirect: 'error' as const }
   const list = await fetcher(`/api/desktop/foto?rapportino_id=${rapportino}`, options)
   if (!list.ok) throw new ErroreLetturaFotoDesktop(list.status)
   const data = await list.json()
