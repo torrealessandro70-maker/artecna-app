@@ -17,6 +17,7 @@ import LinkRapportiniMobile from './LinkRapportiniMobile'
 import { supabase } from '../../lib/supabaseClient'
 
 type Props = {
+  onNuovoStrutturato?: (cantiereId?: string) => void
   cardStyle: CSSProperties
   rapportiniFiltrati: any[]
   fotoCantiere: any[]
@@ -61,6 +62,7 @@ type Props = {
 }
 
 export default function RapportiniPanel({
+  onNuovoStrutturato,
   cardStyle,
   rapportiniFiltrati,
   fotoCantiere,
@@ -159,7 +161,7 @@ export default function RapportiniPanel({
 
       <button
         type="button"
-        onClick={() => setMostraInserimento(true)}
+        onClick={() => onNuovoStrutturato ? onNuovoStrutturato() : setMostraInserimento(true)}
         style={buttonPrimary}
       >
         ➕ Aggiungi rapportino

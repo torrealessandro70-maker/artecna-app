@@ -8,7 +8,7 @@ import RapportiniTable from './RapportiniTable'
 type Props = {
   cantiere: Cantiere
   rapportini: Rapportino[]
-  formProps: Omit<ComponentProps<typeof RapportinoForm>, 'onClose'>
+  formProps: Omit<ComponentProps<typeof RapportinoForm>, 'onClose'> & { onNuovoStrutturato?: (cantiereId?: string) => void }
   resetFormRapportino: () => void
   preparaModificaRapportino: (rapportino: Rapportino) => void
   eliminaRapportino: (id?: string) => void | Promise<void>
@@ -42,6 +42,7 @@ export default function RapportiniCantierePanel({
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 18 }}>
         <h4 style={{ margin: 0, fontSize: 18, color: '#0f172a' }}>Rapportini del cantiere</h4>
         <button type="button" style={{ ...formProps.buttonPrimary, minHeight: 44 }} onClick={() => {
+          if (formProps.onNuovoStrutturato) { formProps.onNuovoStrutturato(cantiere.id); return }
           resetFormRapportino()
           formProps.setCantiereRapporto(cantiere.nome)
           setMostraForm(true)
@@ -70,7 +71,7 @@ export default function RapportiniCantierePanel({
           setFotoRapportinoAperte={formProps.setFotoRapportinoAperte}
           onModifica={(rapportino) => {
             preparaModificaRapportino(rapportino)
-            setMostraForm(true)
+            if ((rapportino.versione_prestazioni ?? 0) < 1) setMostraForm(true)
             formRef.current?.focus()
           }}
           eliminaRapportino={eliminaRapportino}

@@ -4,9 +4,10 @@ import { useRef, useState } from 'react'
 import RapportinoForm from '../components/RapportinoForm'
 import FotoRapportinoMobileV1 from '../components/FotoRapportinoMobileV1'
 import { validaUUIDAllegato, validaDataAllegato } from '../engines/rapportini/contrattoAllegati'
-import RapportinoPrestazioniEditorV1 from '../components/RapportinoPrestazioniEditorV1'
+import RapportinoStrutturatoEditorV1, { type CoordinatoreEditorRapportino } from '../components/RapportinoStrutturatoEditorV1'
+import type { ReactNode } from 'react'
 import { esitoCreazioneV1Valido } from '../engines/rapportini/salvataggioBozzaV1'
-import { useCoordinatoreRapportinoV1, type StatoContestoRapportino } from '../engines/rapportini/useCoordinatoreRapportinoV1'
+import { type StatoContestoRapportino } from '../engines/rapportini/useCoordinatoreRapportinoV1'
 import { trasportoMobileRapportinoV1, trasportoMobileRapportinoConMateriali } from './trasportoMobileRapportinoV1'
 import { letturaMaterialiValida } from '../engines/rapportini/validaLetturaMateriali'
 import { vistaPrestazioniV1 } from '../engines/rapportini/materialiBozzaV1'
@@ -34,7 +35,7 @@ type CantiereAccesso = {
   nome: string
 }
 
-export default function RapportinoOperaiPage() {
+function useStatoRapportinoPortale() {
   const [pin, setPin] = useState('')
   const [operaio, setOperaio] = useState<OperaioAccesso | null>(null)
 const [fotoRapportino, setFotoRapportino] = useState<string[]>([])
@@ -75,13 +76,34 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
   )
 
 
-  const { bozzaV1, conflittoV1, conflittoV1Ref, salvatoV1, setSalvatoV1, riletturaV1Fallita,
-    invalidaV1, invalidaVarianti, rileggiSalvatoV1, apriNuovoV1, apriModificaV1, editorProps, riceviLetturaV2 } = useCoordinatoreRapportinoV1({
+
+ const cambiaControllo = (attivo: boolean) => { controlloInCorso.current = attivo }
+ const cambiaSalvataggio = (attivo: boolean) => { salvataggioInCorso.current = attivo }
+ const invalidaRichiesta = () => { richiestaStato.current += 1 }
+ return { cambiaControllo, cambiaSalvataggio, invalidaRichiesta, pin, setPin, operaio, setOperaio, fotoRapportino, setFotoRapportino, cantieri, setCantieri, operaiDisponibili, setOperaiDisponibili, operaiRapportino, setOperaiRapportino, rapportinoEsistente, setRapportinoEsistente, timbratureRapportino, setTimbratureRapportino, cantiereId, setCantiereId, cantiereSelezionato, setCantiereSelezionato, statoRapportino, setStatoRapportino, dataRapportino, setDataRapportino, richiestaStato, controlloInCorso, salvataggioInCorso, salvataggioAttivo, setSalvataggioAttivo, messaggioSalvataggio, setMessaggioSalvataggio, dataLeggibile, errore, setErrore, accessoInCorso, setAccessoInCorso, statoInCorso, setStatoInCorso, mostraForm, setMostraForm, messaggioApplicazioneOperai, setMessaggioApplicazioneOperai, note, setNote, materiali, setMateriali, quantitaMateriali, setQuantitaMateriali, costoMateriali, setCostoMateriali, fotoRapportinoAperte, setFotoRapportinoAperte, operaiRapportinoPreparati }
+}
+
+export default function RapportinoOperaiPage() {
+ const stato = useStatoRapportinoPortale()
+ const { operaio, cantiereId, cantiereSelezionato, dataRapportino, operaiDisponibili, statoRapportino, richiestaStato, controlloInCorso, salvataggioInCorso, statoInCorso, salvataggioAttivo, setStatoRapportino, setStatoInCorso, setSalvataggioAttivo, setMostraForm, setErrore, setMessaggioSalvataggio } = stato
+ return <RapportinoStrutturatoEditorV1 canale="portale" cantiereId={cantiereId} data={dataRapportino}
+   rapportinoId={statoRapportino?.rapportinoId} trasporto={trasportoMobileRapportinoConMateriali}
+   contesto={{
       autorizzato: !!operaio, cantiereId, cantiereSelezionatoId: cantiereSelezionato?.id, dataRapportino,
       operaiDisponibili, statoRapportino, richiestaStato, controlloInCorso, salvataggioInCorso,
       statoInCorso, salvataggioAttivo, setStatoRapportino, setStatoInCorso, setSalvataggioAttivo,
       setMostraForm, setErrore, setMessaggioSalvataggio,
-    }, trasportoMobileRapportinoConMateriali, { materiali: true })
+    }} onClose={() => setMostraForm(false)}>
+   {({ coordinatore, editor }) => <RapportinoPortaleContenuto stato={stato} coordinatore={coordinatore} editor={editor} />}
+ </RapportinoStrutturatoEditorV1>
+}
+
+function RapportinoPortaleContenuto({ stato, coordinatore, editor }: {
+ stato: ReturnType<typeof useStatoRapportinoPortale>; coordinatore: CoordinatoreEditorRapportino; editor: ReactNode
+}) {
+ const { cambiaControllo, cambiaSalvataggio, invalidaRichiesta, pin, setPin, operaio, setOperaio, fotoRapportino, setFotoRapportino, cantieri, setCantieri, operaiDisponibili, setOperaiDisponibili, operaiRapportino, setOperaiRapportino, rapportinoEsistente, setRapportinoEsistente, timbratureRapportino, setTimbratureRapportino, cantiereId, setCantiereId, cantiereSelezionato, setCantiereSelezionato, statoRapportino, setStatoRapportino, dataRapportino, setDataRapportino, richiestaStato, controlloInCorso, salvataggioInCorso, salvataggioAttivo, setSalvataggioAttivo, messaggioSalvataggio, setMessaggioSalvataggio, dataLeggibile, errore, setErrore, accessoInCorso, setAccessoInCorso, statoInCorso, setStatoInCorso, mostraForm, setMostraForm, messaggioApplicazioneOperai, setMessaggioApplicazioneOperai, note, setNote, materiali, setMateriali, quantitaMateriali, setQuantitaMateriali, costoMateriali, setCostoMateriali, setFotoRapportinoAperte, operaiRapportinoPreparati } = stato
+  const { bozzaV1, conflittoV1, conflittoV1Ref, salvatoV1, setSalvatoV1, riletturaV1Fallita,
+    invalidaV1, invalidaVarianti, rileggiSalvatoV1, apriNuovoV1, apriModificaV1, riceviLetturaV2 } = coordinatore
 
   const applicaProposteOperaiRiconosciuti = (
     proposte: readonly PropostaOperaioRiconosciuto[]
@@ -150,8 +172,8 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
 
   const invalidaRapportino = () => {
     invalidaV1()
-    richiestaStato.current += 1
-    controlloInCorso.current = false
+    invalidaRichiesta()
+    cambiaControllo(false)
     setStatoInCorso(false)
     setStatoRapportino(null)
     setRapportinoEsistente(null)
@@ -170,7 +192,7 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
   const controllaRapportino = async (cantiere: CantiereAccesso, data: string) => {
     invalidaRapportino()
     const richiesta = richiestaStato.current
-    controlloInCorso.current = true
+    cambiaControllo(true)
     setStatoInCorso(true)
     setErrore('')
     try {
@@ -235,7 +257,7 @@ const operaiRapportinoPreparati = preparaOperaiRapportino(operaiRapportino)
       if (richiesta === richiestaStato.current) setErrore('Connessione non disponibile')
     } finally {
       if (richiesta === richiestaStato.current) {
-        controlloInCorso.current = false
+        cambiaControllo(false)
         setStatoInCorso(false)
       }
     }
@@ -295,7 +317,7 @@ if (!operaio || !cantiereSelezionato || !dataRapportino) {
  const dataSalvata = dataRapportino
  const cantiereSalvato = cantiereSelezionato
  const contestoSalvataggio = richiestaStato.current
- salvataggioInCorso.current = true
+ cambiaSalvataggio(true)
  setSalvataggioAttivo(true)
  setMessaggioSalvataggio('')
  setErrore('')
@@ -359,7 +381,7 @@ try {
   } catch {
     setErrore('Connessione non disponibile')
   } finally {
-    salvataggioInCorso.current = false
+    cambiaSalvataggio(false)
     setSalvataggioAttivo(false)
     setStatoInCorso(false)
   }
@@ -694,7 +716,7 @@ setOperaiRapportino(operaiRicostruiti)
   )}
 
 {mostraForm && cantiereSelezionato && statoRapportino && statoRapportino.versionePrestazioni !== 0 && bozzaV1 && (
-  <RapportinoPrestazioniEditorV1 {...editorProps!} />
+  editor
 )}
 {conflittoV1 && <button type="button" disabled={statoInCorso || salvataggioAttivo}
   onClick={() => { if (!salvataggioInCorso.current && !controlloInCorso.current) void continua() }}>

@@ -6,7 +6,7 @@ const dettagli={versione_contratto:1,rapportino_id:R,cantiere_id:A,data:D,revisi
 const stato=()=>new Response(JSON.stringify({presente:true,versione_prestazioni:1,data:D,rapportino:{id:R,data:D},timbrature:[],strutturato:dettagli}))
 function harness(trasporto){
  const hooks=[];let index=0,uuid=0,aperto=false,errore='',messaggio=''
- const react={useState(initial){const i=index++;if(!(i in hooks))hooks[i]=initial;return[hooks[i],v=>hooks[i]=typeof v==='function'?v(hooks[i]):v]},useRef(initial){const i=index++;if(!(i in hooks))hooks[i]={current:initial};return hooks[i]}}
+ const react={useState(initial){const i=index++;if(!(i in hooks))hooks[i]=typeof initial==='function'?initial():initial;return[hooks[i],v=>hooks[i]=typeof v==='function'?v(hooks[i]):v]},useRef(initial){const i=index++;if(!(i in hooks))hooks[i]={current:initial};return hooks[i]}}
  const cache=new Map()
  function load(file){file=path.resolve(file);if(cache.has(file))return cache.get(file);const exports={};cache.set(file,exports)
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports,console,AbortController,setTimeout,clearTimeout,crypto:{randomUUID:()=> '99999999-9999-4999-8999-'+String(++uuid).padStart(12,'0')},fetch:()=>{throw Error('Il coordinatore non deve conoscere HTTP')},require:name=>name==='react'?react:load(path.resolve(path.dirname(file),name)+'.ts')});return exports}
@@ -38,8 +38,8 @@ test('U1: confine condiviso senza endpoint/accesso/V0; unico editor esistente',(
  const source=fs.readFileSync(path.join(__dirname,'useCoordinatoreRapportinoV1.ts'),'utf8')
  assert.doesNotMatch(source,/fetch\(|\/api\/|COOKIE|PIN|RapportinoForm|salvaRapportinoPortale/)
  const page=fs.readFileSync(path.join(__dirname,'../../rapportino/page.tsx'),'utf8')
- assert.equal((page.match(/<RapportinoPrestazioniEditorV1\b/g)||[]).length,1)
- assert(page.includes('useCoordinatoreRapportinoV1'));assert(page.includes("fetch('/api/rapportino/accesso'"));assert(page.includes("fetch('/api/rapportino/salva'"))
+ const core=fs.readFileSync(path.join(__dirname,'../../components/RapportinoStrutturatoEditorV1.tsx'),'utf8'); assert.equal((core.match(/<RapportinoPrestazioniEditorV1\b/g)||[]).length,1); assert(page.includes('<RapportinoStrutturatoEditorV1'))
+ assert(core.includes('useCoordinatoreRapportinoV1'));assert(page.includes("fetch('/api/rapportino/accesso'"));assert(page.includes("fetch('/api/rapportino/salva'"))
  assert.doesNotMatch(page,/creaTentativoSalvataggioV1|const salvaBozzaV1|const rileggiSalvatoV1|const caricaVarianti/)
 })
 test('M1: dettatura attraverso editor reale modifica solo note e invalida intento congelato',async()=>{

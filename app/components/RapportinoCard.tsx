@@ -94,7 +94,7 @@ export default function RapportinoCard({
         Foto collegate: {fotoCollegate.length}
       </div>
       {r.versione_prestazioni === 1 && <p>
-        Rapportino strutturato: usa «Apri / Modifica rapportino» nel portale Mobile.
+        Rapportino strutturato: usa «Modifica» per aprire l’editor condiviso.
         L’eliminazione completa V1 non è disponibile; prestazioni e collegamenti restano conservati.
       </p>}
       {r.versione_prestazioni === 1 && <RapportinoPrestazioniLetturaV1
@@ -102,7 +102,6 @@ export default function RapportinoCard({
 
       <div style={{ marginTop: 8 }}>
         <button
-          disabled={r.versione_prestazioni === 1}
           onClick={() => preparaModificaRapportino(r)}
           style={buttonSecondary}
         >

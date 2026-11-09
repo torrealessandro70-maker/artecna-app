@@ -1,5 +1,6 @@
 'use client'
 
+import RapportinoDesktopDialogV1 from './components/RapportinoDesktopDialogV1'
 import PreflightEliminazioneDialog from './components/PreflightEliminazioneDialog'
 import { richiediPreflight, eliminazioneConsentita, type EsitoPreflight } from './utils/preflightEliminazione'
 
@@ -696,6 +697,8 @@ const [mostraCostiPresenze, setMostraCostiPresenze] = useState(false)
 const [mostraRiepilogoOperai, setMostraRiepilogoOperai] = useState(true)
    const [cantieri, setCantieri] = useState<Cantiere[]>([])
   const [statoCantieri, setStatoCantieri] = useState<StatoCantieri>('caricamento')
+  const [editorRapportinoDesktop, setEditorRapportinoDesktop] = useState<{ cantiereId?: string; data?: string; rapportinoId?: string } | null>(null)
+  const apriNuovoRapportinoStrutturato = (cantiereId?: string) => setEditorRapportinoDesktop({ cantiereId })
   const [rapportini, setRapportini] = useState<Rapportino[]>([])
 const [ordinaPreventiviCampo, setOrdinaPreventiviCampo] =
   useState('data')
@@ -7902,8 +7905,9 @@ fotoGiaInserite.add(chiaveFoto)
 
 
   const preparaModificaRapportino = (r: Rapportino, scorriInAlto = true) => {
-    if (r.versione_prestazioni === 1) {
-      alert('Rapportino strutturato: modifica le prestazioni tramite «Apri / Modifica rapportino» nel portale Mobile.')
+    if ((r.versione_prestazioni ?? 0) >= 1) {
+      if (!r.id || !r.cantiere_id || !r.data) { alert('Contesto Rapportino incompleto'); return }
+      setEditorRapportinoDesktop({ cantiereId: r.cantiere_id, data: r.data, rapportinoId: r.id })
       return
     }
     setSquadraRapportino([])
@@ -12143,6 +12147,14 @@ textarea:not(.impostazioni-input) {
 
 
 
+{editorRapportinoDesktop && <RapportinoDesktopDialogV1
+  key={editorRapportinoDesktop.rapportinoId ?? 'nuovo'} {...editorRapportinoDesktop}
+  cantieri={cantieri} operai={operaiAnagrafica.flatMap(o => o.id ? [{ id: o.id, nome: o.nome }] : [])}
+  onClose={() => setEditorRapportinoDesktop(null)}
+  onSaved={() => { void caricaRapportini(); void caricaTimbrature() }}
+  onLegacy={id => { const r = rapportini.find(r => r.id === id); if (r?.versione_prestazioni === 0) { setEditorRapportinoDesktop(null); setSezioneAttiva('rapportini'); preparaModificaRapportino(r) } }}
+/>}
+
 {popupFotoRapportino && (
   <PopupFotoRapportino
     buttonPrimary={buttonPrimary}
@@ -12685,6 +12697,7 @@ strutturaPreventivoEsistente,
   eliminaRapportino={eliminaRapportino}
   generaPdfRapportinoFotografico={generaPdfRapportinoFotografico}
   rapportinoFormProps={{
+    onNuovoStrutturato: apriNuovoRapportinoStrutturato,
     cantiereRapporto, setCantiereRapporto, data, setData, note, setNote,
     materiali, setMateriali, quantitaMateriali, setQuantitaMateriali,
     costoMateriali, setCostoMateriali, salvaRapportino, aggiornaRapportino,
@@ -13163,6 +13176,7 @@ onDocumentAction={gestisciAzioneDocumento}
     rapportiniFiltrati={rapportiniFiltrati}
     fotoCantiere={fotoCantiere}
     setFotoRapportinoAperte={setFotoRapportinoAperte}
+    onNuovoStrutturato={apriNuovoRapportinoStrutturato}
     preparaModificaRapportino={preparaModificaRapportino}
     eliminaRapportino={eliminaRapportino}
     generaPdfRapportinoFotografico={generaPdfRapportinoFotografico}

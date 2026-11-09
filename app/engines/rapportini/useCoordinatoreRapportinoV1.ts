@@ -11,14 +11,14 @@ import type { TrasportoRapportinoV1 } from './trasportoRapportinoV1'
 import { creaBozzaRapportinoV2, ricostruisciBozzaRapportinoV2, vistaPrestazioniV1 } from './materialiBozzaV1'
 import { letturaMaterialiValida } from './validaLetturaMateriali'
 import { esitoCreazioneV2Valido } from './salvataggioBozzaV1'
-import type { DettaglioRapportinoV2 } from './contrattoMaterialiRapportino'
+import type { DettaglioRapportinoV2, StatoRapportinoV2 } from './contrattoMaterialiRapportino'
 
 export type StatoContestoRapportino = {
   cantiereId: string; richiesta: number; data: string; presente: boolean
   versionePrestazioni: null | 0 | 1; rapportinoId?: string; revisione?: number
 }
 type Setter<T> = Dispatch<SetStateAction<T>>
-type Contesto = {
+export type ContestoCoordinatoreRapportino = {
   autorizzato: boolean; cantiereId: string; cantiereSelezionatoId?: string; dataRapportino: string
   operaiDisponibili: readonly { id: string; nome: string }[]
   statoRapportino: StatoContestoRapportino | null
@@ -30,19 +30,26 @@ type Contesto = {
 }
 
 /** Orchestrazione V1; identità, selettori esterni e compatibilità V0 appartengono al wrapper. */
-export function useCoordinatoreRapportinoV1(contesto: Contesto, trasporto: TrasportoRapportinoV1, opzioni: { materiali?: boolean } = {}) {
+export function useCoordinatoreRapportinoV1(contesto: ContestoCoordinatoreRapportino, trasporto: TrasportoRapportinoV1,
+  opzioni: { materiali?: boolean; letturaIniziale?: StatoRapportinoV2 } = {}) {
   const materialiAbilitati = opzioni.materiali === true
-  const dettaglioV2 = useRef<DettaglioRapportinoV2 | null>(null)
+  const letturaIniziale = materialiAbilitati && opzioni.letturaIniziale
+    && letturaMaterialiValida(opzioni.letturaIniziale, { cantiere_id: contesto.cantiereId, data: contesto.dataRapportino,
+      rapportino_id: contesto.statoRapportino?.rapportinoId }) ? opzioni.letturaIniziale : undefined
+  const iniziale = letturaIniziale?.versione_prestazioni === 1 ? letturaIniziale.dettaglio : null
+  const dettaglioV2 = useRef<DettaglioRapportinoV2 | null>(iniziale)
   const { autorizzato, cantiereId, cantiereSelezionatoId, dataRapportino, operaiDisponibili,
     statoRapportino, richiestaStato, controlloInCorso, salvataggioInCorso, statoInCorso, salvataggioAttivo,
     setStatoRapportino, setStatoInCorso, setSalvataggioAttivo, setMostraForm, setErrore, setMessaggioSalvataggio } = contesto
   const dataLeggibile = (data: string) => data.split('-').reverse().join('/')
-  const [bozzaV1, setBozzaV1] = useState<BozzaRapportinoV1 | null>(null)
+  const [bozzaV1, setBozzaV1] = useState<BozzaRapportinoV1 | null>(() => iniziale
+    ? ricostruisciBozzaRapportinoV2(iniziale) : letturaIniziale?.presente === false
+      ? creaBozzaRapportinoV2(contesto.cantiereId, contesto.dataRapportino) : null)
   const tentativoV1 = useRef<TentativoSalvataggioV1 | null>(null)
   const [retryV1, setRetryV1] = useState(false)
   const [conflittoV1, setConflittoV1] = useState(false)
   const conflittoV1Ref = useRef(false)
-  const [salvatoV1, setSalvatoV1] = useState<EsitoSalvataggioRapportino | null>(null)
+  const [salvatoV1, setSalvatoV1] = useState<EsitoSalvataggioRapportino | null>(() => iniziale ? vistaPrestazioniV1(iniziale) : null)
   const [riletturaV1Fallita, setRiletturaV1Fallita] = useState(false)
   const [variantiBozza, setVariantiBozza] = useState<StatoVariantiBozza>({ cantiere_id: '', stato: 'non_caricate', varianti: [] })
   const cacheVarianti = useRef<StatoVariantiBozza>({ cantiere_id: '', stato: 'non_caricate', varianti: [] })
