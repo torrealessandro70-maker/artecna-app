@@ -248,6 +248,7 @@ type Props = {
   ) => boolean | void | Promise<boolean | void>;
 orthoAttivo?: boolean
 onChiudiFascicolo?: () => void;
+primaDiUscireRef?: { current: (() => Promise<boolean>) | null };
 };
 
 export default function SopralluogoAppunti({
@@ -259,6 +260,7 @@ export default function SopralluogoAppunti({
   importazioneFile,
   onProgettoSalvato,
   onStatoProgettoChange,
+  primaDiUscireRef,
   supabase,
   buttonPrimary,
   buttonSecondary,
@@ -6223,11 +6225,12 @@ setWorkspaceCadEntities([])
   const contenutoCorrenteRef = useRef(preparaContenuto);
   contenutoCorrenteRef.current = preparaContenuto;
 
-  const salvaNota = async (mostraConferma = true) => {
+  const salvataggioPromiseRef = useRef<Promise<string | null> | null>(null);
+  const eseguiSalvataggioNota = async (mostraConferma = true) => {
     if (richiestaExportPdf || !documentoId || !pronto || salvataggioInCorsoRef.current || richiamoAperto || richiamoBusyRef.current || richiamoIncertoRef.current) return null;
     salvataggioInCorsoRef.current = true;
     setSalvataggioInCorso(true);
-    const contenuto = structuredClone(preparaContenuto());
+    const contenuto = structuredClone(contenutoCorrenteRef.current());
     const firma = JSON.stringify(contenuto);
     setStato('Salvataggio…');
     try {
@@ -6293,6 +6296,34 @@ setWorkspaceCadEntities([])
       setSalvataggioInCorso(false);
     }
   };
+
+  const salvaNota = (mostraConferma = true) => {
+    if (salvataggioPromiseRef.current) return salvataggioPromiseRef.current;
+    const promessa = eseguiSalvataggioNota(mostraConferma);
+    salvataggioPromiseRef.current = promessa;
+    const liberaSalvataggio = () => {
+      if (salvataggioPromiseRef.current === promessa) salvataggioPromiseRef.current = null;
+    };
+    void promessa.then(liberaSalvataggio, liberaSalvataggio);
+    return promessa;
+  };
+  // Register the latest render: tab changes and AI generation await pending edits.
+  useLayoutEffect(() => {
+    if (!primaDiUscireRef || progettoQuadernoId || richiestaExportPdf) return;
+    const salvaPrimaDiUscire = async () => {
+      if (!pronto || richiamoAperto || richiamoBusyRef.current || richiamoIncertoRef.current) return false;
+      const pendente = salvataggioPromiseRef.current;
+      if (pendente && !await pendente) return false;
+      if (!quadernoDirty && !pendente) return true;
+      if (pendente && JSON.stringify(contenutoCorrenteRef.current()) === firmaPersistitaRef.current) return true;
+      do {
+        if (!await salvaNota(false)) return false;
+      } while (JSON.stringify(contenutoCorrenteRef.current()) !== firmaPersistitaRef.current);
+      return true;
+    };
+    primaDiUscireRef.current = salvaPrimaDiUscire;
+    return () => { if (primaDiUscireRef.current === salvaPrimaDiUscire) primaDiUscireRef.current = null; };
+  });
 
   useEffect(() => {
   if (
@@ -6693,6 +6724,7 @@ setWorkspaceCadEntities([])
       proposal.type === "create_estimate" &&
       generaPreventivoAiDaSopralluogo
     ) {
+      if (primaDiUscireRef?.current && !await primaDiUscireRef.current()) return;
       const completato =
         await generaPreventivoAiDaSopralluogo(sopralluogoAperto);
 
@@ -14981,7 +15013,7 @@ title={`Apri ${pagina.titolo}`}
 <textarea
             ref={testoNotaRef}
             value={testo}
-            onChange={(event) => setTesto(event.target.value)}
+            onChange={(event) => { setTesto(event.target.value); setQuadernoDirty(true); }}
             placeholder="Scrivi ciò che osservi: muro umido, distacco intonaco, misure…"
             style={{
               width: "100%",

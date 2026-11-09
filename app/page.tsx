@@ -1456,7 +1456,7 @@ console.groupEnd()
   }
   const fotoDelSopralluogo = fotoSopralluoghi.filter(
 
-    (f) => f.sopralluogo_id === s.id
+    (f) => f.sopralluogo_id === s.id && f.includi_preventivo === true
   )
 
   const { data: prezziRiferimento, error: errorePrezzi } = await supabase
@@ -1483,7 +1483,10 @@ console.log('PREZZI RIFERIMENTO CARICATI:', {
 
 const payloadPreventivoAi = {
   sopralluogo: sopralluogoConMemoria,
-  foto: [],
+  foto: fotoDelSopralluogo.map((foto) => ({
+    immagine_base64: foto.immagine_base64,
+    nota: foto.nota || '',
+  })),
   prezzi_riferimento: prezziRiferimento || [],
 }
 

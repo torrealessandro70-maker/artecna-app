@@ -38,6 +38,15 @@ export default function SopralluogoDettaglio(props: Props) {
   const [sezioneAttiva, setSezioneAttiva] = useState<SezioneFascicolo>('informazioni')
   const [analisiDocumentoAperta, setAnalisiDocumentoAperta] = useState(false)
   const [quadernoAperto, setQuadernoAperto] = useState(false)
+  const primaDiUscireRef = useRef<(() => Promise<boolean>) | null>(null)
+  const dopoSalvataggioQuaderno = async (azione: () => void) => {
+    if (primaDiUscireRef.current && !await primaDiUscireRef.current()) {
+      alert('Quaderno non salvato: completa il salvataggio prima di continuare.')
+      return false
+    }
+    azione()
+    return true
+  }
   const aperturaAnalisiRef = useRef<HTMLButtonElement | null>(null)
   const generazioneDocumentoRef = useRef(false)
   const [generazioneDocumento, setGenerazioneDocumento] = useState(false)
@@ -270,7 +279,7 @@ useEffect(() => {
               <button type="button" onClick={() => setQuadernoAperto(true)} style={buttonPrimary}>Apri Quaderno</button>
               <QuadernoCollegatoFocus aperto={quadernoAperto} contesto={sopralluogoAperto.cliente || 'Sopralluogo'}
                 etichettaRitorno={props.tornaAlCantiere ? '← Torna al cantiere' : '← Torna al sopralluogo'}
-                onChiudi={props.tornaAlCantiere || (() => setQuadernoAperto(false))}>
+                onChiudi={() => { void dopoSalvataggioQuaderno(props.tornaAlCantiere || (() => setQuadernoAperto(false))) }}>
               <SopralluogoAppunti
                 mostraAppuntiSopralluogo={props.mostraAppuntiSopralluogo}
                 setMostraAppuntiSopralluogo={props.setMostraAppuntiSopralluogo}
@@ -279,10 +288,11 @@ useEffect(() => {
                 buttonPrimary={buttonPrimary}
                 buttonSecondary={buttonSecondary}
                 integrato
+                primaDiUscireRef={primaDiUscireRef}
                 fotoGalleria={props.fotoSopralluoghi}
-                onApriGalleria={() => { setQuadernoAperto(false); setSezioneAttiva('galleria') }}
+                onApriGalleria={() => { void dopoSalvataggioQuaderno(() => { setQuadernoAperto(false); setSezioneAttiva('galleria') }) }}
 onChiudiFascicolo={() =>
-  props.setSopralluogoAperto(null)
+  void dopoSalvataggioQuaderno(() => props.setSopralluogoAperto(null))
 }
               />
               </QuadernoCollegatoFocus>
@@ -432,7 +442,10 @@ onChiudiFascicolo={() =>
               <SopralluogoAzioniPreventivo
                 sopralluogoAperto={sopralluogoAperto}
                 preventivoAiGenerato={props.preventivoAiGenerato}
-                generaPreventivoAiDaSopralluogo={props.generaPreventivoAiDaSopralluogo}
+                generaPreventivoAiDaSopralluogo={async (s) => {
+                  if (!await dopoSalvataggioQuaderno(() => {})) return false
+                  return props.generaPreventivoAiDaSopralluogo(s)
+                }}
                 generaPreventivoDaSopralluogo={props.generaPreventivoDaSopralluogo}
                 apriPreventivoAiGeneratoInModifica={props.apriPreventivoAiGeneratoInModifica}
                 convertiSopralluogoInCantiere={props.convertiSopralluogoInCantiere}
