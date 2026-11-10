@@ -140,3 +140,69 @@ test('existing writer exposes success only after reloading the summary, with unc
   assert.equal(await exports.save(), true); assert.equal(calls[1], 'reload')
   assert.equal(JSON.stringify(calls[0]), JSON.stringify({ operaio_nome: 'Mario', importo: 70, data_pagamento: '2026-11-10', metodo: 'Bonifico', nota: 'Saldo maturato' }))
 })
+
+
+const visibleNodes = x => {
+  if (!x) return []
+  if (Array.isArray(x)) return x.flatMap(visibleNodes)
+  if (typeof x !== 'object') return []
+  const children = x.type === 'details' && !x.props.open
+    ? [].concat(x.props.children).filter(n => n?.type === 'summary') : x.props?.children
+  return [x, ...visibleNodes(children)]
+}
+const visibleText = x => {
+  if (!x) return ''
+  if (Array.isArray(x)) return x.map(visibleText).join('')
+  if (typeof x !== 'object') return String(x)
+  if (x.type === 'details' && !x.props.open) return [].concat(x.props.children).filter(n => n?.type === 'summary').map(visibleText).join('')
+  return visibleText(x.props.children)
+}
+test('all worker summaries and actions remain visible even with the old global flag false', () => {
+  const m = mount(); m.props.mostraRiepilogoOperai = false
+  m.props.operaiAnagrafica.push({ id: 'luigi', nome: 'Luigi' })
+  const tree = m.render(), rendered = visibleText(tree)
+  for (const label of ['Totale maturato', 'Totale pagato', 'Residuo da pagare', 'Prossima scadenza', 'Mario', 'Luigi', 'Ore lavorate:', 'Costo maturato:', 'Pagato:', 'Residuo:']) assert(rendered.includes(label), label)
+  assert.equal(visibleNodes(tree).filter(n => n.type === 'button' && text(n).includes('Prepara saldo')).length, 2)
+  assert.equal(visibleNodes(tree).filter(n => n.type === 'button' && text(n).includes('Prepara acconto')).length, 2)
+  assert.equal(button(tree, 'Mostra riepilogo'), undefined)
+  assert.equal(button(tree, 'Nascondi riepilogo'), undefined)
+})
+test('cost allocation and manual payment are closed by default; manual fields reuse the original form', () => {
+  const m = mount(); m.props.costoOperaiPerCantiere = { 'Cantiere riservato': 100 }
+  const tree = m.render(), details = nodes(tree).filter(n => n.type === 'details')
+  const allocation = details.find(n => text(n).includes('Ripartizione costi operai per cantiere'))
+  const manual = details.find(n => text(n).includes('Registra pagamento manuale'))
+  assert(allocation); assert(manual); assert.equal(allocation.props.open, undefined); assert.equal(manual.props.open, undefined)
+  assert(!visibleText(tree).includes('Cantiere riservato'))
+  assert(!visibleNodes(tree).some(n => n.type === 'form'))
+  assert.equal(nodes(manual).filter(n => n.type === 'form').length, 1)
+  assert(nodes(manual).some(n => n.props?.['aria-label'] === 'Importo €'))
+})
+test('each worker has its own closed Dettagli with costs and history, without a shared control', () => {
+  const m = mount(); m.props.operaiAnagrafica.push({ id: 'luigi', nome: 'Luigi' })
+  const tree = m.render(), details = nodes(tree).filter(n => n.type === 'details' && n.props['aria-label'])
+  assert.equal(details.length, 2)
+  for (const [i, name] of ['Mario', 'Luigi'].entries()) {
+    const detail = details[i]
+    assert.equal(detail.props['aria-label'], 'Dettagli ' + name)
+    assert.equal(detail.props.open, undefined); assert.equal(detail.props.name, undefined); assert.equal(detail.props.onToggle, undefined)
+    assert(text(detail).includes('Costi maturati per cantiere:')); assert(text(detail).includes('Storico pagamenti:'))
+    assert(!nodes(detail).some(n => n.type === 'button' && text(n).includes('Prepara')))
+  }
+  assert(!visibleText(tree).includes('Costi maturati per cantiere:'))
+  assert(!visibleText(tree).includes('Storico pagamenti:'))
+})
+test('published modal, form, preparation, saving and every monetary calculation are unchanged', () => {
+  const cp = require('node:child_process')
+  const baseline = cp.execFileSync('git', ['show', '3eec733f09966b84ab3ddc580434c845b9c8e161:app/components/PagamentiOperaiPanel.tsx'], { encoding: 'utf8' }).replace(/\r/g, '')
+  const current = source.replace(/\r/g, '')
+  const dialog = s => s.slice(s.indexOf('<dialog '), s.indexOf('</dialog>') + '</dialog>'.length)
+  assert.equal(dialog(current), dialog(baseline))
+  function expressions(s) {
+    const out = {}, ast = ts.createSourceFile('panel.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+    const names = new Set(['apriPagamento', 'salvaDalForm', 'formPagamento', 'timbratureOperaioPeriodo', 'costoMaturato', 'totaleOrePeriodo', 'pagamentiOperaioPeriodo', 'pagato', 'residuo', 'timbratureOperaioCantiere', 'costoCantiere', 'oreCantiere'])
+    function visit(n) { if (ts.isVariableDeclaration(n) && names.has(n.name.getText(ast))) out[n.name.getText(ast)] = n.initializer.getText(ast); ts.forEachChild(n, visit) }
+    visit(ast); return out
+  }
+  assert.deepEqual(expressions(current), expressions(baseline))
+})

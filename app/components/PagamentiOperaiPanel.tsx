@@ -96,8 +96,6 @@ export default function PagamentiOperaiPanel({
   setMostraValutazioneFondi,
   mostraCostiPresenze,
   setMostraCostiPresenze,
-  mostraRiepilogoOperai,
-  setMostraRiepilogoOperai,
 
   pagamentiDataDa,
   setPagamentiDataDa,
@@ -264,7 +262,8 @@ export default function PagamentiOperaiPanel({
       </div>
     </div>
 
-    <h3 style={{ marginTop: 25 }}>Ripartizione costi operai per cantiere</h3>
+    <details style={{ marginTop: 25 }}>
+      <summary style={{ cursor: 'pointer', fontWeight: 600, padding: '10px 0' }}>Ripartizione costi operai per cantiere</summary>
 
     {Object.keys(costoOperaiPerCantiere).length === 0 ? (
       <p>Nessun costo presente.</p>
@@ -291,6 +290,8 @@ export default function PagamentiOperaiPanel({
         ))}
       </div>
     )}
+
+    </details>
 
     <div
       style={{
@@ -546,13 +547,6 @@ export default function PagamentiOperaiPanel({
       </>
     )}
 
-    <div style={{ marginBottom: 14, marginTop: 25 }}>
-      <h3 style={{ margin: 0 }}>Pagamenti operai</h3>
-      <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 14 }}>
-        Registra acconti, saldi e movimenti pagati agli operai
-      </p>
-    </div>
-
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
       <input
         type="date"
@@ -581,7 +575,12 @@ export default function PagamentiOperaiPanel({
           style={{ ...buttonSecondary, marginTop: 16 }}>Annulla</button>
         <style>{`dialog[aria-labelledby="titolo-pagamento-operaio"]::backdrop { background: rgba(15, 23, 42, 0.55); }`}</style>
       </dialog>
-    ) : formPagamento}
+    ) : (
+      <details style={{ marginTop: 20, marginBottom: 15 }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 600, padding: '10px 0' }}>Registra pagamento manuale</summary>
+        {formPagamento}
+      </details>
+    )}
 
     <div
       style={{
@@ -597,15 +596,8 @@ export default function PagamentiOperaiPanel({
       <h3 style={{ margin: 0 }}>Prepara un pagamento</h3>
 
 
-      <button
-        onClick={() => setMostraRiepilogoOperai(!mostraRiepilogoOperai)}
-        style={buttonSecondary}
-      >
-        {mostraRiepilogoOperai ? 'Nascondi riepilogo' : 'Mostra riepilogo'}
-      </button>
     </div>
 
-    {mostraRiepilogoOperai && (
       <div style={{ display: 'grid', gap: 10 }}>
         {operaiAnagrafica.map((o, i) => {
           const timbratureOperaioPeriodo = timbrature.filter((t) => {
@@ -700,6 +692,8 @@ export default function PagamentiOperaiPanel({
                 </button>
               </div>
 
+              <details aria-label={`Dettagli ${o.nome}`} style={{ marginTop: 10 }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 600, padding: '8px 0' }}>Dettagli</summary>
               <div style={{ marginTop: 10 }}>
                 <strong>Costi maturati per cantiere:</strong>
 
@@ -760,11 +754,11 @@ export default function PagamentiOperaiPanel({
                   </ul>
                 )}
               </div>
+              </details>
             </div>
           )
         })}
       </div>
-    )}
   </div>
   )
 }
