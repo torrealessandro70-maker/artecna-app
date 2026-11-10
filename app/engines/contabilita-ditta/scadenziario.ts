@@ -13,6 +13,12 @@ export type Scadenza = {
   nota: string
   riferimento: string
   includiNeiTotali: boolean
+  importoPagato?: string | null
+  dataPagamento?: string | null
+  archiviataAt?: string | null
+  motivoArchiviazione?: string | null
+  revisione?: string
+  updatedAt?: string
 }
 export type BozzaScadenza = Omit<Scadenza, 'id' | 'importoCentesimi'> & { importo: string }
 export type TotaleScadenze = { centesimi: number | null; note: number; importiMancanti: number; riepilogative: number }

@@ -12,6 +12,7 @@ function model(persistenza) {
   const react = {
     useState(init) { const i = cursor++; if (!(i in slots)) slots[i] = typeof init === 'function' ? init() : init; return [slots[i], v => { slots[i] = typeof v === 'function' ? v(slots[i]) : v }] },
     useRef(value) { const i = cursor++; return slots[i] ?? (slots[i] = { current: value }) }, useMemo(fn) { cursor++; return fn() }, useId() { return `test-${cursor++}` },
+    useEffect() { cursor++ },
   }
   const cache = new Map()
   function load(file) {
@@ -22,7 +23,8 @@ function model(persistenza) {
       if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }
       if (id === './VistaOperativa') return { default: 'VistaOperativa' }
       if (id.endsWith('.module.css')) return { default: {} }
-      return load(path.relative(__dirname, path.resolve(path.dirname(full), id + '.ts')))
+      const candidate = path.resolve(path.dirname(full), id)
+      return load(path.relative(__dirname, candidate + (fs.existsSync(candidate + '.tsx') ? '.tsx' : '.ts')))
     } }, { filename: full })
     return exports
   }
@@ -76,7 +78,11 @@ test('custom contribution and document reference retained as escaped text, no up
   assert(!nodes(m.render()).some(n => n.type === 'a' || (n.type === 'input' && n.props.type === 'file')))
 })
 test('edit to Pagato removes open total without recording payment or duplicating rows', () => {
-  const m = model(); m.open(); m.new(); m.complete(); m.click('Modifica bozza IVA · 2026-12-01'); m.fill('Stato', 'Pagato'); m.submit()
+  const m = model(); m.open(); m.new(); m.complete(); m.click('Modifica bozza IVA · 2026-12-01'); m.fill('Stato', 'Pagato')
+  const confirm = nodes(m.render()).find(n => n.type === 'label' && text(n) === 'Confermo esplicitamente che l’obbligo è chiuso')
+  nodes(confirm).find(n => n.type === 'input').props.onChange({ target: { checked: true } }); m.submit()
+  assert.equal(rows(m.render()).length, 0)
+  nodes(m.render()).find(n => n.type === 'select' && n.props['aria-label'] === 'Filtro scadenze').props.onChange({ target: { value: 'Pagate' } })
   assert.equal(rows(m.render()).length, 1); assert(text(rows(m.render())[0]).includes('Pagato'))
   assert(text(m.render()).includes('0 · di cui 0 oltre data')); assert(text(m.render()).includes('Nessun pagamento registrato'))
 })
@@ -106,7 +112,7 @@ test('new modules have no database, browser persistence, file or network operati
     const code = fs.readFileSync(path.join(__dirname, file), 'utf8')
     assert(!/supabase|localStorage|sessionStorage|indexedDB|\bfetch\s*\(|\.rpc\s*\(|\.from\s*\(|\.upload\s*\(|navigator\./.test(code))
   }
-  assert(fs.readFileSync(path.join(__dirname, 'EconomiaGeneralePanel.tsx'), 'utf8').includes('<ScadenziarioPersistentePanel client={client} />'))
+  assert(fs.readFileSync(path.join(__dirname, 'EconomiaGeneralePanel.tsx'), 'utf8').includes('<ScadenziarioPersistentePanel client={client} aperto='))
 })
 
 test('persistent mode never shows zero KPIs or enables writers after unavailable reader', () => {
@@ -120,4 +126,34 @@ test('persistent create keeps stable UUID, blocks double-submit, closes form onl
   const m = model(p); m.open(); m.click('Nuova scadenza'); m.fill('Periodo di riferimento', 'fixture'); m.fill('Data scadenza', '2026-12-01')
   m.submit(); m.submit(); assert.equal(calls, 1); assert.equal(rows(m.render()).length, 0); assert(nodes(m.render()).some(n => n.type === 'form'))
   resolve(); await new Promise(done => setImmediate(done)); assert.equal(rows(m.render()).length, 1); assert(text(m.render()).includes('Scadenza salvata nell’archivio'))
+})
+
+const filtroUi=(m,value)=>nodes(m.render()).find(n=>n.type==='select'&&n.props['aria-label']==='Filtro scadenze').props.onChange({target:{value}})
+const tick=()=>new Promise(resolve=>setImmediate(resolve))
+test('payment modal has known default, date today, full save closes and updates paid filter without side effects',async()=>{
+  const m=model();m.open();m.new();m.complete({importo:'100'});m.click('Segna pagato')
+  assert(nodes(m.render()).some(n=>n.type==='dialog'));assert.equal(field(m.render(),'Importo pagato (€)').props.value,'100.00');assert.equal(field(m.render(),'Data pagamento').props.value,'2026-11-10')
+  m.submit();await tick();assert(!nodes(m.render()).some(n=>n.type==='dialog'));assert.equal(rows(m.render()).length,0);filtroUi(m,'Pagate');assert.equal(rows(m.render()).length,1);assert(text(m.render()).includes('Pagato: 100,00 €'));assert(text(m.render()).includes('Nessun pagamento o movimento economico generato'))
+})
+test('partial payment remains open and details show exact paid/residual values',async()=>{
+  const m=model();m.open();m.new();m.complete({importo:'100'});m.click('Segna pagato');m.fill('Importo pagato (€)','40');m.submit();await tick()
+  assert.equal(rows(m.render()).length,1);assert(text(rows(m.render())[0]).includes('Da pagare'));assert(text(rows(m.render())[0]).includes('Pagato: 40,00 € | Residuo: 60,00 €'))
+})
+test('unknown planned amount stays blank, residual indeterminate, cancellation writes nothing',()=>{
+  const m=model();m.open();m.new();m.complete({importo:''});m.click('Segna pagato');assert.equal(field(m.render(),'Importo pagato (€)').props.value,'');assert(text(m.render()).includes('Residuo: Da verificare'));m.click('Annulla pagamento');assert.equal(rows(m.render()).length,1);assert(!nodes(m.render()).some(n=>n.type==='dialog'))
+})
+test('paid status in general form requires explicit closure confirmation',()=>{
+  const m=model();m.open();m.new();m.fill('Stato','Pagato');m.complete();assert.equal(rows(m.render()).length,0);assert(text(m.render()).includes('Confermare esplicitamente'))
+})
+test('operational rows have five compact columns, individual closed details and neutral deadline evidence',()=>{
+  const m=model();m.open();m.new();m.complete({data:'2026-11-10'});const tree=m.render();assert.equal(nodes(tree).filter(n=>n.type==='th'&&n.props.scope==='col').length,5);assert(text(tree).includes('Oggi'));assert(text(tree).includes('Totale scaduto'));assert(nodes(tree).filter(n=>n.type==='details').every(n=>n.props.open===undefined));filtroUi(m,'Archiviate');assert.equal(rows(m.render()).length,0)
+})
+test('F24 displays explicit duplicate warning and defaults excluded',()=>{
+  const m=model();m.open();m.new();m.fill('Tipo','F24');assert(text(m.render()).includes('Escluso dai totali per evitare possibili duplicazioni'));assert.equal(nodes(m.render()).find(n=>n.type==='input'&&n.props.type==='checkbox').props.checked,false)
+})
+test('archive requires separate confirmation with reason and retains revision at dialog opening',async()=>{
+  let writes=0,observed;const r={id:'x',tipo:'IVA',periodo:'T4',dataScadenza:'2026-12-01',importoCentesimi:100,stato:'Pagato',nota:'',riferimento:'',includiNeiTotali:true,revisione:'3'}
+  const p={righe:[r],pronta:true,occupata:false,errore:'',onRileggi(){},async onSalva(){throw Error('forbidden')},async onArchivia(...args){writes++;observed=args;p.righe=[];p.archiviate=[{...r,archiviataAt:'date'}]}}
+  const m=model(p);m.open();filtroUi(m,'Pagate');m.click('Archivia scadenza IVA · 2026-12-01');assert.equal(writes,0)
+  const input=nodes(m.render()).find(n=>n.type==='input'&&n.props.maxLength===2000);input.props.onChange({target:{value:'Conclusa'}});m.submit();await tick();assert.equal(writes,1);assert.deepEqual(observed,['x','Conclusa','3']);assert.equal(rows(m.render()).length,0);filtroUi(m,'Archiviate');assert.equal(rows(m.render()).length,1);assert(text(m.render()).includes('Archiviata — stato conservato'))
 })

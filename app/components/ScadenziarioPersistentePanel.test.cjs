@@ -45,3 +45,25 @@ test('late read after unmount cannot hydrate next session/context', async () => 
   const pending = defer(), f = fixture(); f.elenco = () => pending.promise
   const m = controller(f); await m.flush(); m.unmount(); pending.resolve([voce()]); await m.flush(); assert.equal(m.render().pronta, false)
 })
+
+test('payment annotation uses existing update only, sends expected revision and survives remount', async () => {
+  const f=fixture([voce({revisione:'7'})]),m=controller(f);let p=await m.flush()
+  await p.onPagamento(id,{importo:'40',data:'2026-11-10',nota:'Parziale',riferimento:'F24 fixture',chiusuraConfermata:false},'7')
+  p=m.render();assert.equal(p.righe[0].stato,'Da pagare');assert.equal(p.righe[0].importoPagato,'40.00');assert.equal(p.righe[0].dataPagamento,'2026-11-10')
+  assert.deepEqual(f.calls[1],{action:'aggiorna',revisione:'7',importoPagato:'40.00',dataPagamento:'2026-11-10'})
+  m.unmount();const reload=controller(f);p=await reload.flush();assert.equal(p.righe[0].importoPagato,'40.00');assert.equal(p.righe[0].revisione,'8');assert.equal(f.calls.filter(x=>typeof x==='object').length,1)
+})
+test('fully paid annotation closes without generating a payment writer', async () => {
+  const f=fixture([voce()]),m=controller(f);const p=await m.flush()
+  await p.onPagamento(id,{importo:'100',data:'2026-11-10',nota:'',riferimento:'',chiusuraConfermata:false},'0')
+  assert.equal(m.render().righe[0].stato,'Pagato');assert.equal(f.calls.length,2);assert.equal(f.calls[1].action,'aggiorna')
+})
+test('payment modal revision is retained across reread, stale response blocks further writes with no retry', async () => {
+  const f=fixture([voce({revisione:'9'})]);f.aggiorna=async (_d,r)=>{f.calls.push({action:'conflict',revision:r});throw Error('40001 Revisione cambiata')}
+  const m=controller(f),p=await m.flush();await assert.rejects(p.onPagamento(id,{importo:'100',data:'2026-11-10',nota:'',riferimento:'',chiusuraConfermata:false},'7'),/40001/)
+  assert.equal(f.calls[1].revision,'7');assert.equal(m.render().pronta,false);assert.equal(f.calls.length,2)
+})
+test('archived history is exposed separately and cannot affect active summary input', async () => {
+  const f=fixture([voce({archiviataAt:'2026-11-10T12:00:00Z',stato:'Pagato'})]),m=controller(f),p=await m.flush()
+  assert.equal(p.righe.length,0);assert.equal(p.archiviate.length,1);assert.equal(p.archiviate[0].stato,'Pagato')
+})

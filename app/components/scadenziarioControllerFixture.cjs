@@ -1,5 +1,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Shared offline React controller harness, injected archive only. */
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript');
+function engine(file) {
+  const exports = {}
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports, require: name => engine(path.resolve(path.dirname(file), name + '.ts')) })
+  return exports
+}
 function controller(archivio) {
   const slots = [], effects = []; let cursor = 0
   const memo = (fn, deps) => { const i = cursor++; const old = slots[i]; if (!old || deps.some((d, j) => d !== old.deps[j])) slots[i] = { deps, value: fn() }; return slots[i].value }
@@ -14,6 +19,7 @@ function controller(archivio) {
     if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }) }
     if (name === './ScadenziarioFiscalePanel') return { default: 'Panel' }
     if (name.endsWith('/scadenziarioPersistenza')) return { creaArchivioScadenziario() { throw Error('Real client forbidden') } }
+    if (name.endsWith('/scadenziarioOperativo')) return engine(path.resolve(__dirname, '../engines/contabilita-ditta/scadenziarioOperativo.ts'))
     throw Error(name)
   } })
   const props = { archivioTest: archivio }

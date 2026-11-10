@@ -16,7 +16,7 @@ const colori = { Disponibile: '#166534', Limitato: '#92400e', 'Non calcolabile':
 import VistaOperativa from './VistaOperativa'
 
 export type DestinazioneEconomia = 'fatture-emesse' | 'fatture-fornitori' | 'pagamenti-operai'
-type NavigazioneEconomia = { onApri?: (destinazione: DestinazioneEconomia) => void; rigaCostiGenerali?: ReactNode }
+type NavigazioneEconomia = { onApri?: (destinazione: DestinazioneEconomia) => void; onApriScadenziario?: () => void; rigaCostiGenerali?: ReactNode }
 const destinazioni: Record<string, { destinazione: DestinazioneEconomia; etichetta: string }> = {
   emesse: { destinazione: 'fatture-emesse', etichetta: 'Apri fatture emesse' },
   ricevute: { destinazione: 'fatture-fornitori', etichetta: 'Apri fatture ricevute' },
@@ -26,7 +26,7 @@ const destinazioni: Record<string, { destinazione: DestinazioneEconomia; etichet
 const ambito = (i: { ambito: string }) => i.ambito === 'progressivo' ? 'Progressivo complessivo dichiarato oggi — non filtrato per periodo' : i.ambito === 'riferimento' ? 'Alla data di riferimento — storico richiesto' : 'Documenti / movimenti nel periodo'
 
 /** Vista pura rispetto al DB: periodo e dettagli cambiano soltanto stato React. */
-export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, rigaCostiGenerali }: { fonti: Fonti; fotografia: string; onCollega?: (id: string) => void } & NavigazioneEconomia) {
+export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, onApriScadenziario, rigaCostiGenerali }: { fonti: Fonti; fotografia: string; onCollega?: (id: string) => void } & NavigazioneEconomia) {
   const [tipo, setTipo] = useState<'mese' | 'trimestre' | 'anno' | 'personalizzato'>('trimestre')
   const [riferimento, setRiferimento] = useState(oggiLocale)
   const [manuale, setManuale] = useState<Periodo>(() => periodoPreset('trimestre', oggiLocale()))
@@ -61,7 +61,7 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, riga
         </tr>)}{rigaCostiGenerali}</tbody>
       </table>
     </div>
-    <ProspettoIvaPanel fonti={fonti} periodo={periodo} />
+    <ProspettoIvaPanel fonti={fonti} periodo={periodo} onApriScadenziario={onApriScadenziario} />
     <details className={styles.qualita}><summary>Fonti, limiti e qualità dei dati</summary>
       <p>Contabilità ordinaria · IVA trimestrale. Il trimestre è un filtro di consultazione, non una liquidazione IVA.</p>
       <p>Disponibile significa calcolabile sulle fonti caricate, non che tutte le fatture esterne siano state importate. Nessun utile definitivo, reddito imponibile, IVA da versare o saldo banca.</p>
@@ -95,7 +95,7 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, riga
   </section>
 }
 
-export default function RiepilogoDittaPanel({ client, onApri, rigaCostiGenerali }: { client: ClientLettura & ClientAttribuzioni } & NavigazioneEconomia) {
+export default function RiepilogoDittaPanel({ client, onApri, onApriScadenziario, rigaCostiGenerali }: { client: ClientLettura & ClientAttribuzioni } & NavigazioneEconomia) {
   const [collegaId, setCollegaId] = useState<string | null>(null)
   const [richiesta, setRichiesta] = useState(0)
   const [risultato, setRisultato] = useState<{ client: ClientLettura; richiesta: number; fonti: Fonti; fotografia: string } | null>(null)
@@ -108,7 +108,7 @@ export default function RiepilogoDittaPanel({ client, onApri, rigaCostiGenerali 
   const valido = risultato?.client === client && risultato.richiesta === richiesta
   return <>
     <button type="button" onClick={() => setRichiesta(r => r + 1)}>Aggiorna letture ditta</button>
-    <RiepilogoDittaVista onApri={onApri} rigaCostiGenerali={rigaCostiGenerali} onCollega={setCollegaId} fonti={valido ? risultato.fonti : fontiInCaricamento()} fotografia={valido ? risultato.fotografia : ''} />
+    <RiepilogoDittaVista onApri={onApri} onApriScadenziario={onApriScadenziario} rigaCostiGenerali={rigaCostiGenerali} onCollega={setCollegaId} fonti={valido ? risultato.fonti : fontiInCaricamento()} fotografia={valido ? risultato.fotografia : ''} />
     {collegaId && <CollegaIncassoPanel key={collegaId} client={client} fatturaId={collegaId} cantiereId={valido ? cantiereDocumento(risultato.fonti.fatture_emesse.righe, collegaId) : undefined} onChiudi={() => setCollegaId(null)} />}
   </>
 }

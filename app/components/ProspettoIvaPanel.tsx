@@ -8,13 +8,14 @@ import styles from './RiepilogoDittaPanel.module.css'
 const euro = (n: number | null) => n === null ? 'Non determinabile' : (n / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 const copertura = (q: QuotaIva) => `${q.stato}: ${q.inclusi} inclusi, ${q.esclusi} esclusi${q.nonDatati ? ` (${q.nonDatati} senza data valida)` : ''}`
 
-export default function ProspettoIvaPanel({ fonti, periodo }: { fonti: Fonti; periodo: Periodo }) {
+export default function ProspettoIvaPanel({ fonti, periodo, onApriScadenziario }: { fonti: Fonti; periodo: Periodo; onApriScadenziario?: () => void }) {
   const archivio = useMemo(() => preparaArchivioIva(fonti), [fonti])
   const prospetto = useMemo(() => costruisciProspettoIva(archivio, periodo), [archivio, periodo])
   const totale = prospetto.totale
   const documenti = archivio.documenti.filter(d => !dataValida(d.data) || (d.data >= periodo.da && d.data <= periodo.a))
   return <section aria-label="Differenza IVA sui documenti registrati" className={styles.qualita}>
     <h3>Differenza IVA sui documenti registrati</h3>
+    {onApriScadenziario && <button type="button" onClick={onApriScadenziario}>Apri scadenziario</button>}
     <p>Consultazione gestionale per data documento. Separata dalla contabilità ufficiale e dalla liquidazione fiscale; l’IVA ricevuta esposta non certifica la detraibilità.</p>
     {prospetto.errore ? <p role="status">Non determinabile — {prospetto.errore}</p> : totale && <>
       <p aria-live="polite"><strong>{totale.stato} · Differenza del periodo: {euro(totale.differenza)}</strong><br />IVA emesse: {euro(totale.emesse.valore)} · IVA ricevute: {euro(totale.ricevute.valore)}<br />Differenza accumulata: {euro(totale.accumulata)}</p>

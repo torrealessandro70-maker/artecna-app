@@ -57,16 +57,17 @@ export default function EconomiaGeneralePanel({
   excelTd,
 }: Props) {
   const [costiAperti, setCostiAperti] = useState(false)
+  const [scadenziarioAperto, setScadenziarioAperto] = useState(false)
   const ritornoCostiRef = useRef<HTMLButtonElement | null>(null)
   return (
     <div style={cardStyle}>
       <h2>Economia generale</h2>
 
-      <RiepilogoDittaPanel client={client} onApri={onApri} rigaCostiGenerali={
+      <RiepilogoDittaPanel client={client} onApri={onApri} onApriScadenziario={() => setScadenziarioAperto(true)} rigaCostiGenerali={
         <CostiGeneraliImpresaSummary speseImpresa={speseImpresa} formatMoney={formatMoney} comeRiga
           onMostraDettaglio={event => { ritornoCostiRef.current = event.currentTarget; setCostiAperti(true) }} />
       } />
-      <ScadenziarioPersistentePanel client={client} />
+      <ScadenziarioPersistentePanel client={client} aperto={scadenziarioAperto} onChiudi={() => setScadenziarioAperto(false)} />
       <details style={{ marginTop: 16 }}><summary style={{ cursor: 'pointer', fontWeight: 600 }}>Costi fornitori assegnati e rettifiche</summary>
         <CostiFornitoriRettificati client={client} />
       </details>

@@ -52,3 +52,10 @@ test('invalid inputs rejected before RPC; no unsafe rounding/payment generation'
   await assert.rejects(m.api.crea({ ...dati(), importoPagato: '1.001' }), errore('scrittura'))
   await assert.rejects(m.api.archivia(id, '0', ''), errore('scrittura')); assert.equal(m.calls.length, 0)
 })
+
+test('archive reader explicitly requests history, preserves archived state and metadata', async () => {
+  const row=raw({archiviata_at:'2026-11-10T12:00:00Z',archiviata_by:actor,motivo_archiviazione:'Conclusa',stato:'pagato'})
+  const m=mock([{data:{versione:1,totale:1,include_archiviate:true,righe:[row]}}]);const rows=await m.api.elenco(true)
+  assert.equal(m.calls[0].args.p_includi_archiviate,true);assert.equal(rows[0].stato,'Pagato');assert.equal(rows[0].motivoArchiviazione,'Conclusa')
+  await assert.rejects(mock([{data:{versione:1,totale:0,include_archiviate:false,righe:[]}}]).api.elenco(true),errore('lettura'))
+})

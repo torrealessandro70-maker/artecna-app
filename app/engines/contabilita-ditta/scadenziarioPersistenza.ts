@@ -14,7 +14,7 @@ export type ScadenzaPersistita = Scadenza & {
 }
 export type DatiScadenza = { scadenza: Scadenza; importoPagato: string | null; dataPagamento: string | null }
 export interface ArchivioScadenziario {
-  elenco(): Promise<ScadenzaPersistita[]>
+  elenco(includiArchiviate?: boolean): Promise<ScadenzaPersistita[]>
   crea(dati: DatiScadenza): Promise<ScadenzaPersistita>
   aggiorna(dati: DatiScadenza, revisioneAttesa: string): Promise<ScadenzaPersistita>
   archivia(id: string, revisioneAttesa: string, motivo: string): Promise<ScadenzaPersistita>
@@ -84,13 +84,13 @@ export function creaArchivioScadenziario(client: ClientScadenziario): ArchivioSc
     } catch { throw new ErroreScadenziario('esito_incerto', 'Risposta di scrittura incompleta/inattesa. Nessun reinvio: rileggere lo stesso UUID.') }
   }
   return {
-    async elenco() {
-      const raw = await chiama('leggi_scadenze_fiscali', { p_includi_archiviate: false }, true)
+    async elenco(includiArchiviate = false) {
+      const raw = await chiama('leggi_scadenze_fiscali', { p_includi_archiviate: includiArchiviate }, true)
       try {
         const r = raw as Record<string, unknown>
-        if (!r || r.versione !== 1 || r.include_archiviate !== false || !Array.isArray(r.righe) || r.totale !== r.righe.length || r.righe.length > 5000) throw Error('Elenco incompleto')
+        if (!r || r.versione !== 1 || r.include_archiviate !== includiArchiviate || !Array.isArray(r.righe) || r.totale !== r.righe.length || r.righe.length > 5000) throw Error('Elenco incompleto')
         const righe = r.righe.map(leggiRiga), ids = new Set(righe.map(s => s.id))
-        if (ids.size !== righe.length || righe.some(s => s.archiviataAt !== null)) throw Error('Elenco duplicato/non attivo')
+        if (ids.size !== righe.length || (!includiArchiviate && righe.some(s => s.archiviataAt !== null))) throw Error('Elenco duplicato/non attivo')
         return righe
       } catch { throw new ErroreScadenziario('lettura', 'Contratto di lettura incompleto: nessun archivio vuoto sostitutivo.') }
     },

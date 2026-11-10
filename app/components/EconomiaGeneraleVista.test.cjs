@@ -142,9 +142,10 @@ test('non-finite legacy cost value is labelled non determinable, never replaced 
   const r = expand(nodes(m.render()).find(n => n.type === 'Riepilogo').props.rigaCostiGenerali)
   assert(text(r).includes('Non determinabile')); assert(text(r).includes('Non calcolabile')); assert(!text(r).includes('0.00'))
 })
-test('source calculators, readers, writers and schemas are unchanged; cost formulas retain their original expressions', () => {
+test('unrelated economic calculators/readers/writers/schema remain unchanged; cost formulas retain original expressions', () => {
   const root = path.resolve(__dirname, '../..')
-  assert.equal(cp.execFileSync('git', ['diff', '--', 'app/engines', 'supabase', 'lib'], { cwd: root, encoding: 'utf8' }), '')
+  const changed=cp.execFileSync('git', ['diff', '--name-only', '--', 'app/engines', 'supabase', 'lib'], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/).filter(Boolean)
+  assert(changed.every(file=>/^app\/engines\/contabilita-ditta\/scadenziario(?:Persistenza)?(?:\.test)?\.(ts|cjs)$/.test(file)), 'Only this step’s schedule model/adapter/tests may change; no existing economic or SQL changes')
   const baseline = cp.execFileSync('git', ['show', '44d95773f1076c84bc21a09504166dd88a584bec:app/components/CostiGeneraliImpresaSummary.tsx'], { cwd: root, encoding: 'utf8' }).replace(/\r/g, '')
   function formulas(s) { const out = {}, ast = ts.createSourceFile('costs.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); function visit(n) { if (ts.isVariableDeclaration(n) && n.name.getText(ast).startsWith('totale')) out[n.name.getText(ast)] = n.initializer.getText(ast); ts.forEachChild(n, visit) } visit(ast); return out }
   assert.deepEqual(formulas(read('CostiGeneraliImpresaSummary.tsx')), formulas(baseline))

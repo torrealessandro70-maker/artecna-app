@@ -34,11 +34,17 @@ test('same existing period is used; year renders all months, invalid range repor
   assert(render(sources(), { da: '2026-01-01', a: '2026-12-31' }).includes('Subtotale T4'))
   assert(render(sources(), { da: '', a: '' }).includes('Intervallo non valido'))
   const container = fs.readFileSync(require('node:path').join(__dirname, 'RiepilogoDittaPanel.tsx'), 'utf8')
-  assert(container.includes('<ProspettoIvaPanel fonti={fonti} periodo={periodo} />'))
+  assert(container.includes('<ProspettoIvaPanel fonti={fonti} periodo={periodo} onApriScadenziario={onApriScadenziario} />'))
 })
 test('new production modules contain no network calls, persistence, writer or mutation API', () => {
   for (const file of ['ProspettoIvaPanel.tsx', '../engines/contabilita-ditta/prospettoIva.ts']) {
     const code = fs.readFileSync(require('node:path').join(__dirname, file), 'utf8')
     assert(!/\b(fetch|localStorage|sessionStorage|useEffect)\b|\.(insert|update|delete|rpc|upload)\s*\(/.test(code))
   }
+})
+
+test('optional schedule navigation does not prefill VAT amounts, dates or invoke a writer', () => {
+  let calls=0
+  const html=renderToStaticMarkup(React.createElement(Panel,{fonti:sources(),periodo,onApriScadenziario(){calls++}}))
+  assert(html.includes('type="button">Apri scadenziario</button>'));assert.equal(calls,0);assert(!/<(?:input|form)\b/.test(html))
 })
