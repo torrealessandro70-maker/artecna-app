@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { Timbratura } from '../types'
 
 type Props = {
@@ -55,7 +55,7 @@ type Props = {
   notaPagamento: string
   setNotaPagamento: (v: string) => void
 
-  salvaPagamentoOperaio: () => void | Promise<void>
+  salvaPagamentoOperaio: () => Promise<boolean>
   preparaPagamentoRapidoOperaio: (
     nome: string,
     importo: number,
@@ -118,6 +118,90 @@ export default function PagamentiOperaiPanel({
   salvaPagamentoOperaio,
   preparaPagamentoRapidoOperaio,
 }: Props) {
+  const [tipoPagamentoAperto, setTipoPagamentoAperto] = useState<'saldo' | 'acconto' | null>(null)
+  const [salvataggioInCorso, setSalvataggioInCorso] = useState(false)
+  const salvataggioBusyRef = useRef(false)
+  const dialogPagamentoRef = useRef<HTMLDialogElement | null>(null)
+  useEffect(() => {
+    if (!tipoPagamentoAperto) return
+    const dialog = dialogPagamentoRef.current
+    dialog?.showModal()
+    return () => { dialog?.close() }
+  }, [tipoPagamentoAperto])
+  const apriPagamento = (nome: string, importo: number, tipo: 'saldo' | 'acconto') => {
+    if (salvataggioBusyRef.current) return
+    preparaPagamentoRapidoOperaio(nome, importo, tipo)
+    setTipoPagamentoAperto(tipo)
+  }
+  const salvaDalForm = async () => {
+    if (salvataggioBusyRef.current) return
+    salvataggioBusyRef.current = true
+    setSalvataggioInCorso(true)
+    try {
+      if (await salvaPagamentoOperaio()) setTipoPagamentoAperto(null)
+    } catch {
+      alert('Salvataggio non completato. Verifica il riepilogo prima di riprovare.')
+    } finally {
+      salvataggioBusyRef.current = false
+      setSalvataggioInCorso(false)
+    }
+  }
+  const formPagamento = (
+    <form onSubmit={(event) => { event.preventDefault(); void salvaDalForm() }}>
+    <fieldset disabled={salvataggioInCorso} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: 0, padding: 0, border: 0 }}>
+      <select
+        aria-label="Operaio"
+        value={operaioPagamento || ''}
+        onChange={(e) => setOperaioPagamento(e.target.value)}
+        style={{ padding: 8, width: 220 }}
+      >
+        <option value="">Seleziona operaio</option>
+        {operaiAnagrafica.map((o, i) => (
+          <option key={o.id || i} value={o.nome}>
+            {o.nome}
+          </option>
+        ))}
+      </select>
+
+      <input
+        aria-label="Importo €"
+        placeholder="Importo €"
+        value={importoPagamento || ''}
+        onChange={(e) => setImportoPagamento(e.target.value)}
+        style={{ padding: 8, width: 130 }}
+      />
+
+      <input
+        type="date"
+        aria-label="Data del pagamento"
+        placeholder="Data del pagamento"
+        value={dataPagamento || ''}
+        onChange={(e) => setDataPagamento(e.target.value)}
+        style={{ padding: 8 }}
+      />
+
+      <input
+        aria-label="Metodo"
+        placeholder="Metodo"
+        value={metodoPagamento || ''}
+        onChange={(e) => setMetodoPagamento(e.target.value)}
+        style={{ padding: 8, width: 140 }}
+      />
+
+      <input
+        aria-label="Nota"
+        placeholder="Nota"
+        value={notaPagamento || ''}
+        onChange={(e) => setNotaPagamento(e.target.value)}
+        style={{ padding: 8, width: 220 }}
+      />
+
+      <button type="submit" style={buttonPrimary}>
+        {salvataggioInCorso ? 'Salvataggio…' : 'Salva pagamento'}
+      </button>
+    </fieldset>
+    </form>
+  )
   return (
   <div style={cardStyle}>
     <h2>Pagamenti operai</h2>
@@ -487,53 +571,17 @@ export default function PagamentiOperaiPanel({
       />
     </div>
 
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 15 }}>
-      <select
-        value={operaioPagamento || ''}
-        onChange={(e) => setOperaioPagamento(e.target.value)}
-        style={{ padding: 8, width: 220 }}
-      >
-        <option value="">Seleziona operaio</option>
-        {operaiAnagrafica.map((o, i) => (
-          <option key={o.id || i} value={o.nome}>
-            {o.nome}
-          </option>
-        ))}
-      </select>
-
-      <input
-        placeholder="Importo €"
-        value={importoPagamento || ''}
-        onChange={(e) => setImportoPagamento(e.target.value)}
-        style={{ padding: 8, width: 130 }}
-      />
-
-      <input
-        type="date"
-        placeholder="Data del pagamento"
-        value={dataPagamento || ''}
-        onChange={(e) => setDataPagamento(e.target.value)}
-        style={{ padding: 8 }}
-      />
-
-      <input
-        placeholder="Metodo"
-        value={metodoPagamento || ''}
-        onChange={(e) => setMetodoPagamento(e.target.value)}
-        style={{ padding: 8, width: 140 }}
-      />
-
-      <input
-        placeholder="Nota"
-        value={notaPagamento || ''}
-        onChange={(e) => setNotaPagamento(e.target.value)}
-        style={{ padding: 8, width: 220 }}
-      />
-
-      <button onClick={salvaPagamentoOperaio} style={buttonPrimary}>
-        Salva pagamento
-      </button>
-    </div>
+    {tipoPagamentoAperto ? (
+      <dialog ref={dialogPagamentoRef} aria-labelledby="titolo-pagamento-operaio"
+        onCancel={(event) => { event.preventDefault(); if (!salvataggioBusyRef.current) setTipoPagamentoAperto(null) }}
+        style={{ width: 'min(640px, calc(100vw - 32px))', maxHeight: 'calc(100dvh - 32px)', overflow: 'auto', boxSizing: 'border-box', padding: 24, border: '1px solid #cbd5e1', borderRadius: 12 }}>
+        <h2 id="titolo-pagamento-operaio">{tipoPagamentoAperto === 'saldo' ? 'Saldo operaio' : 'Acconto operaio'}</h2>
+        {formPagamento}
+        <button type="button" onClick={() => setTipoPagamentoAperto(null)} disabled={salvataggioInCorso}
+          style={{ ...buttonSecondary, marginTop: 16 }}>Annulla</button>
+        <style>{`dialog[aria-labelledby="titolo-pagamento-operaio"]::backdrop { background: rgba(15, 23, 42, 0.55); }`}</style>
+      </dialog>
+    ) : formPagamento}
 
     <div
       style={{
@@ -625,13 +673,13 @@ export default function PagamentiOperaiPanel({
               >
                 <button
                   onClick={() =>
-                    preparaPagamentoRapidoOperaio(
+                    apriPagamento(
                       o.nome,
                       Math.max(residuo, 0),
                       'saldo'
                     )
                   }
-                  disabled={residuo <= 0}
+                  disabled={residuo <= 0 || salvataggioInCorso}
                   style={{
                     ...buttonPrimary,
                     opacity: residuo <= 0 ? 0.55 : 1,
@@ -643,8 +691,9 @@ export default function PagamentiOperaiPanel({
 
                 <button
                   onClick={() =>
-                    preparaPagamentoRapidoOperaio(o.nome, 0, 'acconto')
+                    apriPagamento(o.nome, 0, 'acconto')
                   }
+                  disabled={salvataggioInCorso}
                   style={buttonSecondary}
                 >
                   ➕ Prepara acconto

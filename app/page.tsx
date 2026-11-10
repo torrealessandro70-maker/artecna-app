@@ -5308,14 +5308,14 @@ const salvaModificaTimbratura = async () => {
 const salvaPagamentoOperaio = async () => {
   if (!operaioPagamento || !importoPagamento) {
     alert('Seleziona operaio e inserisci importo')
-    return
+    return false
   }
 
   const importo = parseImporto(importoPagamento)
 
   if (isNaN(importo) || importo <= 0) {
     alert('Importo non valido')
-    return
+    return false
   }
 
   const { error } = await supabase.from('pagamenti_operai').insert([
@@ -5330,7 +5330,7 @@ const salvaPagamentoOperaio = async () => {
 
   if (error) {
     alert('Errore salvataggio pagamento: ' + error.message)
-    return
+    return false
   }
 
   setOperaioPagamento('')
@@ -5341,6 +5341,7 @@ const salvaPagamentoOperaio = async () => {
 
   await caricaPagamentiOperai()
   alert('Pagamento operaio salvato')
+  return true
 }
 
 const preparaPagamentoRapidoOperaio = (
