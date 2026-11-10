@@ -24,23 +24,12 @@ type Props = {
 export default function EconomiaSpeseImpresaPanel(p: Props) {
   return (
     <>
-      <CostiGeneraliImpresaSummary
-        speseImpresa={p.speseImpresa}
-        formatMoney={p.formatMoney}
-      />
-
-      <button
-        onClick={() =>
-          p.setTabellaSpeseImpresaAperta(!p.tabellaSpeseImpresaAperta)
-        }
-        style={{ ...p.buttonSecondary, marginBottom: 10 }}
-      >
-        {p.tabellaSpeseImpresaAperta
-          ? '🔽 Nascondi dettaglio spese'
-          : '📋 Mostra dettaglio spese'}
-      </button>
+      <details><summary style={{ cursor: 'pointer', fontWeight: 600 }}>Classificazioni gestionali preesistenti</summary>
+        <CostiGeneraliImpresaSummary speseImpresa={p.speseImpresa} formatMoney={p.formatMoney} soloDettaglio />
+      </details>
 
       <TabellaSpeseImpresaPanel
+        mostraRiepilogo={false}
         speseImpresa={p.speseImpresa}
         filtroSpeseImpresa={p.filtroSpeseImpresa}
         setFiltroSpeseImpresa={p.setFiltroSpeseImpresa}

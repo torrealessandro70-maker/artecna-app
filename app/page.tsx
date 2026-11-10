@@ -13404,6 +13404,15 @@ onDocumentAction: gestisciAzioneDocumento,
   (!modalitaMulti && sezioneAttiva === 'economia')
 ) && (
   <EconomiaGeneralePanel
+    onApri={destinazione => {
+      if (destinazione === 'pagamenti-operai') {
+        setSezioneAttiva('pagamenti')
+        setSottoSezionePagamenti('operai')
+      } else {
+        setSezioneAttiva('registro')
+        setRegistroTab(destinazione)
+      }
+    }}
     client={supabase}
     cardStyle={cardStyle}
     fattureEmesse={fattureEmesse}

@@ -46,3 +46,19 @@
 .azione button:disabled {
   cursor: not-allowed;
 }
+
+.periodo { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.periodo label { display: grid; gap: 4px; font-size: 14px; }
+.periodo input, .periodo select { min-height: 36px; max-width: 100%; }
+.fotografia { font-size: 13px; color: #475569; line-height: 1.5; }
+.riepilogo { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 14px; }
+.riepilogo caption { text-align: left; padding: 8px 0; }
+.riepilogo th, .riepilogo td { border: 1px solid #cbd5e1; padding: 9px; text-align: left; vertical-align: top; }
+.riepilogo thead { background: #e2e8f0; }
+.riepilogo tbody tr:nth-child(even) { background: #f8fafc; }
+.riepilogo small { display: block; font-size: 12px; color: #475569; margin-top: 4px; font-weight: normal; }
+.azioniRiga { display: flex; flex-wrap: wrap; gap: 6px; }
+.azioniRiga button, .riepilogo button { min-height: 36px; padding: 6px 10px; cursor: pointer; }
+.qualita { margin-top: 16px; }
+.qualita summary, .indicatore summary { cursor: pointer; padding: 8px 0; font-weight: 600; }
+.valore { font-size: 24px; font-weight: 700; }

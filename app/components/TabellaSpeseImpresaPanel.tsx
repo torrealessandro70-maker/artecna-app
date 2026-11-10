@@ -3,6 +3,7 @@
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 
 type Props = {
+  mostraRiepilogo?: boolean
   speseImpresa: any[]
   filtroSpeseImpresa: string
   setFiltroSpeseImpresa: Dispatch<SetStateAction<string>>
@@ -22,6 +23,7 @@ type Props = {
 }
 
 export default function TabellaSpeseImpresaPanel({
+  mostraRiepilogo = true,
   speseImpresa,
   filtroSpeseImpresa,
   setFiltroSpeseImpresa,
@@ -39,6 +41,7 @@ export default function TabellaSpeseImpresaPanel({
 }: Props) {
   return (
     <>
+      {mostraRiepilogo && <>
       <h3 style={{ marginTop: 30 }}>🏢 Costi generali impresa</h3>
 
       <div
@@ -105,6 +108,8 @@ export default function TabellaSpeseImpresaPanel({
           </div>
         </div>
       </div>
+
+      </>}
 
       <button
         onClick={() =>

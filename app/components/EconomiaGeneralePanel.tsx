@@ -1,12 +1,17 @@
-import type { CSSProperties, Dispatch, SetStateAction } from 'react'
+'use client'
+
+import { useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react'
 
 import CostiFornitoriRettificati from './CostiFornitoriRettificati'
-import RiepilogoDittaPanel from './RiepilogoDittaPanel'
+import RiepilogoDittaPanel, { type DestinazioneEconomia } from './RiepilogoDittaPanel'
+import CostiGeneraliImpresaSummary, { type SpesaImpresa } from './CostiGeneraliImpresaSummary'
+import VistaOperativa from './VistaOperativa'
 import type { ClientAttribuzioni } from '../engines/contabilita-ditta/attribuzioni'
 import type { ClientLettura } from '../engines/contabilita-ditta/lettura'
 import EconomiaSpeseImpresaPanel from './EconomiaSpeseImpresaPanel'
 
 type Props = {
+  onApri?: (destinazione: DestinazioneEconomia) => void
   client: ClientLettura & ClientAttribuzioni
   cardStyle: CSSProperties
   fattureEmesse: unknown[]
@@ -14,7 +19,7 @@ type Props = {
   totalePreventiviImpresa: number
   accontiCantiere: unknown[]
   cantieri: unknown[]
-  speseImpresa: unknown[]
+  speseImpresa: SpesaImpresa[]
   calcoloEconomiaCantiere: (nomeCantiere: string) => unknown
   formatMoney: (n: number) => string
   filtroSpeseImpresa: string
@@ -33,6 +38,7 @@ type Props = {
 
 export default function EconomiaGeneralePanel({
   client,
+  onApri,
   cardStyle,
   speseImpresa,
   formatMoney,
@@ -49,15 +55,21 @@ export default function EconomiaGeneralePanel({
   excelTh,
   excelTd,
 }: Props) {
+  const [costiAperti, setCostiAperti] = useState(false)
+  const ritornoCostiRef = useRef<HTMLButtonElement | null>(null)
   return (
     <div style={cardStyle}>
       <h2>Economia generale</h2>
 
-      <RiepilogoDittaPanel client={client} />
-      <CostiFornitoriRettificati client={client} />
-      <h3>Classificazioni gestionali preesistenti</h3>
-      <p>Spese, magazzino e attrezzature: consultazione separata, non utile contabile o fiscale e non sommate ai documenti del riepilogo.</p>
-
+      <RiepilogoDittaPanel client={client} onApri={onApri} rigaCostiGenerali={
+        <CostiGeneraliImpresaSummary speseImpresa={speseImpresa} formatMoney={formatMoney} comeRiga
+          onMostraDettaglio={event => { ritornoCostiRef.current = event.currentTarget; setCostiAperti(true) }} />
+      } />
+      <details style={{ marginTop: 16 }}><summary style={{ cursor: 'pointer', fontWeight: 600 }}>Costi fornitori assegnati e rettifiche</summary>
+        <CostiFornitoriRettificati client={client} />
+      </details>
+      {costiAperti && <VistaOperativa titolo="Costi generali impresa" etichettaRitorno="← Torna a Economia generale"
+        onChiudi={() => setCostiAperti(false)} ritornoFocusRef={ritornoCostiRef}>
       <EconomiaSpeseImpresaPanel
         speseImpresa={speseImpresa}
         filtroSpeseImpresa={filtroSpeseImpresa}
@@ -74,6 +86,7 @@ export default function EconomiaGeneralePanel({
         excelTh={excelTh}
         excelTd={excelTd}
       />
+      </VistaOperativa>}
     </div>
   )
 }

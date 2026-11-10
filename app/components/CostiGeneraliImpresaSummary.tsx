@@ -1,11 +1,16 @@
 'use client'
 
-type SpesaImpresa = {
+import type { MouseEventHandler } from 'react'
+
+export type SpesaImpresa = {
   categoria?: string | null
   importo?: number | string | null
 }
 
 type Props = {
+  comeRiga?: boolean
+  soloDettaglio?: boolean
+  onMostraDettaglio?: MouseEventHandler<HTMLButtonElement>
   speseImpresa: SpesaImpresa[]
   formatMoney: (value: number) => string
 }
@@ -13,6 +18,9 @@ type Props = {
 export default function CostiGeneraliImpresaSummary({
   speseImpresa,
   formatMoney,
+  comeRiga = false,
+  soloDettaglio = false,
+  onMostraDettaglio,
 }: Props) {
   const totaleAttrezzi = speseImpresa
     .filter((s) => s.categoria === 'attrezzo_ditta')
@@ -31,9 +39,16 @@ export default function CostiGeneraliImpresaSummary({
     0
   )
 
+  if (comeRiga) return <tr aria-label="Costi generali impresa — totale">
+    <th scope="row">Costi generali impresa — totale</th>
+    <td><strong>{Number.isFinite(totaleCostiGenerali) ? formatMoney(totaleCostiGenerali) : 'Non determinabile'}</strong><small>Complessivo caricato — non filtrato per periodo</small></td>
+    <td style={{ color: Number.isFinite(totaleCostiGenerali) ? '#92400e' : '#9f1239' }}>{Number.isFinite(totaleCostiGenerali) ? 'Limitato' : 'Non calcolabile'}</td>
+    <td><button type="button" onClick={onMostraDettaglio}>Mostra dettaglio</button><small>Classificazioni gestionali, non consolidate con i documenti; completezza non certificata.</small></td>
+  </tr>
+
   return (
     <>
-      <h3 style={{ marginTop: 30 }}>🏢 Costi generali impresa</h3>
+      {!soloDettaglio && <h3 style={{ marginTop: 30 }}>🏢 Costi generali impresa</h3>}
 
       <div
         style={{
@@ -64,7 +79,7 @@ export default function CostiGeneraliImpresaSummary({
           </div>
         </div>
 
-        <div
+        {!soloDettaglio && <div
           style={{
             padding: 12,
             border: '2px solid #dc2626',
@@ -83,7 +98,7 @@ export default function CostiGeneraliImpresaSummary({
           >
             {formatMoney(totaleCostiGenerali)}
           </div>
-        </div>
+        </div>}
       </div>
     </>
   )
