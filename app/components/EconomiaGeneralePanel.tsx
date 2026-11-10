@@ -9,6 +9,7 @@ import VistaOperativa from './VistaOperativa'
 import type { ClientAttribuzioni } from '../engines/contabilita-ditta/attribuzioni'
 import type { ClientLettura } from '../engines/contabilita-ditta/lettura'
 import EconomiaSpeseImpresaPanel from './EconomiaSpeseImpresaPanel'
+import ScadenziarioPersistentePanel from './ScadenziarioPersistentePanel'
 
 type Props = {
   onApri?: (destinazione: DestinazioneEconomia) => void
@@ -65,6 +66,7 @@ export default function EconomiaGeneralePanel({
         <CostiGeneraliImpresaSummary speseImpresa={speseImpresa} formatMoney={formatMoney} comeRiga
           onMostraDettaglio={event => { ritornoCostiRef.current = event.currentTarget; setCostiAperti(true) }} />
       } />
+      <ScadenziarioPersistentePanel client={client} />
       <details style={{ marginTop: 16 }}><summary style={{ cursor: 'pointer', fontWeight: 600 }}>Costi fornitori assegnati e rettifiche</summary>
         <CostiFornitoriRettificati client={client} />
       </details>

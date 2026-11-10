@@ -1,0 +1,21 @@
+.sezione { margin-top: 20px; padding-top: 12px; border-top: 1px solid #cbd5e1; }
+.kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 16px 0; }
+.kpi > div { padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #f8fafc; }
+.kpi dt { font-weight: 600; }
+.kpi dd { margin: 8px 0 0; overflow-wrap: anywhere; }
+.sezione small { display: block; margin-top: 4px; color: #475569; }
+.sezione button { min-height: 40px; padding: 8px 12px; cursor: pointer; font: inherit; }
+.sezione button:disabled { cursor: not-allowed; }
+.form { max-width: 780px; margin: 16px 0; }
+.form fieldset { display: grid; gap: 8px; padding: 16px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.form label { font-weight: 600; }
+.form input, .form select, .form textarea { min-width: 0; padding: 8px; font: inherit; }
+.form textarea { min-height: 80px; resize: vertical; }
+.inclusione { display: flex; gap: 8px; align-items: start; }
+.azioni { display: flex; flex-wrap: wrap; gap: 8px; }
+.scorrimento { overflow-x: auto; max-width: 100%; margin-top: 16px; }
+.scorrimento:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.scorrimento table { width: 100%; min-width: 740px; border-collapse: collapse; }
+.scorrimento th, .scorrimento td { text-align: left; border: 1px solid #cbd5e1; padding: 10px; vertical-align: top; }
+.scorrimento thead { background: #e2e8f0; }
+.scorrimento summary { cursor: pointer; }
