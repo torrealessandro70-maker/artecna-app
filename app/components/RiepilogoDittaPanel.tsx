@@ -7,6 +7,7 @@ import { leggiFontiDitta, type ClientLettura } from '../engines/contabilita-ditt
 import { costruisciRiepilogo, fontiInCaricamento, periodoPreset, type Fonti, type Periodo } from '../engines/contabilita-ditta/riepilogo'
 import { EVENTO_FATTURE_AGGIORNATE } from '../engines/contabilita-ditta/modificaFattura'
 import styles from './RiepilogoDittaPanel.module.css'
+import ProspettoIvaPanel from './ProspettoIvaPanel'
 
 const euro = (c: number) => (c / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 function oggiLocale() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
@@ -60,6 +61,7 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, riga
         </tr>)}{rigaCostiGenerali}</tbody>
       </table>
     </div>
+    <ProspettoIvaPanel fonti={fonti} periodo={periodo} />
     <details className={styles.qualita}><summary>Fonti, limiti e qualità dei dati</summary>
       <p>Contabilità ordinaria · IVA trimestrale. Il trimestre è un filtro di consultazione, non una liquidazione IVA.</p>
       <p>Disponibile significa calcolabile sulle fonti caricate, non che tutte le fatture esterne siano state importate. Nessun utile definitivo, reddito imponibile, IVA da versare o saldo banca.</p>
