@@ -11625,7 +11625,7 @@ textarea:not(.impostazioni-input) {
   {nomeApp}
 </h2>
 { idUtenteImpostazioni && <CentroNotifiche key={idUtenteImpostazioni} client={supabase}
-  stile={menuButtonStyle(false)} menuImpostazioni={menuAperto === 'impostazioni'}
+  stile={menuButtonStyle(false)} menuImpostazioni={mostraImpostazioni}
   onApriScadenza={apriScadenzaDaNotifica} onContatori={aggiornaBadgeNotifiche} destinazioneAssente={notificaNonDisponibile?.utente === idUtenteImpostazioni ? notificaNonDisponibile?.numero : undefined} /> }
 {menuAperto === 'impostazioni' && (
   <div style={{ marginLeft: 10, marginTop: 5, display: 'grid', gap: 8 }}>
