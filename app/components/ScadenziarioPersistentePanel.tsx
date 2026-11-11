@@ -7,7 +7,7 @@ import { preparaPagamentoScadenza } from '../engines/contabilita-ditta/scadenzia
 import { creaArchivioDocumentiFiscali, type ClientDocumentiFiscali, type DocumentoFiscale } from '../engines/contabilita-ditta/documentiFiscali'
 
 /** Adapter iniettabile per fixture offline; nessun reader/writer viene eseguito durante SSR. */
-export default function ScadenziarioPersistentePanel({ client, archivioTest, aperto, onChiudi }: { client?: ClientScadenziario & Partial<Pick<ClientDocumentiFiscali, 'storage'>>; archivioTest?: ArchivioScadenziario; aperto?: boolean; onChiudi?: () => void }) {
+export default function ScadenziarioPersistentePanel({ client, archivioTest, aperto, onChiudi, scadenzaDaNotifica, onDestinazioneNotificaAssente, badgeScadenziario }: { client?: ClientScadenziario & Partial<Pick<ClientDocumentiFiscali, 'storage'>>; archivioTest?: ArchivioScadenziario; aperto?: boolean; onChiudi?: () => void; scadenzaDaNotifica?: string; onDestinazioneNotificaAssente?: () => void; badgeScadenziario?: number }) {
   const archivio = useMemo(() => archivioTest || (client ? creaArchivioScadenziario(client) : null), [client, archivioTest])
   const documenti = useMemo(() => client?.storage ? creaArchivioDocumentiFiscali({ rpc: client.rpc.bind(client), storage: client.storage }) : null, [client])
   const [catalogo, setCatalogo] = useState<{ archivio: typeof documenti; righe: DocumentoFiscale[]; errore: string } | null>(null)
@@ -29,7 +29,7 @@ export default function ScadenziarioPersistentePanel({ client, archivioTest, ape
     })
     return () => { attiva = false }
   }, [rileggiDocumenti])
-  const [risultato, setRisultato] = useState<{ archivio: ArchivioScadenziario; righe: ScadenzaPersistita[]; pronta: boolean; errore: string } | null>(null)
+  const [risultato, setRisultato] = useState<{ archivio: ArchivioScadenziario; righe: ScadenzaPersistita[]; pronta: boolean; errore: string; destinazione?: string } | null>(null)
   const [occupata, setOccupata] = useState(false)
   const contestoRef = useRef<ArchivioScadenziario | null>(archivio)
   const operazioneRef = useRef(false)
@@ -38,11 +38,11 @@ export default function ScadenziarioPersistentePanel({ client, archivioTest, ape
     if (!archivio) return
     try {
       const righe = await archivio.elenco(true)
-      if (contestoRef.current === archivio && turno === letturaRef.current) setRisultato({ archivio, righe, pronta: true, errore: '' })
+      if (contestoRef.current === archivio && turno === letturaRef.current) setRisultato({ archivio, righe, pronta: true, errore: '', destinazione: scadenzaDaNotifica })
     } catch (error) {
-      if (contestoRef.current === archivio && turno === letturaRef.current) setRisultato({ archivio, righe: [], pronta: false, errore: error instanceof Error ? error.message : 'Errore di lettura: nessun archivio vuoto sostitutivo.' })
+      if (contestoRef.current === archivio && turno === letturaRef.current) setRisultato({ archivio, righe: [], pronta: false, errore: error instanceof Error ? error.message : 'Errore di lettura: nessun archivio vuoto sostitutivo.', destinazione: scadenzaDaNotifica })
     }
-  }, [archivio])
+  }, [archivio, scadenzaDaNotifica])
   const rileggi = useCallback(() => {
     if (!archivio || operazioneRef.current) return
     const turno = ++letturaRef.current
@@ -55,8 +55,12 @@ export default function ScadenziarioPersistentePanel({ client, archivioTest, ape
     void carica(turno)
     return () => { contestoRef.current = null }
   }, [archivio, carica])
-  const valido = risultato?.archivio === archivio && risultato.pronta
+  const valido = risultato?.archivio === archivio && risultato.destinazione === scadenzaDaNotifica && risultato.pronta
   const righe = valido ? risultato.righe : []
+  const destinazionePresente = righe.some(r => r.id === scadenzaDaNotifica && !r.archiviataAt)
+  useEffect(() => {
+    if (scadenzaDaNotifica && valido && !destinazionePresente) onDestinazioneNotificaAssente?.()
+  }, [scadenzaDaNotifica, valido, destinazionePresente, onDestinazioneNotificaAssente])
   async function muta(azione: () => Promise<ScadenzaPersistita>) {
     if (!archivio || !valido || operazioneRef.current) throw Error('Archivio non pronto. Rileggere prima di scrivere.')
     const contesto = archivio
@@ -64,13 +68,13 @@ export default function ScadenziarioPersistentePanel({ client, archivioTest, ape
     try {
       const aggiornata = await azione()
       if (contestoRef.current !== contesto) throw Error('Sessione/contesto cambiato: esito da rileggere.')
-      setRisultato({ archivio: contesto, pronta: true, errore: '', righe: [...righe.filter(r => r.id !== aggiornata.id), aggiornata] })
+      setRisultato({ archivio: contesto, pronta: true, errore: '', righe: [...righe.filter(r => r.id !== aggiornata.id), aggiornata], destinazione: scadenzaDaNotifica })
     } catch (error) {
       if (contestoRef.current === contesto) setRisultato({ archivio: contesto, pronta: false, righe: [], errore: error instanceof Error ? error.message : 'Scrittura non confermata. Nessun retry automatico.' })
       throw error
     } finally { operazioneRef.current = false; setOccupata(false) }
   }
-  return <ScadenziarioFiscalePanel apertoEsterno={aperto} onChiudiEsterno={onChiudi} persistenza={{
+  return <ScadenziarioFiscalePanel scadenzaDaNotifica={scadenzaDaNotifica} badgeScadenziario={badgeScadenziario} apertoEsterno={aperto} onChiudiEsterno={onChiudi} persistenza={{
     documenti: documenti ? {
       archivio: documenti,
       righe: catalogo?.archivio === documenti ? catalogo.righe : [],

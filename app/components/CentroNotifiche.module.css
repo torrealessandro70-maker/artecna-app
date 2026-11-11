@@ -1,0 +1,25 @@
+.badge {
+  display: inline-block;
+  background: #b91c1c;
+  color: white;
+  border-radius: 999px;
+  padding: 0.1em 0.55em;
+  margin-inline-start: 0.4em;
+  font-weight: 700;
+}
+.pannello { max-width: 48rem; }
+.pannello button {
+  min-height: 36px;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid #94a3b8;
+  border-radius: 0.4rem;
+  color: #1e293b;
+  background: #fff;
+}
+.pannello button[aria-pressed='true'] { background: #e2e8f0; font-weight: 700; }
+.pannello label { display: block; margin: 0.35rem 0; }
+.pannello fieldset { margin: 0.75rem 0; }
+.azioni { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-block: 0.5rem; }
+.elenco { list-style: none; padding: 0; }
+.elenco li { border-block-end: 1px solid #cbd5e1; padding: 0.6rem 0; }
+.elenco p { margin: 0.3rem 0; }

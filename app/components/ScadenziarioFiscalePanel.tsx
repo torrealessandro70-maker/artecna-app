@@ -1,6 +1,7 @@
 'use client'
 
-import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { BadgeNotifiche } from './CentroNotifiche'
 import VistaOperativa from './VistaOperativa'
 import { applicaScadenzaLocale, bozzaDaScadenza, formattaImportoScadenza as euro, nuovaBozzaScadenza, riepilogaScadenze, STATI_SCADENZA, TIPI_SCADENZA, validaBozzaScadenza, type BozzaScadenza, type Scadenza, type TotaleScadenze } from '../engines/contabilita-ditta/scadenziario'
 import { dataValida } from '../engines/contabilita-ditta/riepilogo'
@@ -25,7 +26,7 @@ function Totale({ valore }: { valore: TotaleScadenze }) {
 }
 
 /** La bozza resta soltanto nello stato del componente: nessun archivio o writer. */
-export default function ScadenziarioFiscalePanel({ persistenza, apertoEsterno, onChiudiEsterno }: { persistenza?: CollegamentoScadenziario; apertoEsterno?: boolean; onChiudiEsterno?: () => void } = {}) {
+export default function ScadenziarioFiscalePanel({ persistenza, apertoEsterno, onChiudiEsterno, scadenzaDaNotifica, badgeScadenziario = 0 }: { persistenza?: CollegamentoScadenziario; apertoEsterno?: boolean; onChiudiEsterno?: () => void; scadenzaDaNotifica?: string; badgeScadenziario?: number } = {}) {
   const [righeLocali, setRighe] = useState<Scadenza[]>([])
   const righe = persistenza ? persistenza.righe : righeLocali
   const documenti = persistenza?.documenti
@@ -48,7 +49,13 @@ export default function ScadenziarioFiscalePanel({ persistenza, apertoEsterno, o
   const [pagamento, setPagamento] = useState<Scadenza | null>(null)
   const prefisso = useId()
   const riepilogo = useMemo(() => riepilogaScadenze(righe, oggi), [righe, oggi])
-  const elenco = filtraScadenze([...righe, ...(persistenza?.archiviate || [])], filtro)
+  const filtroVisibile = scadenzaDaNotifica ? 'Tutte' : filtro
+  const elenco = filtraScadenze([...righe, ...(persistenza?.archiviate || [])], filtroVisibile)
+  const rigaNotifica = useRef<HTMLTableRowElement>(null)
+  const destinazionePresente = elenco.some(r => r.id === scadenzaDaNotifica && !r.archiviataAt)
+  useEffect(() => {
+    if (destinazionePresente) rigaNotifica.current?.focus()
+  }, [scadenzaDaNotifica, destinazionePresente])
   const scaduto = totaleScaduto(righe, oggi)
   const personalizzato = bozza && !(TIPI_SCADENZA as readonly string[]).includes(bozza.tipo)
   function imposta<K extends keyof BozzaScadenza>(campo: K, valore: BozzaScadenza[K]) { setBozza(b => b ? { ...b, [campo]: valore } : b) }
@@ -83,7 +90,7 @@ export default function ScadenziarioFiscalePanel({ persistenza, apertoEsterno, o
     <div><dt>Totale scaduto</dt><dd>{scaduto === null ? 'Non determinabile' : euro(scaduto)}<small>Residui noti inclusi. Importi previsti o pagati mancanti non sono sostituiti con zero.</small></dd></div>
   </dl>
   return <section className={styles.sezione} aria-label="Scadenziario fiscale e contributivo">
-    <h3>Scadenziario fiscale e contributivo</h3>
+    <h3>Scadenziario fiscale e contributivo <BadgeNotifiche count={badgeScadenziario} /></h3>
     {persistenza ? <p><strong>Archivio scadenze manuali.</strong> Nessun calcolo fiscale o pagamento automatico. Le modifiche non inviate restano bozze.</p> : <p><strong>Bozza locale non salvata.</strong> Le voci si perdono ricaricando la pagina o lasciando Economia generale. Nessun dato inviato al server.</p>}
     {persistenza && <><p role="status">{persistenza.errore || (persistenza.pronta ? 'Archivio caricato.' : 'Archivio non disponibile / in caricamento: nessuno zero sostitutivo.')}</p><button type="button" disabled={persistenza.occupata} onClick={persistenza.onRileggi}>Rileggi archivio</button></>}
     {(!persistenza || persistenza.pronta) && kpi}
@@ -98,7 +105,7 @@ export default function ScadenziarioFiscalePanel({ persistenza, apertoEsterno, o
         {riepilogo.scadute > 0 && <p role="status">Oltre data: {riepilogo.scadute} scadenze aperte, escluse dalle finestre future. Importi noti: <Totale valore={riepilogo.arretrati} /></p>}
         <p role="status">{messaggio}</p>
         {documenti && <RegistroDocumentiFiscali documenti={documenti} />}
-        <label className={styles.filtri}>Mostra scadenze <select aria-label="Filtro scadenze" value={filtro} onChange={e => setFiltro(e.target.value as FiltroScadenze)}>{FILTRI_SCADENZE.map(f => <option key={f}>{f}</option>)}</select></label>
+        <label className={styles.filtri}>Mostra scadenze <select aria-label="Filtro scadenze" value={filtroVisibile} disabled={Boolean(scadenzaDaNotifica)} onChange={e => setFiltro(e.target.value as FiltroScadenze)}>{FILTRI_SCADENZE.map(f => <option key={f}>{f}</option>)}</select></label>
         {!bozza && <button type="button" disabled={!!persistenza && (!persistenza.pronta || persistenza.occupata)} onClick={() => { setBozza(nuovaBozzaScadenza()); setModificaId(null); setRevisioneModifica(undefined); setChiusuraConfermata(false); setErrore(''); setMessaggio(''); richiestaRef.current = null }}>{persistenza ? 'Nuova scadenza' : 'Nuova scadenza locale'}</button>}
         {bozza && <form className={styles.form} onSubmit={registra}>
           <fieldset disabled={persistenza?.occupata}><legend>{persistenza ? (modificaId ? 'Modifica scadenza' : 'Nuova scadenza') : modificaId ? 'Modifica bozza locale' : 'Nuova bozza locale'}</legend>
@@ -125,9 +132,12 @@ export default function ScadenziarioFiscalePanel({ persistenza, apertoEsterno, o
           invioRef.current = true
           void persistenza.onArchivia(archiviaId, motivoArchivio, archiviaRevisione).then(() => { setArchiviaId(null); setMotivoArchivio(''); setErrore(''); setMessaggio('Scadenza archiviata, senza cancellazione o pagamento.') }, error => setErrore(error instanceof Error ? error.message : 'Archiviazione non confermata.')).finally(() => { invioRef.current = false })
         }}><fieldset disabled={!persistenza.pronta || persistenza.occupata}><legend>Archiviazione logica</legend><label>Motivo archiviazione <input required maxLength={2000} value={motivoArchivio} onChange={e => setMotivoArchivio(e.target.value)} /></label><button type="submit">Conferma archiviazione</button><button type="button" onClick={() => setArchiviaId(null)}>Annulla archiviazione</button>{errore && <p role="alert">{errore}</p>}</fieldset></form>}
+        {scadenzaDaNotifica && persistenza?.pronta && !destinazionePresente && <p role="status">Destinazione non disponibile.</p>}
         {persistenza && !persistenza.pronta ? <p>Elenco non disponibile: nessun fallback alle bozze locali.</p> : !elenco.length ? <p>{!righe.length && !persistenza?.archiviate?.length ? 'Nessuna scadenza inserita. Questo non certifica l’assenza di obblighi fiscali o contributivi.' : 'Nessuna scadenza per il filtro selezionato.'}</p> : <div className={styles.scorrimento} role="region" aria-label="Elenco scadenze locali" tabIndex={0}>
           <table><caption>Scadenze inserite manualmente, in ordine cronologico</caption><thead><tr>{['Tipo', 'Scadenza', 'Previsto', 'Stato', 'Azioni'].map(t => <th scope="col" key={t}>{t}</th>)}</tr></thead>
-            <tbody>{elenco.map(r => <tr key={r.id}><th scope="row">{r.tipo}</th><td>{r.dataScadenza}<small>{evidenzaScadenza(r, oggi)}</small></td><td>{euro(r.importoCentesimi)}{!r.includiNeiTotali && <small>{r.tipo === 'F24' ? 'Escluso dai totali per evitare possibili duplicazioni' : 'Riepilogativa: esclusa dai totali'}</small>}</td><td>{r.stato}{r.documentoId && <small>{documenti?.righe.find(d => d.id === r.documentoId)?.tipo_documento === 'F24' ? 'F24 collegato' : 'Documento collegato'}</small>}{r.archiviataAt && <small>Archiviata — stato conservato</small>}</td><td>
+            <tbody>{elenco.map(r => <tr key={r.id} ref={destinazionePresente && r.id === scadenzaDaNotifica ? rigaNotifica : undefined}
+              tabIndex={r.id === scadenzaDaNotifica ? -1 : undefined} aria-current={destinazionePresente && r.id === scadenzaDaNotifica ? 'true' : undefined}>
+              <th scope="row">{r.tipo}{destinazionePresente && r.id === scadenzaDaNotifica && <small>Da notifica</small>}</th><td>{r.dataScadenza}<small>{evidenzaScadenza(r, oggi)}</small></td><td>{euro(r.importoCentesimi)}{!r.includiNeiTotali && <small>{r.tipo === 'F24' ? 'Escluso dai totali per evitare possibili duplicazioni' : 'Riepilogativa: esclusa dai totali'}</small>}</td><td>{r.stato}{r.documentoId && <small>{documenti?.righe.find(d => d.id === r.documentoId)?.tipo_documento === 'F24' ? 'F24 collegato' : 'Documento collegato'}</small>}{r.archiviataAt && <small>Archiviata — stato conservato</small>}</td><td>
               {!r.archiviataAt && <div className={styles.azioni}>
                 {r.stato !== 'Pagato' && <button type="button" disabled={!!bozza || !!archiviaId || !!persistenza?.occupata} aria-label={`Segna pagato ${r.tipo} · ${r.dataScadenza}`} onClick={() => setPagamento(r)}>Segna pagato</button>}
                 <button type="button" disabled={!!bozza || !!archiviaId || !!persistenza?.occupata} onClick={() => { setBozza(bozzaDaScadenza(r)); setModificaId(r.id); setRevisioneModifica(r.revisione); setChiusuraConfermata(false); setErrore(''); setMessaggio('') }}>{persistenza ? 'Modifica scadenza' : 'Modifica bozza'} {r.tipo} · {r.dataScadenza}</button>

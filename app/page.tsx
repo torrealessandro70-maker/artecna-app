@@ -20,7 +20,7 @@ import { eliminaPreventivoConFile, eliminaFilePreventivi, messaggioEliminazione 
 import { parsePreventivoItems, type VoceAnalizzata } from './engines/document-intelligence/preventivo-items'
 import { creaVoceAnalizzataExcel, totaleVoceAnalizzata } from './engines/document-parser/voci-analizzate'
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
 import type { RigaMaterialeFatturaStorico } from './utils/suggerimentiMateriali'
 import { calcolaAttrezzoManuale } from './utils/attrezzoManuale'
 import type { RigaAttrezzaturaFatturaStorico } from './utils/suggerimentiAttrezzature'
@@ -43,6 +43,7 @@ import { applicaOperaiRiconosciuti, type PropostaOperaioRiconosciuto } from './u
 import PopupModificaTimbratura from './components/PopupModificaTimbratura'
 import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
+import CentroNotifiche, { BadgeNotifiche } from './components/CentroNotifiche'
 import EconomiaGeneralePanel from './components/EconomiaGeneralePanel'
 import { creaVociPreventivoDaDocumento } from './engines/preventivo-from-document'
 import { createPreventivoRevision } from './engines/preventivo'
@@ -4866,6 +4867,33 @@ const [
 ] = useState<any[]>([])
 const [vociAnalizzate, setVociAnalizzate] = useState<(VoceAnalizzata & { testoOrigine?: string })[]>([])
 const [sezioneAttiva, setSezioneAttiva] = useState('home')
+const [notificheMenu, setNotificheMenu] = useState<{ utente: string; scadenziario: number } | null>(null)
+const [notificaAperta, setNotificaAperta] = useState<{ utente: string; id: string } | null>(null)
+const [notificaNonDisponibile, setNotificaNonDisponibile] = useState<{ utente: string; numero: number } | null>(null)
+const badgeScadenziario = notificheMenu?.utente === idUtenteImpostazioni ? notificheMenu?.scadenziario ?? 0 : 0
+const scadenzaDaNotifica = notificaAperta?.utente === idUtenteImpostazioni ? notificaAperta?.id : undefined
+const aggiornaBadgeNotifiche = useCallback(({ scadenziario }: { scadenziario: number }) => {
+  if (idUtenteImpostazioni) setNotificheMenu({ utente: idUtenteImpostazioni, scadenziario })
+}, [idUtenteImpostazioni])
+const apriScadenzaDaNotifica = useCallback((id: string) => {
+  if (!idUtenteImpostazioni) return
+  setNotificaAperta({ utente: idUtenteImpostazioni, id })
+  setSezioneAttiva('economia')
+  setPagineAperte(correnti => correnti.includes('economia') ? correnti : [...correnti, 'economia'])
+  setMenuAperto(null)
+}, [idUtenteImpostazioni])
+const chiudiScadenzaDaNotifica = useCallback(() => {
+  setNotificaAperta(null)
+  const url = new URL(window.location.href)
+  if (url.searchParams.has('notifica')) {
+    url.searchParams.delete('notifica')
+    window.history.replaceState(null, '', url)
+  }
+}, [])
+const tornaAlCentroNotifiche = useCallback(() => {
+  chiudiScadenzaDaNotifica()
+  if (idUtenteImpostazioni) setNotificaNonDisponibile(n => ({ utente: idUtenteImpostazioni, numero: (n?.numero ?? 0) + 1 }))
+}, [chiudiScadenzaDaNotifica, idUtenteImpostazioni])
 const vistaCantieriAttiva = sezioneAttiva === 'cantieri' ? sottoSezioneCantieri : null
 
 const [vociPreventivoAi, setVociPreventivoAi] =
@@ -11596,6 +11624,9 @@ textarea:not(.impostazioni-input) {
 >
   {nomeApp}
 </h2>
+{ idUtenteImpostazioni && <CentroNotifiche key={idUtenteImpostazioni} client={supabase}
+  stile={menuButtonStyle(false)} menuImpostazioni={menuAperto === 'impostazioni'}
+  onApriScadenza={apriScadenzaDaNotifica} onContatori={aggiornaBadgeNotifiche} destinazioneAssente={notificaNonDisponibile?.utente === idUtenteImpostazioni ? notificaNonDisponibile?.numero : undefined} /> }
 {menuAperto === 'impostazioni' && (
   <div style={{ marginLeft: 10, marginTop: 5, display: 'grid', gap: 8 }}>
     <label style={labelStyle}>
@@ -11840,7 +11871,7 @@ textarea:not(.impostazioni-input) {
       style={menuButtonStyle(sezioneAttiva === 'economia')}
     >
  
-    💶 Economia generale
+    💶 Economia generale <BadgeNotifiche count={badgeScadenziario} />
     </button>
 <button
   onClick={() => {
@@ -13404,6 +13435,10 @@ onDocumentAction: gestisciAzioneDocumento,
   (!modalitaMulti && sezioneAttiva === 'economia')
 ) && (
   <EconomiaGeneralePanel
+    scadenzaDaNotifica={scadenzaDaNotifica}
+    onChiudiScadenzaDaNotifica={chiudiScadenzaDaNotifica}
+    onDestinazioneNotificaAssente={tornaAlCentroNotifiche}
+    badgeScadenziario={badgeScadenziario}
     onApri={destinazione => {
       if (destinazione === 'pagamenti-operai') {
         setSezioneAttiva('pagamenti')

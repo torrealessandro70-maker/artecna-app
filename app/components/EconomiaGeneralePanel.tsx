@@ -13,6 +13,10 @@ import ScadenziarioPersistentePanel from './ScadenziarioPersistentePanel'
 import type { ClientDocumentiFiscali } from '../engines/contabilita-ditta/documentiFiscali'
 
 type Props = {
+  scadenzaDaNotifica?: string
+  onChiudiScadenzaDaNotifica?: () => void
+  onDestinazioneNotificaAssente?: () => void
+  badgeScadenziario?: number
   onApri?: (destinazione: DestinazioneEconomia) => void
   client: ClientLettura & ClientAttribuzioni & Partial<Pick<ClientDocumentiFiscali, 'storage'>>
   cardStyle: CSSProperties
@@ -40,6 +44,10 @@ type Props = {
 
 export default function EconomiaGeneralePanel({
   client,
+  scadenzaDaNotifica,
+  onChiudiScadenzaDaNotifica,
+  onDestinazioneNotificaAssente,
+  badgeScadenziario,
   onApri,
   cardStyle,
   speseImpresa,
@@ -68,7 +76,9 @@ export default function EconomiaGeneralePanel({
         <CostiGeneraliImpresaSummary speseImpresa={speseImpresa} formatMoney={formatMoney} comeRiga
           onMostraDettaglio={event => { ritornoCostiRef.current = event.currentTarget; setCostiAperti(true) }} />
       } />
-      <ScadenziarioPersistentePanel client={client} aperto={scadenziarioAperto} onChiudi={() => setScadenziarioAperto(false)} />
+      <ScadenziarioPersistentePanel client={client} aperto={scadenziarioAperto || Boolean(scadenzaDaNotifica)}
+        scadenzaDaNotifica={scadenzaDaNotifica} onDestinazioneNotificaAssente={onDestinazioneNotificaAssente} badgeScadenziario={badgeScadenziario}
+        onChiudi={() => { setScadenziarioAperto(false); onChiudiScadenzaDaNotifica?.() }} />
       <details style={{ marginTop: 16 }}><summary style={{ cursor: 'pointer', fontWeight: 600 }}>Costi fornitori assegnati e rettifiche</summary>
         <CostiFornitoriRettificati client={client} />
       </details>
