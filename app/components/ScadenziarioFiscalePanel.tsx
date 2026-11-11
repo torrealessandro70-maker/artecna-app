@@ -6,9 +6,11 @@ import { applicaScadenzaLocale, bozzaDaScadenza, formattaImportoScadenza as euro
 import { dataValida } from '../engines/contabilita-ditta/riepilogo'
 import styles from './ScadenziarioFiscalePanel.module.css'
 import ScadenzaPagamentoDialog from './ScadenzaPagamentoDialog'
+import { AzioniDocumentoScadenza, RegistroDocumentiFiscali, type CollegamentoDocumentiFiscali } from './DocumentiFiscaliPanel'
 import { evidenzaScadenza, filtraScadenze, FILTRI_SCADENZE, pagatoCentesimi, preparaPagamentoScadenza, residuoScadenza, totaleScaduto, type BozzaPagamentoScadenza, type FiltroScadenze } from '../engines/contabilita-ditta/scadenziarioOperativo'
 
 export type CollegamentoScadenziario = {
+  documenti?: CollegamentoDocumentiFiscali
   righe: Scadenza[]; archiviate?: Scadenza[]; pronta: boolean; occupata: boolean; errore: string
   onRileggi: () => void
   onSalva: (riga: Scadenza, modificaId: string | null, opzioni?: { revisioneAttesa?: string; chiusuraConfermata: boolean }) => Promise<void>
@@ -26,6 +28,7 @@ function Totale({ valore }: { valore: TotaleScadenze }) {
 export default function ScadenziarioFiscalePanel({ persistenza, apertoEsterno, onChiudiEsterno }: { persistenza?: CollegamentoScadenziario; apertoEsterno?: boolean; onChiudiEsterno?: () => void } = {}) {
   const [righeLocali, setRighe] = useState<Scadenza[]>([])
   const righe = persistenza ? persistenza.righe : righeLocali
+  const documenti = persistenza?.documenti
   const [aperto, setAperto] = useState(false)
   const [oggi, setOggi] = useState(oggiLocale)
   const [bozza, setBozza] = useState<BozzaScadenza | null>(null)
@@ -94,6 +97,7 @@ export default function ScadenziarioFiscalePanel({ persistenza, apertoEsterno, o
         <p>Finestre cumulative dalla data di consultazione, estremi inclusi: 60/90 giorni comprendono anche i primi 30. Le voci Pagato sono escluse dai totali aperti. I KPI 30/60/90 restano importi previsti, non saldi residui; le annotazioni pagate sono nei dettagli.</p>
         {riepilogo.scadute > 0 && <p role="status">Oltre data: {riepilogo.scadute} scadenze aperte, escluse dalle finestre future. Importi noti: <Totale valore={riepilogo.arretrati} /></p>}
         <p role="status">{messaggio}</p>
+        {documenti && <RegistroDocumentiFiscali documenti={documenti} />}
         <label className={styles.filtri}>Mostra scadenze <select aria-label="Filtro scadenze" value={filtro} onChange={e => setFiltro(e.target.value as FiltroScadenze)}>{FILTRI_SCADENZE.map(f => <option key={f}>{f}</option>)}</select></label>
         {!bozza && <button type="button" disabled={!!persistenza && (!persistenza.pronta || persistenza.occupata)} onClick={() => { setBozza(nuovaBozzaScadenza()); setModificaId(null); setRevisioneModifica(undefined); setChiusuraConfermata(false); setErrore(''); setMessaggio(''); richiestaRef.current = null }}>{persistenza ? 'Nuova scadenza' : 'Nuova scadenza locale'}</button>}
         {bozza && <form className={styles.form} onSubmit={registra}>
@@ -123,13 +127,13 @@ export default function ScadenziarioFiscalePanel({ persistenza, apertoEsterno, o
         }}><fieldset disabled={!persistenza.pronta || persistenza.occupata}><legend>Archiviazione logica</legend><label>Motivo archiviazione <input required maxLength={2000} value={motivoArchivio} onChange={e => setMotivoArchivio(e.target.value)} /></label><button type="submit">Conferma archiviazione</button><button type="button" onClick={() => setArchiviaId(null)}>Annulla archiviazione</button>{errore && <p role="alert">{errore}</p>}</fieldset></form>}
         {persistenza && !persistenza.pronta ? <p>Elenco non disponibile: nessun fallback alle bozze locali.</p> : !elenco.length ? <p>{!righe.length && !persistenza?.archiviate?.length ? 'Nessuna scadenza inserita. Questo non certifica l’assenza di obblighi fiscali o contributivi.' : 'Nessuna scadenza per il filtro selezionato.'}</p> : <div className={styles.scorrimento} role="region" aria-label="Elenco scadenze locali" tabIndex={0}>
           <table><caption>Scadenze inserite manualmente, in ordine cronologico</caption><thead><tr>{['Tipo', 'Scadenza', 'Previsto', 'Stato', 'Azioni'].map(t => <th scope="col" key={t}>{t}</th>)}</tr></thead>
-            <tbody>{elenco.map(r => <tr key={r.id}><th scope="row">{r.tipo}</th><td>{r.dataScadenza}<small>{evidenzaScadenza(r, oggi)}</small></td><td>{euro(r.importoCentesimi)}{!r.includiNeiTotali && <small>{r.tipo === 'F24' ? 'Escluso dai totali per evitare possibili duplicazioni' : 'Riepilogativa: esclusa dai totali'}</small>}</td><td>{r.stato}{r.archiviataAt && <small>Archiviata — stato conservato</small>}</td><td>
+            <tbody>{elenco.map(r => <tr key={r.id}><th scope="row">{r.tipo}</th><td>{r.dataScadenza}<small>{evidenzaScadenza(r, oggi)}</small></td><td>{euro(r.importoCentesimi)}{!r.includiNeiTotali && <small>{r.tipo === 'F24' ? 'Escluso dai totali per evitare possibili duplicazioni' : 'Riepilogativa: esclusa dai totali'}</small>}</td><td>{r.stato}{r.documentoId && <small>{documenti?.righe.find(d => d.id === r.documentoId)?.tipo_documento === 'F24' ? 'F24 collegato' : 'Documento collegato'}</small>}{r.archiviataAt && <small>Archiviata — stato conservato</small>}</td><td>
               {!r.archiviataAt && <div className={styles.azioni}>
                 {r.stato !== 'Pagato' && <button type="button" disabled={!!bozza || !!archiviaId || !!persistenza?.occupata} aria-label={`Segna pagato ${r.tipo} · ${r.dataScadenza}`} onClick={() => setPagamento(r)}>Segna pagato</button>}
                 <button type="button" disabled={!!bozza || !!archiviaId || !!persistenza?.occupata} onClick={() => { setBozza(bozzaDaScadenza(r)); setModificaId(r.id); setRevisioneModifica(r.revisione); setChiusuraConfermata(false); setErrore(''); setMessaggio('') }}>{persistenza ? 'Modifica scadenza' : 'Modifica bozza'} {r.tipo} · {r.dataScadenza}</button>
                 {persistenza && <button type="button" disabled={!!bozza || !!archiviaId || persistenza.occupata || !persistenza.pronta} onClick={() => { setArchiviaId(r.id); setArchiviaRevisione(r.revisione); setMotivoArchivio(''); setErrore('') }}>Archivia scadenza {r.tipo} · {r.dataScadenza}</button>}
               </div>}
-              <details><summary>Dettagli {r.tipo} · {r.dataScadenza}</summary><p>Periodo: {r.periodo}</p><p>Previsto: {euro(r.importoCentesimi)} | Pagato: {euro(pagatoCentesimi(r))} | Residuo: {residuoScadenza(r) === null ? 'Non determinabile' : euro(residuoScadenza(r))}</p><p>Data pagamento: {r.dataPagamento || 'Non indicata'}</p><p>Nota: {r.nota || 'Nessuna'}</p><p>Riferimento: {r.riferimento || 'Non indicato'}</p>{r.revisione && <p>Revisione: {r.revisione} · Ultima modifica: {r.updatedAt}</p>}{r.archiviataAt && <p>Archiviata: {r.archiviataAt} · Motivo: {r.motivoArchiviazione}</p>}<p>Origine: inserimento manuale; nessun documento acquisito o verificato automaticamente.</p></details>
+              <details><summary>Dettagli {r.tipo} · {r.dataScadenza}</summary><p>Periodo: {r.periodo}</p><p>Previsto: {euro(r.importoCentesimi)} | Pagato: {euro(pagatoCentesimi(r))} | Residuo: {residuoScadenza(r) === null ? 'Non determinabile' : euro(residuoScadenza(r))}</p><p>Data pagamento: {r.dataPagamento || 'Non indicata'}</p><p>Nota: {r.nota || 'Nessuna'}</p><p>Riferimento: {r.riferimento || 'Non indicato'}</p>{r.revisione && <p>Revisione: {r.revisione} · Ultima modifica: {r.updatedAt}</p>}{r.archiviataAt && <p>Archiviata: {r.archiviataAt} · Motivo: {r.motivoArchiviazione}</p>}{documenti && <AzioniDocumentoScadenza riga={r} documenti={documenti} disabilitata={Boolean(bozza || archiviaId || persistenza?.occupata || !persistenza?.pronta)} />}</details>
             </td></tr>)}</tbody>
           </table>
         </div>}

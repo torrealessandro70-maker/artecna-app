@@ -19,6 +19,7 @@ export type Scadenza = {
   motivoArchiviazione?: string | null
   revisione?: string
   updatedAt?: string
+  documentoId?: string | null
 }
 export type BozzaScadenza = Omit<Scadenza, 'id' | 'importoCentesimi'> & { importo: string }
 export type TotaleScadenze = { centesimi: number | null; note: number; importiMancanti: number; riepilogative: number }

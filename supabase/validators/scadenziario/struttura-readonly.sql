@@ -1,11 +1,15 @@
--- PREPARATO, NON ESEGUITO. Richiede la futura migration in un DB locale usa-e-getta.
+-- Contratto base 19 colonne; estensione versionata Documenti fiscali: solo documento_id (20).
 \set ON_ERROR_STOP on
 BEGIN READ ONLY;
 DO $test$
 DECLARE t oid:=to_regclass('artecna_contabilita.scadenze_fiscali'); k text; r record; firma text;
 BEGIN
  IF t IS NULL THEN RAISE EXCEPTION 'MISSING_TABLE'; END IF;
- IF (SELECT count(*) FROM pg_attribute WHERE attrelid=t AND attnum>0 AND NOT attisdropped)<>19 THEN RAISE EXCEPTION 'UNEXPECTED_COLUMN_SET'; END IF;
+ IF (SELECT count(*) FROM pg_attribute WHERE attrelid=t AND attnum>0 AND NOT attisdropped)<>(CASE WHEN to_regclass('artecna_contabilita.documenti_fiscali') IS NULL THEN 19 ELSE 20 END) THEN RAISE EXCEPTION 'UNEXPECTED_COLUMN_SET'; END IF;
+ IF to_regclass('artecna_contabilita.documenti_fiscali') IS NOT NULL THEN
+  IF NOT EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=t AND attname='documento_id' AND atttypid='uuid'::regtype AND NOT attnotnull AND NOT attisdropped)
+   OR NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid=t AND contype='f' AND confrelid='artecna_contabilita.documenti_fiscali'::regclass AND pg_get_constraintdef(oid)='FOREIGN KEY (documento_id) REFERENCES artecna_contabilita.documenti_fiscali(id) ON DELETE RESTRICT') THEN RAISE EXCEPTION 'DOCUMENT_EXTENSION_MISMATCH'; END IF;
+ END IF;
  IF NOT EXISTS(SELECT 1 FROM pg_class WHERE oid=t AND relrowsecurity AND relforcerowsecurity AND relowner='postgres'::regrole) THEN RAISE EXCEPTION 'UNSAFE_RLS_OWNER'; END IF;
  FOR r IN SELECT * FROM (VALUES
  ('id','uuid'),('tipo','text'),('periodo_riferimento','text'),('data_scadenza','date'),('importo_previsto','numeric(14,2)'),

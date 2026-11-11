@@ -18,6 +18,7 @@ export interface ArchivioScadenziario {
   crea(dati: DatiScadenza): Promise<ScadenzaPersistita>
   aggiorna(dati: DatiScadenza, revisioneAttesa: string): Promise<ScadenzaPersistita>
   archivia(id: string, revisioneAttesa: string, motivo: string): Promise<ScadenzaPersistita>
+  impostaDocumento(id: string, revisioneAttesa: string, documentoId: string | null): Promise<ScadenzaPersistita>
 }
 const statiDb: Record<StatoScadenza, string> = { Previsto: 'previsto', 'Da verificare': 'da_verificare', 'Da pagare': 'da_pagare', Pagato: 'pagato' }
 const statiUi = Object.fromEntries(Object.entries(statiDb).map(([k, v]) => [v, k])) as Record<string, StatoScadenza>
@@ -34,6 +35,8 @@ function denaro(s: unknown): number | null {
 function leggiRiga(raw: unknown): ScadenzaPersistita {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('Riga non valida')
   const r = raw as Record<string, unknown>
+  const documentoId = r.documento_id ?? null
+  if (documentoId !== null && !uuid(documentoId)) throw Error('Identità documento non valida')
   if (!uuid(r.id) || !revisione(r.revisione) || !uuid(r.created_by) || !uuid(r.updated_by) || !istante(r.created_at) || !istante(r.updated_at)
     || Date.parse(r.updated_at) < Date.parse(r.created_at) || typeof r.stato !== 'string' || !statiUi[r.stato]
     || typeof r.tipo !== 'string' || typeof r.periodo_riferimento !== 'string' || typeof r.note !== 'string' || typeof r.riferimento_documento !== 'string' || typeof r.includi_nei_totali !== 'boolean') throw Error('Metadati incompleti')
@@ -43,7 +46,7 @@ function leggiRiga(raw: unknown): ScadenzaPersistita {
     || (istante(r.archiviata_at) && uuid(r.archiviata_by) && typeof r.motivo_archiviazione === 'string' && r.motivo_archiviazione.trim().length > 0))) throw Error('Archiviazione incompleta')
   const base = validaBozzaScadenza({ tipo: r.tipo, periodo: r.periodo_riferimento, dataScadenza: String(r.data_scadenza), importo: r.importo_previsto === null ? '' : String(r.importo_previsto), stato: statiUi[r.stato], nota: r.note, riferimento: r.riferimento_documento, includiNeiTotali: r.includi_nei_totali }, r.id)
   if (base.importoCentesimi !== importo) throw Error('Conversione importo non coerente')
-  return { ...base, revisione: r.revisione, importoPagato: r.importo_pagato as string | null, dataPagamento: r.data_pagamento as string | null, createdAt: r.created_at, createdBy: r.created_by, updatedAt: r.updated_at, updatedBy: r.updated_by, archiviataAt: r.archiviata_at as string | null, archiviataBy: r.archiviata_by as string | null, motivoArchiviazione: r.motivo_archiviazione as string | null }
+  return { ...base, documentoId, revisione: r.revisione, importoPagato: r.importo_pagato as string | null, dataPagamento: r.data_pagamento as string | null, createdAt: r.created_at, createdBy: r.created_by, updatedAt: r.updated_at, updatedBy: r.updated_by, archiviataAt: r.archiviata_at as string | null, archiviataBy: r.archiviata_by as string | null, motivoArchiviazione: r.motivo_archiviazione as string | null }
 }
 function payload(dati: DatiScadenza) {
   const { scadenza: s, importoPagato, dataPagamento } = dati
@@ -102,6 +105,17 @@ export function creaArchivioScadenziario(client: ClientScadenziario): ArchivioSc
     async archivia(id, attesa, motivo) {
       if (!uuid(id) || !revisione(attesa) || !motivo.trim() || motivo.trim().length > 2000) throw new ErroreScadenziario('scrittura', 'Identità, revisione o motivo non validi.')
       return scrivi('archivia_scadenza_fiscale', { p_id: id, p_revisione_attesa: attesa, p_motivo: motivo.trim() }, id, attesa, true)
+    },
+    async impostaDocumento(id, attesa, documentoId) {
+      if (!uuid(id) || !revisione(attesa) || (documentoId !== null && !uuid(documentoId))) {
+        throw new ErroreScadenziario('scrittura', 'Identità o revisione non valida.')
+      }
+      const args = { p_id: id, p_revisione_attesa: attesa }
+      const r = documentoId === null
+        ? await scrivi('scollega_documento_scadenza', args, id, attesa, false)
+        : await scrivi('collega_documento_scadenza', { ...args, p_documento_id: documentoId }, id, attesa, false)
+      if (r.documentoId !== documentoId) throw new ErroreScadenziario('esito_incerto', 'Collegamento non confermato. Rileggere la scadenza.')
+      return r
     },
   }
 }

@@ -10,10 +10,11 @@ import type { ClientAttribuzioni } from '../engines/contabilita-ditta/attribuzio
 import type { ClientLettura } from '../engines/contabilita-ditta/lettura'
 import EconomiaSpeseImpresaPanel from './EconomiaSpeseImpresaPanel'
 import ScadenziarioPersistentePanel from './ScadenziarioPersistentePanel'
+import type { ClientDocumentiFiscali } from '../engines/contabilita-ditta/documentiFiscali'
 
 type Props = {
   onApri?: (destinazione: DestinazioneEconomia) => void
-  client: ClientLettura & ClientAttribuzioni
+  client: ClientLettura & ClientAttribuzioni & Partial<Pick<ClientDocumentiFiscali, 'storage'>>
   cardStyle: CSSProperties
   fattureEmesse: unknown[]
   fattureFornitori: unknown[]

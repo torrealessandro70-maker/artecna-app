@@ -19,6 +19,7 @@ function controller(archivio) {
     if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }) }
     if (name === './ScadenziarioFiscalePanel') return { default: 'Panel' }
     if (name.endsWith('/scadenziarioPersistenza')) return { creaArchivioScadenziario() { throw Error('Real client forbidden') } }
+    if (name.endsWith('/documentiFiscali')) return { creaArchivioDocumentiFiscali() { throw Error('Real storage forbidden') } }
     if (name.endsWith('/scadenziarioOperativo')) return engine(path.resolve(__dirname, '../engines/contabilita-ditta/scadenziarioOperativo.ts'))
     throw Error(name)
   } })

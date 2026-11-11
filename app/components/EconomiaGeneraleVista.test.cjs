@@ -144,8 +144,15 @@ test('non-finite legacy cost value is labelled non determinable, never replaced 
 })
 test('unrelated economic calculators/readers/writers/schema remain unchanged; cost formulas retain original expressions', () => {
   const root = path.resolve(__dirname, '../..')
-  const changed=cp.execFileSync('git', ['diff', '--name-only', '--', 'app/engines', 'supabase', 'lib'], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/).filter(Boolean)
-  assert(changed.every(file=>/^app\/engines\/contabilita-ditta\/scadenziario(?:Persistenza)?(?:\.test)?\.(ts|cjs)$/.test(file)), 'Only this step’s schedule model/adapter/tests may change; no existing economic or SQL changes')
+  const scope = ['app/engines', 'supabase', 'lib']
+  const changed = [['diff', '--name-only', 'HEAD'], ['ls-files', '--others', '--exclude-standard']]
+    .flatMap(args => cp.execFileSync('git', [...args, '--', ...scope], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/).filter(Boolean))
+  const migration = 'supabase/migrations/20261111000100_documenti_fiscali_privati.sql'
+  const validators = new Set(['browser-fixture.cjs', 'struttura-readonly.sql', 'documenti-fiscali-static.test.cjs',
+    'documenti-runtime.test.cjs', 'documenti-storage-emulator.cjs', 'documenti-storage-fixture.sql', 'documenti-struttura-readonly.sql']
+    .map(file => 'supabase/validators/scadenziario/' + file))
+  assert(changed.every(file => file === migration || validators.has(file) || /^app\/engines\/contabilita-ditta\/(?:scadenziario(?:Persistenza)?|documentiFiscali)(?:\.test)?\.(ts|cjs)$/.test(file)),
+    'Only the fiscal document migration and schedule/document adapters and tests may change')
   const baseline = cp.execFileSync('git', ['show', '44d95773f1076c84bc21a09504166dd88a584bec:app/components/CostiGeneraliImpresaSummary.tsx'], { cwd: root, encoding: 'utf8' }).replace(/\r/g, '')
   function formulas(s) { const out = {}, ast = ts.createSourceFile('costs.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); function visit(n) { if (ts.isVariableDeclaration(n) && n.name.getText(ast).startsWith('totale')) out[n.name.getText(ast)] = n.initializer.getText(ast); ts.forEachChild(n, visit) } visit(ast); return out }
   assert.deepEqual(formulas(read('CostiGeneraliImpresaSummary.tsx')), formulas(baseline))

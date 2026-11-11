@@ -4,10 +4,31 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ScadenziarioFiscalePanel from './ScadenziarioFiscalePanel'
 import { creaArchivioScadenziario, type ArchivioScadenziario, type ClientScadenziario, type ScadenzaPersistita } from '../engines/contabilita-ditta/scadenziarioPersistenza'
 import { preparaPagamentoScadenza } from '../engines/contabilita-ditta/scadenziarioOperativo'
+import { creaArchivioDocumentiFiscali, type ClientDocumentiFiscali, type DocumentoFiscale } from '../engines/contabilita-ditta/documentiFiscali'
 
 /** Adapter iniettabile per fixture offline; nessun reader/writer viene eseguito durante SSR. */
-export default function ScadenziarioPersistentePanel({ client, archivioTest, aperto, onChiudi }: { client?: ClientScadenziario; archivioTest?: ArchivioScadenziario; aperto?: boolean; onChiudi?: () => void }) {
+export default function ScadenziarioPersistentePanel({ client, archivioTest, aperto, onChiudi }: { client?: ClientScadenziario & Partial<Pick<ClientDocumentiFiscali, 'storage'>>; archivioTest?: ArchivioScadenziario; aperto?: boolean; onChiudi?: () => void }) {
   const archivio = useMemo(() => archivioTest || (client ? creaArchivioScadenziario(client) : null), [client, archivioTest])
+  const documenti = useMemo(() => client?.storage ? creaArchivioDocumentiFiscali({ rpc: client.rpc.bind(client), storage: client.storage }) : null, [client])
+  const [catalogo, setCatalogo] = useState<{ archivio: typeof documenti; righe: DocumentoFiscale[]; errore: string } | null>(null)
+  const turnoDocumenti = useRef(0)
+  const rileggiDocumenti = useCallback(async (attiva: () => boolean = () => true) => {
+    if (!documenti) return
+    const turno = ++turnoDocumenti.current
+    try {
+      const righe = await documenti.elenco()
+      if (attiva() && turno === turnoDocumenti.current) setCatalogo({ archivio: documenti, righe, errore: '' })
+    } catch (e) {
+      if (attiva() && turno === turnoDocumenti.current) setCatalogo({ archivio: documenti, righe: [], errore: e instanceof Error ? e.message : 'Registro non disponibile.' })
+    }
+  }, [documenti])
+  useEffect(() => {
+    let attiva = true
+    void Promise.resolve().then(() => {
+      if (attiva) return rileggiDocumenti(() => attiva)
+    })
+    return () => { attiva = false }
+  }, [rileggiDocumenti])
   const [risultato, setRisultato] = useState<{ archivio: ArchivioScadenziario; righe: ScadenzaPersistita[]; pronta: boolean; errore: string } | null>(null)
   const [occupata, setOccupata] = useState(false)
   const contestoRef = useRef<ArchivioScadenziario | null>(archivio)
@@ -50,6 +71,17 @@ export default function ScadenziarioPersistentePanel({ client, archivioTest, ape
     } finally { operazioneRef.current = false; setOccupata(false) }
   }
   return <ScadenziarioFiscalePanel apertoEsterno={aperto} onChiudiEsterno={onChiudi} persistenza={{
+    documenti: documenti ? {
+      archivio: documenti,
+      righe: catalogo?.archivio === documenti ? catalogo.righe : [],
+      errore: catalogo?.archivio === documenti ? catalogo.errore : '',
+      rileggi: rileggiDocumenti,
+      collega: async (riga, documentoId) => {
+        if (riga.revisione === undefined || !archivio) throw Error('Revisione non disponibile. Rileggere la scadenza.')
+        const attesa = riga.revisione
+        await muta(() => archivio.impostaDocumento(riga.id, attesa, documentoId))
+      },
+    } : undefined,
     righe: righe.filter(r => !r.archiviataAt), archiviate: righe.filter(r => r.archiviataAt), pronta: Boolean(valido), occupata, errore: risultato?.archivio === archivio ? risultato.errore : archivio ? '' : 'Adapter non configurato: nessuna modalità memoria sostitutiva.',
     onRileggi: () => { void rileggi() },
     onSalva: async (scadenza, modificaId, opzioni) => {
