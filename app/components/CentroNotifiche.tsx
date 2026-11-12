@@ -5,9 +5,9 @@ import VistaOperativa from './VistaOperativa'
 import styles from './CentroNotifiche.module.css'
 
 type Client = { rpc: (name: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string } | null }> }
-type Riga = { id: string; titolo: string; messaggio: string; priorita: string; modulo: string; published_at: string; read_at: string | null; attiva: boolean }
-type Preferenze = { generali: boolean; in_app: boolean; scadenziario: boolean; anticipi: number[]; revisione: number }
-type Contatori = { totale: number; scadenziario: number }
+type Riga = { id: string; titolo: string; messaggio: string; priorita: string; modulo: string; published_at: string; data_evento?: string; read_at: string | null; attiva: boolean }
+type Preferenze = { generali: boolean; in_app: boolean; scadenziario: boolean; anticipi: number[]; agenda?: boolean; anticipi_agenda?: number[]; revisione: number }
+type Contatori = { totale: number; scadenziario: number; agenda?: number }
 const vuoti: Contatori = { totale: 0, scadenziario: 0 }
 const filtri = { tutte: 'Tutte', da_leggere: 'Da leggere', urgenti: 'Scadute / urgenti' }
 const canali = { generali: 'Notifiche generali', in_app: 'Notifiche in-app', scadenziario: 'Scadenziario' } as const
@@ -24,15 +24,16 @@ async function rpc<T>(client: Client, nome: string, args?: Record<string, unknow
 }
 
 export function BadgeNotifiche({ count }: { count: number }) {
-  return count > 0 ? <span className={styles.badge} aria-label={count + ' scadenze con avvisi da leggere'}>{count}</span> : null
+  return count > 0 ? <span className={styles.badge} aria-label={count + ' elementi con avvisi da leggere'}>{count}</span> : null
 }
 
-export default function CentroNotifiche({ client, stile, menuImpostazioni, onApriScadenza, onContatori, destinazioneAssente }: {
+export default function CentroNotifiche({ client, stile, menuImpostazioni, onApriScadenza, onApriAgenda, onContatori, destinazioneAssente }: {
   client: Client
   stile: CSSProperties
   menuImpostazioni: boolean
   destinazioneAssente?: number
   onApriScadenza: (id: string) => void
+  onApriAgenda?: (id: string) => void
   onContatori: (value: Contatori) => void
 }) {
   const [vistaScelta, setVista] = useState<'centro' | 'preferenze' | null>(null)
@@ -70,8 +71,14 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   const apriDestinazione = useCallback(async (id: string) => {
     if (!uuid.test(id)) return null
     const destinazione = await rpc<{ azione: string; record_id: string } | null>(client, 'risolvi_destinazione_notifica', { p_id: id })
-    return destinazione?.azione === 'apri_scadenza_fiscale' && uuid.test(destinazione.record_id) ? destinazione.record_id : null
+    return destinazione && uuid.test(destinazione.record_id) &&
+      (destinazione.azione === 'apri_scadenza_fiscale' || destinazione.azione === 'apri_attivita_agenda') ? destinazione : null
   }, [client])
+
+  const apriRecord = useCallback(({ azione, record_id }: { azione: string; record_id: string }) => {
+    if (azione === 'apri_attivita_agenda') onApriAgenda?.(record_id)
+    else onApriScadenza(record_id)
+  }, [onApriAgenda, onApriScadenza])
 
   useEffect(() => {
     const id = new URL(window.location.href).searchParams.get('notifica')
@@ -79,11 +86,11 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
     let attivo = true
     void apriDestinazione(id).catch(() => null).then(record => {
       if (!attivo) return
-      if (record) onApriScadenza(record)
+      if (record) apriRecord(record)
       else { setAvviso(nonDisponibile); setVista('centro') }
     })
     return () => { attivo = false }
-  }, [apriDestinazione, onApriScadenza])
+  }, [apriDestinazione, apriRecord])
 
   useEffect(() => {
     let attivo = true
@@ -122,7 +129,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
         url.searchParams.set('notifica', riga.id)
         window.history.replaceState(null, '', url)
         cambiaVista(null)
-        onApriScadenza(id)
+        apriRecord(id)
         return
       }
       const modificata = await rpc<boolean>(client, 'aggiorna_stato_notifica', { p_id: riga.id, p_azione: tipo })
@@ -143,6 +150,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
       await rpc(client, 'salva_preferenze_notifiche', {
         p_revisione: preferenze.revisione, p_generali: preferenze.generali,
         p_in_app: preferenze.in_app, p_scadenziario: preferenze.scadenziario, p_anticipi: preferenze.anticipi,
+        ...(preferenze.agenda === undefined ? {} : { p_agenda: preferenze.agenda, p_anticipi_agenda: preferenze.anticipi_agenda }),
       })
       setAvviso('Preferenze salvate.')
       ricarica()
@@ -174,7 +182,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
           {righe && <ul className={styles.elenco}>{righe.map(riga => <li key={riga.id}>
             <strong>{riga.titolo}</strong> · {riga.priorita} · {riga.read_at ? 'Letta' : 'Non letta'}{!riga.attiva && ' · Storico'}
             <p>{riga.messaggio}</p>
-            <p>{riga.modulo === 'scadenziario' ? 'Scadenziario' : riga.modulo} · <time dateTime={riga.published_at}>{dataRoma.format(new Date(riga.published_at))}</time></p>
+            <p>{riga.modulo === 'scadenziario' ? 'Scadenziario' : riga.modulo === 'agenda' ? 'Agenda' : riga.modulo} · <time dateTime={riga.data_evento ?? riga.published_at}>{dataRoma.format(new Date(riga.data_evento ?? riga.published_at))}</time></p>
             <div className={styles.azioni}>
               <button type="button" disabled={occupata} onClick={() => void azione(riga, 'apri')}>Apri</button>
               {!riga.read_at && <button type="button" disabled={occupata} onClick={() => void azione(riga, 'leggi')}>Segna letta</button>}
@@ -200,6 +208,18 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
             </label>)}
             <p>Gli avvisi per le scadenze superate restano attivi se il modulo è abilitato.</p>
           </fieldset>
+          {preferenze.agenda !== undefined && <fieldset disabled={occupata}>
+            <legend>Avvisi Agenda</legend>
+            <label><input type="checkbox" checked={preferenze.agenda}
+              onChange={event => setPreferenze({ ...preferenze, agenda: event.target.checked })} /> Agenda</label>
+            {[1, 0].map(anticipo => {
+              const attuali = preferenze.anticipi_agenda ?? []
+              return <label key={anticipo}><input type="checkbox" checked={attuali.includes(anticipo)}
+                onChange={event => setPreferenze({ ...preferenze, anticipi_agenda: event.target.checked ? [...attuali, anticipo] : attuali.filter(n => n !== anticipo) })} />
+                {' '}{anticipo === 0 ? 'Giorno stesso' : '1 giorno prima'}
+              </label>
+            })}
+          </fieldset>}
           <button type="submit" disabled={occupata}>Salva preferenze</button>
         </form> : !errore && <p role="status">Caricamento…</p>}
       </div>

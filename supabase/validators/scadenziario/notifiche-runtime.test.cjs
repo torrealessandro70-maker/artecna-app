@@ -29,7 +29,7 @@ test('SQL statico: transazione unica, RLS, privilegi espliciti, nessun scheduler
   }
 })
 
-test('PostgreSQL 17.6: soglie Roma, dedup concorrente, isolamento e risoluzione', { timeout: 120_000 }, async () => {
+test('PostgreSQL 17.6: Scadenziario e Agenda, dedup, isolamento, risoluzione e DST', { timeout: 120_000 }, async () => {
   const base = path.join(root, '.run/notifiche')
   fs.mkdirSync(base, { recursive: true })
   const fixture = fs.mkdtempSync(path.join(base, 'cluster-'))
@@ -166,6 +166,83 @@ test('PostgreSQL 17.6: soglie Roma, dedup concorrente, isolamento e risoluzione'
     assert.equal(await genera(a, '2026-04-10T00:00:00Z'), 0)
     await a.query('UPDATE public.utenti_impresa SET attivo=false WHERE user_id=$1', [uid])
     await assert.rejects(actor(uid, counter), { code: '42501' })
+    // Use the versioned Agenda schema and wrapper, without installing pg_cron or committing the new migration.
+    const agendaSchema = fs.readFileSync(path.join(root, 'supabase/migrations/20260618_agenda_attivita.sql'), 'utf8')
+    if (!(await sql(a, "SELECT to_regclass('public.agenda_attivita') IS NOT NULL result"))) await a.query(agendaSchema)
+    const scheduler = fs.readFileSync(path.join(root, 'supabase/migrations/20261112000200_notifiche_scheduler.sql'), 'utf8')
+    const wrapper = scheduler.match(/CREATE OR REPLACE FUNCTION artecna_notifiche\.esegui_generatore_runtime\(\)[\s\S]*?\$runtime\$;/)?.[0]
+    assert.ok(wrapper)
+    await a.query(wrapper)
+    await admin.query('GRANT authenticated TO postgres')
+    const agendaMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261112000300_notifiche_agenda.sql'), 'utf8')
+    assert.doesNotMatch(agendaMigration, /cron\.|CREATE TRIGGER|ALTER TABLE public\.agenda_attivita/)
+    await a.query('BEGIN')
+    try {
+      await a.query(agendaMigration.replace(/^BEGIN;\s*/, '').replace(/COMMIT;\s*$/, ''))
+      const validator = fs.readFileSync(path.join(__dirname, 'notifiche-agenda-readonly.sql'), 'utf8')
+      await a.query(validator.replace(/^BEGIN READ ONLY;\s*/, '').replace(/ROLLBACK;\s*$/, ''))
+      const agendaId = randomUUID()
+      const insert = "INSERT INTO public.agenda_attivita(id,user_id,titolo,descrizione,data,ora_inizio,ora_fine,tipo) VALUES ($1,$2,'Titolo privato','Nota privata',$3,$4,$5,'Altro')"
+      await a.query(insert, [agendaId, esterno, '2026-03-29', '02:30', '03:00'])
+      const run = ora => sql(a, 'SELECT artecna_notifiche.genera_agenda($1) result', [ora])
+      const active = () => sql(a, "SELECT to_jsonb(v) result FROM artecna_notifiche.visibili($1) v WHERE attiva", [esterno])
+      assert.equal(await run('2026-03-27T22:59:59Z'), 0)
+      assert.equal(await run('2026-03-27T23:00:00Z'), 1)
+      assert.equal(await run('2026-03-27T23:00:00Z'), 0)
+      assert.equal((await active()).messaggio, 'Impegno domani.')
+      assert.equal(await run('2026-03-28T23:00:00Z'), 1)
+      assert.equal((await active()).messaggio, 'Impegno oggi.')
+      const evento = () => sql(a, "SELECT to_jsonb(e) result FROM artecna_notifiche.evento_notificabile e WHERE record_id=$1 AND resolved_at IS NULL", [agendaId])
+      const before = await evento()
+      assert.equal(new Date(before.data_evento).toISOString(), '2026-03-29T01:30:00.000Z')
+      await a.query("UPDATE public.agenda_attivita SET titolo='Nuovo titolo', descrizione='Nuova nota' WHERE id=$1", [agendaId])
+      assert.equal(await run('2026-03-29T01:29:59Z'), 0)
+      assert.equal((await evento()).id, before.id)
+      assert.equal(await run('2026-03-29T01:30:00Z'), 1)
+      assert.equal((await active()).priorita, 'urgente')
+      const as = async (user, query, params) => {
+        await a.query('SAVEPOINT jwt_fixture')
+        try {
+          await a.query("SELECT set_config('request.jwt.claim.sub',$1,true)", [user])
+          await a.query('SET LOCAL ROLE authenticated')
+          return await sql(a, query, params)
+        } finally { await a.query('ROLLBACK TO jwt_fixture; RELEASE jwt_fixture') }
+      }
+      const notifica = await active()
+      assert.deepEqual(await as(esterno, counter), { totale: 1, scadenziario: 0, agenda: 1 })
+      assert.deepEqual(await as(esterno, resolve, [notifica.id]), { azione: 'apri_attivita_agenda', record_id: agendaId })
+      assert.equal(await as(secondo, resolve, [notifica.id]), null)
+      assert.doesNotMatch(JSON.stringify(await as(esterno, list)), /Nuovo titolo|Nuova nota/)
+      await assert.rejects(as(esterno, 'SELECT artecna_notifiche.genera_agenda(now())'), { code: '42501' })
+      assert.deepEqual((await as(esterno, leggiPreferenze)).anticipi_agenda, [1,0])
+      const preferenzeAgenda = 'SELECT public.salva_preferenze_notifiche(0,true,true,true,ARRAY[0],false,ARRAY[1]) result'
+      assert.equal((await as(esterno, preferenzeAgenda)).agenda, false)
+      assert.equal((await as(esterno, list))[0].data_evento, before.data_evento)
+      await a.query("UPDATE public.agenda_attivita SET ora_inizio='03:20', ora_fine='04:00' WHERE id=$1", [agendaId])
+      assert.equal(await active(), undefined)
+      assert.equal(await run('2026-03-29T01:35:00Z'), 1)
+      assert.notEqual((await evento()).id, before.id)
+      await a.query("UPDATE public.agenda_attivita SET data='2026-10-25', ora_inizio='02:30', ora_fine='03:00' WHERE id=$1", [agendaId])
+      assert.equal(await run('2026-10-24T22:00:00Z'), 1)
+      assert.equal(new Date((await evento()).data_evento).toISOString(), '2026-10-25T01:30:00.000Z')
+      await a.query("UPDATE public.agenda_attivita SET stato='completata' WHERE id=$1", [agendaId])
+      assert.equal(await active(), undefined)
+      assert.equal(await run('2026-10-25T03:00:00Z'), 0)
+      assert.equal(await evento(), undefined)
+
+      const runtimeAgenda = randomUUID()
+      const runtimeFisco = randomUUID()
+      const ieri = await sql(a, "SELECT ((now() AT TIME ZONE 'Europe/Rome')::date - 1)::text result")
+      await a.query(insert, [runtimeAgenda, secondo, ieri, '10:00', '11:00'])
+      await a.query("SELECT set_config('request.jwt.claim.sub',$1,true)", [secondo])
+      await sql(a, "SELECT public.crea_scadenza_fiscale($1, $2) result", [runtimeFisco, { ...payload, data_scadenza: ieri }])
+      const beforeSource = await sql(a, 'SELECT to_jsonb(s) result FROM artecna_contabilita.scadenze_fiscali s WHERE id=$1', [runtimeFisco])
+      assert.equal(await sql(a, 'SELECT artecna_notifiche.esegui_generatore_runtime() result'), 2)
+      assert.equal(await sql(a, 'SELECT artecna_notifiche.esegui_generatore_runtime() result'), 0)
+      assert.deepEqual(await as(secondo, counter), { totale: 2, scadenziario: 1, agenda: 1 })
+      assert.deepEqual(await sql(a, 'SELECT to_jsonb(s) result FROM artecna_contabilita.scadenze_fiscali s WHERE id=$1', [runtimeFisco]), beforeSource)
+    } finally { await a.query('ROLLBACK') }
+
   } finally {
     await Promise.allSettled(clients.map(client => client.end()))
     if (started) pg('pg_ctl', ['-D', data, '-m', 'fast', '-w', 'stop'])

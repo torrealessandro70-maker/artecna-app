@@ -4867,19 +4867,26 @@ const [
 ] = useState<any[]>([])
 const [vociAnalizzate, setVociAnalizzate] = useState<(VoceAnalizzata & { testoOrigine?: string })[]>([])
 const [sezioneAttiva, setSezioneAttiva] = useState('home')
-const [notificheMenu, setNotificheMenu] = useState<{ utente: string; scadenziario: number } | null>(null)
+const [notificheMenu, setNotificheMenu] = useState<{ utente: string; scadenziario: number; agenda: number } | null>(null)
 const [notificaAperta, setNotificaAperta] = useState<{ utente: string; id: string } | null>(null)
+const [agendaDaNotifica, setAgendaDaNotifica] = useState<{ utente: string; id: string } | null>(null)
 const [notificaNonDisponibile, setNotificaNonDisponibile] = useState<{ utente: string; numero: number } | null>(null)
 const badgeScadenziario = notificheMenu?.utente === idUtenteImpostazioni ? notificheMenu?.scadenziario ?? 0 : 0
 const scadenzaDaNotifica = notificaAperta?.utente === idUtenteImpostazioni ? notificaAperta?.id : undefined
-const aggiornaBadgeNotifiche = useCallback(({ scadenziario }: { scadenziario: number }) => {
-  if (idUtenteImpostazioni) setNotificheMenu({ utente: idUtenteImpostazioni, scadenziario })
+const aggiornaBadgeNotifiche = useCallback(({ scadenziario, agenda = 0 }: { scadenziario: number; agenda?: number }) => {
+  if (idUtenteImpostazioni) setNotificheMenu({ utente: idUtenteImpostazioni, scadenziario, agenda })
 }, [idUtenteImpostazioni])
 const apriScadenzaDaNotifica = useCallback((id: string) => {
   if (!idUtenteImpostazioni) return
   setNotificaAperta({ utente: idUtenteImpostazioni, id })
   setSezioneAttiva('economia')
   setPagineAperte(correnti => correnti.includes('economia') ? correnti : [...correnti, 'economia'])
+  setMenuAperto(null)
+}, [idUtenteImpostazioni])
+const apriAgendaDaNotifica = useCallback((id: string) => {
+  if (!idUtenteImpostazioni) return
+  setAgendaDaNotifica({ utente: idUtenteImpostazioni, id })
+  setSezioneAttiva('agenda')
   setMenuAperto(null)
 }, [idUtenteImpostazioni])
 const chiudiScadenzaDaNotifica = useCallback(() => {
@@ -11626,7 +11633,7 @@ textarea:not(.impostazioni-input) {
 </h2>
 { idUtenteImpostazioni && <CentroNotifiche key={idUtenteImpostazioni} client={supabase}
   stile={menuButtonStyle(false)} menuImpostazioni={mostraImpostazioni}
-  onApriScadenza={apriScadenzaDaNotifica} onContatori={aggiornaBadgeNotifiche} destinazioneAssente={notificaNonDisponibile?.utente === idUtenteImpostazioni ? notificaNonDisponibile?.numero : undefined} /> }
+  onApriScadenza={apriScadenzaDaNotifica} onApriAgenda={apriAgendaDaNotifica} onContatori={aggiornaBadgeNotifiche} destinazioneAssente={notificaNonDisponibile?.utente === idUtenteImpostazioni ? notificaNonDisponibile?.numero : undefined} /> }
 {menuAperto === 'impostazioni' && (
   <div style={{ marginLeft: 10, marginTop: 5, display: 'grid', gap: 8 }}>
     <label style={labelStyle}>
@@ -11905,7 +11912,7 @@ textarea:not(.impostazioni-input) {
       }}
       style={menuButtonStyle(sezioneAttiva === 'agenda')}
     >
-      🗓️ Agenda
+      🗓️ Agenda <BadgeNotifiche count={notificheMenu?.utente === idUtenteImpostazioni ? notificheMenu?.agenda ?? 0 : 0} />
     </button>
     <button
       onClick={() => {
@@ -13723,8 +13730,9 @@ salvaRevisionePreventivoAi={salvaRevisionePreventivoAi}
 )}
 
 {/* ================= AGENDA / TIME ENGINE ================= */}
-{!modalitaMulti && sezioneAttiva === 'agenda' && (
+{sezioneAttiva === 'agenda' && (!modalitaMulti || (agendaDaNotifica && agendaDaNotifica.utente === idUtenteImpostazioni)) && (
   <AgendaContainer
+    attivitaDaNotifica={agendaDaNotifica?.utente === idUtenteImpostazioni ? agendaDaNotifica?.id : undefined}
     sopralluoghi={sopralluoghi}
     cantieri={cantieri}
     preventivi={preventivi}

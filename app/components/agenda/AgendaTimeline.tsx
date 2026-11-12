@@ -1,10 +1,11 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import AgendaAttivitaCard from './AgendaAttivitaCard'
 import { aggiungiGiorni, dataLocale, type AttivitaAgenda } from './utils'
 
 type Props = {
+  attivitaDaNotifica?: string
   attivita: AttivitaAgenda[]
   onModifica: (attivita: AttivitaAgenda) => void
   onCambiaStato: (id: string) => void
@@ -13,12 +14,20 @@ type Props = {
 }
 
 export default function AgendaTimeline({
+  attivitaDaNotifica,
   attivita,
   onModifica,
   onCambiaStato,
   onElimina,
   buttonSecondary,
 }: Props) {
+  const timeline = useRef<HTMLDivElement>(null)
+  const destinazionePresente = attivita.some(item => item.id === attivitaDaNotifica)
+  useEffect(() => {
+    if (!destinazionePresente || !attivitaDaNotifica) return
+    const riga = timeline.current?.querySelector<HTMLElement>(`#agenda-riga-${CSS.escape(attivitaDaNotifica)}`)
+    riga?.focus()
+  }, [attivitaDaNotifica, destinazionePresente])
   const oggi = dataLocale()
   const domani = aggiungiGiorni(oggi, 1)
   const ordinate = [...attivita].sort((prima, seconda) =>
@@ -42,7 +51,8 @@ export default function AgendaTimeline({
   ]
 
   return (
-    <div style={{ display: 'grid', gap: 24 }}>
+    <div ref={timeline} style={{ display: 'grid', gap: 24 }}>
+      {attivitaDaNotifica && !destinazionePresente && <p role="status">Attività non disponibile in Agenda.</p>}
       {gruppi.map((gruppo) => (
         <section key={gruppo.titolo} aria-labelledby={`agenda-${gruppo.titolo}`}>
           <div

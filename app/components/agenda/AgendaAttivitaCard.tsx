@@ -96,7 +96,7 @@ export default function AgendaAttivitaCard({
   )
 
   return (
-    <article
+    <article id={`agenda-riga-${attivita.id}`} tabIndex={-1}
       style={{
         padding: 16,
         border: completata ? '1px solid #bbf7d0' : '1px solid #dbeafe',

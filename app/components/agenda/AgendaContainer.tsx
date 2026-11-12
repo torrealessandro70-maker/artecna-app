@@ -34,6 +34,7 @@ type PreventivoAgenda = {
 }
 
 type Props = {
+  attivitaDaNotifica?: string
   sopralluoghi: SopralluogoAgenda[]
   cantieri: CantiereAgenda[]
   preventivi: PreventivoAgenda[]
@@ -195,6 +196,7 @@ function leggiAttivitaLocali() {
 }
 
 export default function AgendaContainer({
+  attivitaDaNotifica,
   sopralluoghi,
   cantieri,
   preventivi,
@@ -203,6 +205,7 @@ export default function AgendaContainer({
   buttonSecondary,
 }: Props) {
   const [attivita, setAttivita] = useState<AttivitaAgenda[]>([])
+  const [idRemoti, setIdRemoti] = useState<Set<string>>(() => new Set())
   const [caricato, setCaricato] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [statoSincronizzazione, setStatoSincronizzazione] = useState('')
@@ -264,6 +267,7 @@ export default function AgendaContainer({
         }
 
         const remote = ((data || []) as RigaAgenda[]).map(daRigaSupabase)
+        setIdRemoti(new Set(remote.map(item => item.id)))
         setAttivita(applicaOperazioniLocali(remote, operazioniFallite))
         setStatoSincronizzazione(
           operazioniFallite.length > 0
@@ -417,11 +421,13 @@ export default function AgendaContainer({
         </button>
       </div>
 
+      {caricato && attivitaDaNotifica && !idRemoti.has(attivitaDaNotifica) && <p role='status'>Attività non disponibile in Agenda.</p>}
       {!caricato ? (
         <div style={{ padding: 20, color: '#64748b' }}>Caricamento agenda...</div>
       ) : (
         <AgendaTimeline
           attivita={attivita}
+          attivitaDaNotifica={attivitaDaNotifica && idRemoti.has(attivitaDaNotifica) ? attivitaDaNotifica : undefined}
           onModifica={(item) => {
             setAttivitaInModifica(item)
             setPopupAperto(true)
