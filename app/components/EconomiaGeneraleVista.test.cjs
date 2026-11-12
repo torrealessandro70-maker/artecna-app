@@ -150,9 +150,10 @@ test('unrelated economic calculators/readers/writers/schema remain unchanged; co
   const migrations = new Set([
     'supabase/migrations/20261111000100_documenti_fiscali_privati.sql',
     'supabase/migrations/20261112000300_notifiche_agenda.sql',
+    'supabase/migrations/20261112000400_notifiche_sopralluoghi.sql',
   ])
   const validators = new Set(['browser-fixture.cjs', 'struttura-readonly.sql', 'documenti-fiscali-static.test.cjs',
-    'documenti-runtime.test.cjs', 'notifiche-runtime.test.cjs', 'notifiche-agenda-readonly.sql', 'documenti-storage-emulator.cjs', 'documenti-storage-fixture.sql', 'documenti-struttura-readonly.sql']
+    'documenti-runtime.test.cjs', 'notifiche-runtime.test.cjs', 'notifiche-agenda-readonly.sql', 'notifiche-sopralluoghi-readonly.sql', 'documenti-storage-emulator.cjs', 'documenti-storage-fixture.sql', 'documenti-struttura-readonly.sql']
     .map(file => 'supabase/validators/scadenziario/' + file))
   assert(changed.every(file => migrations.has(file) || validators.has(file) || /^app\/engines\/contabilita-ditta\/(?:scadenziario(?:Persistenza)?|documentiFiscali)(?:\.test)?\.(ts|cjs)$/.test(file)),
     'Only explicitly listed migrations, adapters and validators may change')
@@ -170,7 +171,13 @@ test('existing page writers/readers and period/source hooks are byte-equivalent 
     function visit(n) { if (ts.isVariableDeclaration(n) && /^(salva|elimina|carica|calcola|prepara)/.test(n.name.getText(ast)) && n.initializer && (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer))) result[n.name.getText(ast)] = n.initializer.getText(ast); ts.forEachChild(n, visit) }
     visit(ast); return result
   }
-  assert.deepEqual(handlers(read('../page.tsx')), handlers(old('page.tsx')))
+  const page = read('../page.tsx')
+  const { caricaFotoSopralluoghi: letturaFoto, ...correnti } = handlers(page)
+  const { caricaFotoSopralluoghi: letturaFotoPrecedente, ...precedenti } = handlers(old('page.tsx'))
+  assert.deepEqual(correnti, precedenti)
+  assert.match(letturaFoto, /caricaFotoSopralluoghiPerId\(id\)/)
+  const letturaFotoPerId = page.slice(page.indexOf('const caricaFotoSopralluoghiPerId ='), page.indexOf('const caricaFotoSopralluoghi ='))
+  assert.deepEqual(calls(letturaFotoPerId, x => /\.(from|select|eq)$/.test(x)), calls(letturaFotoPrecedente, x => /\.(from|select|eq)$/.test(x)))
   function calls(s, match) { const result = [], ast = ts.createSourceFile('source.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); function visit(n) { if (ts.isCallExpression(n) && match(n.expression.getText(ast))) result.push(n.getText(ast)); ts.forEachChild(n, visit) } visit(ast); return result }
   assert.deepEqual(calls(read('RiepilogoDittaPanel.tsx'), x => ['useEffect', 'useMemo'].includes(x)), calls(old('components/RiepilogoDittaPanel.tsx'), x => ['useEffect', 'useMemo'].includes(x)))
   assert.deepEqual(calls(read('TabellaSpeseImpresaPanel.tsx'), x => /\.(reduce|filter|sort)$/.test(x)), calls(old('components/TabellaSpeseImpresaPanel.tsx'), x => /\.(reduce|filter|sort)$/.test(x)))

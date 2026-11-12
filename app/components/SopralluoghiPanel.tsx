@@ -47,6 +47,7 @@ type Props = {
   mostraElencoSopralluoghi: boolean
   setMostraElencoSopralluoghi: any
   setUltimoSopralluogo: any
+  focusSopralluogoDaNotifica?: boolean
   setSopralluogoAperto: any
   setFirmaCliente: any
   setMostraGestioneFotoSopralluogo: any
@@ -216,6 +217,7 @@ export default function SopralluoghiPanel(props: Props) {
   </VistaOperativa>}
 
       <SopralluogoDettaglio
+        focusDaNotifica={props.focusSopralluogoDaNotifica}
         apriQuadernoDirettamente={!!props.contestoCantiere}
         tornaAlCantiere={props.contestoCantiere ? props.tornaAlCantiere : undefined}
         sopralluogoAperto={props.sopralluogoAperto}

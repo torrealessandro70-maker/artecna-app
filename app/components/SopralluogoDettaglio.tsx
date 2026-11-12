@@ -14,6 +14,7 @@ import ProgressoOperazione, { progressoPrezziDocumento, type StatoProgressoOpera
 
 
 type Props = {
+  focusDaNotifica?: boolean
   [key: string]: any
 }
 
@@ -77,6 +78,10 @@ export default function SopralluogoDettaglio(props: Props) {
 useEffect(() => {
   if (!sopralluogoAperto?.id) return
   setQuadernoAperto(false)
+  if (props.focusDaNotifica) {
+    setSezioneAttiva('informazioni')
+    return
+  }
   if (props.apriQuadernoDirettamente) {
     setSezioneAttiva('quaderno')
     setQuadernoAperto(true)
@@ -101,7 +106,11 @@ useEffect(() => {
   } else {
     setSezioneAttiva('informazioni')
   }
-}, [sopralluogoAperto?.id, props.apriQuadernoDirettamente])
+}, [sopralluogoAperto?.id, props.apriQuadernoDirettamente, props.focusDaNotifica])
+  const dettaglioRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (props.focusDaNotifica && !quadernoAperto && !analisiDocumentoAperta) dettaglioRef.current?.focus()
+  }, [props.focusDaNotifica, quadernoAperto, analisiDocumentoAperta])
   if (!sopralluogoAperto) return null
 
   const fotoDelSopralluogo = props.fotoSopralluoghi.filter(
@@ -125,6 +134,8 @@ useEffect(() => {
 
   return (
     <div
+      ref={dettaglioRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={`Fascicolo sopralluogo ${sopralluogoAperto.cliente || ''}`}

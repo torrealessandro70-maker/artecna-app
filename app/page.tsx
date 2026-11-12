@@ -1260,33 +1260,28 @@ const caricaSopralluoghi = async () => {
   setSopralluoghi(data || [])
 }
 
-const caricaFotoSopralluoghi = async (sopralluogoId?: string) => {
-  const id = sopralluogoId || sopralluogoAperto?.id
-  if (!id) {
-    setFotoSopralluoghi([])
-    return
-  }
-
-  const { data, error } = await supabase
+const caricaFotoSopralluoghiPerId = useCallback(async (id: string, signal?: AbortSignal) => {
+  const richiesta = supabase
     .from('foto_sopralluogo')
     .select('id,sopralluogo_id,nota,immagine_base64,tag,includi_preventivo,created_at')
     .eq('sopralluogo_id', id)
-
+  const { data, error } = await (signal ? richiesta.abortSignal(signal) : richiesta)
+  if (signal?.aborted) return
   if (error) {
-    alert(
-      'Errore caricamento foto sopralluoghi: ' +
-        error.message
-    )
+    alert('Errore caricamento foto sopralluoghi: ' + error.message)
     return
   }
-
   const fotoOrdinate = [...(data || [])].sort((prima, seconda) =>
     String(seconda.created_at || '').localeCompare(String(prima.created_at || ''))
   )
   setFotoSopralluoghi(fotoOrdinate)
+}, [setFotoSopralluoghi])
+
+const caricaFotoSopralluoghi = async (sopralluogoId?: string) => {
+  const id = sopralluogoId || sopralluogoAperto?.id
+  if (id) await caricaFotoSopralluoghiPerId(id)
+  else setFotoSopralluoghi([])
 }
-
-
 
 const eliminaSopralluogo = async (id?: string) => {
   if (!id) return
@@ -4867,14 +4862,15 @@ const [
 ] = useState<any[]>([])
 const [vociAnalizzate, setVociAnalizzate] = useState<(VoceAnalizzata & { testoOrigine?: string })[]>([])
 const [sezioneAttiva, setSezioneAttiva] = useState('home')
-const [notificheMenu, setNotificheMenu] = useState<{ utente: string; scadenziario: number; agenda: number } | null>(null)
+const [notificheMenu, setNotificheMenu] = useState<{ utente: string; scadenziario: number; agenda: number; sopralluoghi: number } | null>(null)
 const [notificaAperta, setNotificaAperta] = useState<{ utente: string; id: string } | null>(null)
+const [sopralluogoDaNotifica, setSopralluogoDaNotifica] = useState<{ utente: string; id: string } | null>(null)
 const [agendaDaNotifica, setAgendaDaNotifica] = useState<{ utente: string; id: string } | null>(null)
 const [notificaNonDisponibile, setNotificaNonDisponibile] = useState<{ utente: string; numero: number } | null>(null)
 const badgeScadenziario = notificheMenu?.utente === idUtenteImpostazioni ? notificheMenu?.scadenziario ?? 0 : 0
 const scadenzaDaNotifica = notificaAperta?.utente === idUtenteImpostazioni ? notificaAperta?.id : undefined
-const aggiornaBadgeNotifiche = useCallback(({ scadenziario, agenda = 0 }: { scadenziario: number; agenda?: number }) => {
-  if (idUtenteImpostazioni) setNotificheMenu({ utente: idUtenteImpostazioni, scadenziario, agenda })
+const aggiornaBadgeNotifiche = useCallback(({ scadenziario, agenda = 0, sopralluoghi = 0 }: { scadenziario: number; agenda?: number; sopralluoghi?: number }) => {
+  if (idUtenteImpostazioni) setNotificheMenu({ utente: idUtenteImpostazioni, scadenziario, agenda, sopralluoghi })
 }, [idUtenteImpostazioni])
 const apriScadenzaDaNotifica = useCallback((id: string) => {
   if (!idUtenteImpostazioni) return
@@ -4901,6 +4897,39 @@ const tornaAlCentroNotifiche = useCallback(() => {
   chiudiScadenzaDaNotifica()
   if (idUtenteImpostazioni) setNotificaNonDisponibile(n => ({ utente: idUtenteImpostazioni, numero: (n?.numero ?? 0) + 1 }))
 }, [chiudiScadenzaDaNotifica, idUtenteImpostazioni])
+const apriSopralluogoDaNotifica = useCallback((id: string) => {
+  if (!idUtenteImpostazioni) return
+  setSopralluogoAperto(null)
+  setContestoQuadernoCantiere(null)
+  setSopralluogoDaNotifica({ utente: idUtenteImpostazioni, id })
+  setSezioneAttiva('sopralluoghi')
+  setMenuAperto(null)
+}, [idUtenteImpostazioni])
+useEffect(() => {
+  if (!sopralluogoDaNotifica || sopralluogoDaNotifica.utente !== idUtenteImpostazioni || sezioneAttiva !== 'sopralluoghi') return
+  const controller = new AbortController()
+  void (async () => {
+    const { data, error } = await supabase.from('sopralluoghi').select('*')
+      .eq('id', sopralluogoDaNotifica.id).abortSignal(controller.signal).maybeSingle()
+    if (controller.signal.aborted) return
+    if (error || !data) {
+      setSopralluogoDaNotifica(null)
+      tornaAlCentroNotifiche()
+      return
+    }
+    setSopralluogoModificaId(null)
+    setUltimoSopralluogo(data)
+    setFirmaCliente(data.firma_cliente || '')
+    setMostraGestioneFotoSopralluogo(false)
+    setMostraFotoPreventivoSopralluogo(false)
+    setFotoSopralluoghi([])
+    setSopralluogoAperto(data)
+    void caricaFotoSopralluoghiPerId(data.id, controller.signal)
+  })()
+  return () => controller.abort()
+}, [idUtenteImpostazioni, sezioneAttiva, sopralluogoDaNotifica, tornaAlCentroNotifiche, caricaFotoSopralluoghiPerId])
+const focusSopralluogoDaNotifica = !!sopralluogoAperto && !!sopralluogoDaNotifica
+  && sopralluogoDaNotifica.utente === idUtenteImpostazioni && sopralluogoDaNotifica.id === sopralluogoAperto.id
 const vistaCantieriAttiva = sezioneAttiva === 'cantieri' ? sottoSezioneCantieri : null
 
 const [vociPreventivoAi, setVociPreventivoAi] =
@@ -11464,9 +11493,16 @@ const eliminaFatturaEmessa = async () => {
    setSezioneAttiva('sopralluoghi')
    setMenuAperto(null)
  }
- const tornaAlCantiereDaQuaderno = () => {
-   if (!contestoQuadernoCantiere) return
-   const cantiere = cantieri.find(c => c.id === contestoQuadernoCantiere.id)
+ const cantieriDaNotifica = focusSopralluogoDaNotifica && sopralluogoAperto
+   ? cantieri.filter(c => sopralluoghiDelCantiere(c, [sopralluogoAperto], preventivi).length > 0)
+   : []
+ const cantiereDaNotifica = cantieriDaNotifica.length === 1 ? cantieriDaNotifica[0] : undefined
+ const contestoNavigazioneSopralluogo = cantiereDaNotifica?.id
+   ? { id: cantiereDaNotifica.id, nome: cantiereDaNotifica.nome }
+   : contestoQuadernoCantiere
+ const tornaAlCantiereDaQuaderno = (contesto = contestoQuadernoCantiere) => {
+   if (!contesto) return
+   const cantiere = cantieri.find(c => c.id === contesto.id)
    setSopralluogoAperto(null)
    setContestoQuadernoCantiere(null)
    setCantiereIdScheda(cantiere?.id || '')
@@ -11633,7 +11669,7 @@ textarea:not(.impostazioni-input) {
 </h2>
 { idUtenteImpostazioni && <CentroNotifiche key={idUtenteImpostazioni} client={supabase}
   stile={menuButtonStyle(false)} menuImpostazioni={mostraImpostazioni}
-  onApriScadenza={apriScadenzaDaNotifica} onApriAgenda={apriAgendaDaNotifica} onContatori={aggiornaBadgeNotifiche} destinazioneAssente={notificaNonDisponibile?.utente === idUtenteImpostazioni ? notificaNonDisponibile?.numero : undefined} /> }
+  onApriScadenza={apriScadenzaDaNotifica} onApriAgenda={apriAgendaDaNotifica} onApriSopralluogo={apriSopralluogoDaNotifica} onContatori={aggiornaBadgeNotifiche} destinazioneAssente={notificaNonDisponibile?.utente === idUtenteImpostazioni ? notificaNonDisponibile?.numero : undefined} /> }
 {menuAperto === 'impostazioni' && (
   <div style={{ marginLeft: 10, marginTop: 5, display: 'grid', gap: 8 }}>
     <label style={labelStyle}>
@@ -11708,13 +11744,14 @@ textarea:not(.impostazioni-input) {
 <button
   onClick={() => {
     setContestoQuadernoCantiere(null)
+    setSopralluogoDaNotifica(null)
     setSopralluogoAperto(null)
     setSezioneAttiva('sopralluoghi')
     setMenuAperto(null)
   }}
   style={menuButtonStyle(sezioneAttiva === 'sopralluoghi')}
 >
-  📍 Sopralluoghi
+  📍 Sopralluoghi <BadgeNotifiche count={notificheMenu?.utente === idUtenteImpostazioni ? notificheMenu?.sopralluoghi ?? 0 : 0} />
 </button>
 
 
@@ -13264,8 +13301,15 @@ onDocumentAction={gestisciAzioneDocumento}
     onApriPdf={(id: string) => { if (sopralluoghi.some(s => String(s.id) === id)) setPdfSopralluogoId(id) }}
     onApriPreventivo={(id: string) => { if (sopralluoghi.some(s => String(s.id) === id)) setPreventivoSopralluogoId(id) }}
     key={contestoQuadernoCantiere?.id || 'generale'}
-    contestoCantiere={contestoQuadernoCantiere}
-    tornaAlCantiere={tornaAlCantiereDaQuaderno}
+    contestoCantiere={contestoNavigazioneSopralluogo}
+    focusSopralluogoDaNotifica={focusSopralluogoDaNotifica}
+    tornaAlCantiere={() => {
+      if (focusSopralluogoDaNotifica) {
+        setSopralluogoDaNotifica(null)
+        chiudiScadenzaDaNotifica()
+      }
+      tornaAlCantiereDaQuaderno(contestoNavigazioneSopralluogo)
+    }}
     cardStyle={cardStyle}
     clienteSopralluogo={clienteSopralluogo}
     setClienteSopralluogo={setClienteSopralluogo}
@@ -13290,20 +13334,26 @@ onDocumentAction={gestisciAzioneDocumento}
     inputStyle={inputStyle}
     buttonPrimary={buttonPrimary}
     buttonSecondary={buttonSecondary}
-    sopralluoghi={contestoQuadernoCantiere
-      ? sopralluoghiDelCantiere(cantieri.find(c => c.id === contestoQuadernoCantiere.id) || { id: contestoQuadernoCantiere.id }, sopralluoghi, preventivi)
+    sopralluoghi={contestoNavigazioneSopralluogo
+      ? sopralluoghiDelCantiere(cantieri.find(c => c.id === contestoNavigazioneSopralluogo.id) || { id: contestoNavigazioneSopralluogo.id }, sopralluoghi, preventivi)
       : sopralluoghi}
     mostraElencoSopralluoghi={mostraElencoSopralluoghi}
     setMostraElencoSopralluoghi={setMostraElencoSopralluoghi}
     setUltimoSopralluogo={setUltimoSopralluogo}
-    setSopralluogoAperto={setSopralluogoAperto}
+    setSopralluogoAperto={(record: Sopralluogo | null) => {
+      if (sopralluogoDaNotifica) {
+        setSopralluogoDaNotifica(null)
+        chiudiScadenzaDaNotifica()
+      }
+      setSopralluogoAperto(record)
+    }}
     setFirmaCliente={setFirmaCliente}
     setMostraGestioneFotoSopralluogo={setMostraGestioneFotoSopralluogo}
     setMostraFotoPreventivoSopralluogo={setMostraFotoPreventivoSopralluogo}
     setFotoSopralluoghi={setFotoSopralluoghi}
     eliminaSopralluogo={eliminaSopralluogo}
     supabase={supabase}
-    sopralluogoAperto={sopralluogoAperto}
+    sopralluogoAperto={sopralluogoDaNotifica && sopralluogoDaNotifica.utente !== idUtenteImpostazioni ? null : sopralluogoAperto}
 sopralluogoModificaId={sopralluogoModificaId}
     setSopralluogoModificaId={setSopralluogoModificaId}
     coloreStatoSopralluogo={coloreStatoSopralluogo}
