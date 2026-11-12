@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import RapportinoStatoOperativo, { rapportinoConModificheLocali } from './RapportinoStatoOperativo'
 import FotoRapportinoDesktopV1 from './FotoRapportinoDesktopV1'
 import { validaDataAllegato, validaUUIDAllegato } from '../engines/rapportini/contrattoAllegati'
 import { supabase } from '../../lib/supabaseClient'
@@ -28,10 +29,11 @@ export default function RapportinoDesktopEditorV1({ cantiereId, data, rapportino
   const [errore, setErrore] = useState(''), [messaggio, setMessaggio] = useState('')
   const [lettura, setLettura] = useState<StatoRapportinoV2>()
   const [ricarica, setRicarica] = useState(0)
+  const [statoOperativoBusy, setStatoOperativoBusy] = useState(false)
   const [fotoBusy, setFotoBusy] = useState(false)
   const fotoBusyRef = useRef(false)
   const statoFoto = useCallback((busy: boolean) => { fotoBusyRef.current = busy; setFotoBusy(busy) }, [])
-  const chiudi = () => { if (!fotoBusyRef.current) onClose() }
+  const chiudi = () => { if (!fotoBusyRef.current && !statoOperativoBusy) onClose() }
   useEffect(() => {
     const richiesta = ++richiestaStato.current, controller = new AbortController()
     controlloInCorso.current = true
@@ -65,26 +67,35 @@ export default function RapportinoDesktopEditorV1({ cantiereId, data, rapportino
   return <section aria-label="Editor Rapportino Desktop" role="dialog" aria-modal="true"
     style={{ position: 'fixed', inset: 20, zIndex: 2000, overflow: 'auto', background: '#fff', padding: 24, border: '2px solid #2563eb', borderRadius: 12 }}>
     <h2>Rapportino — {data}</h2>
-    <button type="button" disabled={salvataggioAttivo || fotoBusy} onClick={chiudi}>Chiudi</button>
+    <button type="button" disabled={salvataggioAttivo || fotoBusy || statoOperativoBusy} onClick={chiudi}>Chiudi</button>
     {fotoBusy && <p role="status">Operazione foto in corso: attendi il completamento prima di chiudere.</p>}
     {statoInCorso && <p role="status">Lettura autorevole del Rapportino…</p>}
     {errore && <p role="alert">{errore}</p>}
     {messaggio && <p role="status">{messaggio}</p>}
+    {lettura?.versione_prestazioni === 0 && <RapportinoStatoOperativo
+      key={lettura.rapportino_id} id={lettura.rapportino_id} cantiereId={cantiereId}
+      revisioneDocumento={null} disabilitato={occupato} onBusy={setStatoOperativoBusy} />}
     {lettura?.versione_prestazioni === 0 && <p>Rapportino storico: resta nel formato originale.
-      <button type="button" onClick={() => onLegacy(lettura.rapportino_id)}>Apri form legacy</button></p>}
+      <button type="button" disabled={statoOperativoBusy} onClick={() => onLegacy(lettura.rapportino_id)}>Apri form legacy</button></p>}
     {lettura && lettura.versione_prestazioni !== 0 && <RapportinoStrutturatoEditorV1
       key={`${cantiereId}/${data}/${rapportinoId ?? ''}/${ricarica}`}
       canale="desktop" cantiereId={cantiereId} data={data} rapportinoId={rapportinoId}
       trasporto={trasporto} letturaIniziale={lettura} onClose={chiudi} onSaved={onSaved}
       contesto={{ autorizzato: true, cantiereId, cantiereSelezionatoId: cantiereId, dataRapportino: data,
         operaiDisponibili: operai, statoRapportino, richiestaStato, controlloInCorso, salvataggioInCorso,
-        statoInCorso, salvataggioAttivo: salvataggioAttivo || fotoBusy, setStatoRapportino, setStatoInCorso, setSalvataggioAttivo,
+        statoInCorso, salvataggioAttivo: salvataggioAttivo || fotoBusy || statoOperativoBusy, setStatoRapportino, setStatoInCorso, setSalvataggioAttivo,
         setMostraForm, setErrore, setMessaggioSalvataggio: setMessaggio }}>
       {({ coordinatore, editor }) => <>
+        {statoRapportino?.rapportinoId && <RapportinoStatoOperativo
+          key={statoRapportino.rapportinoId} id={statoRapportino.rapportinoId} cantiereId={cantiereId}
+          revisioneDocumento={statoRapportino.revisione ?? null}
+          disabilitato={occupato || fotoBusy || coordinatore.conflittoV1 || coordinatore.riletturaV1Fallita}
+          modificheLocali={mostraForm && rapportinoConModificheLocali(coordinatore.bozzaV1)}
+          onBusy={setStatoOperativoBusy} />}
         {mostraForm && editor}
-        {!mostraForm && coordinatore.salvatoV1 && <button type="button" disabled={occupato || coordinatore.riletturaV1Fallita}
+        {!mostraForm && coordinatore.salvatoV1 && <button type="button" disabled={occupato || statoOperativoBusy || coordinatore.riletturaV1Fallita}
           onClick={coordinatore.apriModificaV1}>Apri / Modifica rapportino</button>}
-        {(coordinatore.conflittoV1 || coordinatore.riletturaV1Fallita) && <button type="button" disabled={occupato}
+        {(coordinatore.conflittoV1 || coordinatore.riletturaV1Fallita) && <button type="button" disabled={occupato || statoOperativoBusy}
           onClick={() => { if (confirm('Rileggere lo stato server e sostituire la bozza corrente?')) rileggi() }}>Rileggi stato server</button>}
       </>}
     </RapportinoStrutturatoEditorV1>}
@@ -92,6 +103,6 @@ export default function RapportinoDesktopEditorV1({ cantiereId, data, rapportino
     {lettura && lettura.versione_prestazioni !== 0 && <FotoRapportinoDesktopV1
       contesto={{ cantiere_id: validaUUIDAllegato(cantiereId), data: validaDataAllegato(data),
         rapportino_id: statoRapportino?.rapportinoId ? validaUUIDAllegato(statoRapportino.rapportinoId) : null }}
-      disabled={occupato} onBusyChange={statoFoto} />}
+      disabled={occupato || statoOperativoBusy} onBusyChange={statoFoto} />}
   </section>
 }
