@@ -2868,7 +2868,8 @@ const caricaPagamentiFornitori = async () => {
     .order('data_scadenza', { ascending: true })
 
   if (error) {
-    alert('Errore caricamento fornitori: ' + error.message)
+    setPagamentiFornitori([])
+    if (error.code !== '42501') alert('Errore caricamento fornitori: ' + error.message)
     return
   }
 
@@ -3664,20 +3665,6 @@ const eliminaFatturaFornitore = async (fattura: FatturaFornitore) => {
 
   if (!conferma) return
 
- const descrizionePagamento =
-  `Fattura ${fattura.numero_fattura} del ${fattura.data_fattura}`
-
-await supabase
-  .from('pagamenti_fornitori')
-  .delete()
-  .eq('descrizione', descrizionePagamento)
-
-await supabase
-  .from('materiali_cantiere')
-  .delete()
-    .is('fattura_riga_id', null)
-  .eq('nome_file', fattura.nome_file || '')
-
 const { error } = await supabase
   .from('fatture_fornitori')
   .delete()
@@ -3687,6 +3674,12 @@ const { error } = await supabase
     alert('Errore eliminazione fattura: ' + error.message)
     return
   }
+
+await supabase
+  .from('materiali_cantiere')
+  .delete()
+    .is('fattura_riga_id', null)
+  .eq('nome_file', fattura.nome_file || '')
 
   if (fatturaApertaId === fattura.id) {
     setFatturaApertaId(null)
@@ -11045,19 +11038,13 @@ alert('Materiali da salvare in economia: ' + materialiDaSalvare.length)
   }
 
 
-  const { error: errorePagamento } = await supabase
-    .from('pagamenti_fornitori')
-    .insert({
-      fornitore: fatturaFornitore,
-      descrizione: `Fattura ${fatturaNumero} del ${fatturaData}`,
-      importo: totale,
-      data_scadenza: fatturaData,
-      stato: 'da_pagare',
-      note: fatturaNomeFile,
-    })
-
+  const { error: errorePagamento } = await supabase.rpc('registra_debito_fornitore', {
+    p_fattura: fatturaId,
+    p_fornitore: null,
+  })
   if (errorePagamento) {
-    alert('Errore salvataggio pagamento fornitore: ' + errorePagamento.message)
+    await caricaFattureFornitori()
+    alert('Fattura registrata. Debito non registrato: ' + errorePagamento.message + '. Apri la fattura dal Registro per registrare il debito.')
     return
   }
 

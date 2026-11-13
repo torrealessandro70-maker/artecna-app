@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Node regression suite. */
 const {test}=require('node:test'),a=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{createHash}=require('node:crypto');
 const sql=fs.readFileSync(path.resolve(__dirname,'../../..','supabase/migrations/20261031_note_credito_fornitori.sql'),'utf8');
-const bodies=[...sql.matchAll(/CREATE OR REPLACE FUNCTION ([\w.]+)\([^]*?AS \$function\$([^]*?)\$function\$/g)];
+const bodies=[...sql.replace(/\r\n/g,'\n').matchAll(/CREATE OR REPLACE FUNCTION ([\w.]+)\([^]*?AS \$function\$([^]*?)\$function\$/g)];
 const init=bodies.find(m=>m[1]==='artecna_distruzione.inizia_contesto')[2],foto=bodies.find(m=>m[1]==='artecna_rapportini.compat_foto_fk_allegati')[2];
 const inventoryText=init.match(/\$inventory\$([^]*?)\$inventory\$/)[1],inventory=JSON.parse(inventoryText),added=inventory.filter(f=>f.child==='public.fornitori_rettifiche'),hash=x=>createHash('sha256').update(x).digest('hex');
 const expected={cantiere_id:'cantieri',economia_riga_id:'economia_righe',materiale_cantiere_id:'materiali_cantiere',nota_riga_id:'fatture_fornitori_righe',origine_riga_id:'fatture_fornitori_righe'};

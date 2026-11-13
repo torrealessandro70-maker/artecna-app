@@ -1,4 +1,6 @@
 'use client'
+import PagamentiFornitoriPanel from './PagamentiFornitoriPanel'
+
 
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 import { tipoFiscaleDocumento } from '../engines/fatture/documento-fiscale'
@@ -411,13 +413,14 @@ const input = e.currentTarget
         return
       }
 
+      let eliminate = 0
       for (const f of daEliminare) {
-        await supabase.from('fatture_fornitori_righe').delete().eq('fattura_id', f.id)
-        await supabase.from('fatture_fornitori').delete().eq('id', f.id)
+        const { error } = await supabase.from('fatture_fornitori').delete().eq('id', f.id)
+        if (!error) eliminate++
       }
 
       await caricaFattureFornitori()
-      alert(`Eliminate ${daEliminare.length} fatture metaDato.`)
+      alert(`Eliminate ${eliminate} di ${daEliminare.length} fatture metaDato.`)
     }}
     style={{
       ...buttonSecondary,
@@ -444,8 +447,8 @@ const input = e.currentTarget
         if (error) continue
 
         if (!righe || righe.length === 0) {
-          await supabase.from('fatture_fornitori').delete().eq('id', f.id)
-          eliminate++
+          const { error: erroreEliminazione } = await supabase.from('fatture_fornitori').delete().eq('id', f.id)
+          if (!erroreEliminazione) eliminate++
         }
       }
 
@@ -602,6 +605,7 @@ const input = e.currentTarget
       }}
     >    
   <h3>👁 Righe fattura aperta</h3>
+{testataAperta && !notaAperta && <details><summary>Debito fornitore</summary><PagamentiFornitoriPanel key={fatturaApertaId} cardStyle={{}} fatturaId={fatturaApertaId} /></details>}
 <InviaMaterialiFatturaEconomia key={fatturaApertaId} fatturaId={fatturaApertaId} cantieri={cantieri} onAggiornamentoFattura={async () => { await caricaFattureFornitori(); await aggiornaEconomia?.() }}
   documento={{ righe: righeFatturaAperta,
     onCategoria: (id, value) => setRigheFatturaAperta(old => old.map(r => r.id === id ? { ...r, categoria_economica: value } : r)),

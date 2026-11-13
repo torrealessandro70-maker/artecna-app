@@ -9,24 +9,32 @@ const runtime = path.join(root, '.run', 'notifiche')
 fs.mkdirSync(runtime, { recursive: true })
 const output = path.join(runtime, 'attesi-page-browser-build')
 const chrome = process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-let bundle
+const bundles = new Map()
 module.exports=async function main(actor,cantiere,context) {
   webpack.init()
-  await (bundle ??= new Promise((resolve, reject) => webpack.webpack({
-    mode: 'development', context: root, devtool: false, entry: path.join(__dirname, 'attesi-page-entry.cjs'),
-    output: { path: output, filename: 'bundle.js' }, resolve: { alias: { '@': root, [path.join(root,'lib','supabaseClient')]:path.join(__dirname,'attesi-page-client.cjs') }, extensions: ['.tsx','.ts','.js'] },
+  const entry = context.entry ?? 'attesi-page-entry.cjs'
+  if (!bundles.has(entry)) bundles.set(entry, new Promise((resolve, reject) => webpack.webpack({
+    mode: 'development', context: root, devtool: false, entry: path.join(__dirname, entry),
+    output: { path: output, filename: entry + '.js' }, resolve: { alias: { '@': root, [path.join(root,'lib','supabaseClient')]:path.join(__dirname,'attesi-page-client.cjs') }, extensions: ['.tsx','.ts','.js'] },
     module: { rules: [{ test: /\.tsx?$/, use: path.join(__dirname, 'attesi-page-ts-loader.cjs') }, { test: /\.css$/, use: path.join(__dirname, 'smoke-css-loader.cjs') }] },
   }, (err, stats) => err || stats.hasErrors() ? reject(err || Error(stats.toString({ errors: true }))) : resolve())))
+  await bundles.get(entry)
   let result
   const server=http.createServer((req,res)=>{
     console.log('HTTP',req.url)
     const u=new URL(req.url,'http://localhost')
     if(u.pathname==='/read'){
       res.setHeader('Content-Type','application/json')
-      return res.end(JSON.stringify({data:context[u.searchParams.get('table')]??[],error:null}))
+      const table=u.searchParams.get('table')
+      if(context.read?.[table]){
+        actor(context.read[table],[]).then(data=>res.end(JSON.stringify({data,error:null})),error=>res.end(JSON.stringify({data:null,error:{message:error.message}})))
+        return
+      }
+      return res.end(JSON.stringify({data:context[table]??[],error:null}))
     }
     if(u.pathname==='/rpc'){
       const commands={
+        ...context.commands,
         leggi_rapportini_attesi:['SELECT public.leggi_rapportini_attesi($1,$2,$3) v','p_cantiere','p_da','p_a'],
         configura_rapportini_attesi:['SELECT public.configura_rapportini_attesi($1,$2,$3,$4,$5::smallint) v','p_cantiere','p_revisione','p_sospeso','p_fino_al','p_rilevanza'],
         pianifica_rapportini_attesi:['SELECT public.pianifica_rapportini_attesi($1,$2,$3) v','p_cantiere','p_revisione_config','p_giornate'],
@@ -43,10 +51,10 @@ module.exports=async function main(actor,cantiere,context) {
           const {name,args}=JSON.parse(raw)
           if(!Object.hasOwn(commands,name)){console.log('RPC stub',name);res.end(JSON.stringify({data:[],error:null}));return}
           const [sql,...keys]=commands[name]
-          const data=await actor(sql,keys.map(k=>Array.isArray(args[k])?JSON.stringify(args[k]):args[k]),name==='configura_rapportini_attesi'||name==='pianifica_rapportini_attesi')
+          const data=await actor(sql,keys.map(k=>Array.isArray(args[k])?JSON.stringify(args[k]):args[k]),name==='configura_rapportini_attesi'||name==='pianifica_rapportini_attesi'||name==='registra_debito_fornitore'||name==='verifica_debito_fornitore')
           console.log('RPC PostgreSQL',name, name==='risolvi_destinazione_notifica'?data:'')
           res.end(JSON.stringify({data,error:null}))
-        }catch(e){console.error(e);res.end(JSON.stringify({data:null,error:{code:e.code}}))}
+        }catch(e){console.error(e);res.end(JSON.stringify({data:null,error:{code:e.code,message:e.message}}))}
       })
       return
     }
@@ -58,7 +66,7 @@ module.exports=async function main(actor,cantiere,context) {
     }
     if(u.pathname==='/bundle.js'){
       res.setHeader('Content-Type','text/javascript')
-      return res.end(fs.readFileSync(path.join(output,'bundle.js')))
+      return res.end(fs.readFileSync(path.join(output,entry+'.js')))
     }
     res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'")
     res.end('<!doctype html><meta charset="utf-8"><div id="fixture"></div><pre id="result"></pre><script src="/bundle.js"></script>')
@@ -86,6 +94,7 @@ module.exports=async function main(actor,cantiere,context) {
       child.kill()
       console.log('RESULT',outcome)
       assert.equal(outcome.phase,'pass',outcome.detail)
+      await context.onPass?.(mode,outcome.detail)
     }
   } finally { server.closeAllConnections();server.close() }
 }
