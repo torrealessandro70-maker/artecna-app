@@ -17,6 +17,8 @@ import LinkRapportiniMobile from './LinkRapportiniMobile'
 import { supabase } from '../../lib/supabaseClient'
 
 type Props = {
+  destinazioneNotifica?: { cantiere_id: string; giorno_lavoro: string } | null
+  onRimuoviDestinazione?: () => void
   onNuovoStrutturato?: (cantiereId?: string) => void
   cardStyle: CSSProperties
   rapportiniFiltrati: any[]
@@ -65,6 +67,8 @@ export default function RapportiniPanel({
   onNuovoStrutturato,
   cardStyle,
   rapportiniFiltrati,
+  destinazioneNotifica,
+  onRimuoviDestinazione,
   fotoCantiere,
   setFotoRapportinoAperte,
   preparaModificaRapportino,
@@ -113,6 +117,8 @@ export default function RapportiniPanel({
   const adesso = new Date()
   const oggi = `${adesso.getFullYear()}-${String(adesso.getMonth() + 1).padStart(2, '0')}-${String(adesso.getDate()).padStart(2, '0')}`
   const rapportiniVisualizzati = rapportiniFiltrati.filter((rapportino) => {
+    if (destinazioneNotifica) return rapportino.cantiere_id === destinazioneNotifica.cantiere_id
+      && rapportino.data === destinazioneNotifica.giorno_lavoro
     const dataRapportino = String(rapportino.data || '')
     if (!queryStorico && !cantiereStorico && !dataDaStorico && !dataAStorico) return dataRapportino === oggi
     if (cantiereStorico && String(rapportino.cantiere || '').trim() !== cantiereStorico) return false
@@ -305,6 +311,10 @@ export default function RapportiniPanel({
         </div>
       </div>
 
+      {destinazioneNotifica && <p role="status">
+        Rapportini del cantiere · {destinazioneNotifica.giorno_lavoro}{' '}
+        <button type="button" onClick={onRimuoviDestinazione}>Rimuovi filtro notifica</button>
+      </p>}
       {rapportiniVisualizzati.length === 0 ? (
         <p>Nessun rapportino trovato</p>
       ) : (

@@ -6,11 +6,13 @@ import styles from './CentroNotifiche.module.css'
 
 type Client = { rpc: (name: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string } | null }> }
 type Riga = { id: string; titolo: string; messaggio: string; priorita: string; modulo: string; published_at: string; data_evento?: string; read_at: string | null; attiva: boolean }
-type Preferenze = { generali: boolean; in_app: boolean; scadenziario: boolean; anticipi: number[]; agenda?: boolean; anticipi_agenda?: number[]; sopralluoghi?: boolean; anticipi_sopralluoghi?: number[]; revisione: number }
-type Contatori = { totale: number; scadenziario: number; agenda?: number; sopralluoghi?: number }
+type Preferenze = { generali: boolean; in_app: boolean; scadenziario: boolean; anticipi: number[]; agenda?: boolean; anticipi_agenda?: number[]; sopralluoghi?: boolean; rapportini?: boolean; anticipi_sopralluoghi?: number[]; revisione: number }
+export type DestinazioneRapportino = { cantiere_id: string; giorno_lavoro: string; bozza_id?: string | null }
+type Destinazione = { azione: string; record_id: string } & Partial<DestinazioneRapportino>
+type Contatori = { totale: number; scadenziario: number; agenda?: number; sopralluoghi?: number; rapportini?: number }
 const vuoti: Contatori = { totale: 0, scadenziario: 0 }
 const filtri = { tutte: 'Tutte', da_leggere: 'Da leggere', urgenti: 'Scadute / urgenti' }
-const moduli: Record<string, string> = { scadenziario: 'Scadenziario', agenda: 'Agenda', sopralluoghi: 'Sopralluoghi' }
+const moduli: Record<string, string> = { scadenziario: 'Scadenziario', agenda: 'Agenda', sopralluoghi: 'Sopralluoghi', rapportini: 'Rapportini' }
 const canali = { generali: 'Notifiche generali', in_app: 'Notifiche in-app', scadenziario: 'Scadenziario' } as const
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const dataRoma = new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Rome' })
@@ -28,7 +30,7 @@ export function BadgeNotifiche({ count }: { count: number }) {
   return count > 0 ? <span className={styles.badge} aria-label={count + ' elementi con avvisi da leggere'}>{count}</span> : null
 }
 
-export default function CentroNotifiche({ client, stile, menuImpostazioni, onApriScadenza, onApriAgenda, onApriSopralluogo, onContatori, destinazioneAssente }: {
+export default function CentroNotifiche({ client, stile, menuImpostazioni, onApriScadenza, onApriAgenda, onApriSopralluogo, onApriRapportino, onContatori, destinazioneAssente }: {
   client: Client
   stile: CSSProperties
   menuImpostazioni: boolean
@@ -36,6 +38,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   onApriScadenza: (id: string) => void
   onApriAgenda?: (id: string) => void
   onApriSopralluogo?: (id: string) => void
+  onApriRapportino?: (dati: DestinazioneRapportino) => void
   onContatori: (value: Contatori) => void
 }) {
   const [vistaScelta, setVista] = useState<'centro' | 'preferenze' | null>(null)
@@ -66,22 +69,26 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
     const aggiorna = () => { if (!document.hidden) void aggiornaContatori(() => attivo) }
     aggiorna()
     window.addEventListener('focus', aggiorna)
+    window.addEventListener('artecna:notifiche-rileggi', aggiorna)
     const timer = window.setInterval(aggiorna, 60_000)
-    return () => { attivo = false; window.removeEventListener('focus', aggiorna); window.clearInterval(timer) }
+    return () => { attivo = false; window.removeEventListener('focus', aggiorna); window.removeEventListener('artecna:notifiche-rileggi', aggiorna); window.clearInterval(timer) }
   }, [aggiornaContatori, rilettura])
 
   const apriDestinazione = useCallback(async (id: string) => {
     if (!uuid.test(id)) return null
-    const destinazione = await rpc<{ azione: string; record_id: string } | null>(client, 'risolvi_destinazione_notifica', { p_id: id })
+    const destinazione = await rpc<Destinazione | null>(client, 'risolvi_destinazione_notifica', { p_id: id })
     return destinazione && uuid.test(destinazione.record_id) &&
-      (destinazione.azione === 'apri_scadenza_fiscale' || destinazione.azione === 'apri_attivita_agenda' || destinazione.azione === 'apri_sopralluogo') ? destinazione : null
+      (destinazione.azione === 'apri_scadenza_fiscale' || destinazione.azione === 'apri_attivita_agenda' || destinazione.azione === 'apri_sopralluogo' ||
+       (destinazione.azione === 'apri_rapportino_atteso' && uuid.test(destinazione.cantiere_id ?? '')
+         && /^\d{4}-\d{2}-\d{2}$/.test(destinazione.giorno_lavoro ?? ''))) ? destinazione : null
   }, [client])
 
-  const apriRecord = useCallback(({ azione, record_id }: { azione: string; record_id: string }) => {
+  const apriRecord = useCallback(({ azione, record_id, cantiere_id, giorno_lavoro, bozza_id }: Destinazione) => {
     if (azione === 'apri_attivita_agenda') onApriAgenda?.(record_id)
     else if (azione === 'apri_sopralluogo') onApriSopralluogo?.(record_id)
+    else if (azione === 'apri_rapportino_atteso' && cantiere_id && giorno_lavoro) onApriRapportino?.({ cantiere_id, giorno_lavoro, bozza_id })
     else onApriScadenza(record_id)
-  }, [onApriAgenda, onApriScadenza, onApriSopralluogo])
+  }, [onApriAgenda, onApriScadenza, onApriSopralluogo, onApriRapportino])
 
   useEffect(() => {
     const id = new URL(window.location.href).searchParams.get('notifica')
@@ -154,6 +161,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
         p_revisione: preferenze.revisione, p_generali: preferenze.generali,
         p_in_app: preferenze.in_app, p_scadenziario: preferenze.scadenziario, p_anticipi: preferenze.anticipi,
         ...(preferenze.agenda === undefined ? {} : { p_agenda: preferenze.agenda, p_anticipi_agenda: preferenze.anticipi_agenda }),
+        ...(preferenze.rapportini === undefined ? {} : { p_rapportini: preferenze.rapportini }),
         ...(preferenze.sopralluoghi === undefined ? {} : { p_sopralluoghi: preferenze.sopralluoghi, p_anticipi_sopralluoghi: preferenze.anticipi_sopralluoghi }),
       })
       setAvviso('Preferenze salvate.')
@@ -226,6 +234,11 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
               </label>)}
             </fieldset>
           })}
+          {preferenze.rapportini !== undefined && <fieldset disabled={occupata}>
+            <legend>Avvisi Rapportini</legend>
+            <label><input type="checkbox" checked={preferenze.rapportini}
+              onChange={event => setPreferenze({ ...preferenze, rapportini: event.target.checked })} /> Rapportini</label>
+          </fieldset>}
           <button type="submit" disabled={occupata}>Salva preferenze</button>
         </form> : !errore && <p role="status">Caricamento…</p>}
       </div>

@@ -43,7 +43,8 @@ import { applicaOperaiRiconosciuti, type PropostaOperaioRiconosciuto } from './u
 import PopupModificaTimbratura from './components/PopupModificaTimbratura'
 import LoginForm from './components/LoginForm'
 import StatCard from './components/StatCard'
-import CentroNotifiche, { BadgeNotifiche } from './components/CentroNotifiche'
+import ControlloRapportini from './components/ControlloRapportini'
+import CentroNotifiche, { BadgeNotifiche, type DestinazioneRapportino } from './components/CentroNotifiche'
 import EconomiaGeneralePanel from './components/EconomiaGeneralePanel'
 import { creaVociPreventivoDaDocumento } from './engines/preventivo-from-document'
 import { createPreventivoRevision } from './engines/preventivo'
@@ -4862,15 +4863,26 @@ const [
 ] = useState<any[]>([])
 const [vociAnalizzate, setVociAnalizzate] = useState<(VoceAnalizzata & { testoOrigine?: string })[]>([])
 const [sezioneAttiva, setSezioneAttiva] = useState('home')
-const [notificheMenu, setNotificheMenu] = useState<{ utente: string; scadenziario: number; agenda: number; sopralluoghi: number } | null>(null)
+const [notificheMenu, setNotificheMenu] = useState<{ utente: string; scadenziario: number; agenda: number; sopralluoghi: number; rapportini: number } | null>(null)
 const [notificaAperta, setNotificaAperta] = useState<{ utente: string; id: string } | null>(null)
 const [sopralluogoDaNotifica, setSopralluogoDaNotifica] = useState<{ utente: string; id: string } | null>(null)
 const [agendaDaNotifica, setAgendaDaNotifica] = useState<{ utente: string; id: string } | null>(null)
 const [notificaNonDisponibile, setNotificaNonDisponibile] = useState<{ utente: string; numero: number } | null>(null)
 const badgeScadenziario = notificheMenu?.utente === idUtenteImpostazioni ? notificheMenu?.scadenziario ?? 0 : 0
 const scadenzaDaNotifica = notificaAperta?.utente === idUtenteImpostazioni ? notificaAperta?.id : undefined
-const aggiornaBadgeNotifiche = useCallback(({ scadenziario, agenda = 0, sopralluoghi = 0 }: { scadenziario: number; agenda?: number; sopralluoghi?: number }) => {
-  if (idUtenteImpostazioni) setNotificheMenu({ utente: idUtenteImpostazioni, scadenziario, agenda, sopralluoghi })
+const aggiornaBadgeNotifiche = useCallback(({ scadenziario, agenda = 0, sopralluoghi = 0, rapportini: avvisiRapportini = 0 }: { scadenziario: number; agenda?: number; sopralluoghi?: number; rapportini?: number }) => {
+  if (idUtenteImpostazioni) setNotificheMenu({ utente: idUtenteImpostazioni, scadenziario, agenda, sopralluoghi, rapportini: avvisiRapportini })
+}, [idUtenteImpostazioni])
+const [rapportinoDaNotifica, setRapportinoDaNotifica] = useState<(DestinazioneRapportino & { utente: string }) | null>(null)
+const filtroRapportinoNotifica = rapportinoDaNotifica?.utente === idUtenteImpostazioni ? rapportinoDaNotifica : null
+const apriRapportinoDaNotifica = useCallback((destinazione: DestinazioneRapportino) => {
+  if (!idUtenteImpostazioni) return
+  setRapportinoDaNotifica({ ...destinazione, utente: idUtenteImpostazioni })
+  setSezioneAttiva('rapportini')
+  setMenuAperto(null)
+  if (destinazione.bozza_id) setEditorRapportinoDesktop({
+    cantiereId: destinazione.cantiere_id, data: destinazione.giorno_lavoro, rapportinoId: destinazione.bozza_id,
+  })
 }, [idUtenteImpostazioni])
 const apriScadenzaDaNotifica = useCallback((id: string) => {
   if (!idUtenteImpostazioni) return
@@ -11669,7 +11681,7 @@ textarea:not(.impostazioni-input) {
 </h2>
 { idUtenteImpostazioni && <CentroNotifiche key={idUtenteImpostazioni} client={supabase}
   stile={menuButtonStyle(false)} menuImpostazioni={mostraImpostazioni}
-  onApriScadenza={apriScadenzaDaNotifica} onApriAgenda={apriAgendaDaNotifica} onApriSopralluogo={apriSopralluogoDaNotifica} onContatori={aggiornaBadgeNotifiche} destinazioneAssente={notificaNonDisponibile?.utente === idUtenteImpostazioni ? notificaNonDisponibile?.numero : undefined} /> }
+  onApriScadenza={apriScadenzaDaNotifica} onApriAgenda={apriAgendaDaNotifica} onApriSopralluogo={apriSopralluogoDaNotifica} onApriRapportino={apriRapportinoDaNotifica} onContatori={aggiornaBadgeNotifiche} destinazioneAssente={notificaNonDisponibile?.utente === idUtenteImpostazioni ? notificaNonDisponibile?.numero : undefined} /> }
 {menuAperto === 'impostazioni' && (
   <div style={{ marginLeft: 10, marginTop: 5, display: 'grid', gap: 8 }}>
     <label style={labelStyle}>
@@ -11866,7 +11878,7 @@ textarea:not(.impostazioni-input) {
       }}
       style={menuButtonStyle(sezioneAttiva === 'rapportini')}
     >
-      📄 Rapportini
+      📄 Rapportini <BadgeNotifiche count={notificheMenu?.utente === idUtenteImpostazioni ? notificheMenu?.rapportini ?? 0 : 0} />
     </button>
 
     <div>
@@ -12526,6 +12538,8 @@ WebkitOverflowScrolling: 'touch',
 {vistaCantieriAttiva === 'scheda' && (
 <>
 <CantieriSchedaPanel
+  controlloRapportini={cantiereSelezionatoDaId?.id && <ControlloRapportini key={cantiereSelezionatoDaId.id}
+    client={supabase} cantiere={cantiereSelezionatoDaId.id} chiuso={Boolean(cantiereSelezionatoDaId.lavori_conclusi)} />}
   progressoAnalisiDocumento={progressoAnalisiDocumento}
   timelinePanelProps={{ foto: fotoCantiere, rapportini, preventivi, acconti: accontiCantiere,
     presenze: timbrature, materiali: materialiCantiere, attrezzature: attrezziCantiere, formatMoney }}
@@ -13251,8 +13265,10 @@ onDocumentAction={gestisciAzioneDocumento}
 {/* ================= RAPPORTINI ================= */}
 {sezioneAttiva === 'rapportini' && (
 <RapportiniPanel
+    destinazioneNotifica={filtroRapportinoNotifica}
+    onRimuoviDestinazione={() => { setRapportinoDaNotifica(null); chiudiScadenzaDaNotifica() }}
     cardStyle={cardStyle}
-    rapportiniFiltrati={rapportiniFiltrati}
+    rapportiniFiltrati={filtroRapportinoNotifica ? rapportini : rapportiniFiltrati}
     fotoCantiere={fotoCantiere}
     setFotoRapportinoAperte={setFotoRapportinoAperte}
     onNuovoStrutturato={apriNuovoRapportinoStrutturato}

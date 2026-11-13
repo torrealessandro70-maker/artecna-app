@@ -332,6 +332,7 @@ export default function CantieriSchedaPanel(props: any) {
           )}
         </section>
       )}
+      {p.controlloRapportini}
       {p.cantiereSelezionatoDaId && (
         <div hidden={paginaAttiva !== 'lavori' || lavoriSezione !== 'rapportini'}>
           <RapportiniCantierePanel
