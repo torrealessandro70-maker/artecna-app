@@ -6,13 +6,20 @@ import styles from './CentroNotifiche.module.css'
 
 type Client = { rpc: (name: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string } | null }> }
 type Riga = { id: string; titolo: string; messaggio: string; priorita: string; modulo: string; published_at: string; data_evento?: string; read_at: string | null; attiva: boolean }
-type Preferenze = { generali: boolean; in_app: boolean; scadenziario: boolean; anticipi: number[]; agenda?: boolean; anticipi_agenda?: number[]; sopralluoghi?: boolean; rapportini?: boolean; pagamenti_fornitori?: boolean; anticipi_pagamenti_fornitori?: number[]; anticipi_sopralluoghi?: number[]; revisione: number }
+type Preferenze = { generali: boolean; in_app: boolean; scadenziario: boolean; anticipi: number[]; agenda?: boolean; anticipi_agenda?: number[]; sopralluoghi?: boolean; rapportini?: boolean; pagamenti_fornitori?: boolean; anticipi_pagamenti_fornitori?: number[]; anticipi_sopralluoghi?: number[]; fatture_da_emettere?: boolean; anticipi_fatture_da_emettere?: number[]; revisione: number }
 export type DestinazioneRapportino = { cantiere_id: string; giorno_lavoro: string; bozza_id?: string | null }
 type Destinazione = { azione: string; record_id: string } & Partial<DestinazioneRapportino>
-type Contatori = { totale: number; scadenziario: number; agenda?: number; sopralluoghi?: number; rapportini?: number; pagamenti_fornitori?: number }
+type AccontoFiscale = {
+  stato: string
+  termine: string | null
+  giorni_residui: number | null
+  data_fiscale: string | null
+  fatture: { id: string; numero: string | null; tipo: string | null; esito: string | null }[]
+}
+type Contatori = { totale: number; scadenziario: number; agenda?: number; sopralluoghi?: number; rapportini?: number; pagamenti_fornitori?: number; fatture_da_emettere?: number }
 const vuoti: Contatori = { totale: 0, scadenziario: 0 }
 const filtri = { tutte: 'Tutte', da_leggere: 'Da leggere', urgenti: 'Scadute / urgenti' }
-const moduli: Record<string, string> = { scadenziario: 'Scadenziario', agenda: 'Agenda', sopralluoghi: 'Sopralluoghi', rapportini: 'Rapportini', pagamenti_fornitori: 'Pagamenti fornitori' }
+const moduli: Record<string, string> = { scadenziario: 'Scadenziario', agenda: 'Agenda', sopralluoghi: 'Sopralluoghi', rapportini: 'Rapportini', pagamenti_fornitori: 'Pagamenti fornitori', fatture_da_emettere: 'Fatture da emettere' }
 const canali = { generali: 'Notifiche generali', in_app: 'Notifiche in-app', scadenziario: 'Scadenziario' } as const
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const dataRoma = new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Rome' })
@@ -42,11 +49,22 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   onApriDebito?: (id: string) => void
   onContatori: (value: Contatori) => void
 }) {
+  const [acconto, setAcconto] = useState<string | null>(null)
+  const [destinazioneFiscale, setDestinazioneFiscale] = useState<{ id: string; dati: AccontoFiscale | null } | null>(null)
+  useEffect(() => {
+    if (!acconto) return
+    let attivo = true
+    void rpc<AccontoFiscale>(client, 'leggi_destinazione_acconto_fiscale', { p_id: acconto })
+      .then(dati => { if (attivo) setDestinazioneFiscale({ id: acconto, dati }) },
+        () => { if (attivo) setDestinazioneFiscale({ id: acconto, dati: null }) })
+    return () => { attivo = false }
+  }, [acconto, client])
   const [vistaScelta, setVista] = useState<'centro' | 'preferenze' | null>(null)
   const [destinazioneGestita, setDestinazioneGestita] = useState<number>()
   const respinta = destinazioneAssente !== undefined && destinazioneAssente !== destinazioneGestita
   const vista = respinta ? 'centro' : vistaScelta
   const [contatori, setContatori] = useState(vuoti)
+  const [soloFatture, setSoloFatture] = useState(false)
   const [filtro, setFiltro] = useState<keyof typeof filtri>('tutte')
   const [pagina, setPagina] = useState(0)
   const [righe, setRighe] = useState<Riga[] | null>(null)
@@ -79,7 +97,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
     if (!uuid.test(id)) return null
     const destinazione = await rpc<Destinazione | null>(client, 'risolvi_destinazione_notifica', { p_id: id })
     return destinazione && uuid.test(destinazione.record_id) &&
-      (destinazione.azione === 'apri_scadenza_fiscale' || destinazione.azione === 'apri_attivita_agenda' || destinazione.azione === 'apri_sopralluogo' || destinazione.azione === 'apri_debito_fornitore' ||
+      (destinazione.azione === 'apri_scadenza_fiscale' || destinazione.azione === 'apri_attivita_agenda' || destinazione.azione === 'apri_sopralluogo' || destinazione.azione === 'apri_debito_fornitore' || destinazione.azione === 'apri_acconto_fiscale' ||
        (destinazione.azione === 'apri_rapportino_atteso' && uuid.test(destinazione.cantiere_id ?? '')
          && /^\d{4}-\d{2}-\d{2}$/.test(destinazione.giorno_lavoro ?? ''))) ? destinazione : null
   }, [client])
@@ -87,6 +105,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   const apriRecord = useCallback(({ azione, record_id, cantiere_id, giorno_lavoro, bozza_id }: Destinazione) => {
     if (azione === 'apri_attivita_agenda') onApriAgenda?.(record_id)
     else if (azione === 'apri_sopralluogo') onApriSopralluogo?.(record_id)
+    else if (azione === 'apri_acconto_fiscale') { setDestinazioneFiscale(null); setAcconto(record_id) }
     else if (azione === 'apri_debito_fornitore') onApriDebito?.(record_id)
     else if (azione === 'apri_rapportino_atteso' && cantiere_id && giorno_lavoro) onApriRapportino?.({ cantiere_id, giorno_lavoro, bozza_id })
     else onApriScadenza(record_id)
@@ -108,7 +127,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
     let attivo = true
     const fallita = () => { if (attivo) setErrore('Lettura non disponibile. Riprova con Rileggi.') }
     if (vista === 'centro') {
-      void rpc<Riga[]>(client, 'lista_notifiche', { p_filtro: filtro, p_offset: pagina * 50 })
+      void rpc<Riga[]>(client, 'lista_notifiche', { p_filtro: soloFatture ? 'fatture_da_emettere' : filtro, p_offset: pagina * 50 })
         .then(dati => { if (attivo) setRighe(dati) }, fallita)
     }
     if (vista === 'preferenze') {
@@ -116,10 +135,11 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
         .then(dati => { if (attivo) setPreferenze(dati) }, fallita)
     }
     return () => { attivo = false }
-  }, [client, filtro, pagina, rilettura, vista])
+  }, [client, filtro, pagina, rilettura, soloFatture, vista])
 
   function cambiaVista(prossima: typeof vistaScelta) {
     setDestinazioneGestita(destinazioneAssente)
+    setAcconto(null)
     setVista(prossima)
   }
 
@@ -164,6 +184,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
         p_in_app: preferenze.in_app, p_scadenziario: preferenze.scadenziario, p_anticipi: preferenze.anticipi,
         ...(preferenze.agenda === undefined ? {} : { p_agenda: preferenze.agenda, p_anticipi_agenda: preferenze.anticipi_agenda }),
         ...(preferenze.pagamenti_fornitori === undefined ? {} : { p_pagamenti_fornitori: preferenze.pagamenti_fornitori, p_anticipi_pagamenti_fornitori: preferenze.anticipi_pagamenti_fornitori }),
+        ...(preferenze.fatture_da_emettere === undefined ? {} : { p_fatture_da_emettere: preferenze.fatture_da_emettere, p_anticipi_fatture_da_emettere: preferenze.anticipi_fatture_da_emettere }),
         ...(preferenze.rapportini === undefined ? {} : { p_rapportini: preferenze.rapportini }),
         ...(preferenze.sopralluoghi === undefined ? {} : { p_sopralluoghi: preferenze.sopralluoghi, p_anticipi_sopralluoghi: preferenze.anticipi_sopralluoghi }),
       })
@@ -176,11 +197,35 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   }
 
   return <>
-    <button ref={campanella} type="button" style={stile} onClick={() => { cambiaVista('centro'); setAvviso(''); ricarica() }}>
+    <button ref={campanella} type="button" style={stile} onClick={() => { setSoloFatture(false); setPagina(0); cambiaVista('centro'); setAvviso(''); ricarica() }}>
       🔔 Centro notifiche <BadgeNotifiche count={contatori.totale} />
     </button>
+    {(contatori.fatture_da_emettere ?? 0) > 0 && <button type="button" style={stile}
+      onClick={() => { setSoloFatture(true); setPagina(0); cambiaVista('centro'); setAvviso(''); ricarica() }}>
+      Fatture da emettere <BadgeNotifiche count={contatori.fatture_da_emettere ?? 0} />
+    </button>}
     {menuImpostazioni && <button type="button" style={stile} onClick={() => { cambiaVista('preferenze'); setAvviso(''); ricarica() }}>Notifiche</button>}
-    {vista && <VistaOperativa titolo={vista === 'centro' ? 'Centro notifiche' : 'Impostazioni · Notifiche'} etichettaRitorno="← Chiudi"
+    {acconto && <VistaOperativa titolo="Stato fiscale dell’acconto" etichettaRitorno="← Chiudi"
+      ritornoFocusRef={campanella} onChiudi={() => {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('notifica')
+        window.history.replaceState(null, '', url)
+        cambiaVista('centro')
+      }}>
+      {destinazioneFiscale?.id !== acconto ? <p role="status">Caricamento…</p>
+        : destinazioneFiscale.dati ? <>
+          <p>{destinazioneFiscale.dati.stato}</p>
+          {destinazioneFiscale.dati.data_fiscale && <p>Data fiscale {destinazioneFiscale.dati.data_fiscale}</p>}
+          {destinazioneFiscale.dati.termine && <p>Termine ordinario {destinazioneFiscale.dati.termine} · Giorni residui {destinazioneFiscale.dati.giorni_residui}</p>}
+          <h3>Fatture collegate</h3>
+          {destinazioneFiscale.dati.fatture.length === 0
+            ? <p>Nessuna fattura collegata.</p>
+            : <ul>{destinazioneFiscale.dati.fatture.map(fattura => <li key={fattura.id}>
+              {[fattura.numero || 'Fattura senza numero', fattura.tipo, fattura.esito?.replaceAll('_', ' ')].filter(Boolean).join(' · ')}
+            </li>)}</ul>}
+        </> : <p role="alert">{nonDisponibile}</p>}
+    </VistaOperativa>}
+    {vista && !acconto && <VistaOperativa titolo={vista === 'centro' ? 'Centro notifiche' : 'Impostazioni · Notifiche'} etichettaRitorno="← Chiudi"
       occupata={occupata} ritornoFocusRef={campanella} onChiudi={() => cambiaVista(null)}>
       <div className={styles.pannello}>
         {errore && <p role="alert">{errore}</p>}
@@ -189,8 +234,8 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
         {vista === 'centro' ? <>
           <div className={styles.azioni} aria-label="Filtri notifiche">
             {Object.entries(filtri).map(([chiave, etichetta]) => <button type="button" key={chiave}
-              aria-pressed={chiave === filtro} disabled={occupata}
-              onClick={() => { if (chiave !== filtro) { setRighe(null); setErrore(''); setPagina(0); setFiltro(chiave as keyof typeof filtri) } }}>{etichetta}</button>)}
+              aria-pressed={!soloFatture && chiave === filtro} disabled={occupata}
+              onClick={() => { if (soloFatture || chiave !== filtro) { setSoloFatture(false); setRighe(null); setErrore(''); setPagina(0); setFiltro(chiave as keyof typeof filtri) } }}>{etichetta}</button>)}
           </div>
           {righe === null && !errore && <p role="status">Caricamento…</p>}
           {righe?.length === 0 && <p>Nessuna notifica in questa vista.</p>}
@@ -223,14 +268,14 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
             </label>)}
             <p>Gli avvisi per le scadenze superate restano attivi se il modulo è abilitato.</p>
           </fieldset>
-          {(['agenda', 'sopralluoghi', 'pagamenti_fornitori'] as const).map(modulo => {
+          {(['agenda', 'sopralluoghi', 'pagamenti_fornitori', 'fatture_da_emettere'] as const).map(modulo => {
             const anticipi = `anticipi_${modulo}` as const
             const attuali = preferenze[anticipi] ?? []
             return preferenze[modulo] === undefined ? null : <fieldset key={modulo} disabled={occupata}>
               <legend>Avvisi {moduli[modulo]}</legend>
               <label><input type="checkbox" checked={preferenze[modulo]}
                 onChange={event => setPreferenze({ ...preferenze, [modulo]: event.target.checked })} /> {moduli[modulo]}</label>
-              {(modulo === 'pagamenti_fornitori' ? [7, 3, 0] : [1, 0]).map(anticipo => <label key={anticipo}>
+              {(modulo === 'fatture_da_emettere' ? [7, 3, 1, 0] : modulo === 'pagamenti_fornitori' ? [7, 3, 0] : [1, 0]).map(anticipo => <label key={anticipo}>
                 <input type="checkbox" checked={attuali.includes(anticipo)}
                   onChange={event => setPreferenze({ ...preferenze, [anticipi]: event.target.checked ? [...attuali, anticipo] : attuali.filter(n => n !== anticipo) })} />
                 {' '}{anticipo === 0 ? 'Giorno stesso' : anticipo === 1 ? '1 giorno prima' : anticipo + ' giorni prima'}

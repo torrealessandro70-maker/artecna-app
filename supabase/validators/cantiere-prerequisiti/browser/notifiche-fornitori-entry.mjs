@@ -13,7 +13,7 @@ async function run(){
   const id=params.get('draft')
   await wait('menu non disponibile',()=>button(/Centro notifiche/))
   if(params.get('mode')==='center'){
-    await wait('badge aggregato assente',()=>button(/Centro notifiche\s+5$/)&&button(/Pagamenti\s+1/))
+    await wait('badge aggregato assente',()=>button(/Centro notifiche\s+6$/)&&button(/Pagamenti\s+1/))
     button(/Impostazioni/).click()
     await wait('preferenze non disponibili',()=>button(/^🔔 Notifiche$|^Notifiche$/)).then(b=>b.click())
     await wait('preferenza Pagamenti assente',()=>[...document.querySelectorAll('legend')].find(l=>l.textContent==='Avvisi Pagamenti fornitori'))
