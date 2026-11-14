@@ -377,6 +377,8 @@ export default function SalDettagliatoPanel({
     return () => { attivo = false }
   }, [clientOriginale, cantiereSalId, contrattoSalId, salLavorazioni, riletturaRettifiche])
   const letturaRettificheValida = rettificheSal?.cantiereId === cantiereSalId && rettificheSal?.contrattoId === contrattoSalId && rettificheSal?.righe === salLavorazioni
+  const rettificheInVerifica = Boolean(cantiereSalId && contrattoSalId && !letturaRettificheValida && !erroreRettifiche)
+  const valoreRettificheAssente = rettificheInVerifica ? 'Verifica in corso…' : 'Non verificabile'
   const mappaRettifiche = rettificheRigheSal(salLavorazioni, letturaRettificheValida ? rettificheSal!.lavori : [], letturaRettificheValida)
   const aggiornamentiSal = useRef(new Map<string, {
     versione: number
@@ -963,6 +965,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
   nomeCantiere={salCantiere}
   lavorazioni={righe}
   rettifiche={mappaRettifiche}
+  rettificheInVerifica={rettificheInVerifica}
   originiVariante={originiVariante}
   excelTable={excelTable}
   excelTh={excelTh}
@@ -1154,12 +1157,12 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
      }
      return <>
        <p>Contratto originario: {base === null ? 'Non verificabile' : formatMoney(base)}</p>
-       <p>Incrementi approvati: {letturaRettificheValida ? formatMoney(rettificheSal!.incrementi) : 'Non verificabile'}</p>
-       <p>Riduzioni approvate: {letturaRettificheValida ? formatMoney(rettificheSal!.riduzioni) : 'Non verificabile'}</p>
-       <p>Contratto aggiornato: {totali ? formatMoney(totali.aggiornato) : 'Non verificabile'}</p>
+       <p>Incrementi approvati: {letturaRettificheValida ? formatMoney(rettificheSal!.incrementi) : valoreRettificheAssente}</p>
+       <p>Riduzioni approvate: {letturaRettificheValida ? formatMoney(rettificheSal!.riduzioni) : valoreRettificheAssente}</p>
+       <p>Contratto aggiornato: {totali ? formatMoney(totali.aggiornato) : valoreRettificheAssente}</p>
        <p>Totale storico righe SAL: {formatMoney(totalePrevistoSal)}</p>
        <p>Maturato SAL: {formatMoney(totaleMaturatoSal)}</p>
-       <p>Residuo contrattuale aggiornato: {totali ? formatMoney(totali.residuo) : 'Non verificabile'}</p>
+       <p>Residuo contrattuale aggiornato: {totali ? formatMoney(totali.residuo) : valoreRettificheAssente}</p>
      </>
    })()}
    {!letturaRettificheValida && <p role="status">{erroreRettifiche || 'Verifica rettifiche in corso: avanzamento non disponibile.'}</p>}
@@ -1168,7 +1171,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
  <section aria-label="SAL operativo"><h3>SAL operativo</h3>{renderTabellaSal(righeOperative)}</section>
  <details aria-label="Aggiornamenti contrattuali SAL">
    <summary>Aggiornamenti contrattuali</summary>
-   {!letturaRettificheValida && !erroreRettifiche
+   {rettificheInVerifica
      ? <p role="status">Verifica degli aggiornamenti in corso…</p>
      : (
  <AggiornamentiContrattualiSal lavori={letturaRettificheValida ? rettificheSal!.lavori : []} righe={lavorazioniCantiere} verificabile={letturaRettificheValida} formatMoney={formatMoney}
@@ -1183,7 +1186,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
    totali={letturaRettificheValida ? { incrementi: rettificheSal!.incrementi, riduzioni: rettificheSal!.riduzioni, delta: rettificheSal!.delta } : undefined} />
      )}
  </details>
- {gruppiSal.nonVerificabili.length > 0 && <aside role="alert"><p>Dati contrattuali non verificabili: nessun avanzamento disponibile.</p><ul>{gruppiSal.nonVerificabili.map(r => <li key={r.id}>
+ {!rettificheInVerifica && gruppiSal.nonVerificabili.length > 0 && <aside role="alert"><p>Dati contrattuali non verificabili: nessun avanzamento disponibile.</p><ul>{gruppiSal.nonVerificabili.map(r => <li key={r.id}>
    {r.descrizione} — maturato conservato: {r.importo_maturato != null && String(r.importo_maturato).trim() !== '' && Number.isFinite(Number(r.importo_maturato)) ? formatMoney(Number(r.importo_maturato)) : 'Non verificabile'}
    <label>Completata<input type="checkbox" checked={!!r.completata} disabled readOnly /></label>
    <label>% eseguita<input value={r.percentuale ?? ''} disabled readOnly /></label>

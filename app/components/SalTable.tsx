@@ -67,6 +67,7 @@ type SalTableProps = {
   onUpdatePercentuale: (lavorazione: any, valore: string) => void | Promise<void>
   onElimina: (id: number) => void
   rettifiche?: Record<string, RettificaSal>
+  rettificheInVerifica?: boolean
   originiVariante?: Record<string, { titolo: string; data: string | null }>
 }
 
@@ -84,6 +85,7 @@ export default function SalTable({
   onUpdatePercentuale,
   onElimina,
   rettifiche,
+  rettificheInVerifica,
   originiVariante,
 }: SalTableProps) {
   const [espansa, setEspansa] = useState(false)
@@ -352,7 +354,7 @@ export default function SalTable({
                 </td>
 
                 <td style={excelTd}>
-                  {rettificaVisibile && !rettificaVisibile.verificabile ? <p role="alert">Rettifiche non verificabili</p> : rettificaVisibile?.rettificata ? <div>
+                  {rettificaVisibile && !rettificaVisibile.verificabile ? <p role={rettificheInVerifica ? "status" : "alert"}>{rettificheInVerifica ? "Verifica rettifiche in corso…" : "Rettifiche non verificabili"}</p> : rettificaVisibile?.rettificata ? <div>
                     <div>Importo originario: {formatMoney(Number(s.importo_previsto))}</div>
                     <div>Rettifiche approvate: {formatMoney(-rettificaVisibile.riduzione!)}</div>
                     <div>Importo contrattuale aggiornato: {formatMoney(rettificaVisibile.importoAggiornato!)}</div>
