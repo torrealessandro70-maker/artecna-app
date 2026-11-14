@@ -1,4 +1,5 @@
 'use client'
+import ContrattoFiscalePanel from './ContrattoFiscalePanel'
 
 import { useState, type CSSProperties, type ChangeEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
@@ -444,7 +445,7 @@ export default function FattureEmessePanel({
                   </td>
 
                   <td style={excelTd}>{f.stato || 'emessa'}</td>
-                  <td style={excelTd}><CollegaIncassoAzione cantiereId={f.cantiere_id} onClick={e => { e.stopPropagation(); setCollegaId(f.id) }} /></td>
+                  <td style={excelTd} onClick={e => e.stopPropagation()}>{f.id && <ContrattoFiscalePanel id={f.id} />}<CollegaIncassoAzione cantiereId={f.cantiere_id} onClick={e => { e.stopPropagation(); setCollegaId(f.id) }} /></td>
 
                   <td style={excelTd}>
                     {f.pdf_url ? (

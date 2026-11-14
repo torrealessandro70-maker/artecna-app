@@ -41,6 +41,8 @@ test('Notifiche Pagamenti fornitori con PostgreSQL 17.6', { timeout: 180000 }, (
   const signature = () => value('SELECT artecna_distruzione.hard_delete_catalog() v')
   const prima = await signature()
   await q(fs.readFileSync(path.join(__dirname, '../../migrations/20261114000100_notifiche_pagamenti_fornitori.sql'), 'utf8'))
+  await q(fs.readFileSync(path.join(__dirname, '../../migrations/20261114000200_contratto_acconti_fatture_sdi.sql'), 'utf8'))
+  console.log('Fixture migrations complete', Math.round(process.uptime()*1000), 'ms')
   assert.equal(await signature(),prima)
   const titolare=fixture.u, esterno=randomUUID()
   await q('INSERT INTO auth.users(id) VALUES($1)',[esterno])
@@ -153,4 +155,4 @@ test('Notifiche Pagamenti fornitori con PostgreSQL 17.6', { timeout: 180000 }, (
   const preserved=(await as(titolare,oldSave,[saved.revisione]))[0].v
   assert.equal(preserved.pagamenti_fornitori,false)
   assert.deepEqual(preserved.anticipi_pagamenti_fornitori,[7])
-}, { productionActor: true, beforeMigrations: certifiedInstallerFixture }))
+}, { productionActor: true, noSync: true, timing: true, beforeMigrations: certifiedInstallerFixture }))

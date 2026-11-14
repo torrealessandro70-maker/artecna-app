@@ -1,4 +1,5 @@
 'use client'
+import ContrattoFiscalePanel from './ContrattoFiscalePanel'
 import type { CSSProperties } from 'react'
 import { selezionaAcconti, type RigaAcconto } from '../engines/economia/accontiCantiere'
 
@@ -75,6 +76,7 @@ export default function AccontiTable({
               </td>
 
               <td style={excelTd}>
+                {a.id && <ContrattoFiscalePanel id={a.id} acconto dataIncasso={a.data_incasso} />}
                 <button
                   onClick={() => onModifica(a)}
                   style={buttonSecondary}

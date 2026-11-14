@@ -41,7 +41,14 @@ test('Debiti fornitori con PostgreSQL 17.6 e Hard Delete V3', { timeout: 180000 
   const beforeAcl=await acl()
   assert.ok(beforeAcl.every(r=>r.lettura && r.scrittura && !r.rolsuper && !r.membro_owner))
 
-  await q(fs.readFileSync(path.join(__dirname, '../../migrations/20261113000300_debiti_fornitori.sql'), 'utf8'))
+  await q(load('20261113000300_debiti_fornitori.sql'))
+  const scheduler = load('20261112000200_notifiche_scheduler.sql')
+  const wrapper = scheduler.match(/CREATE OR REPLACE FUNCTION artecna_notifiche\.esegui_generatore_runtime\(\)[\s\S]*?FROM PUBLIC, anon, authenticated, service_role;/)?.[0]
+  assert.ok(wrapper)
+  await q(wrapper)
+  for (const migration of ['20261112000300_notifiche_agenda.sql','20261112000400_notifiche_sopralluoghi.sql','20261113000200_notifiche_rapportini_attesi.sql','20261114000100_notifiche_pagamenti_fornitori.sql']) await q(load(migration))
+  await q(fs.readFileSync(path.join(__dirname, '../../migrations/20261114000200_contratto_acconti_fatture_sdi.sql'), 'utf8'))
+  console.log('Fixture migrations complete', Math.round(process.uptime()*1000), 'ms')
   const afterAcl=await acl()
   assert.ok(afterAcl.every(r=>r.lettura && !r.scrittura && !r.scrittura_colonne))
   console.log({beforeAcl,afterAcl})
@@ -237,4 +244,4 @@ test('Debiti fornitori con PostgreSQL 17.6 e Hard Delete V3', { timeout: 180000 
   assert.equal(await value('SELECT count(*)::int v FROM public.pagamenti_fornitori WHERE cantiere_id=$1',[fixture.a]),0)
   assert.deepEqual(await value('SELECT to_jsonb(d) v FROM public.pagamenti_fornitori d WHERE id=$1',[id]),original)
   assert.equal(await value('SELECT count(*)::int v FROM public.fatture_fornitori WHERE id=$1',[fattura]),1)
-}, { productionActor: true, beforeMigrations: certifiedInstallerFixture }))
+}, { productionActor: true, noSync: true, timing: true, beforeMigrations: certifiedInstallerFixture }))
