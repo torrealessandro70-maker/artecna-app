@@ -73,7 +73,7 @@ export default function PagamentiContainer(props: Props) {
         (!p.modalitaMulti &&
           p.sezioneAttiva === 'pagamenti' &&
           p.sottoSezionePagamenti === 'fornitori')
-      ) && <PagamentiFornitoriPanel cardStyle={p.cardStyle} />}
+      ) && <PagamentiFornitoriPanel key={p.debitoDaNotifica?.apertura} cardStyle={p.cardStyle} debitoId={p.debitoDaNotifica?.id} />}
     </>
   )
 }

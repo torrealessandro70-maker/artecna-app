@@ -18,6 +18,7 @@ test('Vista Fornitori: lettura per fattura, apertura e verifica esplicita con ge
   }
   const react={
     useState(initial){const i=index++;if(!(i in state)) state[i]=initial;return [state[i],v=>{state[i]=v}]},
+    useRef(initial){const i=index++;if(!(i in state)) state[i]={current:initial};return state[i]},
     useCallback:fn=>fn,useEffect:fn=>effects.push(fn),
   }
   const jsx=(type,props)=>({type,props})

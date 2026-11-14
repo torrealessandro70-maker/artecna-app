@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 
 type Debito = {
@@ -26,14 +26,16 @@ function verifica(d: Debito) {
 const euro = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' })
 const importo = (n: number | null) => n === null ? 'Sconosciuto' : euro.format(n)
 
-export default function PagamentiFornitoriPanel({ cardStyle, fatturaId }: {
+export default function PagamentiFornitoriPanel({ cardStyle, fatturaId, debitoId }: {
   cardStyle: CSSProperties
   fatturaId?: string
+  debitoId?: string
 }) {
   const [righe, setRighe] = useState<Debito[]>([])
   const [errore, setErrore] = useState('')
   const [attesa, setAttesa] = useState(false)
-  const [selezionato, setSelezionato] = useState('')
+  const [selezionato, setSelezionato] = useState(debitoId ?? '')
+  const focusNotifica = useRef(Boolean(debitoId))
   const [nome, setNome] = useState('')
   const leggi = useCallback(async () => {
     const { data, error } = await supabase.rpc('leggi_debiti_fornitori', { p_fattura: fatturaId ?? null })
@@ -104,7 +106,12 @@ export default function PagamentiFornitoriPanel({ cardStyle, fatturaId }: {
       </tr>)}</tbody>
     </table>
     {dettaglio && <section aria-label="Dettaglio debito">
-      <p>{dettaglio.id} · {verifica(dettaglio)}</p>
+      <p tabIndex={-1} ref={elemento => {
+        if (elemento && focusNotifica.current && dettaglio.id === debitoId) {
+          focusNotifica.current = false
+          elemento.focus()
+        }
+      }}>{dettaglio.id} · {verifica(dettaglio)}</p>
       {dettaglio.origine_debito && !dettaglio.annullato_at && <form
         key={dettaglio.id + ':' + dettaglio.revisione_debito} onSubmit={e => salva(e, dettaglio)}>
         <label>Scadenza <input type="date" name="scadenza" required defaultValue={dettaglio.data_scadenza ?? ''} /></label>

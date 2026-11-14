@@ -4856,15 +4856,15 @@ const [
 ] = useState<any[]>([])
 const [vociAnalizzate, setVociAnalizzate] = useState<(VoceAnalizzata & { testoOrigine?: string })[]>([])
 const [sezioneAttiva, setSezioneAttiva] = useState('home')
-const [notificheMenu, setNotificheMenu] = useState<{ utente: string; scadenziario: number; agenda: number; sopralluoghi: number; rapportini: number } | null>(null)
+const [notificheMenu, setNotificheMenu] = useState<{ utente: string; scadenziario: number; agenda: number; sopralluoghi: number; rapportini: number; pagamentiFornitori: number } | null>(null)
 const [notificaAperta, setNotificaAperta] = useState<{ utente: string; id: string } | null>(null)
 const [sopralluogoDaNotifica, setSopralluogoDaNotifica] = useState<{ utente: string; id: string } | null>(null)
 const [agendaDaNotifica, setAgendaDaNotifica] = useState<{ utente: string; id: string } | null>(null)
 const [notificaNonDisponibile, setNotificaNonDisponibile] = useState<{ utente: string; numero: number } | null>(null)
 const badgeScadenziario = notificheMenu?.utente === idUtenteImpostazioni ? notificheMenu?.scadenziario ?? 0 : 0
 const scadenzaDaNotifica = notificaAperta?.utente === idUtenteImpostazioni ? notificaAperta?.id : undefined
-const aggiornaBadgeNotifiche = useCallback(({ scadenziario, agenda = 0, sopralluoghi = 0, rapportini: avvisiRapportini = 0 }: { scadenziario: number; agenda?: number; sopralluoghi?: number; rapportini?: number }) => {
-  if (idUtenteImpostazioni) setNotificheMenu({ utente: idUtenteImpostazioni, scadenziario, agenda, sopralluoghi, rapportini: avvisiRapportini })
+const aggiornaBadgeNotifiche = useCallback(({ scadenziario, agenda = 0, sopralluoghi = 0, rapportini: avvisiRapportini = 0, pagamenti_fornitori = 0 }: { scadenziario: number; agenda?: number; sopralluoghi?: number; rapportini?: number; pagamenti_fornitori?: number }) => {
+  if (idUtenteImpostazioni) setNotificheMenu({ utente: idUtenteImpostazioni, scadenziario, agenda, sopralluoghi, rapportini: avvisiRapportini, pagamentiFornitori: pagamenti_fornitori })
 }, [idUtenteImpostazioni])
 const [rapportinoDaNotifica, setRapportinoDaNotifica] = useState<(DestinazioneRapportino & { utente: string }) | null>(null)
 const filtroRapportinoNotifica = rapportinoDaNotifica?.utente === idUtenteImpostazioni ? rapportinoDaNotifica : null
@@ -4876,6 +4876,16 @@ const apriRapportinoDaNotifica = useCallback((destinazione: DestinazioneRapporti
   if (destinazione.bozza_id) setEditorRapportinoDesktop({
     cantiereId: destinazione.cantiere_id, data: destinazione.giorno_lavoro, rapportinoId: destinazione.bozza_id,
   })
+}, [idUtenteImpostazioni])
+const [debitoDaNotifica, setDebitoDaNotifica] = useState<{ utente: string; id: string; apertura: number } | null>(null)
+const badgeFornitori = notificheMenu?.utente === idUtenteImpostazioni ? notificheMenu?.pagamentiFornitori ?? 0 : 0
+const apriDebitoDaNotifica = useCallback((id: string) => {
+  if (!idUtenteImpostazioni) return
+  setDebitoDaNotifica(precedente => ({ utente: idUtenteImpostazioni, id, apertura: (precedente?.apertura ?? 0) + 1 }))
+  setSezioneAttiva('pagamenti')
+  setSottoSezionePagamenti('fornitori')
+  setPagineAperte(correnti => correnti.includes('pagamenti-fornitori') ? correnti : [...correnti, 'pagamenti-fornitori'])
+  setMenuAperto(null)
 }, [idUtenteImpostazioni])
 const apriScadenzaDaNotifica = useCallback((id: string) => {
   if (!idUtenteImpostazioni) return
@@ -11668,7 +11678,7 @@ textarea:not(.impostazioni-input) {
 </h2>
 { idUtenteImpostazioni && <CentroNotifiche key={idUtenteImpostazioni} client={supabase}
   stile={menuButtonStyle(false)} menuImpostazioni={mostraImpostazioni}
-  onApriScadenza={apriScadenzaDaNotifica} onApriAgenda={apriAgendaDaNotifica} onApriSopralluogo={apriSopralluogoDaNotifica} onApriRapportino={apriRapportinoDaNotifica} onContatori={aggiornaBadgeNotifiche} destinazioneAssente={notificaNonDisponibile?.utente === idUtenteImpostazioni ? notificaNonDisponibile?.numero : undefined} /> }
+  onApriScadenza={apriScadenzaDaNotifica} onApriAgenda={apriAgendaDaNotifica} onApriSopralluogo={apriSopralluogoDaNotifica} onApriRapportino={apriRapportinoDaNotifica} onApriDebito={apriDebitoDaNotifica} onContatori={aggiornaBadgeNotifiche} destinazioneAssente={notificaNonDisponibile?.utente === idUtenteImpostazioni ? notificaNonDisponibile?.numero : undefined} /> }
 {menuAperto === 'impostazioni' && (
   <div style={{ marginLeft: 10, marginTop: 5, display: 'grid', gap: 8 }}>
     <label style={labelStyle}>
@@ -11875,7 +11885,7 @@ textarea:not(.impostazioni-input) {
         }
         style={menuButtonStyle(sezioneAttiva === 'pagamenti')}
      >
-  💳 Pagamenti{' '}
+  💳 Pagamenti{' '}<BadgeNotifiche count={badgeFornitori} />
   {statoScadenzaPagamenti === 'attenzione' && '⚠️'}
   {statoScadenzaPagamenti === 'scaduto' && '🚨'}
   {menuAperto === 'pagamenti' ? '▲' : '▼'}
@@ -11900,7 +11910,7 @@ textarea:not(.impostazioni-input) {
             }}
             style={submenuButtonStyle(sottoSezionePagamenti === 'fornitori')}
           >
-            🧾 Pagamenti fornitori
+            🧾 Pagamenti fornitori <BadgeNotifiche count={badgeFornitori} />
           </div>
         </div>
       )}
@@ -13427,6 +13437,7 @@ onDocumentAction: gestisciAzioneDocumento,
 )}
 
 <PagamentiContainer
+  debitoDaNotifica={debitoDaNotifica?.utente === idUtenteImpostazioni ? debitoDaNotifica : undefined}
   pagineAperte={pagineAperte}
   modalitaMulti={modalitaMulti}
   sezioneAttiva={sezioneAttiva}

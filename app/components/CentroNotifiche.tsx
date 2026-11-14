@@ -6,13 +6,13 @@ import styles from './CentroNotifiche.module.css'
 
 type Client = { rpc: (name: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string } | null }> }
 type Riga = { id: string; titolo: string; messaggio: string; priorita: string; modulo: string; published_at: string; data_evento?: string; read_at: string | null; attiva: boolean }
-type Preferenze = { generali: boolean; in_app: boolean; scadenziario: boolean; anticipi: number[]; agenda?: boolean; anticipi_agenda?: number[]; sopralluoghi?: boolean; rapportini?: boolean; anticipi_sopralluoghi?: number[]; revisione: number }
+type Preferenze = { generali: boolean; in_app: boolean; scadenziario: boolean; anticipi: number[]; agenda?: boolean; anticipi_agenda?: number[]; sopralluoghi?: boolean; rapportini?: boolean; pagamenti_fornitori?: boolean; anticipi_pagamenti_fornitori?: number[]; anticipi_sopralluoghi?: number[]; revisione: number }
 export type DestinazioneRapportino = { cantiere_id: string; giorno_lavoro: string; bozza_id?: string | null }
 type Destinazione = { azione: string; record_id: string } & Partial<DestinazioneRapportino>
-type Contatori = { totale: number; scadenziario: number; agenda?: number; sopralluoghi?: number; rapportini?: number }
+type Contatori = { totale: number; scadenziario: number; agenda?: number; sopralluoghi?: number; rapportini?: number; pagamenti_fornitori?: number }
 const vuoti: Contatori = { totale: 0, scadenziario: 0 }
 const filtri = { tutte: 'Tutte', da_leggere: 'Da leggere', urgenti: 'Scadute / urgenti' }
-const moduli: Record<string, string> = { scadenziario: 'Scadenziario', agenda: 'Agenda', sopralluoghi: 'Sopralluoghi', rapportini: 'Rapportini' }
+const moduli: Record<string, string> = { scadenziario: 'Scadenziario', agenda: 'Agenda', sopralluoghi: 'Sopralluoghi', rapportini: 'Rapportini', pagamenti_fornitori: 'Pagamenti fornitori' }
 const canali = { generali: 'Notifiche generali', in_app: 'Notifiche in-app', scadenziario: 'Scadenziario' } as const
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const dataRoma = new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Rome' })
@@ -30,7 +30,7 @@ export function BadgeNotifiche({ count }: { count: number }) {
   return count > 0 ? <span className={styles.badge} aria-label={count + ' elementi con avvisi da leggere'}>{count}</span> : null
 }
 
-export default function CentroNotifiche({ client, stile, menuImpostazioni, onApriScadenza, onApriAgenda, onApriSopralluogo, onApriRapportino, onContatori, destinazioneAssente }: {
+export default function CentroNotifiche({ client, stile, menuImpostazioni, onApriScadenza, onApriAgenda, onApriSopralluogo, onApriRapportino, onApriDebito, onContatori, destinazioneAssente }: {
   client: Client
   stile: CSSProperties
   menuImpostazioni: boolean
@@ -39,6 +39,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   onApriAgenda?: (id: string) => void
   onApriSopralluogo?: (id: string) => void
   onApriRapportino?: (dati: DestinazioneRapportino) => void
+  onApriDebito?: (id: string) => void
   onContatori: (value: Contatori) => void
 }) {
   const [vistaScelta, setVista] = useState<'centro' | 'preferenze' | null>(null)
@@ -78,7 +79,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
     if (!uuid.test(id)) return null
     const destinazione = await rpc<Destinazione | null>(client, 'risolvi_destinazione_notifica', { p_id: id })
     return destinazione && uuid.test(destinazione.record_id) &&
-      (destinazione.azione === 'apri_scadenza_fiscale' || destinazione.azione === 'apri_attivita_agenda' || destinazione.azione === 'apri_sopralluogo' ||
+      (destinazione.azione === 'apri_scadenza_fiscale' || destinazione.azione === 'apri_attivita_agenda' || destinazione.azione === 'apri_sopralluogo' || destinazione.azione === 'apri_debito_fornitore' ||
        (destinazione.azione === 'apri_rapportino_atteso' && uuid.test(destinazione.cantiere_id ?? '')
          && /^\d{4}-\d{2}-\d{2}$/.test(destinazione.giorno_lavoro ?? ''))) ? destinazione : null
   }, [client])
@@ -86,9 +87,10 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   const apriRecord = useCallback(({ azione, record_id, cantiere_id, giorno_lavoro, bozza_id }: Destinazione) => {
     if (azione === 'apri_attivita_agenda') onApriAgenda?.(record_id)
     else if (azione === 'apri_sopralluogo') onApriSopralluogo?.(record_id)
+    else if (azione === 'apri_debito_fornitore') onApriDebito?.(record_id)
     else if (azione === 'apri_rapportino_atteso' && cantiere_id && giorno_lavoro) onApriRapportino?.({ cantiere_id, giorno_lavoro, bozza_id })
     else onApriScadenza(record_id)
-  }, [onApriAgenda, onApriScadenza, onApriSopralluogo, onApriRapportino])
+  }, [onApriAgenda, onApriScadenza, onApriSopralluogo, onApriRapportino, onApriDebito])
 
   useEffect(() => {
     const id = new URL(window.location.href).searchParams.get('notifica')
@@ -161,6 +163,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
         p_revisione: preferenze.revisione, p_generali: preferenze.generali,
         p_in_app: preferenze.in_app, p_scadenziario: preferenze.scadenziario, p_anticipi: preferenze.anticipi,
         ...(preferenze.agenda === undefined ? {} : { p_agenda: preferenze.agenda, p_anticipi_agenda: preferenze.anticipi_agenda }),
+        ...(preferenze.pagamenti_fornitori === undefined ? {} : { p_pagamenti_fornitori: preferenze.pagamenti_fornitori, p_anticipi_pagamenti_fornitori: preferenze.anticipi_pagamenti_fornitori }),
         ...(preferenze.rapportini === undefined ? {} : { p_rapportini: preferenze.rapportini }),
         ...(preferenze.sopralluoghi === undefined ? {} : { p_sopralluoghi: preferenze.sopralluoghi, p_anticipi_sopralluoghi: preferenze.anticipi_sopralluoghi }),
       })
@@ -220,17 +223,17 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
             </label>)}
             <p>Gli avvisi per le scadenze superate restano attivi se il modulo è abilitato.</p>
           </fieldset>
-          {(['agenda', 'sopralluoghi'] as const).map(modulo => {
-            const anticipi = modulo === 'agenda' ? 'anticipi_agenda' : 'anticipi_sopralluoghi'
+          {(['agenda', 'sopralluoghi', 'pagamenti_fornitori'] as const).map(modulo => {
+            const anticipi = `anticipi_${modulo}` as const
             const attuali = preferenze[anticipi] ?? []
             return preferenze[modulo] === undefined ? null : <fieldset key={modulo} disabled={occupata}>
               <legend>Avvisi {moduli[modulo]}</legend>
               <label><input type="checkbox" checked={preferenze[modulo]}
                 onChange={event => setPreferenze({ ...preferenze, [modulo]: event.target.checked })} /> {moduli[modulo]}</label>
-              {[1, 0].map(anticipo => <label key={anticipo}>
+              {(modulo === 'pagamenti_fornitori' ? [7, 3, 0] : [1, 0]).map(anticipo => <label key={anticipo}>
                 <input type="checkbox" checked={attuali.includes(anticipo)}
                   onChange={event => setPreferenze({ ...preferenze, [anticipi]: event.target.checked ? [...attuali, anticipo] : attuali.filter(n => n !== anticipo) })} />
-                {' '}{anticipo === 0 ? 'Giorno stesso' : '1 giorno prima'}
+                {' '}{anticipo === 0 ? 'Giorno stesso' : anticipo === 1 ? '1 giorno prima' : anticipo + ' giorni prima'}
               </label>)}
             </fieldset>
           })}
