@@ -299,8 +299,8 @@ DECLARE
 BEGIN
   PERFORM public.salva_preferenze_notifiche(p_revisione, p_generali, p_in_app, p_scadenziario, p_anticipi, p_agenda, p_anticipi_agenda, p_sopralluoghi, p_anticipi_sopralluoghi, p_rapportini, p_pagamenti_fornitori, p_anticipi_pagamenti_fornitori);
   UPDATE artecna_notifiche.preferenze_notifiche
-  SET pagamenti_fornitori = p_pagamenti_fornitori,
-      anticipi_pagamenti_fornitori = p_anticipi_pagamenti_fornitori
+  SET fatture_da_emettere = p_fatture_da_emettere,
+      anticipi_fatture_da_emettere = p_anticipi_fatture_da_emettere
   WHERE user_id = u RETURNING * INTO STRICT risultato;
   RETURN to_jsonb(risultato) - 'user_id' - 'updated_at';
 END;

@@ -109,7 +109,13 @@ test('Notifiche Pagamenti fornitori con PostgreSQL 17.6', { timeout: 180000 }, (
     owner:titolare,draft:id,notification:first.id,entry:'notifiche-fornitori-entry.mjs',modes:['center','draft'],
     commands:{
       leggi_debiti_fornitori:["SELECT coalesce(jsonb_agg(d),'[]'::jsonb) v FROM public.leggi_debiti_fornitori($1,$2) d",'p_id','p_fattura'],
-      leggi_preferenze_notifiche:['SELECT public.leggi_preferenze_notifiche() v']
+      leggi_preferenze_notifiche:['SELECT public.leggi_preferenze_notifiche() v'],
+      salva_preferenze_notifiche:[
+        'SELECT public.salva_preferenze_notifiche($1,$2,$3,$4,ARRAY(SELECT jsonb_array_elements_text($5)::integer),$6,ARRAY(SELECT jsonb_array_elements_text($7)::integer),$8,ARRAY(SELECT jsonb_array_elements_text($9)::integer),$10,$11,ARRAY(SELECT jsonb_array_elements_text($12)::integer),$13,ARRAY(SELECT jsonb_array_elements_text($14)::integer)) v',
+        'p_revisione','p_generali','p_in_app','p_scadenziario','p_anticipi','p_agenda','p_anticipi_agenda',
+        'p_sopralluoghi','p_anticipi_sopralluoghi','p_rapportini','p_pagamenti_fornitori','p_anticipi_pagamenti_fornitori',
+        'p_fatture_da_emettere','p_anticipi_fatture_da_emettere',
+      ]
     }
   })
   assert.deepEqual(await saldi(),copy)
@@ -153,10 +159,40 @@ test('Notifiche Pagamenti fornitori con PostgreSQL 17.6', { timeout: 180000 }, (
   assert.equal(await count(),0,'annullamento escluso prima del cron')
   await run(new Date().toISOString())
   assert.equal(await value("SELECT count(*)::int v FROM artecna_notifiche.evento_notificabile WHERE record_id=$1 AND resolved_at IS NOT NULL",[annullato]),1)
+  const leggiPreferenze=async ()=>(await as(titolare,'SELECT public.leggi_preferenze_notifiche() v'))[0].v
+  const leggiContatori=async ()=>(await as(titolare,'SELECT public.contatori_notifiche() v'))[0].v
+  const leggiCentro=async ()=>(await as(titolare,"SELECT public.lista_notifiche('fatture_da_emettere',0) v"))[0].v
+  const salvaFatture=async (rev,abilitate,anticipi)=>(await as(titolare,
+    'SELECT public.salva_preferenze_notifiche($1,true,true,true,ARRAY[30,7,3,0],true,ARRAY[1,0],true,ARRAY[1,0],true,false,ARRAY[7],$2,$3) v',
+    [rev,abilitate,anticipi]))[0].v
   const oldSave='SELECT public.salva_preferenze_notifiche($1,true,true,true,ARRAY[30,7,3,0],true,ARRAY[1,0],true,ARRAY[1,0],true) v'
   const newSave='SELECT public.salva_preferenze_notifiche($1,true,true,true,ARRAY[30,7,3,0],true,ARRAY[1,0],true,ARRAY[1,0],true,false,ARRAY[7]) v'
-  const saved=(await as(titolare,newSave,[0]))[0].v
+  const saved=(await as(titolare,newSave,[(await leggiPreferenze()).revisione]))[0].v
   const preserved=(await as(titolare,oldSave,[saved.revisione]))[0].v
   assert.equal(preserved.pagamenti_fornitori,false)
   assert.deepEqual(preserved.anticipi_pagamenti_fornitori,[7])
+
+  const spento=await salvaFatture(preserved.revisione,false,[7,1])
+  assert.equal(spento.revisione,preserved.revisione+1)
+  assert.deepEqual(await leggiPreferenze(),spento)
+  assert.equal(spento.fatture_da_emettere,false)
+  assert.deepEqual(spento.anticipi_fatture_da_emettere,[7,1])
+  assert.equal(spento.pagamenti_fornitori,false)
+  assert.deepEqual(spento.anticipi_pagamenti_fornitori,[7])
+  assert.equal((await leggiContatori()).fatture_da_emettere,0)
+  assert.deepEqual(await leggiCentro(),[])
+  await assert.rejects(salvaFatture(spento.revisione,true,[2]),{code:'23514'})
+  await assert.rejects(salvaFatture(preserved.revisione,true,[3,0]),{code:'40001'})
+  assert.deepEqual(await leggiPreferenze(),spento)
+  const acceso=await salvaFatture(spento.revisione,true,[3,0])
+  assert.deepEqual(await leggiPreferenze(),acceso)
+  assert.equal(acceso.fatture_da_emettere,true)
+  assert.deepEqual(acceso.anticipi_fatture_da_emettere,[3,0])
+  assert.equal((await leggiContatori()).fatture_da_emettere,1)
+  assert.equal((await leggiCentro()).length,1)
+  const compatibile=(await as(titolare,newSave,[acceso.revisione]))[0].v
+  assert.equal(compatibile.fatture_da_emettere,true)
+  assert.deepEqual(compatibile.anticipi_fatture_da_emettere,[3,0])
+  assert.equal(compatibile.pagamenti_fornitori,false)
+  assert.deepEqual(compatibile.anticipi_pagamenti_fornitori,[7])
 }, { productionActor: true, noSync: true, timing: true, beforeMigrations: certifiedInstallerFixture }))
