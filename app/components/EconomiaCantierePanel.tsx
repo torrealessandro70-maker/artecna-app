@@ -43,6 +43,7 @@ type Props = {
 export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props) {
   const [economiaSezione, setEconomiaSezione] = useState<EconomiaSezione>('riepilogo')
   const [aggiornamentoKpi, setAggiornamentoKpi] = useState(0)
+  const [manodoperaAperta, setManodoperaAperta] = useState(false)
   const preventivoId = p.contrattoBase?.preventivoId
   const importoBase = p.contrattoBase?.importo
   const supabase = p.sal.supabase
@@ -76,7 +77,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     const carica = async () => {
       let delta: number | null = null
       let scomposizione: ScomposizioneVarianti | null = null
-      let materialiOperativi: MaterialiOperativi | null = null
+
       try {
         scomposizione = await leggiScomposizioneVarianti(supabase, cantiere.id, preventivoId)
         scomposizione = { ...scomposizione, cantiereNome: cantiere.nome }
@@ -84,12 +85,16 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
       } catch {
         delta = null
       }
+      if (obsoleta) return
+      const risultato = { cantiereId: cantiere.id, preventivoId, importoBase, supabase, delta, scomposizione }
+      setVarianti(risultato)
       if (scomposizione) {
-        try { materialiOperativi = await leggiMaterialiDaContabilizzare(supabase, cantiere.id, scomposizione) }
-        catch { /* Elenco operativo indisponibile: nessun impatto sul valore contrattuale. */ }
-      }
-      if (!obsoleta) {
-        setVarianti({ cantiereId: cantiere.id, preventivoId, importoBase, supabase, delta, scomposizione, materialiOperativi })
+        try {
+          const materialiOperativi = await leggiMaterialiDaContabilizzare(supabase, cantiere.id, scomposizione)
+          if (!obsoleta) setVarianti({ ...risultato, materialiOperativi })
+        } catch {
+          if (!obsoleta) setVarianti({ ...risultato, materialiOperativi: null })
+        }
       }
     }
     void carica()
@@ -169,6 +174,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
       <nav aria-label="Sezioni economia" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingBottom: 12, marginBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
         {([['riepilogo', 'Riepilogo'], ['costi', 'Costi'], ['sal', 'SAL e acconti'], ['rapportini', 'Rapportini']] as const).map(([sezione, label]) => (
           <button key={sezione} type="button" aria-pressed={economiaSezione === sezione} onClick={() => {
+            setManodoperaAperta(false)
             setEconomiaSezione(sezione)
             // L'approvazione può aver materializzato nuove righe dopo il caricamento iniziale.
             if (sezione === 'sal') void p.sal.caricaSalLavorazioni()
@@ -213,10 +219,17 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
           </article>
         </div>
         <details aria-label="Aggiornamenti contrattuali" style={{ marginBottom: 12 }}><summary>Aggiornamenti contrattuali approvati</summary>
-          <ScomposizioneContrattuale valori={variantiCorrenti?.scomposizione ?? null} operativi={variantiCorrenti?.materialiOperativi ?? null} formatMoney={p.riepilogo.formatMoney} />
+          {variantiCorrenti?.scomposizione
+            ? <ScomposizioneContrattuale valori={variantiCorrenti.scomposizione} operativi={variantiCorrenti.materialiOperativi ?? null} formatMoney={p.riepilogo.formatMoney} />
+            : <p role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</p>}
           <p>La scomposizione è già compresa nelle Varianti approvate e non si somma nuovamente al contratto.</p>
         </details>
-        {preventivoId && <ManodoperaEconomiaDettaglio key={`${cantiere.id}:${preventivoId}:${aggiornamentoKpi}`} client={supabase} cantiereId={cantiere.id} contrattoId={preventivoId} cantiereNome={cantiere.nome} />}
+        {preventivoId && <div>
+          <button type="button" aria-expanded={manodoperaAperta} onClick={() => setManodoperaAperta(aperta => !aperta)}>
+            {manodoperaAperta ? 'Chiudi Manodopera Economia' : 'Apri Manodopera Economia'}
+          </button>
+          {manodoperaAperta && <ManodoperaEconomiaDettaglio key={`${cantiere.id}:${preventivoId}:${aggiornamentoKpi}`} client={supabase} cantiereId={cantiere.id} contrattoId={preventivoId} cantiereNome={cantiere.nome} />}
+        </div>}
         <div className="economia-cantiere-grafici">
           {costoMateriali !== null && costoMateriali < 0 && <p>Nel periodo il costo materiali è negativo per le rettifiche: consultare il dettaglio firmato anziché il grafico di ripartizione.</p>}
           {contrattoAggiornato !== null && utileAggiornato !== null && margineAggiornato !== null && accontiCumulativi !== null && costoMateriali !== null && costoMateriali >= 0 && <EconomiaGraficiPanel {...p.riepilogo} cantiereScheda={cantiere.nome}
@@ -244,10 +257,14 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
             totaleAccontiCantiere={accontiCumulativi} residuoDaIncassare={residuoContrattuale} />
         </div>
         {contrattoAggiornato === null && <p role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</p>}
-        <SalDettagliatoPanel {...p.sal} scomposizioneEconomiaApprovata={variantiCorrenti?.scomposizione ?? null} contestuale cantiereContestuale={cantiere} cantiereScheda={cantiere.nome} />
+        <details>
+          <summary>SAL dettagliato</summary>
+          <SalDettagliatoPanel {...p.sal} scomposizioneEconomiaApprovata={variantiCorrenti?.scomposizione ?? null} contestuale cantiereContestuale={cantiere} cantiereScheda={cantiere.nome} />
+        </details>
       </section>}
       <style>{`
         .economia-cantiere-acconti button { min-height: 44px; }
+        .economia-dashboard summary { cursor: pointer; padding-block: 8px; }
         .economia-dashboard article { min-width: 0; }
         .economia-dashboard input, .economia-dashboard select { min-width: 0; max-width: 100%; box-sizing: border-box; }
         .economia-dashboard button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }

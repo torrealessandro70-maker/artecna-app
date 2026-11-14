@@ -217,25 +217,25 @@ export default function CantieriSchedaPanel(props: any) {
         </section>
       )}
       {p.cantiereSelezionatoDaId && paginaAttiva === 'timeline' && (
-        <TimelineCantierePanel key={p.cantiereSelezionatoDaId.id} cantiere={p.cantiereSelezionatoDaId}
+        <TimelineCantierePanel key={'timeline:' + p.cantiereSelezionatoDaId.id} cantiere={p.cantiereSelezionatoDaId}
           panelProps={p.timelinePanelProps} />
       )}
       {p.cantiereSelezionatoDaId && paginaAttiva === 'varianti' && (
-        <VariantiCantierePanel key={p.cantiereSelezionatoDaId.id}
+        <VariantiCantierePanel key={'varianti:' + p.cantiereSelezionatoDaId.id}
           cantiereId={p.cantiereSelezionatoDaId.id}
           onDocumentoConfermato={() => void p.documentiPanelProps.caricaEconomia()}
           stampaContesto={{ nome: p.cantiereSelezionatoDaId.nome, contrattoBase: p.economiaPanelProps.contrattoBase?.importo ?? null, preventivoId: p.economiaPanelProps.contrattoBase?.preventivoId ?? null }} />
       )}
       {p.cantiereSelezionatoDaId && paginaAttiva === 'fascicolo' && (
-        <FascicoloCantierePanel key={p.cantiereSelezionatoDaId.id} cantiere={p.cantiereSelezionatoDaId}
+        <FascicoloCantierePanel key={'fascicolo:' + p.cantiereSelezionatoDaId.id} cantiere={p.cantiereSelezionatoDaId}
           panelProps={p.fascicoloPanelProps} onApriArea={setPaginaAttiva} />
       )}
       {p.cantiereSelezionatoDaId && paginaAttiva === 'economia' && (
-        <EconomiaCantierePanel key={p.cantiereSelezionatoDaId.id}
+        <EconomiaCantierePanel key={'economia:' + p.cantiereSelezionatoDaId.id}
           cantiere={p.cantiereSelezionatoDaId} panelProps={p.economiaPanelProps} />
       )}
       {p.cantiereSelezionatoDaId && paginaAttiva === 'documenti' && (
-        <DocumentiCantierePanel key={p.cantiereSelezionatoDaId.id}
+        <DocumentiCantierePanel key={'documenti:' + p.cantiereSelezionatoDaId.id}
           cantiere={p.cantiereSelezionatoDaId} panelProps={p.documentiPanelProps} />
       )}
       {p.cantiereSelezionatoDaId && paginaAttiva === 'lavori' && (
@@ -267,12 +267,12 @@ export default function CantieriSchedaPanel(props: any) {
             ))}
           </nav>
           {lavoriSezione === 'attrezzature' && (
-            <AttrezzatureCantierePanel key={p.cantiereSelezionatoDaId.id}
+            <AttrezzatureCantierePanel key={'attrezzature:' + p.cantiereSelezionatoDaId.id}
               cantiere={p.cantiereSelezionatoDaId} panelProps={p.attrezzaturePanelProps}
               fattureFornitori={p.fattureFornitori} righeAttrezzatureFatture={p.righeAttrezzatureFatture} />
           )}
           {lavoriSezione === 'materiali' && (
-            <MaterialiCantierePanel key={p.cantiereSelezionatoDaId.id}
+            <MaterialiCantierePanel key={'materiali:' + p.cantiereSelezionatoDaId.id}
               cantiere={p.cantiereSelezionatoDaId}
               panelProps={p.materialiPanelProps}
               fattureFornitori={p.fattureFornitori}

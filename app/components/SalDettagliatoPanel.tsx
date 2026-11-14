@@ -1166,6 +1166,11 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
    <button type="button" style={buttonSecondary} onClick={() => setRiletturaRettifiche(v => v + 1)}>Rileggi rettifiche</button>
  </section>
  <section aria-label="SAL operativo"><h3>SAL operativo</h3>{renderTabellaSal(righeOperative)}</section>
+ <details aria-label="Aggiornamenti contrattuali SAL">
+   <summary>Aggiornamenti contrattuali</summary>
+   {!letturaRettificheValida && !erroreRettifiche
+     ? <p role="status">Verifica degli aggiornamenti in corso…</p>
+     : (
  <AggiornamentiContrattualiSal lavori={letturaRettificheValida ? rettificheSal!.lavori : []} righe={lavorazioniCantiere} verificabile={letturaRettificheValida} formatMoney={formatMoney}
    nomeCantiere={salCantiere}
    caricaOrigini={async () => {
@@ -1176,6 +1181,8 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
    scomposizione={scomposizioneEconomiaApprovata}
    excelTable={excelTable} excelTh={excelTh} excelTd={excelTd}
    totali={letturaRettificheValida ? { incrementi: rettificheSal!.incrementi, riduzioni: rettificheSal!.riduzioni, delta: rettificheSal!.delta } : undefined} />
+     )}
+ </details>
  {gruppiSal.nonVerificabili.length > 0 && <aside role="alert"><p>Dati contrattuali non verificabili: nessun avanzamento disponibile.</p><ul>{gruppiSal.nonVerificabili.map(r => <li key={r.id}>
    {r.descrizione} — maturato conservato: {r.importo_maturato != null && String(r.importo_maturato).trim() !== '' && Number.isFinite(Number(r.importo_maturato)) ? formatMoney(Number(r.importo_maturato)) : 'Non verificabile'}
    <label>Completata<input type="checkbox" checked={!!r.completata} disabled readOnly /></label>
