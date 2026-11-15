@@ -100,7 +100,7 @@ export default function AccontiEconomiaPanel({
         <VistaOperativa titolo="Gestione acconti" contesto={`${cantiereScheda} · Economia · SAL e acconti`}
           etichettaRitorno="← Torna a SAL e acconti" onChiudi={() => setMostraAcconti(false)}>
         <div className="acconti-gestione-focus" style={{ width: '100%', minWidth: 0, containerType: 'inline-size', containerName: 'acconti-gestione' }}>
-          <p><strong>Acconti ricevuti:</strong> {totaleAccontiCantiere === null ? 'Non disponibile' : formatMoney(totaleAccontiCantiere)}</p>
+          <p><strong>Acconti registrati:</strong> {totaleAccontiCantiere === null ? 'Non disponibile' : formatMoney(totaleAccontiCantiere)}</p>
           <div className="acconti-form-focus">
           <AccontoForm
             descrizione={descrizioneAcconto}

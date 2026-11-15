@@ -26,7 +26,7 @@ export default function AccontiSalPanel({
 }: Props) {
   return (
     <div style={{ padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
-      <strong>Acconti ricevuti:</strong>{' '}
+      <strong>Acconti registrati:</strong>{' '}
       {accontiCaricati(statoAcconti) && totaleAccontiCantiere !== null
         ? formatMoney(totaleAccontiCantiere)
         : <span role={statoAcconti === 'errore' ? 'alert' : 'status'}>{messaggioAcconti(statoAcconti)}</span>}
@@ -43,7 +43,7 @@ export default function AccontiSalPanel({
 
       {!authDisponibile && <p role="status">Lettura disponibile dopo la verifica della sessione.</p>}
       {residuoDaIncassare !== null && accontiCaricati(statoAcconti) && <div style={{ marginTop: 10 }}>
-        <strong>Residuo da incassare:</strong>{' '}
+        <strong>Residuo su acconti registrati:</strong>{' '}
         <span
           style={{
             color:

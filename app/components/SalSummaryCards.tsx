@@ -45,7 +45,7 @@ export default function SalSummaryCards({
       />
 
       <StatCard
-        title="Acconti ricevuti"
+        title="Acconti registrati"
         value={formatMoney(totaleAccontiSal)}
       />
 

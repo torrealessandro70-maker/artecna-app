@@ -1115,7 +1115,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
                   <dt>Totale righe SAL</dt><dd>{riepilogoBase ? formatMoney(riepilogoBase.totaleRighe) : 'Non verificabile'}</dd>
                   <dt>Totale maturato</dt><dd>{riepilogoBase ? formatMoney(riepilogoBase.totaleMaturato) : 'Non verificabile'}</dd>
                   <dt>Residuo contrattuale aggiornato</dt><dd>{riepilogoBase ? formatMoney(riepilogoBase.residuo) : 'Non verificabile'}</dd>
-                  <dt>Acconti ricevuti</dt><dd>{formatMoney(anteprimaSal.dati.accontiRicevuti)}</dd>
+                  <dt>Acconti registrati</dt><dd>{formatMoney(anteprimaSal.dati.accontiRicevuti)}</dd>
                   {riepilogoStampa && <>
                     <dt>A detrarre d’acconto {riepilogoStampa.detrazionePercentuale}%</dt><dd>{formatMoney(riepilogoStampa.detrazioneAcconto)}</dd>
                     <dt>Imponibile</dt><dd>{formatMoney(riepilogoStampa.imponibile)}</dd>

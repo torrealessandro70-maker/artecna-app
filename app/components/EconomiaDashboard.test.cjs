@@ -145,13 +145,19 @@ test('Conferma creazione conserva writer e payload originali esclusivamente in m
 })
 test('formule, hook, reader e writer restano identici al parent', () => {
   const file = 'app/components/EconomiaCantierePanel.tsx', current = read(file).replace(/\r\n/g, '\n'), before = cp.execFileSync('git', ['show', 'HEAD:' + file], { encoding: 'utf8' }).replace(/\r\n/g, '\n')
-  assert.equal(current.split('  return (')[0], before.split('  return (')[0])
+  assert.equal(current.replace(/^import RiepilogoIncassiCantiere[^\n]+\n/m, '').replace('Residuo storico sugli acconti registrati', 'Residuo contrattuale da incassare').replaceAll('Acconti registrati', 'Acconti ricevuti').split('  return (')[0], before.split('  return (')[0])
   for (const file of ['app/components/VariantiCantierePanel.tsx','app/components/PrestazioniRapportiniEconomia.tsx']) {
     const extract = s => { s = s.replace(/\r\n/g, '\n'); const ast = ts.createSourceFile(file, s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), result = {}; function walk(n) { if (ts.isFunctionDeclaration(n) && n.name?.text === 'DisponibilitaVarianteSal') return; if (ts.isFunctionDeclaration(n) && n.name && n.modifiers?.some(m => m.kind === ts.SyntaxKind.AsyncKeyword)) result[n.name.text + Object.keys(result).length] = n.getText(ast); ts.forEachChild(n, walk) } walk(ast); return result }
     assert.deepEqual(extract(read(file)), extract(cp.execFileSync('git', ['show', 'HEAD:' + file], { encoding: 'utf8' })))
   }
+  for (const name of ['AccontiSalPanel','SalDettagliatoPanel']) {
+    const file = 'app/components/' + name + '.tsx'
+    const base = cp.execFileSync('git', ['show', 'HEAD:' + file], { encoding: 'utf8' }).replace(/\r/g, '')
+    assert.match(read(file), /Acconti registrati/)
+    assert.equal(read(file).replace(/\r/g, '').replaceAll('Acconti registrati', 'Acconti ricevuti').replace('Residuo su acconti registrati:', 'Residuo da incassare:'), base)
+  }
   // AccontiEconomiaPanel può evolvere nel layout; i callback sono certificati da GestioneAccontiFocus.
-  for (const file of ['app/engines','supabase','lib','app/components/AccontiSalPanel.tsx','app/components/SalDettagliatoPanel.tsx','app/components/PrezziRapportiniEconomia.tsx','app/components/PrezziMaterialiEconomia.tsx']) assert.equal(cp.spawnSync('git', ['diff','--quiet','HEAD','--',file,':(exclude)supabase/migrations/20261106_approva_variante_importa_sal.sql',':(exclude)supabase/validators/cantiere-prerequisiti/native.cjs',':(exclude)supabase/validators/cantiere-prerequisiti/browser/attesi-page-browser.cjs',':(exclude)supabase/validators/cantiere-prerequisiti/debiti-fornitori.test.cjs',':(exclude)supabase/validators/cantiere-prerequisiti/notifiche-pagamenti-fornitori.test.cjs',':(exclude)supabase/migrations/20261114000200_contratto_acconti_fatture_sdi.sql',':(exclude)supabase/validators/cantiere-prerequisiti/browser/contratto-sdi-entry.mjs',':(exclude)supabase/validators/cantiere-prerequisiti/contratto-acconti-sdi.test.cjs']).status, 0, file)
+  for (const file of ['app/engines','supabase','lib','app/components/PrezziRapportiniEconomia.tsx','app/components/PrezziMaterialiEconomia.tsx']) assert.equal(cp.spawnSync('git', ['diff','--quiet','HEAD','--',file,':(exclude)supabase/migrations/20261106_approva_variante_importa_sal.sql',':(exclude)supabase/validators/cantiere-prerequisiti/native.cjs',':(exclude)supabase/validators/cantiere-prerequisiti/browser/attesi-page-browser.cjs',':(exclude)supabase/validators/cantiere-prerequisiti/debiti-fornitori.test.cjs',':(exclude)supabase/validators/cantiere-prerequisiti/notifiche-pagamenti-fornitori.test.cjs',':(exclude)supabase/migrations/20261114000200_contratto_acconti_fatture_sdi.sql',':(exclude)supabase/validators/cantiere-prerequisiti/browser/contratto-sdi-entry.mjs',':(exclude)supabase/validators/cantiere-prerequisiti/contratto-acconti-sdi.test.cjs',':(exclude)supabase/migrations/20261115000400_incassi_lordi_clienti.sql',':(exclude)app/engines/contabilita-ditta/riepilogo.ts',':(exclude)supabase/validators/cantiere-prerequisiti/browser/contratto-sdi-entry.mjs']).status, 0, file)
 })
 test('layout basato sul contenitore: KPI impilabili, tab a capo, dettagli operativi adattivi', () => {
   const s = read('app/components/EconomiaCantierePanel.tsx'), v = read('app/components/VariantiCantierePanel.tsx')

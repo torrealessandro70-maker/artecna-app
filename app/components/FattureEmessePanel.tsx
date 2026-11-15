@@ -1,4 +1,5 @@
 'use client'
+import IncassiLordiPanel from './IncassiLordiPanel'
 import ContrattoFiscalePanel from './ContrattoFiscalePanel'
 
 import { useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
@@ -566,7 +567,7 @@ export default function FattureEmessePanel({
                   </td>
 
                   <td style={excelTd}>{f.stato || 'emessa'}</td>
-                  <td style={excelTd} onClick={e => e.stopPropagation()}>{f.id && <ContrattoFiscalePanel id={f.id} />}<CollegaIncassoAzione cantiereId={f.cantiere_id} onClick={e => { e.stopPropagation(); setCollegaId(f.id) }} /></td>
+                  <td style={excelTd} onClick={e => e.stopPropagation()}>{f.id && <ContrattoFiscalePanel id={f.id} />}{f.id && f.cantiere_id && <IncassiLordiPanel id={f.id} contesto="fattura" />}<CollegaIncassoAzione cantiereId={f.cantiere_id} onClick={e => { e.stopPropagation(); setCollegaId(f.id) }} /></td>
 
                   <td style={excelTd}>
                     {f.pdf_url ? (

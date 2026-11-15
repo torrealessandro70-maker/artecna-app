@@ -3,6 +3,7 @@
 import { CostiFornitoriVista, useCostiFornitori } from './CostiFornitoriRettificati'
 import { deltaRettifiche, rettificheCompatibiliConBase } from '../engines/fatture/note-credito'
 import { useEffect, useState, type ComponentProps } from 'react'
+import RiepilogoIncassiCantiere from './RiepilogoIncassiCantiere'
 import EconomiaGraficiPanel from './EconomiaGraficiPanel'
 import FiltroPeriodoEconomia from './FiltroPeriodoEconomia'
 import RiepilogoCostiEconomiaPanel from './RiepilogoCostiEconomiaPanel'
@@ -142,9 +143,9 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     ['Materiali Economia approvati', variantiCorrenti?.scomposizione?.materiali ?? null],
     ['Contratto aggiornato', contrattoAggiornato],
     ['SAL maturato', salMaturato],
-    ['Acconti ricevuti', accontiCumulativi],
+    ['Acconti registrati', accontiCumulativi],
     ['Da richiedere', daRichiedere],
-    ['Residuo contrattuale da incassare', residuoContrattuale],
+    ['Residuo storico sugli acconti registrati', residuoContrattuale],
   ]
   const apriCosto = (setter: (v: boolean) => void) => (visibile: boolean) => {
     setter(visibile)
@@ -162,7 +163,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
       <div aria-label="Indicatori Economia" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginBottom: 16 }}>
         <CostiFornitoriVista dati={rettifiche.dati} errore={rettifiche.errore} compatta soloKpi />
         <article style={{ minWidth: 0, padding: 12, border: '1px solid #cbd5e1', borderRadius: 8 }}>
-          <h4 style={{ margin: '0 0 8px', fontSize: 14, color: '#475569' }}>Acconti ricevuti</h4>
+          <h4 style={{ margin: '0 0 8px', fontSize: 14, color: '#475569' }}>Acconti registrati</h4>
           {accontiCumulativi === null ? <span role={p.acconti.statoAcconti === 'errore' ? 'alert' : 'status'}>{messaggioAcconti(p.acconti.statoAcconti)}</span> : <strong style={{ fontSize: 22 }}>{p.riepilogo.formatMoney(accontiCumulativi)}</strong>}
         </article>
         {variantiCorrenti?.scomposizione && <article style={{ minWidth: 0, padding: 12, border: '1px solid #cbd5e1', borderRadius: 8 }}>
@@ -189,12 +190,14 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
         onApprovazione={() => setAggiornamentoKpi(v => v + 1)}
         stampaContesto={{ nome: cantiere.nome, contrattoBase: importoBase ?? null, preventivoId: preventivoId ?? null }} />}
       {economiaSezione === 'riepilogo' && <section aria-label="Riepilogo economico">
+        <RiepilogoIncassiCantiere key={cantiere.id} cantiere={cantiere.id} contratto={contrattoAggiornato}
+          sal={salMaturato} varianti={deltaVariantiApprovate} formatMoney={p.riepilogo.formatMoney} />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginBottom: 16 }}>
           <h4 style={{ gridColumn: '1 / -1', margin: '0' }}>Contratto</h4>
           {kpiContrattuali.map(([label, value]) => <article key={label} style={{ padding: 14, border: '1px solid #e2e8f0', borderRadius: 10 }}>
             <div style={{ fontSize: 13, color: '#64748b' }}>{label}</div>
             {value === null
-              ? ['Acconti ricevuti', 'Da richiedere'].includes(label)
+              ? ['Acconti registrati', 'Da richiedere'].includes(label)
                 ? <span role={p.acconti.statoAcconti === 'errore' ? 'alert' : 'status'}>{messaggioAcconti(p.acconti.statoAcconti)}</span>
                 : <span role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</span>
               : <strong style={{ fontSize: 20 }}>{label === 'Varianti approvate' && value > 0 ? '+' : ''}{p.riepilogo.formatMoney(value)}</strong>}

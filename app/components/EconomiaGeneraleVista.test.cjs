@@ -155,7 +155,15 @@ test('unrelated economic calculators/readers/writers/schema remain unchanged; co
   const validators = new Set(['browser-fixture.cjs', 'struttura-readonly.sql', 'documenti-fiscali-static.test.cjs',
     'documenti-runtime.test.cjs', 'notifiche-runtime.test.cjs', 'notifiche-agenda-readonly.sql', 'notifiche-sopralluoghi-readonly.sql', 'documenti-storage-emulator.cjs', 'documenti-storage-fixture.sql', 'documenti-struttura-readonly.sql']
     .map(file => 'supabase/validators/scadenziario/' + file))
-  assert(changed.every(file => migrations.has(file) || validators.has(file) || /^app\/engines\/contabilita-ditta\/(?:scadenziario(?:Persistenza)?|documentiFiscali)(?:\.test)?\.(ts|cjs)$/.test(file)),
+  migrations.add('supabase/migrations/20261115000400_incassi_lordi_clienti.sql')
+  validators.add('supabase/validators/cantiere-prerequisiti/contratto-acconti-sdi.test.cjs')
+  validators.add('supabase/validators/cantiere-prerequisiti/browser/contratto-sdi-entry.mjs')
+  const riepilogo = 'app/engines/contabilita-ditta/riepilogo.ts'
+  const baseRiepilogo = cp.execFileSync('git', ['show','HEAD:' + riepilogo], { cwd: root, encoding: 'utf8' }).replace(/\r/g, '')
+  assert.equal(require('node:fs').readFileSync(path.join(root, riepilogo), 'utf8').replace(/\r/g, '').replace(
+    'Importi datati del registro acconti Cantiere. Il subtotale non attesta incassi lordi.',
+    'Incassi datati presenti nel solo archivio acconti Cantiere.'), baseRiepilogo)
+  assert(changed.every(file => file === riepilogo || migrations.has(file) || validators.has(file) || /^app\/engines\/contabilita-ditta\/(?:scadenziario(?:Persistenza)?|documentiFiscali)(?:\.test)?\.(ts|cjs)$/.test(file)),
     'Only explicitly listed migrations, adapters and validators may change')
   const baseline = cp.execFileSync('git', ['show', '44d95773f1076c84bc21a09504166dd88a584bec:app/components/CostiGeneraliImpresaSummary.tsx'], { cwd: root, encoding: 'utf8' }).replace(/\r/g, '')
   function formulas(s) { const out = {}, ast = ts.createSourceFile('costs.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); function visit(n) { if (ts.isVariableDeclaration(n) && n.name.getText(ast).startsWith('totale')) out[n.name.getText(ast)] = n.initializer.getText(ast); ts.forEachChild(n, visit) } visit(ast); return out }

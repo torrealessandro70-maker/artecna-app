@@ -4,6 +4,7 @@ import CenterModule from '../../../../app/components/CentroNotifiche.tsx'
 import {supabase} from '../../../../lib/supabaseClient'
 import FattureModule from '../../../../app/components/FattureEmessePanel.tsx'
 import JSZip from 'jszip'
+import IncassiLordiPanel from '../../../../app/components/IncassiLordiPanel.tsx'
 import PanelModule from '../../../../app/components/ContrattoFiscalePanel.tsx'
 
 const Panel=PanelModule.default ?? PanelModule
@@ -28,7 +29,7 @@ if(centro && sessionStorage.getItem('fiscale-reload')){
   url.searchParams.set('notifica',params.get('cantiere'))
   history.replaceState(null,'',url)
 }
-root.render(centro ? React.createElement(Center,{
+root.render(modo?.startsWith('incassi-') ? React.createElement(IncassiLordiPanel.default ?? IncassiLordiPanel,{id:params.get('draft'),contesto:modo==='incassi-conferma'?'acconto':'fattura'}) : centro ? React.createElement(Center,{
   client:supabase,stile:{},menuImpostazioni:true,onApriScadenza:()=>{},onContatori:()=>{},
 }) : ['importa','associa-storico'].includes(modo) ? React.createElement(Fatture,{
   fattureEmesseOrdinate:modo==='associa-storico'?[{
@@ -43,6 +44,47 @@ root.render(centro ? React.createElement(Center,{
 const pulsante=etichetta=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===etichetta)
 const testo=frase=>document.body.textContent.includes(frase)
 async function run(){
+  if(modo==='incassi-negato'){
+    ;(await wait(()=>document.querySelector('details > summary'))).click()
+    await wait(()=>document.body.textContent.includes('Lettura non disponibile'))
+    if(document.querySelector('form'))throw Error('Writer esposto a sessione revocata')
+    await report('pass',modo)
+    return
+  }
+  if(modo==='incassi-conferma'||modo==='incassi-attribuzione'){
+    ;(await wait(()=>document.querySelector('details > summary'))).click()
+    const modale=()=>document.querySelector('form input[name=importo]')?.form
+    const form=await wait(modale)
+    const invia=(form,valori)=>{
+      for(const [nome,valore] of Object.entries(valori))form.elements.namedItem(nome).value=valore
+      form.querySelector('input[type=checkbox]').checked=true
+      form.requestSubmit()
+    }
+    if(modo==='incassi-conferma'){
+      invia(form,{importo:'100',data:'2026-01-18',riferimento:'Chrome-TRN-sintetico',fonte:'Estratto sintetico'})
+      await wait(()=>document.body.textContent.includes('Incasso lordo confermato: 100,00'))
+    }else{
+      const opzione=[...form.elements.namedItem('incasso').options].find(opt=>opt.textContent.includes('chrome-trn-sintetico'))
+      if(!opzione)throw Error('Pagamento Chrome non disponibile')
+      const valori={importo:'100',incasso:opzione.value}
+      const zero=()=>[...document.querySelectorAll('dt')].some(e=>e.textContent.includes('Residuo finanziario')&&e.nextElementSibling.textContent.startsWith('0,00'))
+      invia(form,valori)
+      await wait(zero)
+      window.confirm=()=>true
+      ;(await wait(()=>pulsante('Revoca quota'))).click()
+      await wait(()=>document.body.textContent.includes('Revocata'))
+      invia(await wait(modale),valori)
+      await wait(zero)
+    }
+    await report('pass',modo)
+    return
+  }
+  if(modo==='incassi-lordi'){
+    ;(await wait(()=>[...document.querySelectorAll('summary')].find(e=>e.textContent==='Incassi lordi verificati'))).click()
+    await wait(()=>[...document.querySelectorAll('dt')].some(e=>e.textContent.includes('Residuo finanziario')&&e.nextElementSibling.textContent.match(/^0,00/)),'Residuo lordo non azzerato')
+    await report('pass',modo)
+    return
+  }
   if(modo==='importa'||modo==='associa-storico'){
     const xml='<FatturaElettronica><FatturaElettronicaHeader><CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>00000000000</IdCodice></IdFiscaleIVA></DatiAnagrafici></CedentePrestatore><CessionarioCommittente><DatiAnagrafici><CodiceFiscale>FIXTURE</CodiceFiscale><Anagrafica><Denominazione>Fixture</Denominazione></Anagrafica></DatiAnagrafici></CessionarioCommittente></FatturaElettronicaHeader><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>TD02</TipoDocumento><Numero>BL-BROWSER</Numero><Data>2024-06-01</Data><ImportoTotaleDocumento>110.00</ImportoTotaleDocumento></DatiGeneraliDocumento></DatiGenerali><DatiBeniServizi><DatiRiepilogo><ImponibileImporto>100.00</ImponibileImporto><Imposta>10.00</Imposta></DatiRiepilogo></DatiBeniServizi></FatturaElettronicaBody></FatturaElettronica>'
     const zip=new JSZip()

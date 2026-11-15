@@ -65,8 +65,75 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
   const hardDeleteBluenext = await signature()
   await q(load('20261115000300_associazione_bluenext_storico.sql'))
-  assert.notEqual(await signature(), hardDeleteBluenext)
+  assert.notEqual(await signature(),hardDeleteBluenext)
   assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
+  const hardDeleteStorico=await signature()
+  await q(load('20261115000400_incassi_lordi_clienti.sql'))
+  assert.notEqual(await signature(),hardDeleteStorico)
+  assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
+  const netto=await value("INSERT INTO public.acconti_cantiere(cantiere_id,cantiere,importo,data_incasso) VALUES ($1,'Fixture',9090.91,CURRENT_DATE) RETURNING id v",[fixture.a])
+  const lordoDoc=await value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,importo_incassato,data_fattura) VALUES ($1,'Fixture',10000,0,CURRENT_DATE) RETURNING id v",[fixture.a])
+  const pagamento=randomUUID()
+  const conferma='SELECT public.conferma_incasso_lordo_cliente($1,$2,$3,current_date,$4,$5,$6) v'
+  const params=[pagamento,netto,10000,'bonifico','TRN-fixture','Estratto sintetico']
+  await assert.rejects(as(esterno,conferma,params),{code:'42501'})
+  await as(titolare,conferma,params)
+  await as(titolare,conferma,params)
+  await assert.rejects(as(titolare,conferma,[randomUUID(),...params.slice(1)]),{code:'23505'})
+  const attribuisci='SELECT public.attribuisci_incasso_lordo_cliente($1,$2,$3,$4) v'
+  const leggi='SELECT public.leggi_incassi_lordi_cliente($1,$2) v'
+  const quota1=randomUUID(), quota2=randomUUID()
+  await as(titolare,attribuisci,[quota1,pagamento,lordoDoc,4000])
+  assert.equal((await as(titolare,leggi,[lordoDoc,'fattura']))[0].v.residuo,6000)
+  await as(titolare,attribuisci,[quota2,pagamento,lordoDoc,6000])
+  await as(titolare,attribuisci,[quota2,pagamento,lordoDoc,6000])
+  await assert.rejects(as(titolare,attribuisci,[randomUUID(),pagamento,lordoDoc,1]),{code:'23514'})
+  assert.equal((await as(titolare,leggi,[lordoDoc,'fattura']))[0].v.residuo,0)
+  assert.equal(await value('SELECT (31438.40-importo)::text v FROM public.acconti_cantiere WHERE id=$1',[netto]),'22347.49')
+  assert.equal(await value('SELECT count(*)::int v FROM artecna_contabilita.attribuzioni_clienti WHERE acconto_id=$1',[netto]),0)
+  assert.equal(await value('SELECT count(*)::int v FROM artecna_contabilita.fatture_sdi WHERE fattura_id=$1',[lordoDoc]),0)
+  await assert.rejects(q('DELETE FROM public.acconti_cantiere WHERE id=$1',[netto]),{code:'23503'})
+  const storicoNetto=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,nota) VALUES ($1,8574.11,'Totale 9431,52') RETURNING id v",[fixture.a])
+  assert.deepEqual((await as(titolare,leggi,[storicoNetto,'acconto']))[0].v.incassi,[])
+  const parziale=randomUUID()
+  await as(titolare,conferma,[parziale,netto,200,'contanti','ricevuta-2','Ricevuta sintetica'])
+  const senzaCantiere=await value("INSERT INTO public.fatture_emesse(cliente,totale) VALUES ('Fixture',100) RETURNING id v")
+  await assert.rejects(as(titolare,attribuisci,[randomUUID(),parziale,senzaCantiere,10]),{code:'42501'})
+  const due=await Promise.all([50,150].map(totale=>value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,importo_incassato) VALUES ($1,'Fixture',$2,0) RETURNING id v",[fixture.a,totale])))
+  const primaQuota=randomUUID()
+  await as(titolare,attribuisci,[primaQuota,parziale,due[0],50])
+  await as(titolare,attribuisci,[randomUUID(),parziale,due[1],100])
+  const revoca='SELECT public.revoca_quota_lorda_cliente($1,$2) v', richiestaRevoca=randomUUID()
+  await as(titolare,revoca,[richiestaRevoca,primaQuota])
+  await as(titolare,revoca,[richiestaRevoca,primaQuota])
+  assert.equal((await as(titolare,leggi,[due[0],'fattura']))[0].v.residuo,null)
+  const client2=await connect('fixture_admin')
+  const corse=await Promise.allSettled([
+    as(titolare,attribuisci,[randomUUID(),parziale,due[0],50]),
+    as(titolare,attribuisci,[randomUUID(),parziale,due[0],50],client2),
+  ])
+  assert.equal(corse.filter(r=>r.status==='fulfilled').length,1)
+  assert.equal(corse.find(r=>r.status==='rejected').reason.code,'23514')
+  const economia=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo) VALUES ($1,2000) RETURNING id v",[fixture.a])
+  const imputa='SELECT public.imputa_acconto_cliente($1,$2,$3,$4,$5) v', riepilogo='SELECT public.riepilogo_incassi_lordi_cantiere($1) v'
+  const scelta=[randomUUID(),netto,0,'contratto','Verifica sintetica']
+  await assert.rejects(as(esterno,imputa,scelta),{code:'42501'})
+  await as(titolare,imputa,scelta)
+  await as(titolare,imputa,scelta)
+  await as(titolare,imputa,[randomUUID(),economia,0,'economia','Nessuna imputazione al contratto'])
+  const quadro=(await as(titolare,riepilogo,[fixture.a]))[0].v
+  assert.equal(quadro.acconti_netto,9090.91)
+  assert.equal(quadro.acconti_economia,1)
+  assert.equal(quadro.pagamenti,10200)
+  assert.equal(quadro.non_attribuiti,50)
+  await as(titolare,imputa,[randomUUID(),economia,1,'da_verificare','Riesame'])
+  await assert.rejects(as(titolare,imputa,[randomUUID(),economia,1,'economia','Obsoleta']),{code:'40001'})
+  await q("UPDATE public.acconti_cantiere SET importo=2001 WHERE id=$1",[economia])
+  const storicoEconomia=(await as(titolare,leggi,[economia,'acconto']))[0].v
+  assert.equal(storicoEconomia.imputazione_effettiva,'da_verificare')
+  assert.equal(storicoEconomia.imputazioni.length,2)
+  assert.equal(storicoEconomia.incassi.length,0)
+  console.log('INCASSI_LORDI_FIXTURE_GREEN netto_residuo=22347.49 lordo_residuo=0')
   const a=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES ($1,100,CURRENT_DATE) RETURNING id v",[fixture.a])
   const b=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES ($1,50,CURRENT_DATE) RETURNING id v",[fixture.a])
   const doc=async(totale)=>value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,data_fattura) VALUES ($1,'Fixture', $2,CURRENT_DATE) RETURNING id v",[fixture.a,totale])
@@ -346,6 +413,38 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
     leggi_acconto_fiscale:['SELECT public.leggi_acconto_fiscale($1) v','p_id'],
     leggi_fattura_sdi:['SELECT public.leggi_fattura_sdi($1) v','p_id'],
   }}
+  await browser(actor,fixture.a,{...browserContext,draft:lordoDoc,modes:['incassi-lordi'],commands:{
+    leggi_incassi_lordi_cliente:['SELECT public.leggi_incassi_lordi_cliente($1,$2) v','p_id','p_contesto'],
+  }})
+  const accontoChrome=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo) VALUES($1,90) RETURNING id v",[fixture.a])
+  const fatturaChrome=await value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,importo_incassato) VALUES($1,'Fixture',100,0) RETURNING id v",[fixture.a])
+  const rpcLordi={
+    leggi_incassi_lordi_cliente:['SELECT public.leggi_incassi_lordi_cliente($1,$2) v','p_id','p_contesto'],
+    conferma_incasso_lordo_cliente:['SELECT public.conferma_incasso_lordo_cliente($1,$2,$3,$4,$5,$6,$7) v','p_id','p_acconto','p_importo','p_data','p_metodo','p_riferimento','p_fonte'],
+    attribuisci_incasso_lordo_cliente:['SELECT public.attribuisci_incasso_lordo_cliente($1,$2,$3,$4) v','p_id','p_incasso','p_fattura','p_importo'],
+    revoca_quota_lorda_cliente:['SELECT public.revoca_quota_lorda_cliente($1,$2) v','p_id','p_quota'],
+  }
+  await browser(actor,fixture.a,{...browserContext,draft:accontoChrome,modes:['incassi-conferma'],commands:rpcLordi})
+  await browser(actor,fixture.a,{...browserContext,draft:fatturaChrome,modes:['incassi-attribuzione'],commands:rpcLordi})
+  assert.equal(await value('SELECT importo::text v FROM public.acconti_cantiere WHERE id=$1',[accontoChrome]),'90')
+  assert.equal(await value("SELECT count(*)::int v FROM artecna_contabilita.incassi_lordi_clienti WHERE acconto_id=$1",[accontoChrome]),1)
+  assert.equal(await value("SELECT count(*)::int v FROM artecna_contabilita.quote_lorde_clienti WHERE fattura_id=$1 AND revocato_at IS NULL",[fatturaChrome]),1)
+  await q("UPDATE public.utenti_impresa SET attivo=false WHERE user_id=$1",[titolare])
+  try {
+    await assert.rejects(as(titolare,leggi,[fatturaChrome,'fattura']),{code:'42501'})
+    await browser(actor,fixture.a,{...browserContext,draft:fatturaChrome,modes:['incassi-negato'],commands:rpcLordi})
+    await assert.rejects(as(titolare,conferma,[randomUUID(),accontoChrome,1,'bonifico','revocato','Fixture']),{code:'42501'})
+  } finally {
+    await q("UPDATE public.utenti_impresa SET attivo=true WHERE user_id=$1",[titolare])
+  }
+  const notaChrome=await value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale) VALUES($1,'Fixture',-10) RETURNING id v",[fixture.a])
+  const movimentiPrimaNota=await value('SELECT count(*)::int v FROM artecna_contabilita.incassi_lordi_clienti')
+  await sdi(fatturaChrome,0,'TD01','consegnata')
+  await sdi(notaChrome,0,'TD04','consegnata',fatturaChrome)
+  assert.equal(await value('SELECT count(*)::int v FROM artecna_contabilita.incassi_lordi_clienti'),movimentiPrimaNota)
+  const rettificata=(await as(titolare,leggi,[fatturaChrome,'fattura']))[0].v
+  assert.equal(rettificata.attribuito,100)
+  assert.equal(rettificata.residuo,null)
   await browser(actor,fattura,{...browserContext,draft:nota,modes:['nota']})
   await sdi(nota,2,'TD04','scartata',fattura,quote)
   await browser(actor,fattura,{...browserContext,draft:a,modes:['acconto']})
