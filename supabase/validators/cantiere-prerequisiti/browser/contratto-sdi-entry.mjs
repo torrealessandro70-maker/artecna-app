@@ -29,7 +29,7 @@ if(centro && sessionStorage.getItem('fiscale-reload')){
   url.searchParams.set('notifica',params.get('cantiere'))
   history.replaceState(null,'',url)
 }
-root.render(modo?.startsWith('incassi-') ? React.createElement(IncassiLordiPanel.default ?? IncassiLordiPanel,{id:params.get('draft'),contesto:['incassi-conferma','incassi-rettifica'].includes(modo)?'acconto':'fattura'}) : centro ? React.createElement(Center,{
+root.render(modo?.startsWith('incassi-') ? React.createElement(IncassiLordiPanel.default ?? IncassiLordiPanel,{id:params.get('draft'),contesto:['incassi-conferma','incassi-rettifica','incassi-elimina'].includes(modo)?'acconto':'fattura'}) : centro ? React.createElement(Center,{
   client:supabase,stile:{},menuImpostazioni:true,onApriScadenza:()=>{},onContatori:()=>{},
 }) : ['importa','associa-storico'].includes(modo) ? React.createElement(Fatture,{
   fattureEmesseOrdinate:modo==='associa-storico'?[{
@@ -44,16 +44,37 @@ root.render(modo?.startsWith('incassi-') ? React.createElement(IncassiLordiPanel
 const pulsante=etichetta=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===etichetta)
 const testo=frase=>document.body.textContent.includes(frase)
 async function run(){
+  if(modo==='incassi-elimina'){
+    ;(await wait(()=>document.querySelector('details > summary'))).click()
+    const totale=importo=>[...document.querySelectorAll('p')].some(p=>p.textContent.startsWith('Incasso lordo confermato: '+importo))
+    const evita=()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Elimina'&&b.previousElementSibling?.textContent.endsWith(': cro'))
+    await wait(()=>totale('20.000,00'))
+    ;(await wait(evita)).click()
+    ;(await wait(()=>pulsante('Annulla'))).click()
+    await wait(()=>!pulsante('Conferma eliminazione'))
+    if(!totale('20.000,00'))throw Error('Incasso rimosso senza conferma')
+    ;(await wait(evita)).click()
+    const form=await wait(()=>document.querySelector('input[name=conferma]')?.form)
+    form.elements.namedItem('motivo').value='Duplicato verificato in Chrome'
+    form.elements.namedItem('conferma').value='NO'
+    pulsante('Conferma eliminazione').click()
+    if(!form.isConnected||!totale('20.000,00'))throw Error('Conferma errata accettata')
+    form.elements.namedItem('conferma').value='ELIMINA'
+    pulsante('Conferma eliminazione').click()
+    await wait(()=>totale('10.000,00')&&!evita()&&document.body.textContent.includes('82182298105'))
+    await report('pass',modo)
+    return
+  }
   if(modo==='incassi-rettifica'){
     ;(await wait(()=>document.querySelector('details > summary'))).click()
-    ;(await wait(()=>[...document.querySelectorAll('details > summary')].find(e=>e.textContent==='Rettifica riferimento'&&e.closest('details').parentElement.textContent.includes('synthetic-cro-01')))).click()
-    const form=await wait(()=>[...document.querySelectorAll('form')].find(f=>f.offsetWidth&&f.elements.namedItem('riferimento_nuovo')))
+    ;(await wait(()=>[...document.querySelectorAll('details > summary')].find(e=>e.textContent==='Rettifica riferimento'&&e.closest('details').parentElement.textContent.includes('synthetic-cro-01')), 'Comando rettifica non disponibile')).click()
+    const form=await wait(()=>[...document.querySelectorAll('form')].find(f=>f.offsetWidth&&f.elements.namedItem('riferimento_nuovo')), 'Modulo rettifica non disponibile')
     form.elements.namedItem('riferimento_nuovo').value='SYNTHETIC-CRO-CHROME'
     form.elements.namedItem('fonte_rettifica').value='Estratto sintetico'
     form.elements.namedItem('motivo_rettifica').value='Controllo Chrome'
     form.querySelector('input[type=checkbox]').checked=true
     form.requestSubmit()
-    await wait(()=>document.body.textContent.includes('Riferimento bancario aggiornato. Pagamento e importo invariati.'))
+    await wait(()=>document.body.textContent.includes('Riferimento bancario aggiornato. Pagamento e importo invariati.'), 'Esito rettifica non disponibile')
     const storico=await wait(()=>[...document.querySelectorAll('summary')].find(e=>e.textContent==='Storico rettifiche'&&e.parentElement.textContent.includes('synthetic-cro-chrome')))
     storico.click()
     await wait(()=>storico.parentElement.open&&storico.parentElement.textContent.includes('synthetic-cro-01'))

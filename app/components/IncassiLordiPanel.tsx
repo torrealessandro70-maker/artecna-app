@@ -11,6 +11,7 @@ const destinazioni = { contratto: "Contratto principale", economia: "Lavori in e
 type Lettura = { totale: number | null; attribuito: number | null; residuo: number | null; incassi: Incasso[]; quote: Quota[]; imputazioni: Imputazione[] | null; imputazione_effettiva: keyof typeof destinazioni | null }
 type Rettifica = { incasso_id: string; revisione: number; riferimento_precedente: string; riferimento_nuovo: string; motivo: string; fonte: string; autore: string; rettificato_at: string }
 const rpcRettifica = 'rettifica_riferimento_incasso_lordo_cliente'
+const rpcElimina = 'elimina_incasso_lordo_cliente'
 type Operazione = { rpc: string; args: Record<string, string> }
 const euro = (n: number | null) => n === null ? 'Da verificare' : n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 
@@ -22,6 +23,7 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
   const [rettificheDisponibili, setRettificheDisponibili] = useState(false)
   const [messaggio, setMessaggio] = useState('')
   const [attesa, setAttesa] = useState(false)
+  const [daEliminare, setDaEliminare] = useState<Incasso | null>(null)
   const blocco = useRef(false)
   const chiave = 'artecna-incasso-lordo:' + contesto + ':' + id
   const [pendente, setPendente] = useState<Operazione | null>(() => {
@@ -40,11 +42,12 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
         sessionStorage.setItem(chiave, JSON.stringify(op))
         setPendente(op)
         const { data: esito, error } = await supabase.rpc(op.rpc, op.args)
-        if (error && !['22023','23505','23514','23503','42501','40001'].includes(error.code)) throw error
+        if (error && !['22023','22P02','23505','23514','23503','42501','40001'].includes(error.code)) throw error
         sessionStorage.removeItem(chiave)
         setPendente(null)
         setMessaggio(error ? error.message
           : esito?.richiesta_duplicata ? 'Richiesta duplicata: operazione già confermata.'
+          : op.rpc === rpcElimina ? 'Incasso eliminato e operazione registrata.'
           : op.rpc === rpcRettifica ? 'Riferimento bancario aggiornato. Pagamento e importo invariati.'
           : 'Operazione confermata.')
         if (!error) window.dispatchEvent(new Event('artecna-incassi-lordi-aggiornati'))
@@ -77,6 +80,23 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
       ? { rpc: 'attribuisci_incasso_lordo_cliente', args: { ...base, p_fattura: id, p_incasso: valore('incasso') } }
       : { rpc: 'conferma_incasso_lordo_cliente', args: { ...base, p_acconto: id, p_data: valore('data'),
           p_metodo: valore('metodo'), p_riferimento: valore('riferimento'), p_fonte: valore('fonte') } })
+  }
+
+  function elimina(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!daEliminare || pendente || blocco.current) return
+    const campi = new FormData(e.currentTarget)
+    const conferma = String(campi.get('conferma') ?? '')
+    const motivo = String(campi.get('motivo') ?? '').trim()
+    if (conferma !== 'ELIMINA' || !motivo) {
+      setMessaggio('Digita ELIMINA e inserisci il motivo.')
+      return
+    }
+    setDaEliminare(null)
+    void esegui({ rpc: rpcElimina, args: {
+      p_richiesta: crypto.randomUUID(), p_acconto: id, p_incasso: daEliminare.id,
+      p_riferimento: daEliminare.riferimento, p_conferma: conferma, p_motivo: motivo,
+    } })
   }
 
   return <details onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open) void esegui() }}>
@@ -116,6 +136,18 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
           const corrente = storico[0]?.riferimento_nuovo ?? i.riferimento
           return <div key={i.id}>
             <p>{i.ricevuto_il} · {euro(i.importo)} · Disponibile {euro(i.disponibile)} · Riferimento: {corrente}</p>
+            <button type="button" disabled={attesa || !!pendente}
+              onClick={() => { setMessaggio(''); setDaEliminare({ ...i, riferimento: corrente }) }}>Elimina</button>
+            {daEliminare?.id === i.id && <form onSubmit={elimina}>
+              <fieldset disabled={attesa || !!pendente}>
+                <legend>Elimina incasso {daEliminare.riferimento} del {daEliminare.ricevuto_il} · {euro(daEliminare.importo)}</legend>
+                <p>La rimozione dell’incasso è definitiva e viene registrata nel registro di controllo.</p>
+                <label>Motivo dell’eliminazione <input name="motivo" required maxLength={500} /></label>
+                <label>Digita ELIMINA per confermare <input name="conferma" required pattern="ELIMINA" autoComplete="off" /></label>
+                <button type="button" onClick={() => setDaEliminare(null)}>Annulla</button>
+                <button type="submit">Conferma eliminazione</button>
+              </fieldset>
+            </form>}
             {i.metodo === 'bonifico' && rettificheDisponibili && <details>
               <summary>Rettifica riferimento</summary>
               <form key={storico[0]?.revisione ?? 0} onSubmit={e => {

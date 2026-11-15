@@ -75,6 +75,19 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   await q(load('20261115000500_rettifica_riferimento_incasso.sql'))
   assert.notEqual(await signature(),firmaPrimaCro)
   assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
+  const producer = () => q(`SELECT proname, pg_get_functiondef(oid) AS definizione, proacl::text AS acl
+    FROM pg_proc WHERE pronamespace='artecna_notifiche'::regnamespace AND oid IN (
+      SELECT to_regprocedure('artecna_notifiche.'||nome||'(timestamptz)')
+      FROM unnest(ARRAY['genera_scadenze','genera_agenda','genera_sopralluoghi',
+        'genera_rapportini_attesi','genera_pagamenti_fornitori','genera_fatture_da_emettere']) AS nomi(nome)
+    ) ORDER BY proname`)
+  const producerPrimaEliminazione=await producer()
+  assert.equal(producerPrimaEliminazione.length,6)
+  const firmaPrimaEliminazione=await signature()
+  await q(load('20261115000600_elimina_incasso_lordo_cliente.sql'))
+  assert.equal(await signature(),firmaPrimaEliminazione)
+  assert.deepEqual(await producer(),producerPrimaEliminazione)
+  assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
   const netto=await value("INSERT INTO public.acconti_cantiere(cantiere_id,cantiere,importo,data_incasso) VALUES ($1,'Fixture',9090.91,CURRENT_DATE) RETURNING id v",[fixture.a])
   const lordoDoc=await value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,importo_incassato,data_fattura) VALUES ($1,'Fixture',10000,0,CURRENT_DATE) RETURNING id v",[fixture.a])
   const pagamento=randomUUID()
@@ -461,6 +474,64 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
     attribuisci_incasso_lordo_cliente:['SELECT public.attribuisci_incasso_lordo_cliente($1,$2,$3,$4) v','p_id','p_incasso','p_fattura','p_importo'],
     revoca_quota_lorda_cliente:['SELECT public.revoca_quota_lorda_cliente($1,$2) v','p_id','p_quota'],
   }
+  const elimina='SELECT public.elimina_incasso_lordo_cliente($1,$2,$3,$4,$5,$6) v'
+  rpcLordi.elimina_incasso_lordo_cliente=[elimina,'p_richiesta','p_acconto','p_incasso','p_riferimento','p_conferma','p_motivo']
+  const contoDuplicato=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo) VALUES($1,9090.91) RETURNING id v",[fixture.a])
+  const duplicato=randomUUID(), bonifico=randomUUID(), dataDuplicato='2026-10-05', cro='82182298105'
+  const registraDuplicato=rpcLordi.conferma_incasso_lordo_cliente[0]
+  const datiDuplicato=[duplicato,contoDuplicato,10000,dataDuplicato,'bonifico','cro','Estratto sintetico']
+  await as(titolare,registraDuplicato,datiDuplicato)
+  await as(titolare,registraDuplicato,[bonifico,...datiDuplicato.slice(1,5),cro,'Estratto sintetico'])
+  const statoDuplicato=async ()=>(await as(titolare,leggi,[contoDuplicato,'acconto']))[0].v.incassi
+  const totaleDuplicato=async ()=>(await statoDuplicato()).reduce((s,i)=>s+i.importo,0)
+  const situazioneCantiere=async ()=>(await as(titolare,riepilogo,[fixture.a]))[0].v
+  const primaEliminazione=await situazioneCantiere()
+  assert.equal(await totaleDuplicato(),20000)
+  const richiestaElimina=[randomUUID(),contoDuplicato,duplicato,'cro','ELIMINA','Duplicato verificato']
+  await assert.rejects(as(esterno,elimina,richiestaElimina),{code:'42501'})
+  await assert.rejects(as(titolare,elimina,[...richiestaElimina.slice(0,4),'',richiestaElimina[5]]),{code:'22023'})
+  await assert.rejects(as(titolare,elimina,[richiestaElimina[0],netto,...richiestaElimina.slice(2)]),{code:'42501'})
+  await assert.rejects(as(titolare,elimina,[...richiestaElimina.slice(0,3),cro,...richiestaElimina.slice(4)]),{code:'40001'})
+  await assert.rejects(as(titolare,elimina,[randomUUID(),contoDuplicato,bonifico,cro,'ELIMINA','Fixture']),{code:'23514'})
+  await assert.rejects(as(titolare,elimina,[randomUUID(),netto,pagamento,'synthetic-cro-01','ELIMINA','Fixture']),{code:'23514',message:/quote o rettifiche/})
+  await assert.rejects(as(titolare,'DELETE FROM artecna_contabilita.incassi_lordi_clienti WHERE id=$1',[duplicato]),{code:'42501'})
+  assert.equal(await value("SELECT has_function_privilege('anon','public.elimina_incasso_lordo_cliente(uuid,uuid,uuid,text,text,text)','EXECUTE') v"),false)
+  await q('CREATE TABLE public.fixture_dipendenza_incasso (id uuid REFERENCES artecna_contabilita.incassi_lordi_clienti(id) ON DELETE CASCADE)')
+  try {
+    await assert.rejects(as(titolare,elimina,richiestaElimina),{code:'23514',message:/Dipendenze/})
+  } finally { await q('DROP TABLE public.fixture_dipendenza_incasso') }
+
+  const scrittureProtette=()=>value(`SELECT jsonb_build_object(
+    'acconti',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM public.acconti_cantiere t),
+    'fatture',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM public.fatture_emesse t),
+    'quote',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM artecna_contabilita.quote_lorde_clienti t),
+    'attribuzioni',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM artecna_contabilita.attribuzioni_clienti t),
+    'sdi',(SELECT jsonb_agg(to_jsonb(t) ORDER BY fattura_id,revisione) FROM artecna_contabilita.fatture_sdi t),
+    'incassi',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM artecna_contabilita.incassi_lordi_clienti t WHERE id<>$1)
+  ) v`,[duplicato])
+  const scritturePrima=await scrittureProtette()
+  const tentativi=await Promise.all([
+    as(titolare,elimina,richiestaElimina),
+    as(titolare,elimina,richiestaElimina,client2),
+  ])
+  assert.deepEqual(tentativi.map(r=>r[0].v.richiesta_duplicata).sort(),[false,true])
+  assert.equal(await totaleDuplicato(),10000)
+  assert.deepEqual((await statoDuplicato()).map(i=>i.id),[bonifico])
+  assert.deepEqual(await scrittureProtette(),scritturePrima)
+  const dopoEliminazione=await situazioneCantiere()
+  assert.equal(dopoEliminazione.pagamenti,primaEliminazione.pagamenti-10000)
+  assert.equal(dopoEliminazione.acconti_netto,primaEliminazione.acconti_netto)
+  assert.equal(await value('SELECT importo::text v FROM public.acconti_cantiere WHERE id=$1',[contoDuplicato]),'9090.91')
+  assert.deepEqual(await value('SELECT jsonb_build_array(operatore,motivo,movimento->>\'id\') v FROM artecna_contabilita.eliminazioni_incassi_lordi WHERE incasso_id=$1',[duplicato]),[titolare,'Duplicato verificato',duplicato])
+  await assert.rejects(as(titolare,registraDuplicato,datiDuplicato),{code:'23505'})
+  await assert.rejects(as(titolare,elimina,[...richiestaElimina.slice(0,5),'Altro motivo']),{code:'23505'})
+
+  const duplicatoChrome=randomUUID()
+  await as(titolare,registraDuplicato,[duplicatoChrome,...datiDuplicato.slice(1)])
+  await browser(actor,fixture.a,{...browserContext,draft:contoDuplicato,modes:['incassi-elimina'],commands:rpcLordi})
+  assert.equal(await totaleDuplicato(),10000)
+  assert.deepEqual((await statoDuplicato()).map(i=>i.id),[bonifico])
+
   await browser(actor,fixture.a,{...browserContext,draft:netto,modes:['incassi-rettifica'],commands:rpcLordi})
   assert.deepEqual(await movimento(),primaCro)
   assert.deepEqual(await quoteLorde(),quotePrimaCro)
