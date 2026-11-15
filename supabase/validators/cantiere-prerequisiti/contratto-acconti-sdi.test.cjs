@@ -71,11 +71,15 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   await q(load('20261115000400_incassi_lordi_clienti.sql'))
   assert.notEqual(await signature(),hardDeleteStorico)
   assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
+  const firmaPrimaCro=await signature()
+  await q(load('20261115000500_rettifica_riferimento_incasso.sql'))
+  assert.notEqual(await signature(),firmaPrimaCro)
+  assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
   const netto=await value("INSERT INTO public.acconti_cantiere(cantiere_id,cantiere,importo,data_incasso) VALUES ($1,'Fixture',9090.91,CURRENT_DATE) RETURNING id v",[fixture.a])
   const lordoDoc=await value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,importo_incassato,data_fattura) VALUES ($1,'Fixture',10000,0,CURRENT_DATE) RETURNING id v",[fixture.a])
   const pagamento=randomUUID()
   const conferma='SELECT public.conferma_incasso_lordo_cliente($1,$2,$3,current_date,$4,$5,$6) v'
-  const params=[pagamento,netto,10000,'bonifico','TRN-fixture','Estratto sintetico']
+  const params=[pagamento,netto,10000,'bonifico','cro-generico','Estratto sintetico']
   await assert.rejects(as(esterno,conferma,params),{code:'42501'})
   await as(titolare,conferma,params)
   await as(titolare,conferma,params)
@@ -134,6 +138,37 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   assert.equal(storicoEconomia.imputazioni.length,2)
   assert.equal(storicoEconomia.incassi.length,0)
   console.log('INCASSI_LORDI_FIXTURE_GREEN netto_residuo=22347.49 lordo_residuo=0')
+  const rettifica='SELECT public.rettifica_riferimento_incasso_lordo_cliente($1,$2,$3,$4,$5,$6) v'
+  const storicoCro='SELECT public.leggi_rettifiche_incasso_lordo_cliente($1) v'
+  const movimento=()=>value("SELECT to_jsonb(i)-'riferimento' v FROM artecna_contabilita.incassi_lordi_clienti i WHERE id=$1",[pagamento])
+  const quoteLorde=()=>value("SELECT jsonb_agg(to_jsonb(q) ORDER BY id) v FROM artecna_contabilita.quote_lorde_clienti q WHERE incasso_id=$1",[pagamento])
+  const primaCro=await movimento(), quotePrimaCro=await quoteLorde()
+  const richiestaCro=[randomUUID(),pagamento,0,'SYNTHETIC-CRO-01','Estratto sintetico','Riferimento bancario completo']
+  await assert.rejects(as(esterno,rettifica,richiestaCro),{code:'42501'})
+  const coppiaCro=await Promise.all([
+    as(titolare,rettifica,richiestaCro),
+    as(titolare,rettifica,richiestaCro,client2),
+  ])
+  assert.deepEqual(coppiaCro.map(r=>r[0].v.richiesta_duplicata).sort(),[false,true])
+  for(const risposta of coppiaCro) {
+    assert.equal(risposta[0].v.incasso_id,pagamento)
+    assert.equal(risposta[0].v.riferimento_precedente,'cro-generico')
+    assert.equal(risposta[0].v.riferimento_nuovo,'synthetic-cro-01')
+  }
+  await assert.rejects(as(titolare,rettifica,[...richiestaCro.slice(0,3),'discordante',...richiestaCro.slice(4)]),{code:'23505'})
+  await assert.rejects(as(titolare,rettifica,[randomUUID(),pagamento,0,'synthetic-cro-02','Fixture','Concorrenza']),{code:'40001'})
+  assert.equal((await as(titolare,conferma,params))[0].v.id,pagamento)
+  assert.equal((await as(titolare,conferma,params))[0].v.richiesta_duplicata,true)
+  await assert.rejects(as(titolare,conferma,[randomUUID(),...params.slice(1)]),{code:'23505'})
+  const occupato=[randomUUID(),netto,1,'bonifico','synthetic-occupato','Estratto sintetico']
+  await as(titolare,conferma,occupato)
+  await assert.rejects(as(titolare,rettifica,[randomUUID(),pagamento,1,'SYNTHETIC-OCCUPATO','Fixture','Duplicato']),{code:'23505'})
+  assert.deepEqual(await movimento(),primaCro)
+  assert.deepEqual(await quoteLorde(),quotePrimaCro)
+  const dopoLordi=(await as(titolare,leggi,[lordoDoc,'fattura']))[0].v
+  assert.equal(dopoLordi.residuo,0)
+  assert.equal(dopoLordi.incassi.find(i=>i.id===pagamento).disponibile,0)
+  assert.equal((await as(titolare,storicoCro,[netto]))[0].v.length,1)
   const a=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES ($1,100,CURRENT_DATE) RETURNING id v",[fixture.a])
   const b=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES ($1,50,CURRENT_DATE) RETURNING id v",[fixture.a])
   const doc=async(totale)=>value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,data_fattura) VALUES ($1,'Fixture', $2,CURRENT_DATE) RETURNING id v",[fixture.a,totale])
@@ -419,11 +454,18 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   const accontoChrome=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo) VALUES($1,90) RETURNING id v",[fixture.a])
   const fatturaChrome=await value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,importo_incassato) VALUES($1,'Fixture',100,0) RETURNING id v",[fixture.a])
   const rpcLordi={
+    leggi_rettifiche_incasso_lordo_cliente:['SELECT public.leggi_rettifiche_incasso_lordo_cliente($1) v','p_acconto'],
+    rettifica_riferimento_incasso_lordo_cliente:['SELECT public.rettifica_riferimento_incasso_lordo_cliente($1,$2,$3,$4,$5,$6) v','p_richiesta','p_incasso','p_revisione','p_riferimento','p_fonte','p_motivo'],
     leggi_incassi_lordi_cliente:['SELECT public.leggi_incassi_lordi_cliente($1,$2) v','p_id','p_contesto'],
     conferma_incasso_lordo_cliente:['SELECT public.conferma_incasso_lordo_cliente($1,$2,$3,$4,$5,$6,$7) v','p_id','p_acconto','p_importo','p_data','p_metodo','p_riferimento','p_fonte'],
     attribuisci_incasso_lordo_cliente:['SELECT public.attribuisci_incasso_lordo_cliente($1,$2,$3,$4) v','p_id','p_incasso','p_fattura','p_importo'],
     revoca_quota_lorda_cliente:['SELECT public.revoca_quota_lorda_cliente($1,$2) v','p_id','p_quota'],
   }
+  await browser(actor,fixture.a,{...browserContext,draft:netto,modes:['incassi-rettifica'],commands:rpcLordi})
+  assert.deepEqual(await movimento(),primaCro)
+  assert.deepEqual(await quoteLorde(),quotePrimaCro)
+  assert.equal((await as(titolare,storicoCro,[netto]))[0].v.length,2)
+  assert.equal((await as(titolare,leggi,[lordoDoc,'fattura']))[0].v.residuo,0)
   await browser(actor,fixture.a,{...browserContext,draft:accontoChrome,modes:['incassi-conferma'],commands:rpcLordi})
   await browser(actor,fixture.a,{...browserContext,draft:fatturaChrome,modes:['incassi-attribuzione'],commands:rpcLordi})
   assert.equal(await value('SELECT importo::text v FROM public.acconti_cantiere WHERE id=$1',[accontoChrome]),'90')
@@ -432,6 +474,7 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   await q("UPDATE public.utenti_impresa SET attivo=false WHERE user_id=$1",[titolare])
   try {
     await assert.rejects(as(titolare,leggi,[fatturaChrome,'fattura']),{code:'42501'})
+    await assert.rejects(as(titolare,rettifica,richiestaCro),{code:'42501'})
     await browser(actor,fixture.a,{...browserContext,draft:fatturaChrome,modes:['incassi-negato'],commands:rpcLordi})
     await assert.rejects(as(titolare,conferma,[randomUUID(),accontoChrome,1,'bonifico','revocato','Fixture']),{code:'42501'})
   } finally {

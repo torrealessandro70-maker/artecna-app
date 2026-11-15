@@ -29,7 +29,7 @@ if(centro && sessionStorage.getItem('fiscale-reload')){
   url.searchParams.set('notifica',params.get('cantiere'))
   history.replaceState(null,'',url)
 }
-root.render(modo?.startsWith('incassi-') ? React.createElement(IncassiLordiPanel.default ?? IncassiLordiPanel,{id:params.get('draft'),contesto:modo==='incassi-conferma'?'acconto':'fattura'}) : centro ? React.createElement(Center,{
+root.render(modo?.startsWith('incassi-') ? React.createElement(IncassiLordiPanel.default ?? IncassiLordiPanel,{id:params.get('draft'),contesto:['incassi-conferma','incassi-rettifica'].includes(modo)?'acconto':'fattura'}) : centro ? React.createElement(Center,{
   client:supabase,stile:{},menuImpostazioni:true,onApriScadenza:()=>{},onContatori:()=>{},
 }) : ['importa','associa-storico'].includes(modo) ? React.createElement(Fatture,{
   fattureEmesseOrdinate:modo==='associa-storico'?[{
@@ -44,6 +44,22 @@ root.render(modo?.startsWith('incassi-') ? React.createElement(IncassiLordiPanel
 const pulsante=etichetta=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===etichetta)
 const testo=frase=>document.body.textContent.includes(frase)
 async function run(){
+  if(modo==='incassi-rettifica'){
+    ;(await wait(()=>document.querySelector('details > summary'))).click()
+    ;(await wait(()=>[...document.querySelectorAll('details > summary')].find(e=>e.textContent==='Rettifica riferimento'&&e.closest('details').parentElement.textContent.includes('synthetic-cro-01')))).click()
+    const form=await wait(()=>[...document.querySelectorAll('form')].find(f=>f.offsetWidth&&f.elements.namedItem('riferimento_nuovo')))
+    form.elements.namedItem('riferimento_nuovo').value='SYNTHETIC-CRO-CHROME'
+    form.elements.namedItem('fonte_rettifica').value='Estratto sintetico'
+    form.elements.namedItem('motivo_rettifica').value='Controllo Chrome'
+    form.querySelector('input[type=checkbox]').checked=true
+    form.requestSubmit()
+    await wait(()=>document.body.textContent.includes('Riferimento bancario aggiornato. Pagamento e importo invariati.'))
+    const storico=await wait(()=>[...document.querySelectorAll('summary')].find(e=>e.textContent==='Storico rettifiche'&&e.parentElement.textContent.includes('synthetic-cro-chrome')))
+    storico.click()
+    await wait(()=>storico.parentElement.open&&storico.parentElement.textContent.includes('synthetic-cro-01'))
+    await report('pass',modo)
+    return
+  }
   if(modo==='incassi-negato'){
     ;(await wait(()=>document.querySelector('details > summary'))).click()
     await wait(()=>document.body.textContent.includes('Lettura non disponibile'))

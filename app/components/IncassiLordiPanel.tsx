@@ -3,12 +3,14 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 
-type Incasso = { id: string; importo: number; ricevuto_il: string; riferimento: string; disponibile: number }
+type Incasso = { id: string; importo: number; ricevuto_il: string; riferimento: string; metodo: string; disponibile: number }
 type Quota = { id: string; numero_fattura: string | null; importo: number; revocato_at: string | null }
 type Imputazione = { revisione: number; destinazione: string; motivo: string; autore: string; registrata_at: string }
 const destinazioni = { contratto: "Contratto principale", economia: "Lavori in economia", da_verificare: "Da verificare" } as const
 
 type Lettura = { totale: number | null; attribuito: number | null; residuo: number | null; incassi: Incasso[]; quote: Quota[]; imputazioni: Imputazione[] | null; imputazione_effettiva: keyof typeof destinazioni | null }
+type Rettifica = { incasso_id: string; revisione: number; riferimento_precedente: string; riferimento_nuovo: string; motivo: string; fonte: string; autore: string; rettificato_at: string }
+const rpcRettifica = 'rettifica_riferimento_incasso_lordo_cliente'
 type Operazione = { rpc: string; args: Record<string, string> }
 const euro = (n: number | null) => n === null ? 'Da verificare' : n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 
@@ -16,6 +18,8 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
   id: string; contesto: 'acconto' | 'fattura'; netto?: number | string | null
 }) {
   const [dati, setDati] = useState<Lettura | null>(null)
+  const [rettifiche, setRettifiche] = useState<Rettifica[]>([])
+  const [rettificheDisponibili, setRettificheDisponibili] = useState(false)
   const [messaggio, setMessaggio] = useState('')
   const [attesa, setAttesa] = useState(false)
   const blocco = useRef(false)
@@ -35,16 +39,30 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
       if (op) {
         sessionStorage.setItem(chiave, JSON.stringify(op))
         setPendente(op)
-        const { error } = await supabase.rpc(op.rpc, op.args)
+        const { data: esito, error } = await supabase.rpc(op.rpc, op.args)
         if (error && !['22023','23505','23514','23503','42501','40001'].includes(error.code)) throw error
         sessionStorage.removeItem(chiave)
         setPendente(null)
-        setMessaggio(error ? error.message : 'Operazione confermata.')
+        setMessaggio(error ? error.message
+          : esito?.richiesta_duplicata ? 'Richiesta duplicata: operazione già confermata.'
+          : op.rpc === rpcRettifica ? 'Riferimento bancario aggiornato. Pagamento e importo invariati.'
+          : 'Operazione confermata.')
         if (!error) window.dispatchEvent(new Event('artecna-incassi-lordi-aggiornati'))
       }
       const { data, error } = await supabase.rpc('leggi_incassi_lordi_cliente', { p_id: id, p_contesto: contesto })
-      if (!error) setDati(data as Lettura)
-      else setMessaggio('Lettura non disponibile. Aggiorna per vedere la situazione attuale.')
+      if (error) {
+        setDati(null)
+        setRettificheDisponibili(false)
+        setMessaggio('Lettura non disponibile. Aggiorna per vedere la situazione attuale.')
+      } else {
+        setDati(data as Lettura)
+        if (!fattura) {
+          const storico = await supabase.rpc('leggi_rettifiche_incasso_lordo_cliente', { p_acconto: id })
+          setRettificheDisponibili(!storico.error && Array.isArray(storico.data))
+          setRettifiche(Array.isArray(storico.data) ? storico.data as Rettifica[] : [])
+          if (storico.error) setMessaggio('Storico dei riferimenti non disponibile. Aggiorna la lettura.')
+        }
+      }
     } catch { setMessaggio('Esito non confermato. Recupera la stessa richiesta.') }
     finally { blocco.current = false; setAttesa(false) }
   }
@@ -61,7 +79,7 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
           p_metodo: valore('metodo'), p_riferimento: valore('riferimento'), p_fonte: valore('fonte') } })
   }
 
-  return <details onToggle={e => { if (e.currentTarget.open) void esegui() }}>
+  return <details onToggle={e => { if (e.target === e.currentTarget && e.currentTarget.open) void esegui() }}>
     <summary>Incassi lordi verificati</summary>
     {messaggio && <p role="status">{messaggio}</p>}
     <button type="button" disabled={attesa} onClick={() => void esegui()}>Aggiorna incassi</button>
@@ -93,7 +111,38 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
         {!!dati.imputazioni?.length && <details><summary>Storico imputazioni</summary><ol>
           {dati.imputazioni.map(i => <li key={i.revisione}>{i.registrata_at} · {destinazioni[i.destinazione as keyof typeof destinazioni]} · {i.motivo} · {i.autore}</li>)}
         </ol></details>}
-        {dati.incassi.map(i => <p key={i.id}>{i.ricevuto_il} · {euro(i.importo)} · Disponibile {euro(i.disponibile)}</p>)}
+        {dati.incassi.map(i => {
+          const storico = rettifiche.filter(r => r.incasso_id === i.id)
+          const corrente = storico[0]?.riferimento_nuovo ?? i.riferimento
+          return <div key={i.id}>
+            <p>{i.ricevuto_il} · {euro(i.importo)} · Disponibile {euro(i.disponibile)} · Riferimento: {corrente}</p>
+            {i.metodo === 'bonifico' && rettificheDisponibili && <details>
+              <summary>Rettifica riferimento</summary>
+              <form key={storico[0]?.revisione ?? 0} onSubmit={e => {
+                e.preventDefault()
+                if (attesa || pendente) return
+                const campi = new FormData(e.currentTarget)
+                void esegui({ rpc: rpcRettifica, args: {
+                  p_richiesta: crypto.randomUUID(), p_incasso: i.id, p_revisione: String(storico[0]?.revisione ?? 0),
+                  p_riferimento: String(campi.get('riferimento_nuovo') ?? ''), p_fonte: String(campi.get('fonte_rettifica') ?? ''),
+                  p_motivo: String(campi.get('motivo_rettifica') ?? ''),
+                } })
+              }}>
+                <fieldset disabled={attesa || !!pendente}>
+                  <legend>Riferimento attuale: {corrente}</legend>
+                  <label>CRO/TRN corretto <input name="riferimento_nuovo" required maxLength={200} /></label>
+                  <label>Fonte della verifica <input name="fonte_rettifica" required maxLength={200} /></label>
+                  <label>Motivo della rettifica <input name="motivo_rettifica" required maxLength={500} /></label>
+                  <label><input type="checkbox" required /> Confermo la rettifica del riferimento bancario.</label>
+                  <button type="submit">Conferma rettifica</button>
+                </fieldset>
+              </form>
+            </details>}
+            {!!storico.length && <details><summary>Storico rettifiche</summary><ol>
+              {storico.map(r => <li key={r.revisione}>{r.riferimento_precedente} → {r.riferimento_nuovo} · {r.motivo} · {r.fonte} · {r.autore} · {r.rettificato_at}</li>)}
+            </ol></details>}
+          </div>
+        })}
       </>}
       {dati.quote.map(q => <p key={q.id}>Fattura {q.numero_fattura ?? 'senza numero'} · {euro(q.importo)}
         {q.revocato_at ? ' · Revocata' : fattura && <button type="button" disabled={attesa || !!pendente}
