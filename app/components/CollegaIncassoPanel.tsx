@@ -5,7 +5,7 @@ import { centesimi } from '../engines/contabilita-ditta/riepilogo'
 import { MESSAGGIO_INCASSI_SENZA_CANTIERE, statoCantiereAttribuzioni, disponibilita, eseguiAttribuzione, leggiAttribuzioni, recuperaOperazione, situazioneImporti, type ClientAttribuzioni, type LetturaAttribuzioni, type Operazione } from '../engines/contabilita-ditta/attribuzioni'
 
 const euro = (n: number | null) => n === null ? 'Non determinabile' : (n / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
-type Props = { client: ClientAttribuzioni; fatturaId: string; cantiereId?: unknown; onChiudi: () => void; onConfermato?: () => void | Promise<void> }
+type Props = { client: ClientAttribuzioni; fatturaId: string; accontoIniziale?: string; cantiereId?: unknown; onChiudi: () => void; onConfermato?: () => void | Promise<void> }
 
 export function CollegaIncassoAzione({ cantiereId, onClick }: { cantiereId?: unknown; onClick: MouseEventHandler<HTMLButtonElement> }) {
   const motivoId = useId()
@@ -26,11 +26,11 @@ export default function CollegaIncassoPanel(props: Props) {
   return <CollegaIncassoConLettura {...props} />
 }
 
-function CollegaIncassoConLettura({ client, fatturaId, onChiudi, onConfermato }: Props) {
+function CollegaIncassoConLettura({ client, fatturaId, accontoIniziale, onChiudi, onConfermato }: Props) {
   const key = `artecna-attribuzione-pendente:${fatturaId}`
   const [lettura, setLettura] = useState<LetturaAttribuzioni | null>(null)
   const [errore, setErrore] = useState(''), [messaggio, setMessaggio] = useState('')
-  const [acconto, setAcconto] = useState(''), [importo, setImporto] = useState(''), [verificato, setVerificato] = useState(false)
+  const [acconto, setAcconto] = useState(accontoIniziale ?? ''), [importo, setImporto] = useState(''), [verificato, setVerificato] = useState(false)
   const [attesa, setAttesa] = useState(false)
   const gate = useRef(false)
   const [pendente, setPendente] = useState<Operazione | null>(() => { try { return typeof window === 'undefined' ? null : recuperaOperazione(sessionStorage.getItem(key), fatturaId) } catch { return null } })
@@ -73,7 +73,7 @@ function CollegaIncassoConLettura({ client, fatturaId, onChiudi, onConfermato }:
       <table><caption>Incassi disponibili — fonte acconti_cantiere</caption><thead><tr><th>Data / descrizione</th><th>Origine</th><th>Originale</th><th>Attribuito</th><th>Disponibilità</th><th>Scelta</th></tr></thead><tbody>{lettura.acconti.map(a => <tr key={a.id}><td>{a.data_incasso || 'Data mancante'} — {a.descrizione || 'Acconto'}</td><td>{a.provenienza}</td><td>{euro(centesimi(a.importo))}</td><td>{euro(centesimi(a.attribuito))}</td><td>{euro(disponibilita(a))}</td><td><input aria-label={`Seleziona ${a.descrizione || a.id}`} type="radio" name="acconto" checked={acconto === a.id} disabled={attesa || !!pendente || !disponibilita(a)} onChange={() => setAcconto(a.id)} /></td></tr>)}</tbody></table>
       <label>Quota da attribuire <input value={importo} onChange={e => setImporto(e.target.value)} inputMode="decimal" disabled={attesa || !!pendente} /></label>
       <p style={{ padding: 12, background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 6 }}>I collegamenti rimangono nello storico anche dopo “Scollega”. I cantieri interessati non potranno essere eliminati definitivamente; potranno essere segnati come “Concluso”.</p>
-      <label style={{ display: 'block', margin: '12px 0' }}><input type="checkbox" checked={verificato} disabled={attesa || !!pendente} onChange={e => setVerificato(e.target.checked)} />Ho verificato che è una fattura ordinaria valida, non una nota di credito/acconto/saldo ambiguo, che il totale dichiarato è corretto e che questo acconto appartiene al medesimo cliente/Cantiere senza duplicare un’altra entrata.</label>
+      <label style={{ display: 'block', margin: '12px 0' }}><input type="checkbox" checked={verificato} disabled={attesa || !!pendente} onChange={e => setVerificato(e.target.checked)} />Ho verificato che è un documento di fatturazione valido (TD01 o TD02) con quota attribuibile, che il totale dichiarato è corretto e che questo acconto appartiene al medesimo cliente/Cantiere senza duplicare un’altra entrata.</label>
       <button type="button" disabled={attesa || !!pendente || !verificato || !acconto || !(centesimi(importo.replace(',', '.'))! > 0)} onClick={() => { if (window.confirm('Confermare questa sola attribuzione? Fattura, movimento e cumulativo non saranno modificati.')) void esegui({ tipo: 'collega', id: crypto.randomUUID(), fattura: fatturaId, acconto, importo: importo.replace(',', '.') }) }}>Conferma collegamento</button>
       <h3>Collegamenti e storico</h3>{!lettura.collegamenti.length && <p>Nessun collegamento registrato: situazione da riconciliare.</p>}
       {lettura.collegamenti.map(l => <div key={l.id}><p>{euro(centesimi(l.importo))} · {l.creato_at} · Autore {l.creato_da} · Acconto {l.acconto_id} · {l.scollegato_at ? 'Scollegato' : 'Attivo'}</p>{!l.scollegato_at && <button type="button" disabled={attesa || !!pendente} onClick={() => { if (window.confirm('Scollegare soltanto questa quota? Il movimento e la fattura saranno conservati.')) void esegui({ tipo: 'scollega', id: crypto.randomUUID(), fattura: fatturaId, collegamento: l.id }) }}>Scollega quota</button>}</div>)}

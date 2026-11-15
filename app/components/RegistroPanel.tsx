@@ -308,7 +308,6 @@ salvaRevisionePreventivoAi={p.salvaRevisionePreventivoAi}
     setPopupNuovaFatturaEmessa={p.setPopupNuovaFatturaEmessa}
     setFatturaEmessaAperta={p.setFatturaEmessaAperta}
     caricaFatturaEmessaPdf={p.caricaFatturaEmessaPdf}
-    caricaFatturaEmessaXml={p.caricaFatturaEmessaXml}
     caricaFattureEmesse={p.caricaFattureEmesse}
     ordinaFattureEmesse={p.ordinaFattureEmesse}
     formatMoney={p.formatMoney}

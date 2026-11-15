@@ -32,3 +32,15 @@ export async function importaArchivioBluenext(file: File, numeroXml: (v: string)
   }
   return esiti
 }
+
+
+export async function leggiDocumentiArchivioBluenext(contenuto: ArrayBuffer | Uint8Array) {
+  const zip = await JSZip.loadAsync(contenuto)
+  const voci = Object.values(zip.files).filter(voce => !voce.dir && (
+    (/\.xml$/i.test(voce.name) && !/metadato/i.test(voce.name)) || /\.pdf$/i.test(voce.name)
+  ))
+  return Promise.all(voci.map(async voce => ({
+    nome: voce.name,
+    xml: /\.xml$/i.test(voce.name) ? await voce.async('string') : null,
+  })))
+}

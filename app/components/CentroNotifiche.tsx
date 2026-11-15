@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import VistaOperativa from './VistaOperativa'
+import CollegaIncassoPanel from './CollegaIncassoPanel'
+import { supabase } from '../../lib/supabaseClient'
 import styles from './CentroNotifiche.module.css'
 
 type Client = { rpc: (name: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string } | null }> }
@@ -16,6 +18,13 @@ type AccontoFiscale = {
   data_fiscale: string | null
   fatture: { id: string; numero: string | null; tipo: string | null; esito: string | null }[]
 }
+type PropostaFiscale = {
+  cantiere_id: string
+  data_fiscale: string
+  importo: number
+  fatture: { id: string; numero: string; cliente: string; data: string; imponibile: number | null; iva: number | null; totale: number; disponibile: number; collegata: number; esito: string; tipo: string | null }[]
+}
+const valutaEuro = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' })
 type Contatori = { totale: number; scadenziario: number; agenda?: number; sopralluoghi?: number; rapportini?: number; pagamenti_fornitori?: number; fatture_da_emettere?: number }
 const vuoti: Contatori = { totale: 0, scadenziario: 0 }
 const filtri = { tutte: 'Tutte', da_leggere: 'Da leggere', urgenti: 'Scadute / urgenti' }
@@ -49,6 +58,8 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   onApriDebito?: (id: string) => void
   onContatori: (value: Contatori) => void
 }) {
+  const [fatturaDaCollegare, setFatturaDaCollegare] = useState<string | null>(null)
+  const [riconciliazione, setRiconciliazione] = useState<PropostaFiscale | null>(null)
   const [acconto, setAcconto] = useState<string | null>(null)
   const [destinazioneFiscale, setDestinazioneFiscale] = useState<{ id: string; dati: AccontoFiscale | null } | null>(null)
   useEffect(() => {
@@ -72,6 +83,8 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   const [errore, setErrore] = useState('')
   const [avviso, setAvviso] = useState('')
   const [occupata, setOccupata] = useState(false)
+  const [rinvio, setRinvio] = useState<string | null>(null)
+  const [giornoRinvio, setGiornoRinvio] = useState('')
   const [rilettura, setRilettura] = useState(0)
   const campanella = useRef<HTMLButtonElement>(null)
   const aggiornaContatori = useCallback(async (attivo: () => boolean) => {
@@ -138,6 +151,8 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   }, [client, filtro, pagina, rilettura, soloFatture, vista])
 
   function cambiaVista(prossima: typeof vistaScelta) {
+    setFatturaDaCollegare(null)
+    setRiconciliazione(null)
     setDestinazioneGestita(destinazioneAssente)
     setAcconto(null)
     setVista(prossima)
@@ -150,17 +165,25 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
     setRilettura(n => n + 1)
   }
 
-  async function azione(riga: Riga, tipo: 'apri' | 'leggi' | 'archivia') {
+  async function azione(riga: Riga, tipo: 'apri' | 'leggi' | 'archivia' | 'riconcilia') {
     setErrore('')
     setOccupata(true)
     try {
-      if (tipo === 'apri') {
+      if (tipo === 'apri' || tipo === 'riconcilia') {
         const id = await apriDestinazione(riga.id)
-        if (!id) { setAvviso(nonDisponibile); return }
+        if (!id || (tipo === 'riconcilia' && id.azione !== 'apri_acconto_fiscale')) {
+          setAvviso(nonDisponibile)
+          return
+        }
+        const proposta = tipo === 'riconcilia'
+          ? await rpc<PropostaFiscale | null>(client, 'proponi_riconciliazione_acconto', { p_id: id.record_id })
+          : null
+        if (tipo === 'riconcilia' && !proposta) { setAvviso(nonDisponibile); return }
         const url = new URL(window.location.href)
         url.searchParams.set('notifica', riga.id)
         window.history.replaceState(null, '', url)
         cambiaVista(null)
+        setRiconciliazione(proposta)
         apriRecord(id)
         return
       }
@@ -168,8 +191,26 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
       if (!modificata) throw new Error('Notifica non disponibile. Rileggi il centro notifiche.')
       ricarica()
     } catch (error) {
-      if (tipo === 'apri') setAvviso(nonDisponibile)
+      if (tipo === 'apri' || tipo === 'riconcilia') { setAvviso(nonDisponibile); setVista('centro') }
       else setErrore(error instanceof Error ? error.message : 'Operazione non confermata.')
+    } finally { setOccupata(false) }
+  }
+
+  async function ricorda(id: string, giorni?: number) {
+    const oggi = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+    const data = new Date(oggi + 'T00:00:00Z')
+    if (giorni !== undefined) data.setUTCDate(data.getUTCDate() + giorni)
+    setOccupata(true)
+    setErrore('')
+    setAvviso('')
+    try {
+      const salvato = await rpc<boolean>(client, 'rinvia_notifica', { p_id: id, p_giorno: giorni === undefined ? giornoRinvio : data.toISOString().slice(0, 10) })
+      if (!salvato) throw new Error()
+      setRinvio(null)
+      setAvviso('Promemoria rinviato.')
+      ricarica()
+    } catch {
+      setErrore('Rinvio non disponibile. Verifica il termine e lo stato dell’avviso.')
     } finally { setOccupata(false) }
   }
 
@@ -217,14 +258,42 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
           <p>{destinazioneFiscale.dati.stato}</p>
           {destinazioneFiscale.dati.data_fiscale && <p>Data fiscale {destinazioneFiscale.dati.data_fiscale}</p>}
           {destinazioneFiscale.dati.termine && <p>Termine ordinario {destinazioneFiscale.dati.termine} · Giorni residui {destinazioneFiscale.dati.giorni_residui}</p>}
+          {riconciliazione && <section aria-label="Riconciliazione fatture">
+            <h3>Riconciliazione fatture</h3>
+            <p>Acconto {valutaEuro.format(riconciliazione.importo)} del {riconciliazione.data_fiscale}</p>
+            <p>{riconciliazione.fatture.length > 1 ? 'Più documenti da confrontare.'
+              : riconciliazione.fatture.length === 1 ? 'Verifica il documento proposto nel Registro.'
+                : 'Nessuna proposta automatica. Verifica il Registro.'}</p>
+            <ul>{riconciliazione.fatture.map(f => <li key={f.id}>
+              {f.numero} · {f.data} · {f.cliente} · {f.tipo ?? 'Tipo da verificare'} ·
+              Imponibile {f.imponibile == null ? 'non disponibile' : valutaEuro.format(f.imponibile)} ·
+              IVA {f.iva == null ? 'non disponibile' : valutaEuro.format(f.iva)} · Totale {valutaEuro.format(f.totale)} ·
+              Quota disponibile {valutaEuro.format(f.disponibile)} · Già collegato {valutaEuro.format(f.collegata)} ·
+              {f.esito === 'da_verificare' ? 'Fattura presente — SdI da verificare' : f.esito.replaceAll('_', ' ')}
+              <button type="button" disabled={!f.disponibile} onClick={() => setFatturaDaCollegare(f.id)}>Seleziona fattura</button>
+            </li>)}</ul>
+          </section>}
           <h3>Fatture collegate</h3>
           {destinazioneFiscale.dati.fatture.length === 0
             ? <p>Nessuna fattura collegata.</p>
             : <ul>{destinazioneFiscale.dati.fatture.map(fattura => <li key={fattura.id}>
               {[fattura.numero || 'Fattura senza numero', fattura.tipo, fattura.esito?.replaceAll('_', ' ')].filter(Boolean).join(' · ')}
-            </li>)}</ul>}
+
+          </li>)}</ul>}
         </> : <p role="alert">{nonDisponibile}</p>}
     </VistaOperativa>}
+    {fatturaDaCollegare && acconto && riconciliazione && <CollegaIncassoPanel
+      key={fatturaDaCollegare} client={supabase} fatturaId={fatturaDaCollegare}
+      accontoIniziale={acconto} cantiereId={riconciliazione.cantiere_id}
+      onChiudi={() => setFatturaDaCollegare(null)} onConfermato={async () => {
+        const [dati, proposta] = await Promise.all([
+          rpc<AccontoFiscale>(client, 'leggi_destinazione_acconto_fiscale', { p_id: acconto }),
+          rpc<PropostaFiscale>(client, 'proponi_riconciliazione_acconto', { p_id: acconto }),
+        ])
+        setDestinazioneFiscale({ id: acconto, dati })
+        setRiconciliazione(proposta)
+        ricarica()
+      }} />}
     {vista && !acconto && <VistaOperativa titolo={vista === 'centro' ? 'Centro notifiche' : 'Impostazioni · Notifiche'} etichettaRitorno="← Chiudi"
       occupata={occupata} ritornoFocusRef={campanella} onChiudi={() => cambiaVista(null)}>
       <div className={styles.pannello}>
@@ -245,9 +314,21 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
             <p>{moduli[riga.modulo] ?? riga.modulo} · <time dateTime={riga.data_evento ?? riga.published_at}>{dataRoma.format(new Date(riga.data_evento ?? riga.published_at))}</time></p>
             <div className={styles.azioni}>
               <button type="button" disabled={occupata} onClick={() => void azione(riga, 'apri')}>Apri</button>
+              {riga.attiva && riga.modulo === 'fatture_da_emettere' && <button type="button" disabled={occupata}
+                onClick={() => void azione(riga, 'riconcilia')}>Già fatturata</button>}
               {!riga.read_at && <button type="button" disabled={occupata} onClick={() => void azione(riga, 'leggi')}>Segna letta</button>}
+              {riga.attiva && !['alta', 'urgente'].includes(riga.priorita) && <button type="button" disabled={occupata}
+                aria-expanded={rinvio === riga.id} onClick={() => { setRinvio(rinvio === riga.id ? null : riga.id); setGiornoRinvio('') }}>
+                Ricordamelo
+              </button>}
               <button type="button" disabled={occupata} onClick={() => void azione(riga, 'archivia')}>Archivia</button>
             </div>
+              {rinvio === riga.id && <div className={styles.azioni}>
+              <button type="button" disabled={occupata} onClick={() => void ricorda(riga.id, 1)}>Domani</button>
+              <button type="button" disabled={occupata} onClick={() => void ricorda(riga.id, 3)}>Fra 3 giorni</button>
+              <label>Data personalizzata <input type="date" value={giornoRinvio} onChange={event => setGiornoRinvio(event.target.value)} /></label>
+              <button type="button" disabled={occupata || !giornoRinvio} onClick={() => void ricorda(riga.id)}>Conferma rinvio</button>
+            </div>}
           </li>)}</ul>}
           <div className={styles.azioni}>
             {pagina > 0 && <button type="button" disabled={occupata} onClick={() => { setRighe(null); setPagina(pagina - 1) }}>Indietro</button>}

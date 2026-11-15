@@ -4,7 +4,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const ts = require('typescript')
 require.extensions['.ts'] = (module, file) => module._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2020 },
 }).outputText, file)
 const { riepilogaCostiFornitori, deltaRettifiche, rettificheCompatibiliConBase, leggiNotaCredito, applicaNotaCredito } = require('./note-credito.ts')
 const { motivoNonSelezionabile } = require('../economia/fattureMateriali.ts')
@@ -66,3 +66,61 @@ test('Errore RPC esposto, senza sostituire dati mancanti con array vuoti', async
  test('Risposta incompleta non entra nel rendering come dati disponibili', async () => {
    await assert.rejects(leggiNotaCredito({ rpc: async () => ({ data: {}, error: null }) }, 'nota'), /risposta incompleta/)
  })
+
+
+const { riepilogaBluenext, classificaFatturaEmessa } = require('./documento-fiscale.ts')
+const fatturaBluenext = (data, numero = '14') => ({
+  cedente: 'IT00000000000', partitaIva: '', cliente: 'Cliente sintetico',
+  tipo: 'TD02', numero, data, imponibile: 9090.91, iva: 909.09, totale: 10000,
+})
+const voceBluenext = (nome, documento) => ({ nome, documento, stato: 'Letto' })
+
+test('Bluenext aggrega ZIP consecutivi e sovrapposti anche fra anni diversi', () => {
+  const settembre = fatturaBluenext('2026-09-03', '13')
+  const ottobre = fatturaBluenext('2026-10-05')
+  const gennaio = fatturaBluenext('2027-01-10')
+  const voci = [
+    voceBluenext('Q3.zip / fattura.xml', settembre),
+    voceBluenext('Q4.zip / fattura.xml', ottobre),
+    voceBluenext('sovrapposto.zip / copia.xml', ottobre),
+    voceBluenext('Q1.zip / fattura.xml', gennaio),
+  ]
+  const result = riepilogaBluenext([...voci, ...voci], [])
+  assert.deepEqual(result.anni, [['2026', 2], ['2027', 1]])
+  assert.deepEqual(result.periodi.map(([p, c]) => [p, c.nuove]), [['2026 Q3', 1], ['2026 Q4', 1], ['2027 Q1', 1]])
+  assert.equal(result.esiti.find(x => x.documento === ottobre).copie, 4)
+  assert.equal(result.esiti.find(x => x.documento === ottobre).documento.imponibile, 9090.91)
+  assert.equal(result.esiti.find(x => x.documento === ottobre).documento.totale, 10000)
+})
+
+test('Bluenext conserva l’ambiguità fra versioni nello stesso anno e fra periodi', () => {
+  const d = fatturaBluenext('2026-09-03')
+  const result = riepilogaBluenext([voceBluenext('a.zip', d), voceBluenext('b.zip', { ...d, data: '2026-10-05' })], [])
+  assert.equal(result.esiti.length, 1)
+  assert.equal(result.esiti[0].stato, 'Ambigua')
+  assert.deepEqual(result.anni, [['2026', 1]])
+  assert.equal(result.periodi[0][0], '2026')
+})
+
+test('Bluenext distingue dati storici incompleti e differenze monetarie', () => {
+  const d = fatturaBluenext('2026-10-05')
+  const legacy = { numero_fattura: d.numero, data_fattura: d.data, cliente: d.cliente, imponibile: d.imponibile, iva: d.iva, totale: d.totale }
+  assert.equal(classificaFatturaEmessa(d, [legacy]), 'Ambigua')
+  assert.equal(classificaFatturaEmessa(d, [{ ...legacy, totale: d.imponibile }]), 'Modificata')
+  assert.equal(classificaFatturaEmessa(d, [{ ...legacy, data_fattura: '2025-10-05' }]), 'Nuova')
+})
+
+
+test('Bluenext legge più ZIP sintetici e distingue XML, PDF e metadati', async () => {
+  const JSZip = require('jszip')
+  const { leggiDocumentiArchivioBluenext } = require('./import-zip.ts')
+  const q4 = new JSZip()
+  q4.file('ottobre/fattura.xml', '<FatturaElettronica/>')
+  q4.file('ottobre/metadato.xml', '<Metadato/>')
+  q4.file('ottobre/copia.pdf', 'fixture')
+  const q1 = new JSZip()
+  q1.file('gennaio/fattura.xml', '<FatturaElettronica anno="2027"/>')
+  const [a,b] = await Promise.all([q4,q1].map(async zip => leggiDocumentiArchivioBluenext(await zip.generateAsync({type:'uint8array'}))))
+  assert.deepEqual(a, [{nome:'ottobre/fattura.xml',xml:'<FatturaElettronica/>'},{nome:'ottobre/copia.pdf',xml:null}])
+  assert.deepEqual(b, [{nome:'gennaio/fattura.xml',xml:'<FatturaElettronica anno="2027"/>'}])
+})

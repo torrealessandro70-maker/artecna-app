@@ -1,11 +1,12 @@
 'use client'
 import ContrattoFiscalePanel from './ContrattoFiscalePanel'
 
-import { useState, type CSSProperties, type ChangeEvent } from 'react'
+import { useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import CollegaIncassoPanel, { CollegaIncassoAzione } from './CollegaIncassoPanel'
 import { cantiereDocumento } from '../engines/contabilita-ditta/attribuzioni'
-import JSZip from 'jszip'
+import { leggiDocumentiArchivioBluenext } from '../engines/fatture/import-zip'
+import { leggiFatturaEmessaXml, riepilogaBluenext, type VoceBluenext } from '../engines/fatture/documento-fiscale'
 
 type Props = {
   fattureEmesseOrdinate: any[]
@@ -17,7 +18,6 @@ type Props = {
   setFatturaEmessaAperta: (v: any) => void
 
   caricaFatturaEmessaPdf: (file: File) => void | Promise<void>
-  caricaFatturaEmessaXml: (file: File) => void | Promise<void>
   caricaFattureEmesse: () => void | Promise<void>
 
   ordinaFattureEmesse: (campo: string) => void
@@ -40,7 +40,6 @@ export default function FattureEmessePanel({
   setPopupNuovaFatturaEmessa,
   setFatturaEmessaAperta,
   caricaFatturaEmessaPdf,
-  caricaFatturaEmessaXml,
   caricaFattureEmesse,
   ordinaFattureEmesse,
   formatMoney,
@@ -53,160 +52,130 @@ export default function FattureEmessePanel({
   buttonSecondary,
 }: Props) {
   const [collegaId, setCollegaId] = useState<string | null>(null)
-  const gestisciAggiornaBluenext = async (
-    e: ChangeEvent<HTMLInputElement>
-  ) => {
-    const input = e.currentTarget
-    const files = Array.from(e.target.files || [])
-
-    const fatture = files.filter(
-      (file) =>
-        file.name.toLowerCase().endsWith('.xml') ||
-        file.name.toLowerCase().endsWith('.pdf') ||
-        file.name.toLowerCase().endsWith('.zip')
-    )
-
-    if (fatture.length === 0) {
-      alert('Nessun file XML o PDF trovato.')
-      return
-    }
-
-    alert(`Trovate ${fatture.length} fatture emesse da controllare.`)
-
-    for (const file of fatture) {
-      const nome = file.name.toLowerCase()
-
-      if (nome.endsWith('.xml')) {
-        await caricaFatturaEmessaXml(file)
-      }
-
-      if (nome.endsWith('.pdf')) {
-        await caricaFatturaEmessaPdf(file)
-      }
-
-      if (nome.endsWith('.zip')) {
-        const zip = await JSZip.loadAsync(file)
-
-        const fileZip = Object.values(zip.files).filter(
-          (f) =>
-            !f.dir &&
-            (f.name.toLowerCase().endsWith('.xml') ||
-              f.name.toLowerCase().endsWith('.pdf'))
-        )
-
-        for (const voce of fileZip) {
-          const blob = await voce.async('blob')
-          const nomeFile = voce.name.split('/').pop() || voce.name
-
-          const fileEstratto = new File([blob], nomeFile, {
-            type: nomeFile.toLowerCase().endsWith('.pdf')
-              ? 'application/pdf'
-              : 'text/xml',
-          })
-
-          if (nomeFile.toLowerCase().endsWith('.xml')) {
-            await caricaFatturaEmessaXml(fileEstratto)
-          }
-
-          if (nomeFile.toLowerCase().endsWith('.pdf')) {
-            await caricaFatturaEmessaPdf(fileEstratto)
-          }
-        }
-      }
-    }
-
-    input.value = ''
-  }
-
-  const gestisciImportaZipBluenext = async (
-    e: ChangeEvent<HTMLInputElement>
-  ) => {
-    const input = e.currentTarget
-    const file = e.target.files?.[0]
-
-    if (!file) return
-
-    if (!file.name.toLowerCase().endsWith('.zip')) {
-      alert('Seleziona un file ZIP Bluenext.')
-      input.value = ''
-      return
-    }
-
-    const conferma = confirm(
-      `Importare le fatture emesse contenute nello ZIP?\n\nFile: ${file.name}`
-    )
-
-    if (!conferma) {
-      input.value = ''
-      return
-    }
-
+  const [anteprima, setAnteprima] = useState<VoceBluenext[]>([])
+  const riepilogo = riepilogaBluenext(anteprima, fattureEmesseOrdinate)
+  const [letturaZip, setLetturaZip] = useState(false)
+  const importazioneInCorso = useRef(false)
+  const [salvataggioZip, setSalvataggioZip] = useState(false)
+  const [risultatoZip, setRisultatoZip] = useState<Record<string, number> | null>(null)
+  const [cantieriImport, setCantieriImport] = useState<{ id: string; nome: string }[]>([])
+  const [cantiereImport, setCantiereImport] = useState('')
+  const [erroreZip, setErroreZip] = useState('')
+  const leggiAnteprimaBluenext = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.currentTarget.files ?? [])
+    event.currentTarget.value = ''
+    if (!files.length || letturaZip) return
+    setLetturaZip(true)
+    setErroreZip('')
+    setRisultatoZip(null)
     try {
-      const zip = await JSZip.loadAsync(file)
-
-      const fileZip = Object.values(zip.files).filter(
-        (voce) =>
-          !voce.dir &&
-          (voce.name.toLowerCase().endsWith('.xml') ||
-            voce.name.toLowerCase().endsWith('.pdf'))
-      )
-
-      if (fileZip.length === 0) {
-        alert('Nessun XML o PDF trovato nello ZIP.')
-        input.value = ''
-        return
-      }
-
-      const fileEstratti: File[] = []
-
-      for (const voce of fileZip) {
-        const blob = await voce.async('blob')
-        const nomeFile = voce.name.split('/').pop() || voce.name
-
-        fileEstratti.push(
-          new File([blob], nomeFile, {
-            type: nomeFile.toLowerCase().endsWith('.pdf')
-              ? 'application/pdf'
-              : 'text/xml',
-          })
-        )
-      }
-
-      let importatiXml = 0
-      let importatiPdf = 0
-
-      for (const fileEstratto of fileEstratti) {
-        if (fileEstratto.name.toLowerCase().endsWith('.xml')) {
-          await caricaFatturaEmessaXml(fileEstratto)
-          importatiXml++
+      const documenti: VoceBluenext[] = []
+      async function aggiungiXml(nome: string, testo: string) {
+        try {
+          const documento = leggiFatturaEmessaXml(testo)
+          const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(testo))
+          const impronta = Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('')
+          documenti.push({ nome, documento, xml: testo, impronta, stato: 'Letto' })
+        } catch (errore) {
+          documenti.push({ nome, stato: errore instanceof Error ? errore.message : 'XML non leggibile' })
         }
       }
-
-      await caricaFattureEmesse()
-
-      for (const fileEstratto of fileEstratti) {
-        if (fileEstratto.name.toLowerCase().endsWith('.pdf')) {
-          await caricaFatturaEmessaPdf(fileEstratto)
-          importatiPdf++
+      for (const file of files) {
+        if (file.name.toLowerCase().endsWith('.xml')) await aggiungiXml(file.name, await file.text())
+        else if (file.name.toLowerCase().endsWith('.zip')) {
+          try {
+            for (const voce of await leggiDocumentiArchivioBluenext(await file.arrayBuffer())) {
+              const nome = file.name + ' / ' + voce.nome
+              if (voce.xml !== null) await aggiungiXml(nome, voce.xml)
+              else documenti.push({ nome, stato: 'PDF da associare dal Registro' })
+            }
+          } catch {
+            documenti.push({ nome: file.name, stato: 'Archivio Bluenext non leggibile' })
+          }
+        } else {
+          documenti.push({ nome: file.name, stato: 'Documento da associare dal Registro' })
         }
       }
-
-      await caricaFattureEmesse()
-
-      alert(
-        `Import ZIP completato.\nXML controllati: ${importatiXml}\nPDF controllati: ${importatiPdf}`
-      )
-    } catch (errore) {
-      console.error(errore)
-      alert('Errore durante import ZIP Bluenext.')
+      const { data: cantieri } = await supabase.from('cantieri').select('id,nome').order('nome')
+      if (cantieri) setCantieriImport(cantieri)
+      setAnteprima(corrente => [...corrente, ...documenti])
+      if (!documenti.length) setErroreZip('Nessun documento riconosciuto nell’archivio.')
+    } catch {
+      setErroreZip('Archivio Bluenext non leggibile.')
+    } finally {
+      setLetturaZip(false)
     }
-
-    input.value = ''
+  }
+  const salvaArchivioBluenext = async () => {
+    const nuove = riepilogo.esiti.filter(voce => voce.stato === 'Nuova' && voce.xml)
+    if (!nuove.length || importazioneInCorso.current || letturaZip) return
+    importazioneInCorso.current = true
+    setSalvataggioZip(true)
+    setErroreZip('')
+    const contatori: Record<string, number> = { Nuova: 0, 'Già presente': 0, Ambigua: 0, Errore: riepilogo.scarti.length }
+    const sospese = riepilogo.esiti.filter(voce => voce.stato === 'Ambigua' || voce.stato === 'Modificata')
+    contatori.Ambigua = sospese.length
+    contatori['Già presente'] = riepilogo.esiti.filter(voce => voce.stato === 'Già presente').length
+    try {
+      for (let i = 0; i < nuove.length; i += 10) {
+        const documenti = nuove.slice(i, i + 10).map(voce => voce.xml!)
+        const { data, error } = await supabase.rpc('importa_fatture_bluenext', { p_documenti: documenti, p_cantiere: cantiereImport || null })
+        if (error || !Array.isArray(data) || data.length !== documenti.length) {
+          setErroreZip('Esito del lotto non confermato. Rileggi e riprova: le fatture già registrate sono riconosciute.')
+          break
+        }
+        for (const esito of data) contatori[esito.stato] = (contatori[esito.stato] ?? 0) + 1
+      }
+      setRisultatoZip(contatori)
+      await caricaFattureEmesse()
+    } catch {
+      setRisultatoZip(contatori)
+      setErroreZip('Esito non confermato. Rileggi il Registro prima di riprovare.')
+    } finally {
+      importazioneInCorso.current = false
+      setSalvataggioZip(false)
+    }
   }
 
   return (
     <section style={cardStyle}>
       <h3>🧾 Fatture emesse</h3>
+
+      <label style={buttonSecondary}>
+        Analizza archivio Bluenext
+        <input type="file" accept=".zip,.xml" multiple hidden disabled={letturaZip || salvataggioZip} onChange={leggiAnteprimaBluenext} />
+      </label>
+      {letturaZip && <p role="status">Lettura archivio…</p>}
+      {erroreZip && <p role="alert">{erroreZip}</p>}
+      {risultatoZip && <p role="status">Nuove {risultatoZip.Nuova} · Già presenti {risultatoZip['Già presente']} · Da verificare {risultatoZip.Ambigua} · Errori {risultatoZip.Errore}</p>}
+      {anteprima.length > 0 && <section aria-label="Anteprima Bluenext">
+        <h4>Anteprima Bluenext</h4>
+        <p>Esito SdI da verificare. L’XML da solo non documenta l’accettazione.</p>
+        <p>I periodi indicano i documenti osservati. La completezza del trimestre resta da verificare.</p>
+        <h5>Per periodo</h5>
+        <ul>{riepilogo.periodi.map(([periodo, c]) => <li key={periodo}>
+          {periodo}{periodo.length === 4 ? ' · trimestre ambiguo' : ''} · {c.documenti} documenti ·
+          Nuovi {c.nuove} · Già presenti {c.presenti} · Modificati {c.modificate} · Ambigui {c.ambigue}
+        </li>)}</ul>
+        <h5>Per anno</h5>
+        <ul>{riepilogo.anni.map(([anno, totale]) => <li key={anno}>{anno} · {totale} documenti distinti</li>)}</ul>
+        <ul>{riepilogo.esiti.map(({ nome, documento, stato, copie, fonti }, i) => <li key={nome + i}>
+          {documento ? [documento.numero, documento.data, documento.tipo, documento.cliente,
+            'Imponibile ' + formatMoney(documento.imponibile), 'IVA ' + formatMoney(documento.iva),
+            'Totale ' + formatMoney(documento.totale)].join(' · ') : nome} · {stato}
+          {copie > 1 && ` · ${copie} occorrenze · ${fonti.length} fonti distinte`}
+        </li>)}</ul>
+        {riepilogo.scarti.length > 0 && <ul>{riepilogo.scarti.map(({ nome, stato }, i) => <li key={nome + i}>{nome} · {stato}</li>)}</ul>}
+        <label>Cantiere per le nuove fatture
+          <select value={cantiereImport} disabled={salvataggioZip} onChange={event => setCantiereImport(event.target.value)}>
+            <option value="">Senza cantiere</option>
+            {cantieriImport.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </label>
+        <button type="button" style={buttonPrimary} disabled={salvataggioZip || letturaZip || !riepilogo.esiti.some(voce => voce.stato === 'Nuova')}
+          onClick={() => void salvaArchivioBluenext()}>Conferma importazione delle fatture nuove</button>
+        <button type="button" style={buttonSecondary} disabled={salvataggioZip} onClick={() => setAnteprima([])}>Chiudi anteprima</button>
+      </section>}
 
       <div
         style={{
@@ -216,7 +185,6 @@ export default function FattureEmessePanel({
           marginBottom: 12,
         }}
       >
-        <button style={buttonPrimary}>Carica XML fattura</button>
 
         <label style={buttonSecondary}>
           Carica PDF fattura
@@ -238,29 +206,6 @@ export default function FattureEmessePanel({
           />
         </label>
 
-        <label style={buttonPrimary}>
-          🔄 Aggiorna fatture Bluenext
-
-          <input
-            type="file"
-            multiple
-            // @ts-ignore
-            webkitdirectory="true"
-            style={{ display: 'none' }}
-            onChange={gestisciAggiornaBluenext}
-          />
-        </label>
-
-        <label style={buttonSecondary}>
-          📦 Importa ZIP Bluenext
-
-          <input
-            type="file"
-            accept=".zip,application/zip,application/x-zip-compressed"
-            style={{ display: 'none' }}
-            onChange={gestisciImportaZipBluenext}
-          />
-        </label>
       </div>
 
       <div

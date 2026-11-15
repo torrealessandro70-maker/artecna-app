@@ -59,7 +59,10 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
 
   await q(load('20261114000200_contratto_acconti_fatture_sdi.sql'))
   await q(fs.readFileSync(path.join(__dirname, '../../migrations/20261114000300_notifiche_fatture_da_emettere.sql'), 'utf8'))
+  await q(load('20261115000100_rinvio_notifiche.sql'))
   assert.equal(await signature(),prima)
+  await q(load('20261115000200_importazione_bluenext.sql'))
+  assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
   const a=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES ($1,100,CURRENT_DATE) RETURNING id v",[fixture.a])
   const b=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES ($1,50,CURRENT_DATE) RETURNING id v",[fixture.a])
   const doc=async(totale)=>value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,data_fattura) VALUES ($1,'Fixture', $2,CURRENT_DATE) RETURNING id v",[fixture.a,totale])
@@ -107,6 +110,72 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   assert.equal(await value("SELECT count(*)::int v FROM artecna_notifiche.notifica n JOIN artecna_notifiche.evento_notificabile e ON e.id=n.evento_id WHERE e.modulo='fatture_da_emettere' AND e.record_id=$1 AND n.resolved_at IS NULL",[a]),1)
   const notificaAttiva=()=>value("SELECT n.id v FROM artecna_notifiche.notifica n JOIN artecna_notifiche.evento_notificabile e ON e.id=n.evento_id WHERE e.modulo='fatture_da_emettere' AND e.record_id=$1 AND n.resolved_at IS NULL",[a])
   let idNotifica=await notificaAttiva()
+  const domani=await value("SELECT ((now() AT TIME ZONE 'Europe/Rome')::date+1)::text v")
+  const rinvia=(utente,giorno)=>as(utente,'SELECT public.rinvia_notifica($1,$2) v',[idNotifica,giorno])
+  const elenco=async ()=>(await as(titolare,"SELECT public.lista_notifiche('fatture_da_emettere',0) v"))[0].v
+  const proposta=async id=>(await as(titolare,'SELECT public.proponi_riconciliazione_acconto($1) v',[id]))[0].v
+  const alternativa=await value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,imponibile,iva,totale,data_fattura) VALUES($1,'Fixture',100,10,110,$2) RETURNING id v",[fixture.a,today])
+  assert.deepEqual((await proposta(a)).fatture.filter(f=>f.id===alternativa).map(f=>[f.id,f.esito,Number(f.imponibile),Number(f.totale)]),[[alternativa,'da_verificare',100,110]])
+  assert.equal((await rinvia(esterno,domani))[0].v,false)
+  assert.equal((await rinvia(titolare,domani))[0].v,true)
+  assert.equal((await rinvia(titolare,domani))[0].v,true)
+  assert.ok(!(await elenco()).some(n=>n.id===idNotifica))
+  await assert.rejects(rinvia(titolare,'2099-01-01'),{code:'22023'})
+  await q("UPDATE artecna_notifiche.notifica SET rinviata_fino_a=now()-interval '1 second' WHERE id=$1",[idNotifica])
+  assert.ok((await elenco()).some(n=>n.id===idNotifica))
+  const xmlBluenext=(numero,data,tipo='TD02',netto='100.00',totale='110.00')=>`
+<FatturaElettronica><FatturaElettronicaHeader>
+ <CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>00000000000</IdCodice></IdFiscaleIVA></DatiAnagrafici></CedentePrestatore>
+ <CessionarioCommittente><DatiAnagrafici><CodiceFiscale>CLIENTEFIXTURE</CodiceFiscale><Anagrafica><Denominazione>Fixture</Denominazione></Anagrafica></DatiAnagrafici></CessionarioCommittente>
+</FatturaElettronicaHeader><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento>
+ <TipoDocumento>${tipo}</TipoDocumento><Numero>${numero}</Numero><Data>${data}</Data><ImportoTotaleDocumento>${totale}</ImportoTotaleDocumento>
+</DatiGeneraliDocumento></DatiGenerali><DatiBeniServizi><DatiRiepilogo><ImponibileImporto>${netto}</ImponibileImporto><Imposta>10.00</Imposta></DatiRiepilogo></DatiBeniServizi></FatturaElettronicaBody></FatturaElettronica>`
+  const importaSql='SELECT public.importa_fatture_bluenext($1,$2) v'
+  const importa=async (user,documenti,conn=client)=>(await as(user,importaSql,[documenti,fixture.a],conn))[0].v
+  const aUrgenza=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES($1,20,$2) RETURNING id v",[fixture.a,today])
+  await as(titolare,incasso,[aUrgenza,0,'incassato','ordinario',today,'Fixture urgenza'])
+  const notificaUrgente=await value("SELECT n.id v FROM artecna_notifiche.notifica n JOIN artecna_notifiche.evento_notificabile e ON e.id=n.evento_id WHERE e.record_id=$1",[aUrgenza])
+  const archivia=()=>as(titolare,"SELECT public.aggiorna_stato_notifica($1,'archivia') v",[notificaUrgente])
+  await archivia()
+  await q("SELECT artecna_notifiche.riconcilia_acconto_fiscale($1,now()+interval '13 days')",[aUrgenza])
+  assert.equal(await value("SELECT archived_at IS NULL AND priorita='urgente' AND cardinality(archiviazioni_fiscali)=1 v FROM artecna_notifiche.notifica WHERE id=$1",[notificaUrgente]),true)
+  await assert.rejects(as(titolare,'SELECT public.rinvia_notifica($1,$2)',[notificaUrgente,domani]),{code:'22023'})
+  await archivia()
+  await q("SELECT artecna_notifiche.riconcilia_acconto_fiscale($1,now()+interval '14 days')",[aUrgenza])
+  assert.equal(await value('SELECT archived_at IS NOT NULL v FROM artecna_notifiche.notifica WHERE id=$1',[notificaUrgente]),true)
+  assert.equal((await stato(aUrgenza)).giorni_residui,12)
+  await as(titolare,incasso,[aUrgenza,1,'stornato','ordinario',null,'Fine prova'])
+  const discordanti=await importa(titolare,[xmlBluenext('BL-X','2024-01-15'),xmlBluenext('BL-X','2024-01-15','TD02','120.00','130.00')])
+  assert.deepEqual(discordanti.map(f=>f.stato),['Ambigua','Ambigua'])
+  assert.equal(await value("SELECT count(*)::int v FROM public.fatture_emesse WHERE numero_fattura='BL-X'"),0)
+  const incompleto=xmlBluenext('BL-INCOMPLETO','2024-01-15').replace(/<CessionarioCommittente>[\s\S]*?<\/CessionarioCommittente>/,'')
+  const respinti=await importa(titolare,[incompleto,'<malformato>'])
+  assert.deepEqual(respinti.map(f=>f.stato),['Ambigua','Errore'])
+  const x=xmlBluenext('BL-1','2024-01-15')
+  await assert.rejects(importa(esterno,[x]),{code:'42501'})
+  const second=await connect('fixture_admin')
+  const contemporanee=(await Promise.all([importa(titolare,[x]),importa(titolare,[x],second)])).flat()
+  assert.deepEqual(contemporanee.map(f=>f.stato).sort(),['Già presente','Nuova'])
+  const importata=contemporanee.find(f=>f.stato==='Nuova').id
+  assert.equal((await importa(titolare,[x]))[0].stato,'Già presente')
+  assert.equal((await importa(titolare,[xmlBluenext('BL-1','2024-01-15','TD02','120.00','130.00')]))[0].stato,'Ambigua')
+  assert.equal(await value("SELECT count(*)::int v FROM public.fatture_emesse WHERE numero_fattura='BL-1'"),1)
+  assert.equal(await value("SELECT importo_incassato::int v FROM public.fatture_emesse WHERE id=$1",[importata]),0)
+  assert.equal(await value("SELECT count(*)::int v FROM artecna_contabilita.sdi_corrente WHERE fattura_id=$1",[importata]),0)
+  const accontoTardivo=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES($1,40,$2) RETURNING id v",[fixture.a,today])
+  await as(titolare,incasso,[accontoTardivo,0,'incassato','ordinario',today,'Fixture'])
+  assert.ok((await proposta(accontoTardivo)).fatture.some(f=>f.id===importata))
+  const [accontoPrima]=await importa(titolare,[xmlBluenext('BL-2',today)])
+  assert.equal(accontoPrima.stato,'Nuova')
+  assert.ok((await proposta(a)).fatture.some(f=>f.id===accontoPrima.id))
+  const linkBluenext=(f,a,q)=>as(titolare,'SELECT public.collega_incasso_cliente($1,$2,$3,$4,true)',[randomUUID(),f,a,q])
+  await linkBluenext(importata,accontoTardivo,40)
+  await linkBluenext(accontoPrima.id,a,10)
+  assert.equal((await proposta(accontoTardivo)).fatture.find(f=>f.id===importata).disponibile,70)
+  assert.equal((await stato(accontoTardivo)).copertura,0)
+  // Non alterare le quote usate dal caso SdI a valle.
+  const [quotaProvvisoria]=await q('SELECT id FROM artecna_contabilita.attribuzioni_clienti WHERE fattura_id=$1 AND acconto_id=$2',[accontoPrima.id,a])
+  await as(titolare,'SELECT public.scollega_incasso_cliente($1,$2)',[randomUUID(),quotaProvvisoria.id])
   const resolve = user => as(user,'SELECT public.risolvi_destinazione_notifica($1) v',[idNotifica])
   assert.equal((await resolve(titolare))[0].v.record_id,a)
   await assert.rejects(as(esterno,'SELECT public.leggi_destinazione_acconto_fiscale($1)',[a]),{code:'42501'})
@@ -168,9 +237,32 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
     risolvi_destinazione_notifica:['SELECT public.risolvi_destinazione_notifica($1) v','p_id'],
     leggi_destinazione_acconto_fiscale:['SELECT public.leggi_destinazione_acconto_fiscale($1) v','p_id'],
   }})
+  const incassoPrimaBrowser=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES($1,25,$2) RETURNING id v",[fixture.a,today])
+  await as(titolare,incasso,[incassoPrimaBrowser,0,'incassato','ordinario',today,'Fixture Chrome incasso prima'])
+  await browser(actor,fixture.a,{...browserContext,draft:a,modes:['importa'],cantieri:[{id:fixture.a,nome:'Cantiere sintetico'}],commands:{
+    importa_fatture_bluenext:['SELECT public.importa_fatture_bluenext(ARRAY(SELECT jsonb_array_elements_text($1)),$2) v','p_documenti','p_cantiere'],
+  }})
+  assert.equal(await value("SELECT count(*)::int v FROM public.fatture_emesse WHERE numero_fattura='BL-BROWSER' AND cantiere_id=$1",[fixture.a]),1)
+  const accontoBrowser=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES($1,25,$2) RETURNING id v",[fixture.a,today])
+  await as(titolare,incasso,[accontoBrowser,0,'incassato','ordinario',today,'Fixture Chrome'])
+  const comandiGestione={
+    ...browserContext.commands,
+    leggi_destinazione_acconto_fiscale:['SELECT public.leggi_destinazione_acconto_fiscale($1) v','p_id'],
+    proponi_riconciliazione_acconto:['SELECT public.proponi_riconciliazione_acconto($1) v','p_id'],
+    leggi_attribuzioni_cliente:['SELECT public.leggi_attribuzioni_cliente($1) v','p_fattura_id'],
+    collega_incasso_cliente:['SELECT public.collega_incasso_cliente($1,$2,$3,$4,$5) v','p_richiesta_id','p_fattura_id','p_acconto_id','p_importo','p_verificato'],
+    rinvia_notifica:['SELECT public.rinvia_notifica($1,$2) v','p_id','p_giorno'],
+  }
+  for (const [acconto,mode] of [[incassoPrimaBrowser,'gestione-incasso-prima'],[accontoBrowser,'gestione']]) {
+    await q("UPDATE artecna_notifiche.notifica n SET read_at=CASE WHEN e.record_id=$1 THEN NULL ELSE now() END FROM artecna_notifiche.evento_notificabile e WHERE n.evento_id=e.id",[acconto])
+    await browser(actor,fixture.a,{...browserContext,draft:acconto,modes:[mode],commands:comandiGestione})
+    assert.equal(await value("SELECT count(*)::int v FROM artecna_contabilita.attribuzioni_clienti WHERE acconto_id=$1 AND importo=15 AND scollegato_at IS NULL",[acconto]),1)
+  }
+  assert.ok(await value("SELECT bool_or(n.rinviata_fino_a>now()) v FROM artecna_notifiche.notifica n JOIN artecna_notifiche.evento_notificabile e ON e.id=n.evento_id WHERE e.record_id=$1",[accontoBrowser]))
   await assert.rejects(as(esterno,'SELECT public.leggi_fattura_sdi($1)',[fattura]),{code:'42501'})
   await assert.rejects(as(titolare,'UPDATE artecna_contabilita.fatture_sdi SET esito=\'consegnata\''),{code:'42501'})
   await q('UPDATE public.utenti_impresa SET attivo=false WHERE user_id=$1',[titolare])
   await assert.rejects(stato(a),{code:'42501'})
+  await assert.rejects(proposta(a),{code:'42501'})
   assert.equal((await resolve(titolare))[0].v,null)
 }, { productionActor: true, noSync: true, beforeMigrations: certifiedInstallerFixture }))
