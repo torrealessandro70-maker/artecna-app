@@ -30,8 +30,11 @@ if(centro && sessionStorage.getItem('fiscale-reload')){
 }
 root.render(centro ? React.createElement(Center,{
   client:supabase,stile:{},menuImpostazioni:true,onApriScadenza:()=>{},onContatori:()=>{},
-}) : modo==='importa' ? React.createElement(Fatture,{
-  fattureEmesseOrdinate:[], filtroFattureEmesse:'', formatMoney:String,
+}) : ['importa','associa-storico'].includes(modo) ? React.createElement(Fatture,{
+  fattureEmesseOrdinate:modo==='associa-storico'?[{
+    id:params.get('draft'),numero_fattura:'BL-STORICO-BROWSER',data_fattura:'2024-06-01',
+    cliente:'Fixture',imponibile:100,iva:10,totale:110,cantiere_id:params.get('cantiere'),
+  }]:[], filtroFattureEmesse:'', formatMoney:String,
   setFiltroFattureEmesse:()=>{}, setNuovaFatturaEmessa:()=>{}, setPopupNuovaFatturaEmessa:()=>{},
   setFatturaEmessaAperta:()=>{}, caricaFatturaEmessaPdf:()=>{}, caricaFattureEmesse:()=>{}, ordinaFattureEmesse:()=>{},
 }) : React.createElement(Panel,{
@@ -40,10 +43,10 @@ root.render(centro ? React.createElement(Center,{
 const pulsante=etichetta=>[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===etichetta)
 const testo=frase=>document.body.textContent.includes(frase)
 async function run(){
-  if(modo==='importa'){
+  if(modo==='importa'||modo==='associa-storico'){
     const xml='<FatturaElettronica><FatturaElettronicaHeader><CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>00000000000</IdCodice></IdFiscaleIVA></DatiAnagrafici></CedentePrestatore><CessionarioCommittente><DatiAnagrafici><CodiceFiscale>FIXTURE</CodiceFiscale><Anagrafica><Denominazione>Fixture</Denominazione></Anagrafica></DatiAnagrafici></CessionarioCommittente></FatturaElettronicaHeader><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>TD02</TipoDocumento><Numero>BL-BROWSER</Numero><Data>2024-06-01</Data><ImportoTotaleDocumento>110.00</ImportoTotaleDocumento></DatiGeneraliDocumento></DatiGenerali><DatiBeniServizi><DatiRiepilogo><ImponibileImporto>100.00</ImponibileImporto><Imposta>10.00</Imposta></DatiRiepilogo></DatiBeniServizi></FatturaElettronicaBody></FatturaElettronica>'
     const zip=new JSZip()
-    zip.file('bl-browser.xml',xml)
+    zip.file('bl-browser.xml',modo==='associa-storico'?xml.replace('BL-BROWSER','BL-STORICO-BROWSER'):xml)
     const encoded=await zip.generateAsync({type:'uint8array'})
     const input=await wait(()=>document.querySelector('input[accept=".zip,.xml"]'),'Input importazione assente')
     const dt=new DataTransfer()
@@ -52,6 +55,20 @@ async function run(){
     input.files=dt.files
     input.dispatchEvent(new Event('change',{bubbles:true}))
     await wait(()=>testo('2 occorrenze')&&testo('Esito SdI da verificare'),'Anteprima ZIP incompleta')
+    if(modo==='associa-storico'){
+      if(pulsante('Conferma associazione e tipo fiscale da XML'))throw Error('Conferma visibile prima del confronto')
+      ;(await wait(()=>pulsante('Verifica corrispondenze storiche'),'Riepilogo storico assente')).click()
+      await wait(()=>testo('Corrispondenze univoche proposte: 1'),'Proposta assente dal riepilogo')
+      ;(await wait(()=>pulsante('Associa a fattura esistente'),'Azione storica assente')).click()
+      const confronto=await wait(()=>document.querySelector('[aria-label="Confronto fattura storica"]'),'Confronto storico assente')
+      await wait(()=>confronto.textContent.includes('TD02')&&confronto.textContent.includes('Fattura storica')
+        &&confronto.textContent.includes('Tipo fiscale storico non documentato'),'Dati storici affiancati incompleti')
+      ;(await wait(()=>pulsante('Conferma associazione e tipo fiscale da XML'),'Conferma assistita assente')).click()
+      await wait(()=>testo('XML associato alla fattura esistente. Stato SdI invariato.'),'Associazione non confermata')
+      await wait(()=>testo('Associazioni già verificate: 1'),'Esito assente dal riepilogo')
+      await report('pass',modo)
+      return
+    }
     const cantiere=await wait(()=>document.querySelector('select option[value="'+params.get('cantiere')+'"]')?.parentElement,'Elenco cantieri assente')
     cantiere.value=params.get('cantiere')
     cantiere.dispatchEvent(new Event('change',{bubbles:true}))

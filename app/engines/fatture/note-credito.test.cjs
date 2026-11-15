@@ -110,6 +110,23 @@ test('Bluenext distingue dati storici incompleti e differenze monetarie', () => 
   assert.equal(classificaFatturaEmessa(d, [{ ...legacy, data_fattura: '2025-10-05' }]), 'Nuova')
 })
 
+test('Bluenext: 23 storiche da verificare e zero nuove con ZIP sovrapposti', () => {
+  const documenti = Array.from({ length: 23 }, (_, i) =>
+    fatturaBluenext(i < 12 ? '2025-11-15' : '2026-02-16', String(i + 1)))
+  const archivio = documenti.map(d => ({
+    numero_fattura: d.numero, data_fattura: d.data, cliente: d.cliente,
+    imponibile: d.imponibile, iva: d.iva, totale: d.totale,
+  }))
+  const voci = documenti.map(d => voceBluenext('periodo.zip / ' + d.numero + '.xml', d))
+  const sovrapposte = documenti.slice(8, 17).map(d => voceBluenext('sovrapposto.zip / ' + d.numero + '.xml', d))
+  const risultato = riepilogaBluenext([...voci, ...sovrapposte], archivio)
+  assert.equal(risultato.esiti.length, 23)
+  assert.equal(risultato.esiti.filter(x => x.stato === 'Ambigua').length, 23)
+  assert.equal(risultato.esiti.filter(x => x.stato === 'Nuova').length, 0)
+  assert.equal(risultato.esiti.filter(x => x.copie === 2 && x.impronte.length === 1).length, 9)
+  assert.deepEqual(risultato.anni, [['2025', 12], ['2026', 11]])
+})
+
 
 test('Bluenext legge più ZIP sintetici e distingue XML, PDF e metadati', async () => {
   const JSZip = require('jszip')

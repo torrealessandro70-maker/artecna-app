@@ -108,6 +108,12 @@ type ArchivioEmesse = {
   imponibile?: unknown; iva?: unknown; totale?: unknown; xml_testo?: unknown; bluenext_impronta?: unknown
 }
 
+export function candidateFattureStoriche<T extends ArchivioEmesse>(documento: FatturaEmessaXml, archivio: readonly T[]) {
+  const numero = documento.numero.trim().toUpperCase()
+  return archivio.filter(f => String(f.numero_fattura ?? '').trim().toUpperCase() === numero
+    && String(f.data_fattura ?? '').slice(0, 4) === documento.data.slice(0, 4))
+}
+
 export function classificaFatturaEmessa(documento: FatturaEmessaXml, archivio: readonly ArchivioEmesse[], impronta?: string) {
   const normalizza = (v: unknown) => String(v ?? '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('it-IT')
   const possibili = archivio.filter(f => normalizza(f.numero_fattura) === normalizza(documento.numero)
@@ -161,7 +167,7 @@ export function riepilogaBluenext(voci: readonly VoceBluenext[], archivio: reado
     const chiave = versioni.size > 1 && !gruppo.every(riga => riga.documento.data === documento.data)
       ? documento.data.slice(0, 4) : documento.data.slice(0, 4) + ' Q' + Math.ceil(Number(documento.data.slice(5, 7)) / 3)
     const stato = versioni.size > 1 ? 'Ambigua' : classificaFatturaEmessa(documento, archivio, voce.impronta)
-    esiti.push({ ...voce, documento, stato, copie: gruppo.length, fonti: [...new Set(gruppo.map(riga => riga.voce.nome))] })
+    esiti.push({ ...voce, documento, stato, impronte: [...versioni], copie: gruppo.length, fonti: [...new Set(gruppo.map(riga => riga.voce.nome))] })
     const contatori = periodi.get(chiave) ?? { documenti: 0, nuove: 0, presenti: 0, modificate: 0, ambigue: 0 }
     contatori.documenti++
     if (stato === 'Nuova') contatori.nuove++

@@ -63,6 +63,10 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   assert.equal(await signature(),prima)
   await q(load('20261115000200_importazione_bluenext.sql'))
   assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
+  const hardDeleteBluenext = await signature()
+  await q(load('20261115000300_associazione_bluenext_storico.sql'))
+  assert.notEqual(await signature(), hardDeleteBluenext)
+  assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
   const a=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES ($1,100,CURRENT_DATE) RETURNING id v",[fixture.a])
   const b=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES ($1,50,CURRENT_DATE) RETURNING id v",[fixture.a])
   const doc=async(totale)=>value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,data_fattura) VALUES ($1,'Fixture', $2,CURRENT_DATE) RETURNING id v",[fixture.a,totale])
@@ -154,6 +158,126 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   const x=xmlBluenext('BL-1','2024-01-15')
   await assert.rejects(importa(esterno,[x]),{code:'42501'})
   const second=await connect('fixture_admin')
+  const storicoXml=xmlBluenext('BL-STORICO','2024-01-15')
+  const storico=await value(`INSERT INTO public.fatture_emesse
+    (cantiere_id,numero_fattura,data_fattura,cliente,imponibile,iva,totale,importo_incassato,stato)
+    VALUES ($1,'BL-STORICO','2024-01-15','Fixture',100,10,110,25,'parziale') RETURNING id v`,[fixture.a])
+  const crypto = require('node:crypto')
+  const improntaXml = xml => crypto.createHash('sha256').update(xml).digest('hex')
+  const impronte=[improntaXml(storicoXml)]
+  const confrontoSql='SELECT public.confronta_fattura_bluenext($1,$2,$3) v'
+  const associaSql='SELECT public.associa_fattura_bluenext($1,$2,$3,$4) v'
+  const confronta = async (xml=storicoXml, impronteFile=[improntaXml(xml)]) =>
+    (await as(titolare,confrontoSql,[storico,xml,impronteFile]))[0].v
+  const associa = async (versione,conn=client,xml=storicoXml,impronteFile=[improntaXml(xml)]) =>
+    (await as(titolare,associaSql,[storico,xml,impronteFile,versione],conn))[0].v
+  const fotografia = () => value(`SELECT jsonb_build_array(
+    (SELECT to_jsonb(f)-ARRAY['bluenext_identita','bluenext_impronta','bluenext_tipo','bluenext_associazione'] FROM public.fatture_emesse f WHERE id=$1),
+    (SELECT count(*) FROM public.fatture_emesse),
+    (SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM public.acconti_cantiere a),
+    (SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM artecna_contabilita.attribuzioni_clienti a),
+    (SELECT jsonb_agg(to_jsonb(s) ORDER BY s.fattura_id,s.revisione) FROM artecna_contabilita.fatture_sdi s),
+    (SELECT jsonb_agg(to_jsonb(n) ORDER BY n.id) FROM artecna_notifiche.notifica n),
+    (SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM artecna_notifiche.evento_notificabile e)) v`,[storico])
+  await assert.rejects(as(esterno,confrontoSql,[storico,storicoXml,impronte]),{code:'42501'})
+  await assert.rejects(as(esterno,associaSql,[storico,storicoXml,impronte,'']),{code:'42501'})
+  try {
+    assert.deepEqual(await as(titolare,"UPDATE public.fatture_emesse SET bluenext_associazione='{}' WHERE id=$1 RETURNING id",[storico]),[])
+  } catch (err) {
+    assert.equal(err.code,'42501')
+  }
+  assert.equal(await value('SELECT bluenext_associazione v FROM public.fatture_emesse WHERE id=$1',[storico]),null)
+  assert.equal(await value("SELECT has_function_privilege('anon','public.associa_fattura_bluenext(uuid,text,text[],text,boolean)','EXECUTE') v"),false)
+  assert.equal(await value("SELECT has_function_privilege('service_role','public.associa_fattura_bluenext(uuid,text,text[],text,boolean)','EXECUTE') v"),false)
+  const privaDiTipo=await confronta()
+  assert.equal(privaDiTipo.esito,'Conferma assistita')
+  assert.equal(privaDiTipo.storico.tipo,null)
+  assert.equal(await associa(privaDiTipo.versione),'Conferma esplicita del tipo XML necessaria')
+  await as(titolare,'SELECT public.registra_evidenza_sdi($1,0,$2,$3,NULL,NULL,NULL,NULL,NULL,$4)',
+    [storico,'TD02','da_verificare','[]'])
+  const verificata=await confronta()
+  assert.equal(verificata.esito,'Verificabile')
+  assert.equal(verificata.storico.tipo,'TD02')
+  assert.equal(verificata.xml.codice_fiscale,'CLIENTEFIXTURE')
+  const secondaCandidata=await value(`INSERT INTO public.fatture_emesse
+    (cantiere_id,numero_fattura,data_fattura,cliente,imponibile,iva,totale)
+    VALUES ($1,'BL-STORICO','2024-01-16','Fixture',100,10,110) RETURNING id v`,[fixture.a])
+  assert.equal((await confronta()).esito,'Candidata storica non univoca')
+  assert.equal(await associa(verificata.versione),'Candidata storica non univoca')
+  await q('DELETE FROM public.fatture_emesse WHERE id=$1',[secondaCandidata])
+  assert.equal((await confronta(xmlBluenext('BL-STORICO','2024-01-15','TD01'))).esito,'Differenze effettive')
+  const altraVersione=xmlBluenext('BL-STORICO','2024-01-15','TD02','120.00','130.00')
+  assert.equal((await confronta(storicoXml,[...impronte,improntaXml(altraVersione)])).esito,'XML discordanti')
+  assert.equal(await associa(verificata.versione,client,storicoXml,[...impronte,improntaXml(altraVersione)]),'XML discordanti')
+  assert.equal((await confronta(altraVersione)).esito,'Differenze effettive')
+  assert.equal(await associa(verificata.versione,client,altraVersione),'Differenze effettive')
+  await q('UPDATE public.fatture_emesse SET imponibile=NULL WHERE id=$1',[storico])
+  assert.equal((await confronta()).esito,'Metadati insufficienti')
+  await q('UPDATE public.fatture_emesse SET imponibile=100 WHERE id=$1',[storico])
+  assert.equal(await associa('versione-obsoleta'),'Candidata modificata')
+  assert.equal(await associa(verificata.versione,client,storicoXml+'\n'),'Candidata modificata')
+  const fontiPrima=await fotografia()
+  const associate=await Promise.all([associa(verificata.versione),associa(verificata.versione,second)])
+  assert.deepEqual(associate.sort(),['Associata','Gia associata'])
+  const metadati=await value('SELECT bluenext_associazione v FROM public.fatture_emesse WHERE id=$1',[storico])
+  assert.equal(metadati.autore,titolare)
+  assert.equal(metadati.origine,'bluenext_storico')
+  assert.equal(await associa(verificata.versione),'Gia associata')
+  assert.deepEqual(await value('SELECT bluenext_associazione v FROM public.fatture_emesse WHERE id=$1',[storico]),metadati)
+  assert.equal(await value('SELECT bluenext_impronta v FROM public.fatture_emesse WHERE id=$1',[storico]),impronte[0])
+  assert.equal((await importa(titolare,[storicoXml]))[0].stato,'Già presente')
+  assert.equal((await confronta(altraVersione)).esito,'XML discordanti')
+  assert.deepEqual(await fotografia(),fontiPrima)
+  assert.equal(await signature(),await value('SELECT signature v FROM artecna_distruzione.hard_delete_catalog_expected'))
+  assert.ok(!(await value('SELECT artecna_distruzione.hard_delete_blockers($1) v',[fixture.a]))
+    .some(blocco=>JSON.stringify(blocco).includes('"catalogo"')))
+  console.log('Bluenext storico: confronto, autorizzazioni, concorrenza, idempotenza e fonti invariate')
+  const associaConTipoSql='SELECT public.associa_fattura_bluenext($1,$2,$3,$4,$5) v'
+  const campione = []
+  for (let i=0;i<23;i++) {
+    const numero='BL-CAMPIONE-'+(i+1), giorno=i<12?'2025-11-15':'2026-02-16'
+    const xml=xmlBluenext(numero,giorno)
+    const id=await value(`INSERT INTO public.fatture_emesse
+      (cantiere_id,numero_fattura,data_fattura,cliente,imponibile,iva,totale,importo_incassato,stato)
+      VALUES ($1,$2,$3,'Fixture',$4,10,$5,25,'parziale') RETURNING id v`,[fixture.a,numero,giorno,i===20?null:100,i===19?111:110])
+    if (i===21) await q(`INSERT INTO public.fatture_emesse
+      (cantiere_id,numero_fattura,data_fattura,cliente,imponibile,iva,totale) VALUES ($1,$2,$3,'Fixture',100,10,110)`,[fixture.a,numero,giorno])
+    if ((i>=15 && i<18) || i===18) await as(titolare,'SELECT public.registra_evidenza_sdi($1,0,$2,$3,NULL,NULL,NULL,NULL,NULL,$4)',
+      [id,i===18?'TD01':'TD02','da_verificare','[]'])
+    const versioni=[improntaXml(xml)]
+    if (i===22) versioni.push(improntaXml(xml+'\n'))
+    const [confronto]=await as(titolare,confrontoSql,[id,xml,versioni])
+    campione.push({id,xml,versioni,confronto:confronto.v})
+  }
+  const conteggi=Object.fromEntries(['Conferma assistita','Verificabile','Differenze effettive','Metadati insufficienti',
+    'Candidata storica non univoca','XML discordanti'].map(esito=>[esito,campione.filter(f=>f.confronto.esito===esito).length]))
+  assert.deepEqual(conteggi,{'Conferma assistita':15,Verificabile:3,'Differenze effettive':2,'Metadati insufficienti':1,
+    'Candidata storica non univoca':1,'XML discordanti':1})
+  const associaCampione=async (f,conferma=true,conn=client)=>
+    (await as(titolare,associaConTipoSql,[f.id,f.xml,f.versioni,f.confronto.versione,conferma],conn))[0].v
+  const idsCampione=campione.map(f=>f.id)
+  const contabilitaCampione=()=>value(`SELECT jsonb_build_array(
+    (SELECT jsonb_agg(to_jsonb(f)-ARRAY['bluenext_identita','bluenext_impronta','bluenext_tipo','bluenext_associazione'] ORDER BY id)
+      FROM public.fatture_emesse f WHERE numero_fattura LIKE 'BL-CAMPIONE-%'),
+    (SELECT jsonb_agg(to_jsonb(s) ORDER BY fattura_id,revisione)
+      FROM artecna_contabilita.fatture_sdi s WHERE fattura_id=ANY($1))) v`,[idsCampione])
+  const contabilitaPrima=await contabilitaCampione()
+  const legacy=campione[0]
+  assert.equal(await associaCampione(legacy,false),'Conferma esplicita del tipo XML necessaria')
+  assert.deepEqual((await Promise.all([associaCampione(legacy),associaCampione(legacy,true,second)])).sort(),['Associata','Gia associata'])
+  for (const f of campione.slice(1,18)) assert.equal(await associaCampione(f), 'Associata')
+  for (const f of campione.slice(18)) assert.equal(await associaCampione(f), f.confronto.esito)
+  const provenienza=await value('SELECT bluenext_associazione v FROM public.fatture_emesse WHERE id=$1',[legacy.id])
+  assert.equal(provenienza.tipo_storico,null)
+  assert.equal(provenienza.tipo_xml,'TD02')
+  assert.equal(provenienza.fonte_tipo,'xml_bluenext')
+  assert.equal(provenienza.conferma_tipo_legacy,true)
+  assert.equal(provenienza.autore,titolare)
+  assert.ok(provenienza.associata_at)
+  assert.equal(await value('SELECT count(*)::int v FROM public.fatture_emesse WHERE id=ANY($1) AND bluenext_associazione IS NOT NULL',[idsCampione]),18)
+  assert.deepEqual(await contabilitaCampione(),contabilitaPrima)
+  assert.equal((await importa(titolare,[legacy.xml]))[0].stato,'Già presente')
+  console.log('Bluenext campione sintetico:',JSON.stringify(conteggi))
   const contemporanee=(await Promise.all([importa(titolare,[x]),importa(titolare,[x],second)])).flat()
   assert.deepEqual(contemporanee.map(f=>f.stato).sort(),['Già presente','Nuova'])
   const importata=contemporanee.find(f=>f.stato==='Nuova').id
@@ -243,6 +367,17 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
     importa_fatture_bluenext:['SELECT public.importa_fatture_bluenext(ARRAY(SELECT jsonb_array_elements_text($1)),$2) v','p_documenti','p_cantiere'],
   }})
   assert.equal(await value("SELECT count(*)::int v FROM public.fatture_emesse WHERE numero_fattura='BL-BROWSER' AND cantiere_id=$1",[fixture.a]),1)
+  const storicoBrowser=await value(`INSERT INTO public.fatture_emesse
+    (cantiere_id,numero_fattura,data_fattura,cliente,imponibile,iva,totale)
+    VALUES ($1,'BL-STORICO-BROWSER','2024-06-01','Fixture',100,10,110) RETURNING id v`,[fixture.a])
+  await browser(actor,fixture.a,{...browserContext,draft:storicoBrowser,modes:['associa-storico'],
+    cantieri:[{id:fixture.a,nome:'Cantiere sintetico'}],commands:{
+      confronta_fattura_bluenext:['SELECT public.confronta_fattura_bluenext($1,$2,ARRAY(SELECT jsonb_array_elements_text($3))) v','p_fattura','p_xml','p_impronte'],
+      associa_fattura_bluenext:['SELECT public.associa_fattura_bluenext($1,$2,ARRAY(SELECT jsonb_array_elements_text($3)),$4,$5) v','p_fattura','p_xml','p_impronte','p_versione','p_conferma_tipo_xml'],
+    }})
+  assert.equal(await value('SELECT bluenext_associazione->>\'autore\' v FROM public.fatture_emesse WHERE id=$1',[storicoBrowser]),titolare)
+  assert.equal(await value("SELECT bluenext_associazione->>'conferma_tipo_legacy' v FROM public.fatture_emesse WHERE id=$1",[storicoBrowser]),'true')
+  assert.equal(await value("SELECT count(*)::int v FROM public.fatture_emesse WHERE numero_fattura='BL-STORICO-BROWSER'"),1)
   const accontoBrowser=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo,data_incasso) VALUES($1,25,$2) RETURNING id v",[fixture.a,today])
   await as(titolare,incasso,[accontoBrowser,0,'incassato','ordinario',today,'Fixture Chrome'])
   const comandiGestione={

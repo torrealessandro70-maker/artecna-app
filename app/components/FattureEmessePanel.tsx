@@ -6,7 +6,19 @@ import { supabase } from '../../lib/supabaseClient'
 import CollegaIncassoPanel, { CollegaIncassoAzione } from './CollegaIncassoPanel'
 import { cantiereDocumento } from '../engines/contabilita-ditta/attribuzioni'
 import { leggiDocumentiArchivioBluenext } from '../engines/fatture/import-zip'
-import { leggiFatturaEmessaXml, riepilogaBluenext, type VoceBluenext } from '../engines/fatture/documento-fiscale'
+import { candidateFattureStoriche, leggiFatturaEmessaXml, riepilogaBluenext, type VoceBluenext } from '../engines/fatture/documento-fiscale'
+
+const campiConfronto = [
+  ['numero', 'Numero'], ['data', 'Data e anno'], ['cliente', 'Cliente'], ['tipo', 'Tipo fiscale'],
+  ['cedente', 'Cedente fiscale'], ['partita_iva', 'Partita IVA cliente'], ['codice_fiscale', 'Codice fiscale cliente'],
+  ['imponibile', 'Imponibile'], ['iva', 'IVA'], ['totale', 'Totale'],
+] as const
+type CampoConfronto = typeof campiConfronto[number][0]
+type DatiConfronto = Partial<Record<CampoConfronto, string | number | null>>
+type ConfrontoStorico = { esito: string; storico?: DatiConfronto; xml?: DatiConfronto; versione?: string }
+type RichiestaStorica = { fattura: string; xml: string; impronte: string[] }
+const associabile = (esito: string) => esito === 'Verificabile' || esito === 'Conferma assistita'
+const discordante = (esito: string) => esito === 'Differenze effettive' || esito === 'XML discordanti'
 
 type Props = {
   fattureEmesseOrdinate: any[]
@@ -61,12 +73,126 @@ export default function FattureEmessePanel({
   const [cantieriImport, setCantieriImport] = useState<{ id: string; nome: string }[]>([])
   const [cantiereImport, setCantiereImport] = useState('')
   const [erroreZip, setErroreZip] = useState('')
+  const [associazione, setAssociazione] = useState<(RichiestaStorica & { confronto: ConfrontoStorico }) | null>(null)
+  const [esitiStorici, setEsitiStorici] = useState<Record<string, ConfrontoStorico>>({})
+  const [esitoAssociazione, setEsitoAssociazione] = useState('')
+
+  const righeStoriche = riepilogo.esiti.map(voce => {
+    const candidate = candidateFattureStoriche(voce.documento, fattureEmesseOrdinate)
+    return { voce, candidate }
+  }).filter(({ voce, candidate }) => candidate.length > 0 || voce.impronte.length > 1)
+  const richiestePerFattura = new Map<string, number>()
+  for (const { candidate } of righeStoriche) {
+    if (candidate.length === 1) {
+      const id = candidate[0].id
+      richiestePerFattura.set(id, (richiestePerFattura.get(id) ?? 0) + 1)
+    }
+  }
+  const storico = righeStoriche.map(({ voce, candidate }) => {
+    const id: string | null = candidate.length === 1 ? candidate[0].id : null
+    const impronta = voce.impronte[0]
+    if (voce.impronte.length > 1 || (id && (richiestePerFattura.get(id) ?? 0) > 1)) {
+      return { voce, esito: 'XML discordanti', richiesta: null }
+    }
+    if (!id || !voce.xml) return { voce, esito: 'Candidata storica non univoca', richiesta: null }
+    if (voce.stato === 'Già presente' && candidate[0].bluenext_impronta === impronta) {
+      return { voce, esito: 'Gia associata', richiesta: null }
+    }
+    return { voce, esito: esitiStorici[impronta]?.esito ?? 'Da confrontare',
+      richiesta: { fattura: id, xml: voce.xml, impronte: voce.impronte } }
+  })
+  const storicoPerDocumento = new Map(storico.map(riga => [riga.voce, riga]))
+
+  const leggiConfronto = async (richiesta: RichiestaStorica): Promise<ConfrontoStorico> => {
+    const { data, error } = await supabase.rpc('confronta_fattura_bluenext', {
+      p_fattura: richiesta.fattura, p_xml: richiesta.xml, p_impronte: richiesta.impronte,
+    })
+    if (error || !data) throw Error('Confronto con la fattura storica non disponibile.')
+    return data
+  }
+
+  const confrontaStorico = async (richiesta: RichiestaStorica) => {
+    if (importazioneInCorso.current || letturaZip) return
+    importazioneInCorso.current = true
+    setSalvataggioZip(true)
+    setAssociazione(null)
+    setEsitoAssociazione('')
+    try {
+      const confronto = await leggiConfronto(richiesta)
+      setEsitiStorici(esiti => ({ ...esiti, [richiesta.impronte[0]]: confronto }))
+      setAssociazione({ ...richiesta, confronto })
+    } catch {
+      setEsitoAssociazione('Da verificare · Confronto con la fattura storica non disponibile.')
+    } finally {
+      importazioneInCorso.current = false
+      setSalvataggioZip(false)
+    }
+  }
+
+  const verificaStoriche = async () => {
+    if (importazioneInCorso.current || letturaZip) return
+    importazioneInCorso.current = true
+    setSalvataggioZip(true)
+    setAssociazione(null)
+    setEsitoAssociazione('')
+    try {
+      const esiti: Record<string, ConfrontoStorico> = {}
+      for (const { richiesta } of storico) {
+        if (!richiesta) continue
+        try { esiti[richiesta.impronte[0]] = await leggiConfronto(richiesta) }
+        catch { esiti[richiesta.impronte[0]] = { esito: 'Confronto non disponibile' } }
+      }
+      setEsitiStorici(esiti)
+    } finally {
+      importazioneInCorso.current = false
+      setSalvataggioZip(false)
+    }
+  }
+
+  const confermaAssociazione = async () => {
+    if (!associazione?.confronto.versione || !associabile(associazione.confronto.esito) || importazioneInCorso.current) return
+    importazioneInCorso.current = true
+    setSalvataggioZip(true)
+    try {
+      const { data, error } = await supabase.rpc('associa_fattura_bluenext', {
+        p_fattura: associazione.fattura, p_xml: associazione.xml, p_impronte: associazione.impronte,
+        p_versione: associazione.confronto.versione,
+        p_conferma_tipo_xml: associazione.confronto.esito === 'Conferma assistita',
+      })
+      if (error || typeof data !== 'string') throw Error('Esito non confermato')
+      setAssociazione(null)
+      if (data === 'Associata' || data === 'Gia associata') {
+        setEsitiStorici(esiti => ({ ...esiti, [associazione.impronte[0]]: { esito: 'Gia associata' } }))
+        setEsitoAssociazione('XML associato alla fattura esistente. Stato SdI invariato.')
+        await caricaFattureEmesse()
+      } else {
+        setEsitiStorici(esiti => ({ ...esiti, [associazione.impronte[0]]: { esito: data } }))
+        setEsitoAssociazione('Da verificare · ' + data + '.')
+      }
+    } catch {
+      setAssociazione(null)
+      setEsitoAssociazione('Esito non confermato. Rileggi il Registro prima di riprovare.')
+    } finally {
+      importazioneInCorso.current = false
+      setSalvataggioZip(false)
+    }
+  }
+
+  const valoreConfronto = (dati: DatiConfronto | undefined, campo: CampoConfronto) => {
+    const valore = dati?.[campo]
+    if (valore == null || valore === '') return 'Non disponibile'
+    return campo === 'imponibile' || campo === 'iva' || campo === 'totale' ? formatMoney(valore) : valore
+  }
+
   const leggiAnteprimaBluenext = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.currentTarget.files ?? [])
     event.currentTarget.value = ''
     if (!files.length || letturaZip) return
     setLetturaZip(true)
     setErroreZip('')
+    setAssociazione(null)
+    setEsitiStorici({})
+    setEsitoAssociazione('')
     setRisultatoZip(null)
     try {
       const documenti: VoceBluenext[] = []
@@ -159,12 +285,57 @@ export default function FattureEmessePanel({
         </li>)}</ul>
         <h5>Per anno</h5>
         <ul>{riepilogo.anni.map(([anno, totale]) => <li key={anno}>{anno} · {totale} documenti distinti</li>)}</ul>
-        <ul>{riepilogo.esiti.map(({ nome, documento, stato, copie, fonti }, i) => <li key={nome + i}>
+        {storico.length > 0 && <section aria-label="Riepilogo fatture storiche">
+          <h5>Fatture storiche</h5>
+          <ul>
+            <li>Associazioni già verificate: {storico.filter(r => r.esito === 'Gia associata').length}</li>
+            <li>Corrispondenze univoche proposte: {storico.filter(r => associabile(r.esito)).length}</li>
+            <li>Da verificare individualmente: {storico.filter(r => r.esito !== 'Gia associata' && !associabile(r.esito) && !discordante(r.esito)).length}</li>
+            <li>Discordanti da non associare: {storico.filter(r => discordante(r.esito)).length}</li>
+          </ul>
+          <button type="button" style={buttonSecondary} disabled={salvataggioZip || letturaZip || !storico.some(r => r.richiesta)}
+            onClick={() => void verificaStoriche()}>Verifica corrispondenze storiche</button>
+        </section>}
+        <ul>{riepilogo.esiti.map((voce, i) => {
+          const { nome, documento, stato, copie, fonti } = voce
+          const riga = storicoPerDocumento.get(voce)
+          return <li key={nome + i}>
           {documento ? [documento.numero, documento.data, documento.tipo, documento.cliente,
             'Imponibile ' + formatMoney(documento.imponibile), 'IVA ' + formatMoney(documento.iva),
             'Totale ' + formatMoney(documento.totale)].join(' · ') : nome} · {stato}
           {copie > 1 && ` · ${copie} occorrenze · ${fonti.length} fonti distinte`}
-        </li>)}</ul>
+          {riga && <> · {riga.esito === 'Gia associata' ? 'Associazione verificata'
+            : associabile(riga.esito) ? riga.esito : 'Da verificare · ' + riga.esito}
+            {riga.richiesta && riga.esito !== 'Gia associata' && <button type="button" style={buttonSecondary}
+              disabled={salvataggioZip || letturaZip}
+              onClick={() => { if (riga.richiesta) void confrontaStorico(riga.richiesta) }}>
+              {discordante(riga.esito) ? 'Confronta dati' : 'Associa a fattura esistente'}
+            </button>}
+          </>}
+        </li>})}</ul>
+        {esitoAssociazione && <p role="status">{esitoAssociazione}</p>}
+        {associazione && <section aria-label="Confronto fattura storica">
+          <h5>Confronto fattura storica</h5>
+          <p>{associabile(associazione.confronto.esito) ? 'Corrispondenza dei dati contabili verificata.'
+            : 'Da verificare · ' + associazione.confronto.esito}</p>
+          {associazione.confronto.esito === 'Conferma assistita' &&
+            <p>Tipo fiscale storico non documentato. L’XML Bluenext indica {associazione.confronto.xml?.tipo}.
+              La conferma registra il tipo con fonte XML e lascia invariato lo stato SdI.</p>}
+          <table style={excelTable}>
+            <thead><tr><th scope="col">Campo</th><th scope="col">Fattura storica</th><th scope="col">XML Bluenext</th></tr></thead>
+            <tbody>{campiConfronto.map(([campo, etichetta]) => <tr key={campo}>
+              <th scope="row">{etichetta}</th>
+              <td>{valoreConfronto(associazione.confronto.storico, campo)}</td>
+              <td>{valoreConfronto(associazione.confronto.xml, campo)}</td>
+            </tr>)}</tbody>
+          </table>
+          {associabile(associazione.confronto.esito) && <button type="button" style={buttonPrimary}
+            disabled={salvataggioZip} onClick={() => void confermaAssociazione()}>
+            {associazione.confronto.esito === 'Conferma assistita' ? 'Conferma associazione e tipo fiscale da XML' : 'Conferma associazione XML'}
+          </button>}
+          <button type="button" style={buttonSecondary} disabled={salvataggioZip}
+            onClick={() => setAssociazione(null)}>Chiudi confronto</button>
+        </section>}
         {riepilogo.scarti.length > 0 && <ul>{riepilogo.scarti.map(({ nome, stato }, i) => <li key={nome + i}>{nome} · {stato}</li>)}</ul>}
         <label>Cantiere per le nuove fatture
           <select value={cantiereImport} disabled={salvataggioZip} onChange={event => setCantiereImport(event.target.value)}>
@@ -174,7 +345,12 @@ export default function FattureEmessePanel({
         </label>
         <button type="button" style={buttonPrimary} disabled={salvataggioZip || letturaZip || !riepilogo.esiti.some(voce => voce.stato === 'Nuova')}
           onClick={() => void salvaArchivioBluenext()}>Conferma importazione delle fatture nuove</button>
-        <button type="button" style={buttonSecondary} disabled={salvataggioZip} onClick={() => setAnteprima([])}>Chiudi anteprima</button>
+        <button type="button" style={buttonSecondary} disabled={salvataggioZip} onClick={() => {
+          setAnteprima([])
+          setAssociazione(null)
+          setEsitiStorici({})
+          setEsitoAssociazione('')
+        }}>Chiudi anteprima</button>
       </section>}
 
       <div
