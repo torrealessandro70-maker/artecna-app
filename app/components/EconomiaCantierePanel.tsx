@@ -13,7 +13,7 @@ import { accontiCaricati, selezionaAcconti, messaggioAcconti } from '../engines/
 import VariantiCantierePanel from './VariantiCantierePanel'
 import ScomposizioneContrattuale from './ScomposizioneContrattuale'
 import ManodoperaEconomiaDettaglio from './ManodoperaEconomiaDettaglio'
-import { leggiScomposizioneVarianti, leggiCostoQuoteFattura, leggiMaterialiDaContabilizzare, aggiungiCostoQuote, type ScomposizioneVarianti, type MaterialiOperativi } from '../engines/economia/riepilogoEconomico'
+import { ErroreLetturaVarianti, leggiScomposizioneVarianti, leggiCostoQuoteFattura, leggiMaterialiDaContabilizzare, aggiungiCostoQuote, type ScomposizioneVarianti, type MaterialiOperativi } from '../engines/economia/riepilogoEconomico'
 
 type EconomiaSezione = 'riepilogo' | 'costi' | 'sal' | 'rapportini'
 type Riepilogo = {
@@ -53,6 +53,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     preventivoId: string
     importoBase: number
     supabase: typeof supabase
+    errore: string | null
     delta: number | null
     scomposizione: ScomposizioneVarianti | null
     materialiOperativi?: MaterialiOperativi | null
@@ -76,6 +77,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     setVarianti(null)
     if (!preventivoId || importoBase === undefined || !Number.isFinite(importoBase)) return
     const carica = async () => {
+      let errore: string | null = null
       let delta: number | null = null
       let scomposizione: ScomposizioneVarianti | null = null
 
@@ -83,11 +85,11 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
         scomposizione = await leggiScomposizioneVarianti(supabase, cantiere.id, preventivoId)
         scomposizione = { ...scomposizione, cantiereNome: cantiere.nome }
         delta = scomposizione.totale
-      } catch {
-        delta = null
+      } catch (cause) {
+        errore = cause instanceof ErroreLetturaVarianti ? cause.message : 'Elaborazione del riepilogo non riuscita'
       }
       if (obsoleta) return
-      const risultato = { cantiereId: cantiere.id, preventivoId, importoBase, supabase, delta, scomposizione }
+      const risultato = { cantiereId: cantiere.id, preventivoId, importoBase, supabase, errore, delta, scomposizione }
       setVarianti(risultato)
       if (scomposizione) {
         try {
@@ -110,7 +112,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
   const erroreContratto = !contrattoValido
     ? 'Contratto base non disponibile.'
     : variantiCorrenti?.delta === null
-      ? 'Impossibile caricare le varianti approvate. Riaprire il pannello per riprovare.'
+      ? variantiCorrenti.errore
       : null
   const statoContratto = erroreContratto || 'Caricamento varianti…'
   const deltaVariantiApprovate = contrattoValido ? variantiCorrenti?.delta ?? null : null
@@ -141,6 +143,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     ['Varianti ordinarie approvate', variantiCorrenti?.scomposizione?.ordinarie ?? null],
     ['Manodopera Economia approvata', variantiCorrenti?.scomposizione?.manodopera ?? null],
     ['Materiali Economia approvati', variantiCorrenti?.scomposizione?.materiali ?? null],
+    ['Voci generiche Economia approvate', variantiCorrenti?.scomposizione?.generiche ?? null],
     ['Contratto aggiornato', contrattoAggiornato],
     ['SAL maturato', salMaturato],
     ['Acconti registrati', accontiCumulativi],
@@ -170,6 +173,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
           <h4 style={{ margin: '0 0 8px', fontSize: 14, color: '#475569' }}>Lavori in economia approvati</h4>
           <p style={{ margin: '4px 0', fontSize: 14 }}>Manodopera: <strong>{p.riepilogo.formatMoney(variantiCorrenti.scomposizione.manodopera)}</strong></p>
           <p style={{ margin: '4px 0', fontSize: 14 }}>Materiali: <strong>{p.riepilogo.formatMoney(variantiCorrenti.scomposizione.materiali)}</strong></p>
+          {variantiCorrenti.scomposizione.generiche > 0 && <p style={{ margin: '4px 0', fontSize: 14 }}>Voci generiche: <strong>{p.riepilogo.formatMoney(variantiCorrenti.scomposizione.generiche)}</strong></p>}
         </article>}
       </div>
       <nav aria-label="Sezioni economia" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingBottom: 12, marginBottom: 16, borderBottom: '1px solid #e2e8f0' }}>

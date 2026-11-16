@@ -24,7 +24,9 @@ export default function ScomposizioneContrattuale({ valori, operativi, formatMon
     } catch { finestra?.close(); setErroreStampa('Stampa non disponibile: verifica il dettaglio materiali approvato.') }
   }
   const righe: [string, number][] = [['Varianti ordinarie', valori.ordinarie], ['Manodopera Economia', valori.manodopera],
-    ['Materiali Economia', valori.materiali], ['Totale aggiornamenti contrattuali', valori.totale]]
+    ['Materiali Economia', valori.materiali]]
+  if (valori.generiche > 0) righe.push(['Voci generiche Economia', valori.generiche])
+  righe.push(['Totale aggiornamenti contrattuali', valori.totale])
   return <dl aria-label="Scomposizione aggiornamenti contrattuali" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: '8px 16px', padding: 16, background: '#f8fafc' }}>
     {righe.map(([nome, valore]) => <div key={nome} style={{ display: 'contents' }}><dt>{nome}</dt><dd style={{ margin: 0 }}>{formatMoney(valore)}</dd>
       {nome === 'Materiali Economia' && <dd style={{ gridColumn: '1 / -1', margin: 0 }}>

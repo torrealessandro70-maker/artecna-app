@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState, type CSSProperties } from 'react'
+import IncassiLordiPanel from './IncassiLordiPanel'
 import { uuid, statoCantiereAttribuzioni } from '../engines/contabilita-ditta/attribuzioni'
 import { numeroDichiarato, opzioniCantieri, preparaModifiche, type AggiornaFattura, type EsitoModifica, type ModificheFattura, type StatoCantieri } from '../engines/contabilita-ditta/modificaFattura'
 
@@ -149,10 +150,10 @@ export default function PopupDettaglioFatturaEmessa({
         </p>
 
         <div style={{ marginTop: 10 }}>
-          <strong>Importo incassato</strong>
+          <strong>Incassato storico dichiarato</strong>
 
           <input
-            aria-label="Importo incassato"
+            aria-label="Incassato storico dichiarato"
             type="number"
             step="0.01"
             disabled={bloccato}
@@ -168,8 +169,10 @@ export default function PopupDettaglioFatturaEmessa({
         </div>
 
         <p>
-          <strong>Stato:</strong> {confermato ? String(esito.riga.stato ?? '') : fatturaEmessaAperta.stato}
+          <strong>Stato storico:</strong> {confermato ? String(esito.riga.stato ?? '') : fatturaEmessaAperta.stato}
         </p>
+
+        {contesto === 'presente' && fatturaEmessaAperta.id && <IncassiLordiPanel key={fatturaEmessaAperta.id} id={fatturaEmessaAperta.id} contesto="fattura" solaLettura />}
 
         {fatturaEmessaAperta.note && (
           <div style={{ marginTop: 12 }}>

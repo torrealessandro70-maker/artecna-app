@@ -8,7 +8,7 @@ export type MaterialeEconomiaApprovato = {
 type IdentitaMateriale = { raccoltaId: string; rigaId: string; sorgenteId: string | null; fatturaRigaId: string | null }
 export type MaterialiOperativi = { righe: readonly MaterialeEconomiaApprovato[]; daContabilizzare: number; totaleOperativo: number }
 export type ScomposizioneVarianti = {
-  totale: number; ordinarie: number; manodopera: number; materiali: number
+  totale: number; ordinarie: number; manodopera: number; materiali: number; generiche: number
   dettaglioMateriali?: readonly MaterialeEconomiaApprovato[]; cantiereNome?: string
   identitaMateriali?: readonly IdentitaMateriale[]
 }
@@ -29,6 +29,12 @@ function cent(v: unknown): number {
   if (!Number.isSafeInteger(c) || Math.abs(n * 100 - c) > 0.000001) return errore()
   return c
 }
+function centSnapshot(v: unknown): number {
+  const { n, scala } = decimale(v)
+  const divisore = BigInt(10) ** BigInt(Math.max(0, scala - 2))
+  const centesimi = Number(scala < 2 ? n * BigInt(10) ** BigInt(2 - scala) : n / divisore)
+  return n % divisore === BigInt(0) && Number.isSafeInteger(centesimi) ? centesimi : errore()
+}
 function somma(a: number, b: number): number {
   if (!Number.isSafeInteger(a + b)) return errore()
   return a + b
@@ -41,7 +47,8 @@ async function pagina(client: Client, nome: string, params: Riga, ordine: string
   const out: Riga[] = [], ids = new Set<string>()
   for (let offset = 0; ; offset += 200) {
     const { data, error } = await client.rpc(nome, params).order(ordine, { ascending: true }).order('id', { ascending: true }).range(offset, offset + 199)
-    if (error || !Array.isArray(data)) return errore()
+    if (error) throw new Error('RPC: lettura non riuscita', { cause: error })
+    if (!Array.isArray(data)) return errore()
     for (const r of data) { if (!record(r)) return errore(); unico(r.id, ids); out.push(r) }
     if (data.length < 200) return out
   }
@@ -50,8 +57,45 @@ function singola(data: unknown): Riga {
   const r = Array.isArray(data) ? data.length === 1 ? data[0] : null : data
   return record(r) ? r : errore()
 }
+function verificaOrigine(r: Riga): void {
+  const sorgente = typeof r.sorgente_id === 'string' && !!r.sorgente_id.trim()
+  const senzaIndice = r.indice_voce_sorgente === null
+  switch (r.origine) {
+    case 'manuale':
+      if (r.tipo_riga === 'generica' && r.sorgente_id === null && senzaIndice) return
+      break
+    case 'file':
+      if (sorgente && Number.isSafeInteger(r.indice_voce_sorgente) && r.indice_voce_sorgente >= 0) return
+      break
+    case 'rapportino':
+      if (r.tipo_riga === 'manodopera' && r.sorgente_id === null && senzaIndice) return
+      break
+    case 'fattura_fornitore':
+      if (r.tipo_riga === 'materiale' && sorgente && senzaIndice) return
+  }
+  return errore()
+}
+function esclusaDalloSnapshot(r: Riga, versionato: boolean): boolean {
+  if (!versionato) {
+    if ('esclusa_proposta' in r) return errore()
+    return false
+  }
+  if (typeof r.esclusa_proposta !== 'boolean') return errore()
+  const proposta = r.dettagli_analitici?.proposta_non_economica
+  if (proposta === undefined && !r.esclusa_proposta) return false
+  if (r.tipo_riga !== 'materiale' || !record(proposta) || proposta.versione !== 1 ||
+      proposta.esclusa !== r.esclusa_proposta || typeof proposta.motivo !== 'string' ||
+      !Array.isArray(proposta.storico)) return errore()
+  const lunghezza = [...proposta.motivo.trim()].length
+  const ultima = proposta.storico.at(-1)
+  if (lunghezza < 10 || lunghezza > 1000 || !record(ultima) ||
+      ultima.esclusa !== proposta.esclusa || ultima.motivo !== proposta.motivo) return errore()
+  if (proposta.esclusa && (numero(r.quantita) <= 0 || numero(r.prezzo_unitario) !== 0 ||
+      (r.importo !== null && centSnapshot(r.importo) !== 0))) return errore()
+  return proposta.esclusa
+}
 export function scomponiVarianti(varianti: Riga[], sorgenti: Riga[], cantiereId: string, contrattoId: string): ScomposizioneVarianti {
-  let totale = 0, ordinarie = 0, manodopera = 0, materiali = 0
+  let totale = 0, ordinarie = 0, manodopera = 0, materiali = 0, generiche = 0
   const dettaglioMateriali: MaterialeEconomiaApprovato[] = []
   const identitaMateriali: IdentitaMateriale[] = []
   let dettaglioCompleto = true
@@ -71,13 +115,23 @@ export function scomponiVarianti(varianti: Riga[], sorgenti: Riga[], cantiereId:
     if (s.snapshot_version !== 1 || !record(snap) || snap.raccolta_id !== s.economia_raccolta_id || snap.cantiere_id !== cantiereId ||
         numero(snap.revisione_sorgente) !== numero(s.economia_revisione_sorgente) || numero(snap.revisione_congelata) !== numero(s.economia_revisione_congelata) ||
         !Array.isArray(snap.registrazioni) || !snap.registrazioni.length || snap.numero_registrazioni !== snap.registrazioni.length) return errore()
-    let righe = 0; const registrazioni = new Set<string>()
+    const versionato = snap.versione_esclusioni === 1
+    if (versionato ? snap.versione_prezzi_cliente !== 1 :
+      'versione_esclusioni' in snap || 'numero_incluse' in snap || 'numero_escluse' in snap) return errore()
+    const centRiga = versionato ? centSnapshot : cent
+    if (versionato && centSnapshot(v.importo_delta_approvato) !== importo) return errore()
+    let righe = 0, numeroEscluse = 0
+    const registrazioni = new Set<string>()
     for (const r of snap.registrazioni) {
       if (!record(r)) return errore()
       unico(r.id, registrazioni)
-      const valore = cent(r.importo)
+      if (!['manodopera', 'materiale', 'generica'].includes(r.tipo_riga)) return errore()
+      if (versionato || 'origine' in r) verificaOrigine(r)
+      if (esclusaDalloSnapshot(r, versionato)) { numeroEscluse++; continue }
+      const valore = centRiga(r.importo)
       if (valore <= 0) return errore()
       if (r.tipo_riga === 'manodopera') manodopera = somma(manodopera, valore)
+      else if (r.tipo_riga === 'generica') generiche = somma(generiche, valore)
       else if (r.tipo_riga === 'materiale') {
         materiali = somma(materiali, valore)
         const fatturaRigaId = r.dettagli_analitici?.fattura?.fattura_riga_id
@@ -97,31 +151,62 @@ export function scomponiVarianti(varianti: Riga[], sorgenti: Riga[], cantiereId:
           descrizione: r.descrizione, quantita, um: r.unita_misura, prezzo, totale: valore / 100, riferimento })
         } catch { dettaglioCompleto = false } // Il dettaglio non deve cambiare la disponibilità del totale contrattuale.
       }
-      else return errore() // Non attribuire arbitrariamente righe generiche all'Economia lavoro/materiali.
       righe = somma(righe, valore)
     }
-    if (righe !== importo || righe !== cent(snap.totale)) return errore()
+    if (versionato && (numeroEscluse !== snap.numero_escluse ||
+        registrazioni.size - numeroEscluse !== snap.numero_incluse || snap.numero_incluse === 0)) return errore()
+    if (righe !== importo || righe !== centRiga(snap.totale)) return errore()
   }
-  if (somma(somma(ordinarie, manodopera), materiali) !== totale) return errore()
-  return { totale: totale / 100, ordinarie: ordinarie / 100, manodopera: manodopera / 100, materiali: materiali / 100,
+  if (somma(somma(ordinarie, manodopera), somma(materiali, generiche)) !== totale) return errore()
+  return { totale: totale / 100, ordinarie: ordinarie / 100, manodopera: manodopera / 100, materiali: materiali / 100, generiche: generiche / 100,
     dettaglioMateriali: dettaglioCompleto ? dettaglioMateriali : undefined, identitaMateriali }
 }
+type FaseVarianti = 'Elenco varianti' | 'Elenco sorgenti' | 'Dettaglio sorgente' | 'Validazione contratto e snapshot'
+
+export class ErroreLetturaVarianti extends Error {
+  constructor(fase: FaseVarianti, errore: unknown) {
+    const origine = errore instanceof Error && errore.cause ? errore.cause : errore
+    const codice = record(origine) ? origine.code : null
+    const messaggio = record(origine) ? origine.message : ''
+    const motivo = ['42501', 'P2020', 'P2021'].includes(codice) ? 'accesso non autorizzato'
+      : ['PGRST202', '42883'].includes(codice) ? 'lettura RPC non disponibile'
+      : errore instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(String(messaggio))
+        ? 'connessione non disponibile'
+        : typeof codice === 'string' && codice !== 'P0002'
+          ? 'lettura rifiutata dal server'
+          : 'dati incompleti o incoerenti'
+    super(fase + ' · ' + motivo)
+  }
+}
+
+async function inFase<T>(fase: FaseVarianti, leggi: () => T | Promise<T>): Promise<T> {
+  try { return await leggi() }
+  catch (errore) { throw new ErroreLetturaVarianti(fase, errore) }
+}
+
 export async function leggiScomposizioneVarianti(client: Client, cantiereId: string, contrattoId: string): Promise<ScomposizioneVarianti> {
-  const varianti = await pagina(client, 'leggi_varianti_cantiere', { p_cantiere_id: cantiereId }, 'numero')
+  const varianti = await inFase('Elenco varianti',
+    () => pagina(client, 'leggi_varianti_cantiere', { p_cantiere_id: cantiereId }, 'numero'))
   const sorgenti: Riga[] = []
   for (const v of varianti.filter(v => v.stato === 'approvata' && v.preventivo_contrattuale_id === contrattoId)) {
-    const elenco = await pagina(client, 'leggi_sorgenti_variante', { p_variante_id: v.id }, 'created_at')
+    const elenco = await inFase('Elenco sorgenti', async () => {
+      const righe = await pagina(client, 'leggi_sorgenti_variante', { p_variante_id: v.id }, 'created_at')
+      if (righe.some(s => s.variante_id !== v.id)) return errore()
+      return righe
+    })
     for (const s of elenco) {
-      if (s.variante_id !== v.id) return errore()
       if (s.tipo !== 'raccolta_economia') continue
-      const { data, error } = await client.rpc('leggi_sorgente_variante', { p_sorgente_id: s.id })
-      if (error) return errore()
-      const d = singola(data)
-      if (d.id !== s.id || d.variante_id !== v.id || d.tipo !== s.tipo) return errore()
-      sorgenti.push(d)
+      const dettaglio = await inFase('Dettaglio sorgente', async () => {
+        const { data, error } = await client.rpc('leggi_sorgente_variante', { p_sorgente_id: s.id })
+        if (error) throw error
+        const d = singola(data)
+        if (d.id !== s.id || d.variante_id !== v.id || d.tipo !== s.tipo) return errore()
+        return d
+      })
+      sorgenti.push(dettaglio)
     }
   }
-  return scomponiVarianti(varianti, sorgenti, cantiereId, contrattoId)
+  return inFase('Validazione contratto e snapshot', () => scomponiVarianti(varianti, sorgenti, cantiereId, contrattoId))
 }
 // Prodotto decimale esatto del prezzo netto documentale, NON prezzo cliente/Variante.
 function decimale(v: unknown): { n: bigint; scala: number } {

@@ -1,0 +1,3 @@
+# Preserve the certified SQL bytes on Windows checkouts.
+varianti_approvate_readonly.sql text eol=lf
+varianti_snapshot_puntuale_readonly.sql text eol=lf

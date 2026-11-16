@@ -457,6 +457,11 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
     browserQueue=request.catch(()=>{})
     return request
   }
+  await q("UPDATE public.fatture_emesse SET importo_incassato=10, stato='parziale' WHERE id=$1",[lordoDoc])
+  const fatturaStorica=()=>value("SELECT jsonb_build_array(importo_incassato,stato) v FROM public.fatture_emesse WHERE id=$1",[lordoDoc])
+  assert.deepEqual(await fatturaStorica(),[10,'parziale'])
+  const quadroFattura=(await as(titolare,leggi,[lordoDoc,'fattura']))[0].v
+  assert.deepEqual([quadroFattura.totale,quadroFattura.attribuito,quadroFattura.residuo],[10000,10000,0])
   const browserContext={owner:titolare,entry:'contratto-sdi-entry.mjs',commands:{
     leggi_acconto_fiscale:['SELECT public.leggi_acconto_fiscale($1) v','p_id'],
     leggi_fattura_sdi:['SELECT public.leggi_fattura_sdi($1) v','p_id'],
@@ -464,6 +469,7 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   await browser(actor,fixture.a,{...browserContext,draft:lordoDoc,modes:['incassi-lordi'],commands:{
     leggi_incassi_lordi_cliente:['SELECT public.leggi_incassi_lordi_cliente($1,$2) v','p_id','p_contesto'],
   }})
+  assert.deepEqual(await fatturaStorica(),[10,'parziale'])
   const accontoChrome=await value("INSERT INTO public.acconti_cantiere(cantiere_id,importo) VALUES($1,90) RETURNING id v",[fixture.a])
   const fatturaChrome=await value("INSERT INTO public.fatture_emesse(cantiere_id,cliente,totale,importo_incassato) VALUES($1,'Fixture',100,0) RETURNING id v",[fixture.a])
   const rpcLordi={

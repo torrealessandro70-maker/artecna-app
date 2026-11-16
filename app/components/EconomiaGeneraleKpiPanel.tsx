@@ -68,7 +68,7 @@ export default function EconomiaGeneraleKpiPanel({
             background: '#f0fdf4',
           }}
         >
-          <strong>💰 Totale incassato</strong>
+          <strong>💰 Incassato storico dichiarato</strong>
           <div
             style={{
               marginTop: 6,
@@ -110,7 +110,7 @@ export default function EconomiaGeneraleKpiPanel({
             background: '#faf5ff',
           }}
         >
-          <strong>📈 Cash flow reale</strong>
+          <strong>📈 Saldo su incassi storici e fatture fornitori</strong>
           <div
             style={{
               marginTop: 6,

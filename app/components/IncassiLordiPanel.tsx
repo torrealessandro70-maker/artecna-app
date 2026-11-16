@@ -15,8 +15,8 @@ const rpcElimina = 'elimina_incasso_lordo_cliente'
 type Operazione = { rpc: string; args: Record<string, string> }
 const euro = (n: number | null) => n === null ? 'Da verificare' : n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 
-export default function IncassiLordiPanel({ id, contesto, netto }: {
-  id: string; contesto: 'acconto' | 'fattura'; netto?: number | string | null
+export default function IncassiLordiPanel({ id, contesto, netto, solaLettura = false }: {
+  id: string; contesto: 'acconto' | 'fattura'; netto?: number | string | null; solaLettura?: boolean
 }) {
   const [dati, setDati] = useState<Lettura | null>(null)
   const [rettifiche, setRettifiche] = useState<Rettifica[]>([])
@@ -31,9 +31,11 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
     catch { return null }
   })
   const fattura = contesto === 'fattura'
+  const interamenteIncassata = dati?.residuo === 0 && dati.totale !== null && dati.totale > 0 && dati.attribuito === dati.totale
+  const parzialmenteIncassata = dati?.residuo != null && dati.residuo > 0 && (dati.attribuito ?? 0) > 0
 
   async function esegui(op?: Operazione) {
-    if (blocco.current) return
+    if (blocco.current || (solaLettura && op)) return
     blocco.current = true
     setAttesa(true)
     setMessaggio('')
@@ -103,12 +105,13 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
     <summary>Incassi lordi verificati</summary>
     {messaggio && <p role="status">{messaggio}</p>}
     <button type="button" disabled={attesa} onClick={() => void esegui()}>Aggiorna incassi</button>
-    {pendente && <button type="button" disabled={attesa} onClick={() => void esegui(pendente)}>Recupera richiesta</button>}
+    {!solaLettura && pendente && <button type="button" disabled={attesa} onClick={() => void esegui(pendente)}>Recupera richiesta</button>}
     {dati && <>
       {fattura ? <dl>
         <dt>Totale IVA inclusa</dt><dd>{euro(dati.totale)}</dd>
-        <dt>Incassi lordi attribuiti</dt><dd>{euro(dati.attribuito)}</dd>
+        <dt>Incasso lordo verificato</dt><dd>{dati.attribuito === 0 ? 'Nessuna quota attiva' : euro(dati.attribuito)}</dd>
         <dt>Residuo finanziario verificabile</dt><dd>{euro(dati.residuo)}</dd>
+        <dt>Stato finanziario</dt><dd>{interamenteIncassata ? 'Interamente incassata' : parzialmenteIncassata ? 'Parzialmente incassata' : 'Da verificare'}</dd>
       </dl> : <>
         <p>Importo registrato: {euro(netto == null ? null : Number(netto))}</p>
         <p>Incasso lordo confermato: {euro(dati.incassi.length ? dati.incassi.reduce((somma, i) => somma + i.importo, 0) : null)}</p>
@@ -177,11 +180,11 @@ export default function IncassiLordiPanel({ id, contesto, netto }: {
         })}
       </>}
       {dati.quote.map(q => <p key={q.id}>Fattura {q.numero_fattura ?? 'senza numero'} · {euro(q.importo)}
-        {q.revocato_at ? ' · Revocata' : fattura && <button type="button" disabled={attesa || !!pendente}
+        {q.revocato_at ? ' · Revocata' : fattura && !solaLettura && <button type="button" disabled={attesa || !!pendente}
           onClick={() => { if (window.confirm('Revocare la quota finanziaria?')) void esegui({
             rpc: 'revoca_quota_lorda_cliente', args: { p_id: crypto.randomUUID(), p_quota: q.id },
           }) }}>Revoca quota</button>}</p>)}
-      {(!fattura || dati.totale !== null && dati.incassi.some(i => i.disponibile > 0)) && <form onSubmit={salva}>
+      {!solaLettura && (!fattura || !interamenteIncassata && dati.totale !== null && dati.incassi.some(i => i.disponibile > 0)) && <form onSubmit={salva}>
         <fieldset disabled={attesa || !!pendente}>
           <label>Importo lordo <input name="importo" required inputMode="decimal" /></label>
           {fattura ? <label>Pagamento <select name="incasso" required><option value="">Seleziona</option>

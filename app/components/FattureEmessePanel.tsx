@@ -5,6 +5,7 @@ import ContrattoFiscalePanel from './ContrattoFiscalePanel'
 import { useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import CollegaIncassoPanel, { CollegaIncassoAzione } from './CollegaIncassoPanel'
+import { numeroDichiarato } from '../engines/contabilita-ditta/modificaFattura'
 import { cantiereDocumento } from '../engines/contabilita-ditta/attribuzioni'
 import { leggiDocumentiArchivioBluenext } from '../engines/fatture/import-zip'
 import { candidateFattureStoriche, leggiFatturaEmessaXml, riepilogaBluenext, type VoceBluenext } from '../engines/fatture/documento-fiscale'
@@ -513,7 +514,7 @@ export default function FattureEmessePanel({
                   whiteSpace: 'normal',
                 }}
               >
-                Incassato ↕
+                Incassato storico ↕
               </th>
 
               <th
@@ -524,7 +525,7 @@ export default function FattureEmessePanel({
                   whiteSpace: 'normal',
                 }}
               >
-                Stato ↕
+                Stato storico ↕
               </th>
 
               <th style={excelTh}>Incassi collegati</th><th style={{ ...excelTh, whiteSpace: 'normal' }}>PDF</th>
@@ -563,10 +564,10 @@ export default function FattureEmessePanel({
                   </td>
 
                   <td style={excelTd}>
-                    {formatMoney(Number(f.importo_incassato || 0))}
+                    {numeroDichiarato(f.importo_incassato) === null ? 'Da verificare' : formatMoney(numeroDichiarato(f.importo_incassato))}
                   </td>
 
-                  <td style={excelTd}>{f.stato || 'emessa'}</td>
+                  <td style={excelTd}>{f.stato || 'Da verificare'}</td>
                   <td style={excelTd} onClick={e => e.stopPropagation()}>{f.id && <ContrattoFiscalePanel id={f.id} />}{f.id && f.cantiere_id && <IncassiLordiPanel id={f.id} contesto="fattura" />}<CollegaIncassoAzione cantiereId={f.cantiere_id} onClick={e => { e.stopPropagation(); setCollegaId(f.id) }} /></td>
 
                   <td style={excelTd}>

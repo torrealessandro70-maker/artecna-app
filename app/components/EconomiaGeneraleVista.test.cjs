@@ -159,10 +159,35 @@ test('unrelated economic calculators/readers/writers/schema remain unchanged; co
   migrations.add('supabase/migrations/20261115000500_rettifica_riferimento_incasso.sql')
   validators.add('supabase/validators/cantiere-prerequisiti/contratto-acconti-sdi.test.cjs')
   validators.add('supabase/validators/cantiere-prerequisiti/browser/contratto-sdi-entry.mjs')
+  // Il lettore Varianti e i controlli diagnostici sono parte del nuovo perimetro.
+  const diagnosticaVarianti = new Set([
+    'app/engines/economia/riepilogoEconomico.ts',
+    'app/engines/economia/riepilogoEconomico.test.mjs',
+    'supabase/diagnostics/.gitattributes',
+    'supabase/diagnostics/varianti_approvate_readonly.sql',
+    'supabase/diagnostics/RUN-varianti-readonly.ps1',
+    'supabase/diagnostics/varianti_snapshot_puntuale_readonly.sql',
+    'supabase/diagnostics/RUN-varianti-snapshot-puntuale.ps1',
+    'supabase/validators/cantiere-prerequisiti/economia-varianti-browser.test.cjs',
+    'supabase/validators/cantiere-prerequisiti/browser/economia-varianti-entry.mjs',
+  ])
+  assert.equal(fs.readFileSync(path.join(root, 'supabase/diagnostics/.gitattributes'), 'utf8')
+    .split(/\r?\n/).filter(line => line && !line.startsWith('#')).join('\n'),
+    'varianti_approvate_readonly.sql text eol=lf\nvarianti_snapshot_puntuale_readonly.sql text eol=lf')
+  const sqlPuntuale = fs.readFileSync(path.join(root, 'supabase/diagnostics/varianti_snapshot_puntuale_readonly.sql'), 'utf8')
+  assert.match(sqlPuntuale, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;/)
+  assert.match(sqlPuntuale, /^ROLLBACK;\r?$/m)
+  assert.match(sqlPuntuale, /SET LOCAL ROLE authenticated;/)
+  assert.doesNotMatch(sqlPuntuale, /^\s*(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE|COMMIT|CALL|CREATE|ALTER|DROP)\b/im)
+  const sqlDiagnostica = fs.readFileSync(path.join(root, 'supabase/diagnostics/varianti_approvate_readonly.sql'), 'utf8')
+  assert.match(sqlDiagnostica, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;/)
+  assert.match(sqlDiagnostica, /^ROLLBACK;\r?$/m)
+  assert.match(sqlDiagnostica, /SET LOCAL ROLE authenticated;/)
+  assert.doesNotMatch(sqlDiagnostica, /^\s*(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE|COMMIT|CALL|CREATE|ALTER|DROP)\b/im)
   const riepilogo = 'app/engines/contabilita-ditta/riepilogo.ts'
   const baseRiepilogo = cp.execFileSync('git', ['show','HEAD:' + riepilogo], { cwd: root, encoding: 'utf8' }).replace(/\r/g, '')
   assert.equal(require('node:fs').readFileSync(path.join(root, riepilogo), 'utf8').replace(/\r/g, ''), baseRiepilogo)
-  assert(changed.every(file => file === riepilogo || migrations.has(file) || validators.has(file) || /^app\/engines\/contabilita-ditta\/(?:scadenziario(?:Persistenza)?|documentiFiscali)(?:\.test)?\.(ts|cjs)$/.test(file)),
+  assert(changed.every(file => file === riepilogo || migrations.has(file) || validators.has(file) || diagnosticaVarianti.has(file) || /^app\/engines\/contabilita-ditta\/(?:scadenziario(?:Persistenza)?|documentiFiscali)(?:\.test)?\.(ts|cjs)$/.test(file)),
     'Only explicitly listed migrations, adapters and validators may change')
   const baseline = cp.execFileSync('git', ['show', '44d95773f1076c84bc21a09504166dd88a584bec:app/components/CostiGeneraliImpresaSummary.tsx'], { cwd: root, encoding: 'utf8' }).replace(/\r/g, '')
   function formulas(s) { const out = {}, ast = ts.createSourceFile('costs.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); function visit(n) { if (ts.isVariableDeclaration(n) && n.name.getText(ast).startsWith('totale')) out[n.name.getText(ast)] = n.initializer.getText(ast); ts.forEachChild(n, visit) } visit(ast); return out }

@@ -5,6 +5,7 @@ import {supabase} from '../../../../lib/supabaseClient'
 import FattureModule from '../../../../app/components/FattureEmessePanel.tsx'
 import JSZip from 'jszip'
 import IncassiLordiPanel from '../../../../app/components/IncassiLordiPanel.tsx'
+import DettaglioModule from '../../../../app/components/PopupDettaglioFatturaEmessa.tsx'
 import PanelModule from '../../../../app/components/ContrattoFiscalePanel.tsx'
 
 const Panel=PanelModule.default ?? PanelModule
@@ -29,7 +30,12 @@ if(centro && sessionStorage.getItem('fiscale-reload')){
   url.searchParams.set('notifica',params.get('cantiere'))
   history.replaceState(null,'',url)
 }
-root.render(modo?.startsWith('incassi-') ? React.createElement(IncassiLordiPanel.default ?? IncassiLordiPanel,{id:params.get('draft'),contesto:['incassi-conferma','incassi-rettifica','incassi-elimina'].includes(modo)?'acconto':'fattura'}) : centro ? React.createElement(Center,{
+root.render(modo==='incassi-lordi' ? React.createElement(DettaglioModule.default ?? DettaglioModule,{
+  fatturaEmessaAperta:{id:params.get('draft'),cantiere_id:params.get('cantiere'),numero_fattura:'14',totale:10000,importo_incassato:10,stato:'parziale'},
+  cantieri:[],statoCantieri:'pronto',formatMoney:String,
+  aggiornaFatturaEmessa:()=>{throw Error('Scrittura inattesa nel dettaglio')},
+  inputStyle:{},buttonPrimary:{},buttonSecondary:{},
+}) : modo?.startsWith('incassi-') ? React.createElement(IncassiLordiPanel.default ?? IncassiLordiPanel,{id:params.get('draft'),contesto:['incassi-conferma','incassi-rettifica','incassi-elimina'].includes(modo)?'acconto':'fattura'}) : centro ? React.createElement(Center,{
   client:supabase,stile:{},menuImpostazioni:true,onApriScadenza:()=>{},onContatori:()=>{},
 }) : ['importa','associa-storico'].includes(modo) ? React.createElement(Fatture,{
   fattureEmesseOrdinate:modo==='associa-storico'?[{
@@ -75,9 +81,11 @@ async function run(){
     form.querySelector('input[type=checkbox]').checked=true
     form.requestSubmit()
     await wait(()=>document.body.textContent.includes('Riferimento bancario aggiornato. Pagamento e importo invariati.'), 'Esito rettifica non disponibile')
-    const storico=await wait(()=>[...document.querySelectorAll('summary')].find(e=>e.textContent==='Storico rettifiche'&&e.parentElement.textContent.includes('synthetic-cro-chrome')))
-    storico.click()
-    await wait(()=>storico.parentElement.open&&storico.parentElement.textContent.includes('synthetic-cro-01'))
+    const storico=await wait(()=>[...document.querySelectorAll('details')].find(e=>
+      e.firstElementChild?.textContent==='Storico rettifiche'&&e.textContent.includes('synthetic-cro-chrome')),
+    'Rettifica assente nello storico')
+    if(!storico.open)storico.firstElementChild.click()
+    await wait(()=>storico.open&&storico.textContent.includes('synthetic-cro-01'), 'Riferimento precedente assente')
     await report('pass',modo)
     return
   }
@@ -119,6 +127,12 @@ async function run(){
   if(modo==='incassi-lordi'){
     ;(await wait(()=>[...document.querySelectorAll('summary')].find(e=>e.textContent==='Incassi lordi verificati'))).click()
     await wait(()=>[...document.querySelectorAll('dt')].some(e=>e.textContent.includes('Residuo finanziario')&&e.nextElementSibling.textContent.match(/^0,00/)),'Residuo lordo non azzerato')
+    await wait(()=>{
+      const valore=nome=>[...document.querySelectorAll('dt')].find(e=>e.textContent===nome)?.nextElementSibling.textContent
+      return valore('Incasso lordo verificato')?.startsWith('10.000,00') && valore('Stato finanziario')==='Interamente incassata'
+    },'Lettura finanziaria 10.000 / 0 incompleta')
+    if(document.querySelector('input[aria-label="Incassato storico dichiarato"]')?.value!=='10'||!testo('Stato storico: parziale'))throw Error('Storico dichiarato assente')
+    if(pulsante('Attribuisci quota lorda')||pulsante('Revoca quota'))throw Error('Azioni finanziarie esposte nella vista di sola lettura')
     await report('pass',modo)
     return
   }
