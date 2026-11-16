@@ -1,21 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import type { ScomposizioneVarianti, MaterialiOperativi } from '../engines/economia/riepilogoEconomico'
+import type { ScomposizioneVarianti, StatoMaterialiOperativi } from '../engines/economia/riepilogoEconomico'
 import { dettaglioMaterialiVerificato, documentoMaterialiEconomia, numeroMateriali, prezzoMateriali, dataMateriali } from '../engines/economia/stampaMaterialiEconomia'
 
-export default function ScomposizioneContrattuale({ valori, operativi, formatMoney }: {
-  valori: ScomposizioneVarianti | null; operativi?: MaterialiOperativi | null; formatMoney: (value: number) => string
+export default function ScomposizioneContrattuale({ valori, statoOperativi, formatMoney }: {
+  valori: ScomposizioneVarianti | null; statoOperativi?: StatoMaterialiOperativi; formatMoney: (value: number) => string
 }) {
   const [erroreStampa, setErroreStampa] = useState('')
   if (!valori) return <p role="status">Scomposizione contrattuale non disponibile.</p>
   let materiali: ReturnType<typeof dettaglioMaterialiVerificato> | null = null
   try { materiali = dettaglioMaterialiVerificato(valori) } catch { /* Nessuna lista parziale o stampa incoerente. */ }
+  const operativi = statoOperativi?.stato === 'verificato' ? statoOperativi.dati : undefined
+  const stampaDisponibile = !!valori.cantiereNome?.trim() && materiali !== null && (!statoOperativi || !!operativi)
   const stampa = () => {
     setErroreStampa('')
     let finestra: Window | null = null
     try {
-      if (operativi === null) throw Error('Elenco operativo non disponibile')
+      if (!stampaDisponibile) throw Error('Elenco materiali non disponibile')
       const documento = documentoMaterialiEconomia(valori.cantiereNome ?? '', valori, new Date(), operativi)
       finestra = window.open('', '_blank')
       if (!finestra) { setErroreStampa('Consenti la finestra di stampa e riprova.'); return }
@@ -41,7 +43,7 @@ export default function ScomposizioneContrattuale({ valori, operativi, formatMon
             </table></div>
             {!materiali.length && <p>Nessun materiale Economia approvato.</p>}
           </details>
-          {operativi === null ? <p role="status">Materiali da contabilizzare non disponibili: deduplicazione non verificata.</p> : operativi && <>
+          {operativi && <>
             <details><summary style={{ cursor: 'pointer', padding: '8px 0' }}>Materiali da contabilizzare ({operativi.righe.length}) — {formatMoney(operativi.daContabilizzare)}</summary>
               <div style={{ overflowX: 'auto' }}><table aria-label="Materiali da contabilizzare" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead><tr>{['Data', 'Fornitore', 'Fattura', 'Descrizione', 'Quantità', 'U.M.', 'Prezzo Economia €', 'Totale', 'Raccolta Economia', 'Stato'].map(t => <th key={t} scope="col" style={{ textAlign: 'left', padding: 8 }}>{t}</th>)}</tr></thead>
@@ -51,8 +53,10 @@ export default function ScomposizioneContrattuale({ valori, operativi, formatMon
             <p>Materiali approvati: <strong>{formatMoney(valori.materiali)}</strong><br />Materiali da contabilizzare: <strong>{formatMoney(operativi.daContabilizzare)}</strong><br />Totale materiali presenti in Economia: <strong>{formatMoney(operativi.totaleOperativo)}</strong> (operativo)</p>
             <p>Le righe da contabilizzare non sono ancora comprese nel valore contrattuale approvato.</p>
           </>}
-          <button type="button" onClick={stampa} disabled={!valori.cantiereNome?.trim() || operativi === null} style={{ padding: '8px 12px', marginTop: 6 }}>Stampa materiali Economia</button>
+          <button type="button" onClick={stampa} disabled={!stampaDisponibile} style={{ padding: '8px 12px', marginTop: 6 }}>Stampa materiali Economia</button>
         </>}
+        {statoOperativi?.stato === 'caricamento' && <p role="status">Caricamento materiali da contabilizzare…</p>}
+        {statoOperativi?.stato === 'errore' && <p role="status">Materiali da contabilizzare non disponibili. {statoOperativi.motivo}.</p>}
         {erroreStampa && <p role="alert">{erroreStampa}</p>}
       </dd>}
     </div>)}

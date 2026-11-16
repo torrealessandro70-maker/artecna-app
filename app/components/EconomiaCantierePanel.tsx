@@ -13,7 +13,7 @@ import { accontiCaricati, selezionaAcconti, messaggioAcconti } from '../engines/
 import VariantiCantierePanel from './VariantiCantierePanel'
 import ScomposizioneContrattuale from './ScomposizioneContrattuale'
 import ManodoperaEconomiaDettaglio from './ManodoperaEconomiaDettaglio'
-import { ErroreLetturaVarianti, leggiScomposizioneVarianti, leggiCostoQuoteFattura, leggiMaterialiDaContabilizzare, aggiungiCostoQuote, type ScomposizioneVarianti, type MaterialiOperativi } from '../engines/economia/riepilogoEconomico'
+import { ErroreLetturaVarianti, ErroreMaterialiOperativi, leggiScomposizioneVarianti, leggiCostoQuoteFattura, leggiMaterialiDaContabilizzare, aggiungiCostoQuote, type ScomposizioneVarianti, type StatoMaterialiOperativi } from '../engines/economia/riepilogoEconomico'
 
 type EconomiaSezione = 'riepilogo' | 'costi' | 'sal' | 'rapportini'
 type Riepilogo = {
@@ -56,7 +56,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
     errore: string | null
     delta: number | null
     scomposizione: ScomposizioneVarianti | null
-    materialiOperativi?: MaterialiOperativi | null
+    materialiOperativi: StatoMaterialiOperativi
   } | null>(null)
   const da = p.periodo.economiaDataDa, a = p.periodo.economiaDataA
   const rettifiche = useCostiFornitori(supabase, cantiere.id, da, a)
@@ -89,14 +89,16 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
         errore = cause instanceof ErroreLetturaVarianti ? cause.message : 'Elaborazione del riepilogo non riuscita'
       }
       if (obsoleta) return
-      const risultato = { cantiereId: cantiere.id, preventivoId, importoBase, supabase, errore, delta, scomposizione }
+      const risultato = { cantiereId: cantiere.id, preventivoId, importoBase, supabase, errore, delta, scomposizione,
+        materialiOperativi: { stato: 'caricamento' } as const }
       setVarianti(risultato)
       if (scomposizione) {
         try {
           const materialiOperativi = await leggiMaterialiDaContabilizzare(supabase, cantiere.id, scomposizione)
-          if (!obsoleta) setVarianti({ ...risultato, materialiOperativi })
-        } catch {
-          if (!obsoleta) setVarianti({ ...risultato, materialiOperativi: null })
+          if (!obsoleta) setVarianti({ ...risultato, materialiOperativi: { stato: 'verificato', dati: materialiOperativi } })
+        } catch (cause) {
+          const motivo = cause instanceof ErroreMaterialiOperativi ? cause.message : 'elaborazione non riuscita'
+          if (!obsoleta) setVarianti({ ...risultato, materialiOperativi: { stato: 'errore', motivo } })
         }
       }
     }
@@ -227,7 +229,7 @@ export default function EconomiaCantierePanel({ cantiere, panelProps: p }: Props
         </div>
         <details aria-label="Aggiornamenti contrattuali" style={{ marginBottom: 12 }}><summary>Aggiornamenti contrattuali approvati</summary>
           {variantiCorrenti?.scomposizione
-            ? <ScomposizioneContrattuale valori={variantiCorrenti.scomposizione} operativi={variantiCorrenti.materialiOperativi ?? null} formatMoney={p.riepilogo.formatMoney} />
+            ? <ScomposizioneContrattuale valori={variantiCorrenti.scomposizione} statoOperativi={variantiCorrenti.materialiOperativi} formatMoney={p.riepilogo.formatMoney} />
             : <p role={erroreContratto ? 'alert' : 'status'}>{statoContratto}</p>}
           <p>La scomposizione è già compresa nelle Varianti approvate e non si somma nuovamente al contratto.</p>
         </details>

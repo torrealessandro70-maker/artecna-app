@@ -168,12 +168,19 @@ test('unrelated economic calculators/readers/writers/schema remain unchanged; co
     'supabase/diagnostics/RUN-varianti-readonly.ps1',
     'supabase/diagnostics/varianti_snapshot_puntuale_readonly.sql',
     'supabase/diagnostics/RUN-varianti-snapshot-puntuale.ps1',
+    'supabase/diagnostics/materiali_dedup_readonly.sql',
+    'supabase/diagnostics/RUN-materiali-dedup-readonly.ps1',
     'supabase/validators/cantiere-prerequisiti/economia-varianti-browser.test.cjs',
     'supabase/validators/cantiere-prerequisiti/browser/economia-varianti-entry.mjs',
   ])
   assert.equal(fs.readFileSync(path.join(root, 'supabase/diagnostics/.gitattributes'), 'utf8')
     .split(/\r?\n/).filter(line => line && !line.startsWith('#')).join('\n'),
-    'varianti_approvate_readonly.sql text eol=lf\nvarianti_snapshot_puntuale_readonly.sql text eol=lf')
+    'varianti_approvate_readonly.sql text eol=lf\nvarianti_snapshot_puntuale_readonly.sql text eol=lf\nmateriali_dedup_readonly.sql text eol=lf')
+  const sqlMateriali = fs.readFileSync(path.join(root, 'supabase/diagnostics/materiali_dedup_readonly.sql'), 'utf8')
+  assert.match(sqlMateriali, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;/)
+  assert.match(sqlMateriali, /^ROLLBACK;\r?$/m)
+  assert.match(sqlMateriali, /SET LOCAL ROLE authenticated;/)
+  assert.doesNotMatch(sqlMateriali, /^\s*(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE|COMMIT|CALL|CREATE|ALTER|DROP)\b/im)
   const sqlPuntuale = fs.readFileSync(path.join(root, 'supabase/diagnostics/varianti_snapshot_puntuale_readonly.sql'), 'utf8')
   assert.match(sqlPuntuale, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;/)
   assert.match(sqlPuntuale, /^ROLLBACK;\r?$/m)

@@ -9,17 +9,20 @@ test('Chrome carica il pannello Economia con sei varianti e una registrazione a 
     stato: 'approvata', importo_delta_approvato: 50,
   }))
   const motivo = 'Voce senza valore economico'
+  const fattura = { version: 1, fattura_riga_id: 'F', quantita: 1, prezzo_unitario_originale: 8,
+    prezzo_unitario_economia: 0, totale_economia: 0, unita_misura_economia: 'pz', data_fattura: '2026-10-05' }
+  const esclusa = {
+    id: 'esclusa', raccolta_id: 'R4', tipo_riga: 'materiale', origine: 'fattura_fornitore', sorgente_id: 'fonte-fattura',
+    indice_voce_sorgente: null, fattura_riga_id: 'F', quantita: 1, prezzo_unitario: 0, descrizione: 'Esclusa sintetica', unita_misura: 'pz',
+    dettagli_analitici: { fattura, proposta_non_economica: { versione: 1, esclusa: true, motivo, storico: [{ esclusa: true, motivo }] } },
+  }
   const fonti = varianti.map((v, i) => {
     const raccolta = 'R' + i
     const registrazioni = [
       { id: 'lavoro', tipo_riga: 'manodopera', origine: 'rapportino', sorgente_id: null, indice_voce_sorgente: null, importo: 45, esclusa_proposta: false },
       { id: 'generica', tipo_riga: 'generica', origine: 'manuale', sorgente_id: null, indice_voce_sorgente: null, importo: 5, esclusa_proposta: false },
     ]
-    if (i === 4) registrazioni.push({
-      id: 'esclusa', tipo_riga: 'materiale', origine: 'file', sorgente_id: 'file',
-      indice_voce_sorgente: 0, importo: 0, quantita: 1, prezzo_unitario: 0, esclusa_proposta: true,
-      dettagli_analitici: { proposta_non_economica: { versione: 1, esclusa: true, motivo, storico: [{ esclusa: true, motivo }] } },
-    })
+    if (i === 4) registrazioni.push({ ...esclusa, importo: 0, esclusa_proposta: true })
     return {
       id: 'S' + i, variante_id: v.id, tipo: 'raccolta_economia', economia_raccolta_id: raccolta,
       economia_revisione_sorgente: 1, economia_revisione_congelata: 2, snapshot_version: 1,
@@ -28,17 +31,33 @@ test('Chrome carica il pannello Economia con sei varianti e una registrazione a 
         numero_incluse: 2, numero_escluse: registrazioni.length - 2, registrazioni },
     }
   })
+  const raccolta = { id: 'R4', cantiere_id: cantiere, stato: 'chiusa', revisione: 2 }
   const risposte = {
     varianti: () => varianti,
     sorgenti: id => fonti.filter(s => s.variante_id === id),
     dettaglio: id => fonti.find(s => s.id === id),
+    raccolte: async () => {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      return [raccolta]
+    },
+    raccolta: () => ({ raccolta, righe: [esclusa], sorgenti: [{
+      id: esclusa.sorgente_id, raccolta_id: raccolta.id, tipo: 'fattura_fornitore', formato: 'fattura', snapshot_version: 1, snapshot: fattura,
+    }] }),
   }
-  await browser(async (chiave, args) => risposte[chiave](...args), cantiere, {
-    entry: 'economia-varianti-entry.mjs', owner: 'U', modes: ['economia'],
+  const contesto = {
+    entry: 'economia-varianti-entry.mjs', owner: 'U',
     commands: {
       leggi_varianti_cantiere: ['varianti', 'p_cantiere_id'],
       leggi_sorgenti_variante: ['sorgenti', 'p_variante_id'],
       leggi_sorgente_variante: ['dettaglio', 'p_sorgente_id'],
+      leggi_raccolte_economia: ['raccolte', 'p_cantiere_id'],
+      leggi_raccolta_economia: ['raccolta', 'p_raccolta_id'],
     },
-  })
+  }
+  await browser(async (chiave, args) => risposte[chiave](...args), cantiere, { ...contesto, modes: ['economia'] })
+  await browser(async (chiave, args) => {
+    const risultato = await risposte[chiave](...args)
+    if (chiave === 'raccolte') throw Object.assign(Error('Fixture RPC'), { code: '42501' })
+    return risultato
+  }, cantiere, { ...contesto, modes: ['economia-errore'] })
 })

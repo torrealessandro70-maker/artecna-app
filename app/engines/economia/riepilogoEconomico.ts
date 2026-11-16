@@ -5,8 +5,32 @@ export type MaterialeEconomiaApprovato = {
   id: string; data: string; fornitore: string; fattura: string; descrizione: string
   quantita: number; um: string; prezzo: number; totale: number; riferimento: string
 }
-type IdentitaMateriale = { raccoltaId: string; rigaId: string; sorgenteId: string | null; fatturaRigaId: string | null }
+type IdentitaMateriale = {
+  raccoltaId: string; rigaId: string; sorgenteId: string | null; fatturaRigaId: string | null
+  esclusione?: { quantita: number; proposta: unknown }
+}
 export type MaterialiOperativi = { righe: readonly MaterialeEconomiaApprovato[]; daContabilizzare: number; totaleOperativo: number }
+export type StatoMaterialiOperativi = { stato: 'caricamento' } |
+  { stato: 'errore'; motivo: string } | { stato: 'verificato'; dati: MaterialiOperativi }
+const fasiMateriali = {
+  storico: 'variante o contratto storico non verificabile',
+  raccolta: 'raccolta Economia non verificabile',
+  snapshot: 'snapshot fattura incoerente',
+  identita: 'identità materiale duplicata o incompatibile',
+  valori: 'prezzo, quantità o arrotondamento incoerenti',
+}
+export class ErroreMaterialiOperativi extends Error {
+  constructor(readonly fase: keyof typeof fasiMateriali, readonly categoria?: 'rete' | 'rpc') {
+    super(categoria === 'rete' ? fasiMateriali[fase] + ' · connessione non disponibile'
+      : categoria === 'rpc' ? fasiMateriali[fase] + ' · errore RPC' : fasiMateriali[fase])
+  }
+}
+function verificaMateriali<T>(fase: keyof typeof fasiMateriali, verifica: () => T): T {
+  try { return verifica() } catch (cause) {
+    if (cause instanceof ErroreMaterialiOperativi) throw cause
+    throw new ErroreMaterialiOperativi(fase)
+  }
+}
 export type ScomposizioneVarianti = {
   totale: number; ordinarie: number; manodopera: number; materiali: number; generiche: number
   dettaglioMateriali?: readonly MaterialeEconomiaApprovato[]; cantiereNome?: string
@@ -127,7 +151,16 @@ export function scomponiVarianti(varianti: Riga[], sorgenti: Riga[], cantiereId:
       unico(r.id, registrazioni)
       if (!['manodopera', 'materiale', 'generica'].includes(r.tipo_riga)) return errore()
       if (versionato || 'origine' in r) verificaOrigine(r)
-      if (esclusaDalloSnapshot(r, versionato)) { numeroEscluse++; continue }
+      if (esclusaDalloSnapshot(r, versionato)) {
+        numeroEscluse++
+        const fatturaRigaId = r.dettagli_analitici?.fattura?.fattura_riga_id
+        if (r.origine === 'fattura_fornitore' && typeof fatturaRigaId === 'string' && fatturaRigaId.trim() &&
+            r.importo !== null && centSnapshot(r.importo) === 0) {
+          identitaMateriali.push({ raccoltaId: s.economia_raccolta_id, rigaId: r.id, sorgenteId: r.sorgente_id, fatturaRigaId,
+            esclusione: { quantita: numero(r.quantita), proposta: r.dettagli_analitici.proposta_non_economica } })
+        }
+        continue
+      }
       const valore = centRiga(r.importo)
       if (valore <= 0) return errore()
       if (r.tipo_riga === 'manodopera') manodopera = somma(manodopera, valore)
@@ -238,25 +271,29 @@ export function costoQuoteFattura(dettagli: Riga[], cantiereId: string, da = '',
   for (const d of dettagli) {
     const c = d.raccolta
     if (!record(c) || c.cantiere_id !== cantiereId || !['bozza', 'chiusa'].includes(c.stato) || !Array.isArray(d.righe) || !Array.isArray(d.sorgenti)) return errore()
-    unico(c.id, raccolte)
+    verificaMateriali('identita', () => unico(c.id, raccolte))
     const fonti = new Set<string>()
     const fattureNellaRaccolta = new Set<string>()
-    for (const s of d.sorgenti) { if (!record(s) || s.raccolta_id !== c.id) return errore(); unico(s.id, fonti) }
+    for (const s of d.sorgenti) {
+      if (!record(s) || s.raccolta_id !== c.id) throw new ErroreMaterialiOperativi('identita')
+      verificaMateriali('identita', () => unico(s.id, fonti))
+    }
     for (const r of d.righe) {
-      if (!record(r) || r.raccolta_id !== c.id) return errore()
-      unico(r.id, righe)
+      if (!record(r) || r.raccolta_id !== c.id) throw new ErroreMaterialiOperativi('identita')
+      verificaMateriali('identita', () => unico(r.id, righe))
       if (r.fattura_riga_id == null && r.origine !== 'fattura_fornitore') continue
       const s = d.sorgenti.find((s: Riga) => s.id === r.sorgente_id), f = r.dettagli_analitici?.fattura
       if (r.origine !== 'fattura_fornitore' || typeof r.fattura_riga_id !== 'string' || !record(s) || s.tipo !== 'fattura_fornitore' || s.formato !== 'fattura' || s.snapshot_version !== 1 ||
-          !record(f) || f.version !== 1 || stabile(s.snapshot) !== stabile(f) || f.fattura_riga_id !== r.fattura_riga_id || numero(f.quantita) !== numero(r.quantita)) return errore()
-      unico(r.fattura_riga_id, fattureNellaRaccolta)
+          !record(f) || f.version !== 1 || stabile(s.snapshot) !== stabile(f) || f.fattura_riga_id !== r.fattura_riga_id) throw new ErroreMaterialiOperativi('snapshot')
+      if (verificaMateriali('valori', () => numero(f.quantita) !== numero(r.quantita))) throw new ErroreMaterialiOperativi('snapshot')
+      verificaMateriali('identita', () => unico(r.fattura_riga_id, fattureNellaRaccolta))
       // Prezzo originale netto acquisito dall'import; il totale originale può essere lordo IVA.
       const prezzo = f.prezzo_unitario_originale ?? f.prezzo_unitario
-      const costo = cent(costoNettoQuota(r.quantita, prezzo))
+      const costo = verificaMateriali('valori', () => cent(costoNettoQuota(r.quantita, prezzo)))
       const data = f.data_fattura
-      if (typeof data !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data)) return errore()
+      if (typeof data !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new ErroreMaterialiOperativi('snapshot')
       if ((da && data < da) || (a && data > a)) continue
-      totale = somma(totale, costo)
+      totale = verificaMateriali('valori', () => somma(totale, costo))
     }
   }
   return totale / 100
@@ -265,15 +302,24 @@ export async function leggiCostoQuoteFattura(client: Client, cantiereId: string,
   return costoQuoteFattura(await leggiDettagliQuoteFattura(client, cantiereId), cantiereId, da, a)
 }
 async function leggiDettagliQuoteFattura(client: Client, cantiereId: string): Promise<Riga[]> {
-  const { data, error } = await client.rpc('leggi_raccolte_economia', { p_cantiere_id: cantiereId })
-  if (error || !Array.isArray(data)) return errore()
+  async function leggi(nome: string, args: Riga) {
+    try {
+      const { data, error } = await client.rpc(nome, args)
+      if (error) throw error
+      return data
+    } catch (cause) {
+      throw new ErroreMaterialiOperativi('raccolta', categoriaLetturaMateriali(cause) ?? 'rpc')
+    }
+  }
+  const data = await leggi('leggi_raccolte_economia', { p_cantiere_id: cantiereId })
+  if (!Array.isArray(data)) throw new ErroreMaterialiOperativi('raccolta')
   const ids = new Set<string>(), dettagli: Riga[] = []
   for (const r of data) {
-    if (!record(r) || r.cantiere_id !== cantiereId) return errore()
-    unico(r.id, ids)
-    const risposta = await client.rpc('leggi_raccolta_economia', { p_raccolta_id: r.id })
-    if (risposta.error || !record(risposta.data) || risposta.data.raccolta?.id !== r.id || risposta.data.raccolta?.revisione !== r.revisione) return errore()
-    dettagli.push(risposta.data)
+    if (!record(r) || r.cantiere_id !== cantiereId) throw new ErroreMaterialiOperativi('raccolta')
+    verificaMateriali('identita', () => unico(r.id, ids))
+    const dettaglio = await leggi('leggi_raccolta_economia', { p_raccolta_id: r.id })
+    if (!record(dettaglio) || dettaglio.raccolta?.id !== r.id || dettaglio.raccolta?.revisione !== r.revisione) throw new ErroreMaterialiOperativi('raccolta')
+    dettagli.push(dettaglio)
   }
   return dettagli
 }
@@ -281,53 +327,78 @@ async function leggiDettagliQuoteFattura(client: Client, cantiereId: string): Pr
 // Solo elenco operativo: non alimenta contratto, SAL o costi. L'ID congelato è er.id,
 // non l'ID della lavorazione Variante. La stessa fattura in raccolte diverse è distinta.
 export function materialiDaContabilizzare(dettagli: Riga[], approvati: ScomposizioneVarianti, cantiereId: string): MaterialiOperativi {
-  costoQuoteFattura(dettagli, cantiereId) // Mantiene le guardie certificate di provenienza fattura/snapshot.
+  verificaMateriali('raccolta', () => costoQuoteFattura(dettagli, cantiereId))
   if (!Array.isArray(approvati.identitaMateriali) || !Array.isArray(approvati.dettaglioMateriali) ||
-      approvati.identitaMateriali.length < approvati.dettaglioMateriali.length) return errore()
+      approvati.identitaMateriali.filter(x => !x.esclusione).length < approvati.dettaglioMateriali.length) throw new ErroreMaterialiOperativi('identita')
   const congelati = approvati.identitaMateriali
   const ids = new Set<string>()
   for (const x of congelati) {
-    if (!x.raccoltaId || !x.rigaId || (x.fatturaRigaId !== null && (!x.fatturaRigaId || !x.sorgenteId))) return errore()
-    unico(`${x.raccoltaId}:${x.rigaId}`, ids)
+    if (!x.raccoltaId || !x.rigaId || (x.fatturaRigaId !== null && (!x.fatturaRigaId || !x.sorgenteId))) throw new ErroreMaterialiOperativi('identita')
+    verificaMateriali('identita', () => unico(x.rigaId, ids))
   }
   const righe: MaterialeEconomiaApprovato[] = []; let totale = 0
   for (const d of dettagli) for (const r of d.righe) {
     if (r.origine !== 'fattura_fornitore') continue
     const stessaRiga = congelati.find(x => x.rigaId === r.id)
-    if (stessaRiga && (stessaRiga.raccoltaId !== r.raccolta_id || stessaRiga.sorgenteId !== r.sorgente_id || stessaRiga.fatturaRigaId !== r.fattura_riga_id)) return errore()
-    if (stessaRiga) continue
+    if (stessaRiga && (stessaRiga.raccoltaId !== r.raccolta_id || stessaRiga.sorgenteId !== r.sorgente_id || stessaRiga.fatturaRigaId !== r.fattura_riga_id)) throw new ErroreMaterialiOperativi('identita')
+    if (stessaRiga && !stessaRiga.esclusione) continue
     // Un'origine già congelata con ID riga differente è ambigua, non va sottratta euristicamente.
-    if (congelati.some(x => x.raccoltaId === r.raccolta_id &&
-        (x.fatturaRigaId === r.fattura_riga_id || x.sorgenteId === r.sorgente_id))) return errore()
+    if (congelati.some(x => x !== stessaRiga && x.raccoltaId === r.raccolta_id &&
+        (x.fatturaRigaId === r.fattura_riga_id || x.sorgenteId === r.sorgente_id))) throw new ErroreMaterialiOperativi('identita')
     const f = r.dettagli_analitici.fattura
-    const quantita = numero(r.quantita), prezzo = numero(r.prezzo_unitario)
-    const valore = cent(costoNettoQuota(quantita, prezzo))
-    if (r.tipo_riga !== 'materiale' || valore <= 0 || typeof r.descrizione !== 'string' || !r.descrizione.trim() ||
-        typeof r.unita_misura !== 'string' || !r.unita_misura.trim() || cent(f.totale_economia) !== valore ||
-        numero(f.prezzo_unitario_economia) !== prezzo || f.unita_misura_economia !== r.unita_misura) return errore()
+    const [quantita, prezzo, valore, totaleAtteso, prezzoAtteso] = verificaMateriali('valori', () => {
+      const q = numero(r.quantita), p = numero(r.prezzo_unitario)
+      return [q, p, cent(costoNettoQuota(r.quantita, r.prezzo_unitario)), cent(f.totale_economia), numero(f.prezzo_unitario_economia)]
+    })
+    const esclusione = stessaRiga?.esclusione
+    if (esclusione && (quantita !== esclusione.quantita ||
+        stabile(r.dettagli_analitici.proposta_non_economica) !== stabile(esclusione.proposta))) throw new ErroreMaterialiOperativi('identita')
+    if (esclusione) verificaMateriali('valori', () => {
+      if (centSnapshot(r.prezzo_unitario) !== 0 || centSnapshot(f.totale_economia) !== 0) return errore()
+    })
+    if (r.tipo_riga !== 'materiale' || (esclusione ? prezzo !== 0 || valore !== 0 : valore <= 0) ||
+        typeof r.descrizione !== 'string' || !r.descrizione.trim() ||
+        typeof r.unita_misura !== 'string' || !r.unita_misura.trim() || totaleAtteso !== valore ||
+        prezzoAtteso !== prezzo || f.unita_misura_economia !== r.unita_misura) throw new ErroreMaterialiOperativi('valori')
+    if (esclusione) continue
     const testo = (v: unknown) => typeof v === 'string' ? v : ''
     righe.push({ id: `${r.raccolta_id}:${r.id}`, data: f.data_fattura, fornitore: testo(f.fornitore), fattura: testo(f.numero_fattura),
       descrizione: r.descrizione, quantita, um: r.unita_misura, prezzo, totale: valore / 100,
       riferimento: `Raccolta n. ${d.raccolta.numero ?? '—'} — ${d.raccolta.titolo ?? '—'}` })
-    totale = somma(totale, valore)
+    totale = verificaMateriali('valori', () => somma(totale, valore))
   }
-  return { righe, daContabilizzare: totale / 100, totaleOperativo: somma(cent(approvati.materiali), totale) / 100 }
+  return { righe, daContabilizzare: totale / 100, totaleOperativo: verificaMateriali('valori', () => somma(cent(approvati.materiali), totale)) / 100 }
+}
+function categoriaLetturaMateriali(cause: unknown): 'rete' | 'rpc' | undefined {
+  const messaggio = record(cause) ? String(cause.message ?? '') : ''
+  if (cause instanceof TypeError || /failed to fetch|networkerror|load failed|connessione non disponibile/i.test(messaggio)) return 'rete'
+  if (record(cause) && (cause.cause || typeof cause.code === 'string' ||
+      /lettura RPC non disponibile|accesso non autorizzato|lettura rifiutata dal server/.test(messaggio))) return 'rpc'
 }
 export async function leggiMaterialiDaContabilizzare(client: Client, cantiereId: string, approvati: ScomposizioneVarianti): Promise<MaterialiOperativi> {
   // Lettura indipendente dal contratto corrente: un errore storico blocca soltanto
   // il dettaglio operativo, mai i totali contrattuali già caricati.
-  const varianti = await pagina(client, 'leggi_varianti_cantiere', { p_cantiere_id: cantiereId }, 'numero')
-  const contratti = new Set(varianti.filter(v => v.stato === 'approvata').map(v => v.preventivo_contrattuale_id))
-  const identitaMateriali: IdentitaMateriale[] = []
-  for (const id of contratti) {
-    if (typeof id !== 'string' || !id) return errore()
-    const snapshot = await leggiScomposizioneVarianti(client, cantiereId, id)
-    if (!snapshot.identitaMateriali) return errore()
-    identitaMateriali.push(...snapshot.identitaMateriali)
-  }
-  // Se le approvazioni cambiano durante il caricamento, non usare un elenco misto.
-  for (const x of approvati.identitaMateriali ?? []) {
-    if (!identitaMateriali.some(y => stabile(x) === stabile(y))) return errore()
-  }
+  const identitaMateriali = await leggiIdentitaMateriali(client, cantiereId, approvati)
   return materialiDaContabilizzare(await leggiDettagliQuoteFattura(client, cantiereId), { ...approvati, identitaMateriali }, cantiereId)
+}
+async function leggiIdentitaMateriali(client: Client, cantiereId: string, approvati: ScomposizioneVarianti) {
+  try {
+    const varianti = await pagina(client, 'leggi_varianti_cantiere', { p_cantiere_id: cantiereId }, 'numero')
+    const contratti = new Set(varianti.filter(v => v.stato === 'approvata').map(v => v.preventivo_contrattuale_id))
+    const identitaMateriali: IdentitaMateriale[] = []
+    for (const id of contratti) {
+      if (typeof id !== 'string' || !id) return errore()
+      const snapshot = await leggiScomposizioneVarianti(client, cantiereId, id)
+      if (!snapshot.identitaMateriali) return errore()
+      identitaMateriali.push(...snapshot.identitaMateriali)
+    }
+    // Se le approvazioni cambiano durante il caricamento, non usare un elenco misto.
+    for (const x of approvati.identitaMateriali ?? []) {
+      if (!identitaMateriali.some(y => stabile(x) === stabile(y))) throw new ErroreMaterialiOperativi('identita')
+    }
+    return identitaMateriali
+  } catch (cause) {
+    if (cause instanceof ErroreMaterialiOperativi) throw cause
+    throw new ErroreMaterialiOperativi('storico', categoriaLetturaMateriali(cause))
+  }
 }
