@@ -1,4 +1,8 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import type { ContrattoAggiornato } from '../engines/economia/contrattiAggiornati'
+
+type CantiereDashboard = { id: string; nome: string; data_fine_lavori?: string | null; contratto: ContrattoAggiornato;
+  utile: number | null; margine: number | null }
 
 type Props = {
   cardStyle: CSSProperties
@@ -9,14 +13,14 @@ type Props = {
   avviaAssistenteVocale: () => void
   fermaAssistenteVocale: () => void
 
-  classificaCantieri: any[]
+  classificaCantieri: CantiereDashboard[]
   formatMoney: (n: number) => string
 
   mostraCantieriConclusi: boolean
   setMostraCantieriConclusi: (v: boolean) => void
 
-  cantieri: any[]
-  calcoloEconomiaCantiere: (nomeCantiere: string) => any
+  cantieriConclusi: CantiereDashboard[]
+  riepilogo?: ReactNode
 }
 
 export default function HomeDashboardPanel({
@@ -30,8 +34,8 @@ export default function HomeDashboardPanel({
   formatMoney,
   mostraCantieriConclusi,
   setMostraCantieriConclusi,
-  cantieri,
-  calcoloEconomiaCantiere,
+  cantieriConclusi,
+  riepilogo,
 }: Props) {
   return (
     <div style={cardStyle}>
@@ -83,6 +87,7 @@ export default function HomeDashboardPanel({
         )}
       </div>
 
+      {riepilogo}
       <h3 style={{ marginTop: 25 }}>Classifica cantieri</h3>
 
       {classificaCantieri.length === 0 ? (
@@ -91,7 +96,7 @@ export default function HomeDashboardPanel({
         <div style={{ display: 'grid', gap: 10 }}>
           {classificaCantieri.map((c, i) => (
             <div
-              key={c.nome || i}
+              key={c.id || i}
               style={{
                 padding: 12,
                 border: '1px solid #ddd',
@@ -100,15 +105,17 @@ export default function HomeDashboardPanel({
               }}
             >
               <strong>
-                #{i + 1} — {c.nome}
+                {c.utile === null ? c.nome : `#${i + 1} — ${c.nome}`}
               </strong>
               <br />
-              Utile:{' '}
-              <strong style={{ color: c.utile >= 0 ? 'green' : 'red' }}>
-                {formatMoney(c.utile)}
+              Contratto aggiornato: {c.contratto.aggiornato === null ? c.contratto.messaggio : formatMoney(c.contratto.aggiornato)}
+              <br />
+              Utile gestionale:{' '}
+              <strong style={{ color: c.utile === null ? undefined : c.utile >= 0 ? 'green' : 'red' }}>
+                {c.utile === null ? 'Non disponibile' : formatMoney(c.utile)}
               </strong>
               <br />
-              Margine: {c.margine.toFixed(1)}%
+              Margine gestionale: {c.margine === null ? 'Non disponibile' : `${c.margine.toFixed(1)}%`}
             </div>
           ))}
         </div>
@@ -127,19 +134,15 @@ export default function HomeDashboardPanel({
 
       {mostraCantieriConclusi && (
         <>
-          {cantieri.filter((c) => c.lavori_conclusi).length === 0 ? (
+          {cantieriConclusi.length === 0 ? (
             <p>Nessun cantiere concluso</p>
           ) : (
             <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-              {cantieri
-                .filter((c) => c.lavori_conclusi)
+              {cantieriConclusi
                 .map((c, i) => {
-                  const nomeCantiere = String(c.nome || '')
-                  const utile = calcoloEconomiaCantiere(nomeCantiere).utileReale
-
                   return (
                     <div
-                      key={c.nome || i}
+                      key={c.id || i}
                       style={{
                         padding: 12,
                         border: '1px solid #ddd',
@@ -152,10 +155,14 @@ export default function HomeDashboardPanel({
                       <br />
                       Fine lavori: {c.data_fine_lavori || '-'}
                       <br />
-                      Utile:{' '}
-                      <strong style={{ color: utile >= 0 ? 'green' : 'red' }}>
-                        {formatMoney(utile)}
+                      Contratto aggiornato: {c.contratto.aggiornato === null ? c.contratto.messaggio : formatMoney(c.contratto.aggiornato)}
+                      <br />
+                      Utile gestionale:{' '}
+                      <strong style={{ color: c.utile === null ? undefined : c.utile >= 0 ? 'green' : 'red' }}>
+                        {c.utile === null ? 'Non disponibile' : formatMoney(c.utile)}
                       </strong>
+                      <br />
+                      Margine gestionale: {c.margine === null ? 'Non disponibile' : `${c.margine.toFixed(1)}%`}
                     </div>
                   )
                 })}

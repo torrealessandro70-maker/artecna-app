@@ -2117,7 +2117,7 @@ const erroriRpc: Record<string, string> = {
   '40P01': 'Conflitto concorrente: salvataggio annullato. Puoi riprovare manualmente.',
 }
 
-export default function VariantiCantierePanel({ cantiereId, economiaRapportini = false, onApprovazione, stampaContesto, onDocumentoConfermato }: { cantiereId?: string | null; economiaRapportini?: boolean; onApprovazione?: () => void; stampaContesto?: ContestoStampaVarianti; onDocumentoConfermato?: () => void }) {
+export default function VariantiCantierePanel({ cantiereId, economiaRapportini = false, onCambioStato, stampaContesto, onDocumentoConfermato }: { cantiereId?: string | null; economiaRapportini?: boolean; onCambioStato?: () => void; stampaContesto?: ContestoStampaVarianti; onDocumentoConfermato?: () => void }) {
   const [stampaInCorso, setStampaInCorso] = useState(false)
   const [erroreStampa, setErroreStampa] = useState('')
   const [includiProposte, setIncludiProposte] = useState(false)
@@ -2289,6 +2289,7 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
     const proposta = { ...variante, stato: 'proposta', numero }
     setProposteConfermate(precedenti => [...precedenti.filter(v => v.id !== variante.id), proposta])
     setSuccesso(`Variante proposta come n. ${numero}.`)
+    onCambioStato?.()
     setRefresh(valore => valore + 1)
   }
 
@@ -2296,7 +2297,7 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
     const approvata = { ...variante, ...esito }
     setApprovazioniConfermate(precedenti => [...precedenti.filter(v => v.id !== variante.id), approvata])
     setSuccesso(`Proposta n. ${esito.numero} approvata.`)
-    onApprovazione?.()
+    onCambioStato?.()
     setRefresh(valore => valore + 1)
   }
 
@@ -2329,6 +2330,7 @@ export default function VariantiCantierePanel({ cantiereId, economiaRapportini =
   }, [stato, cantiereId, righe, varianteApertaId])
 
   function aggiornaVariante(varianteId: string) {
+    onCambioStato?.()
     setRefreshLavorazioni(precedenti => ({ ...precedenti, [varianteId]: (precedenti[varianteId] ?? 0) + 1 }))
     setRefresh(valore => valore + 1)
   }

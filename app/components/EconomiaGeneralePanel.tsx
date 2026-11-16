@@ -22,11 +22,9 @@ type Props = {
   cardStyle: CSSProperties
   fattureEmesse: unknown[]
   fattureFornitori: unknown[]
-  totalePreventiviImpresa: number
   accontiCantiere: unknown[]
   cantieri: unknown[]
   speseImpresa: SpesaImpresa[]
-  calcoloEconomiaCantiere: (nomeCantiere: string) => unknown
   formatMoney: (n: number) => string
   filtroSpeseImpresa: string
   setFiltroSpeseImpresa: Dispatch<SetStateAction<string>>

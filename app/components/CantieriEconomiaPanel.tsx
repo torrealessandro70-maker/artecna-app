@@ -42,12 +42,15 @@ export default function CantieriEconomiaPanel(props: Props) {
   const [analisiAperta, setAnalisiAperta] = useState(false)
   const [schedaAttiva, setSchedaAttiva] =
     useState<FascicoloCantiereTab>('panoramica')
-  const margine = Number(p.margineCantiere || 0)
+  const margine = p.margineGestionale ?? null
   const stato =
-    p.utileCantiere < 0
+    p.utileGestionale == null || margine === null
+      ? { titolo: 'Utile gestionale non disponibile', dettaglio: p.contrattoAggiornato?.messaggio || 'Dati economici non verificabili.',
+          colore: '#475569', sfondo: '#f8fafc', bordo: '#cbd5e1' }
+      : p.utileGestionale < 0
       ? {
           titolo: 'Cantiere in perdita',
-          dettaglio: 'I costi hanno superato il valore del preventivo.',
+          dettaglio: 'I costi registrati superano il contratto aggiornato.',
           colore: '#b91c1c',
           sfondo: '#fef2f2',
           bordo: '#fecaca',
@@ -196,16 +199,18 @@ export default function CantieriEconomiaPanel(props: Props) {
                   }}
                 >
                   {[
-                    ['Preventivo', p.preventivoCantiere],
-                    ['Costi totali', p.totaleCostiCantiere],
-                    ['Manodopera', p.totaleManodoperaCantiere],
-                    ['Materiali', p.totaleMaterialiEconomia],
-                    ['Attrezzature', p.totaleAttrezziEconomia],
-                    ['Acconti', p.totaleAccontiCantiere],
-                    ['Residuo da incassare', p.residuoDaIncassare],
-                    ['Utile', p.utileCantiere],
+                    ['Contratto base', p.contrattoAggiornato?.base],
+                    ['Varianti approvate', p.contrattoAggiornato?.delta],
+                    ['Contratto aggiornato', p.contrattoAggiornato?.aggiornato],
+                    ['Costi totali', p.costiAttribuibili ? p.totaleCostiCantiere : null],
+                    ['Manodopera', p.costiAttribuibili ? p.totaleManodoperaCantiere : null],
+                    ['Materiali', p.costiAttribuibili ? p.totaleMaterialiEconomia : null],
+                    ['Attrezzature', p.costiAttribuibili ? p.totaleAttrezziEconomia : null],
+                    ['Acconti', p.accontiGestionali],
+                    ['Residuo storico sugli acconti', p.residuoGestionale],
+                    ['Utile gestionale', p.utileGestionale],
                   ].map(([etichetta, valore]) => (
-                    <article key={String(etichetta)} style={stileKpi(etichetta === 'Utile')}>
+                    <article key={String(etichetta)} style={stileKpi(etichetta === 'Utile gestionale' || etichetta === 'Contratto aggiornato')}>
                       <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>
                         {etichetta}
                       </div>
@@ -214,19 +219,19 @@ export default function CantieriEconomiaPanel(props: Props) {
                           display: 'block',
                           marginTop: 5,
                           fontSize: 20,
-                          color: etichetta === 'Utile' ? stato.colore : '#0f172a',
+                          color: etichetta === 'Utile gestionale' ? stato.colore : '#0f172a',
                         }}
                       >
-                        {p.formatMoney(Number(valore || 0))}
+                        {valore == null ? 'Non disponibile' : (etichetta === 'Varianti approvate' && valore > 0 ? '+' : '') + p.formatMoney(valore)}
                       </strong>
                     </article>
                   ))}
                   <article style={stileKpi(true)}>
                     <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>
-                      Margine
+                      Margine gestionale
                     </div>
                     <strong style={{ display: 'block', marginTop: 5, fontSize: 20, color: stato.colore }}>
-                      {margine.toFixed(1)}%
+                      {margine === null ? 'Non disponibile' : `${margine.toFixed(1)}%`}
                     </strong>
                   </article>
                 </div>
@@ -236,8 +241,13 @@ export default function CantieriEconomiaPanel(props: Props) {
                     Vedi grafici economici
                   </summary>
                   <div style={{ marginTop: 14 }}>
-                    <EconomiaGraficiPanel
+                    {p.contrattoAggiornato?.aggiornato != null && p.utileGestionale != null && margine !== null && p.residuoGestionale != null && <EconomiaGraficiPanel
                       {...p}
+                      preventivoCantiere={p.contrattoAggiornato.aggiornato}
+                      utileCantiere={p.utileGestionale}
+                      margineCantiere={margine.toFixed(1)}
+                      residuoDaIncassare={p.residuoGestionale}
+                      totaleAccontiCantiere={p.accontiGestionali}
                       setMostraDettaglioManodopera={(visibile: boolean) => {
                         p.setMostraDettaglioManodopera(visibile)
                         if (visibile) setSchedaAttiva('economia')
@@ -250,7 +260,7 @@ export default function CantieriEconomiaPanel(props: Props) {
                         p.setMostraDettaglioAttrezzi(visibile)
                         if (visibile) setSchedaAttiva('economia')
                       }}
-                    />
+                    />}
                   </div>
                 </details>
               </section>

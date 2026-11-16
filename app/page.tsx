@@ -20,7 +20,9 @@ import { eliminaPreventivoConFile, eliminaFilePreventivi, messaggioEliminazione 
 import { parsePreventivoItems, type VoceAnalizzata } from './engines/document-intelligence/preventivo-items'
 import { creaVoceAnalizzataExcel, totaleVoceAnalizzata } from './engines/document-parser/voci-analizzate'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
+import { attribuzioneCosto, baseContrattuale, calcolaGestione, chiaveContratto, contrattoAggiornato, creaLettoreContratti, totaleContratti, type StatoVarianti } from './engines/economia/contrattiAggiornati'
+import { accontiCaricati, selezionaAcconti } from './engines/economia/accontiCantiere'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ChangeEvent } from 'react'
 import type { RigaMaterialeFatturaStorico } from './utils/suggerimentiMateriali'
 import { calcolaAttrezzoManuale } from './utils/attrezzoManuale'
 import type { RigaAttrezzaturaFatturaStorico } from './utils/suggerimentiAttrezzature'
@@ -241,6 +243,7 @@ type PrezzoarioSicilia = {
 }
 
 type MaterialeCantiere = {
+  cantiere_id?: string | null
   id?: string
   cantiere: string
   descrizione?: string
@@ -321,6 +324,7 @@ categoria_economica?: string
 
 
 type AttrezzoCantiere = {
+  cantiere_id?: string | null
   id?: string
   cantiere: string
   descrizione?: string
@@ -347,6 +351,10 @@ const normalizzaQuantitaPreventivoAi = (valore: unknown): number | null => {
   const numero = Number(valore)
   return Number.isFinite(numero) ? numero : null
 }
+
+const mappaContrattiVuota = new Map<string, StatoVarianti>()
+const nessunoStatoContratti = () => mappaContrattiVuota
+const nessunaIscrizioneContratti = () => () => {}
 
 export default function Home() {
 const coloreUtile = (utile: number, preventivo: number) => {
@@ -394,62 +402,6 @@ const formatEuro = (valore: string) => {
     maximumFractionDigits: 2,
   }) + ' €'
 }
-const calcoloEconomiaCantiere = (nomeCantiere: string) => {
-  const cantiere = cantieri.find((c) => c.nome === nomeCantiere)
-
-  const totalePreventiviCaricati = preventivi
-    .filter((p) => p.cantiere === nomeCantiere && p.natura !== 'integrativo')
-    .reduce((tot, p) => {
-      const valoreDaUsare =
-        (p as any).importo_corretto &&
-        String((p as any).importo_corretto).trim() !== ''
-          ? (p as any).importo_corretto
-          : p.importo_totale
-
-      return tot + parseImporto(valoreDaUsare)
-    }, 0)
-
-  const preventivo =
-    totalePreventiviCaricati > 0
-      ? totalePreventiviCaricati
-      : parseImporto(cantiere?.preventivo)
-
-  const costoManodopera = contabilizzaManodopera({
-    rapportini: rapportini.filter((r) => r.cantiere === nomeCantiere),
-    timbrature: timbrature.filter((t) => t.cantiere === nomeCantiere),
-    calcolaCostoOperativoTimbratura: calcolaCostoTimbratura,
-  }).costoTotaleManodoperaContabile
-
-  const costoMateriali = materialiCantiere
-    .filter((m) => m.cantiere === nomeCantiere)
-    .reduce((tot, m) => tot + Number(m.totale || 0), 0)
-
-
-
-  const costoAttrezzi = attrezziCantiere
-    .filter((a) => a.cantiere === nomeCantiere)
-    .reduce((tot, a) => tot + Number(a.totale || 0), 0)
-
-  const costoTotale =
-    costoManodopera + costoMateriali + costoAttrezzi
-
-  const utileReale = preventivo - costoTotale
-
-  return {
-    preventivo,
-    costoManodopera,
-    costoFornitori: costoMateriali + costoAttrezzi,
-    costoMateriali,
-    costoAttrezzi,
-    costoTotale,
-    utileReale,
-  }
-}
-
-
-
-
-
 const ordinaBilancioCantiere = (campo: string) => {
   if (ordineBilancioCampo === campo) {
     setOrdineBilancioDirezione(
@@ -698,6 +650,9 @@ const [mostraDettaglioAttrezzi, setMostraDettaglioAttrezzi] = useState(false)
 const [mostraCostiPresenze, setMostraCostiPresenze] = useState(false)
 const [mostraRiepilogoOperai, setMostraRiepilogoOperai] = useState(true)
    const [cantieri, setCantieri] = useState<Cantiere[]>([])
+  const [fontiCosti, setFontiCosti] = useState<Partial<Record<'rapportini' | 'operai' | 'timbrature' | 'economia', boolean>>>({})
+  const costiRegistratiDisponibili = fontiCosti.rapportini === true && fontiCosti.operai === true &&
+    fontiCosti.timbrature === true && fontiCosti.economia === true
   const [statoCantieri, setStatoCantieri] = useState<StatoCantieri>('caricamento')
   const [editorRapportinoDesktop, setEditorRapportinoDesktop] = useState<{ cantiereId?: string; data?: string; rapportinoId?: string } | null>(null)
   const apriNuovoRapportinoStrutturato = (cantiereId?: string) => setEditorRapportinoDesktop({ cantiereId })
@@ -5493,6 +5448,7 @@ const eliminaPagamentoOperaio = async (id?: string) => {
       .order('created_at', { ascending: false })
 
     if (error) {
+      setFontiCosti(fonti => ({ ...fonti, rapportini: false }))
       alert('Errore caricamento rapportini: ' + error.message)
       return
     }
@@ -5500,6 +5456,7 @@ const eliminaPagamentoOperaio = async (id?: string) => {
     const lista = (data || []) as Rapportino[]
     setRapportini(lista)
     setUltimoRapportino(lista.length > 0 ? lista[0] : null)
+    setFontiCosti(fonti => ({ ...fonti, rapportini: true }))
   }
 
 const caricaFotoCantiere = async () => {
@@ -5532,11 +5489,13 @@ console.log('NUMERO FOTO', data?.length)
       .order('created_at', { ascending: false })
 
     if (error) {
+      setFontiCosti(fonti => ({ ...fonti, operai: false }))
       alert('Errore caricamento operai: ' + error.message)
       return
     }
 
     setOperaiAnagrafica((data || []) as Operaio[])
+    setFontiCosti(fonti => ({ ...fonti, operai: true }))
   }
 
   const caricaTimbrature = async () => {
@@ -5546,11 +5505,13 @@ console.log('NUMERO FOTO', data?.length)
       .order('created_at', { ascending: false })
 
     if (error) {
+      setFontiCosti(fonti => ({ ...fonti, timbrature: false }))
       alert('Errore caricamento timbrature: ' + error.message)
       return
     }
 
     setTimbrature((data || []) as Timbratura[])
+    setFontiCosti(fonti => ({ ...fonti, timbrature: true }))
   }
 
 
@@ -5701,16 +5662,19 @@ const [mostraAttrezziCantiere, setMostraAttrezziCantiere] = useState(false)
       .order('created_at', { ascending: false })
 
     if (errP) {
+      setFontiCosti(fonti => ({ ...fonti, economia: false }))
       alert('Errore caricamento preventivi: ' + errP.message)
       return
     }
 
     if (errM) {
+      setFontiCosti(fonti => ({ ...fonti, economia: false }))
       alert('Errore caricamento materiali: ' + errM.message)
       return
     }
 
     if (errA) {
+      setFontiCosti(fonti => ({ ...fonti, economia: false }))
       alert('Errore caricamento attrezzi: ' + errA.message)
       return
     }
@@ -5718,6 +5682,7 @@ const [mostraAttrezziCantiere, setMostraAttrezziCantiere] = useState(false)
     setPreventivi((p || []) as PreventivoCantiere[])
     setMaterialiCantiere((m || []) as MaterialeCantiere[])
     setAttrezziCantiere((a || []) as AttrezzoCantiere[])
+    setFontiCosti(fonti => ({ ...fonti, economia: true }))
   }
 
   const resetFormRapportino = () => {
@@ -10181,23 +10146,53 @@ const preventivoCantiere =
     ? totalePreventiviCaricati
     : Number(cantiereSelezionato?.preventivo || 0)
 
-const preventivoContrattualeIdEconomia = cantiereSelezionatoDaId?.preventivo_contrattuale_id
-const preventivoContrattualeEconomia = preventivoContrattualeIdEconomia
-  ? preventivi.find(p => p.id === preventivoContrattualeIdEconomia)
+const contrattiBase = useMemo(() => {
+  const perId = new Map(preventivi.map(p => [p.id, p]))
+  return new Map(cantieri.flatMap(c => {
+    const base = baseContrattuale(c, perId.get(c.preventivo_contrattuale_id ?? undefined))
+    return c.id && base ? [[c.id, base] as const] : []
+  }))
+}, [cantieri, preventivi])
+const sessioneContratti = utente?.id
+const lettoreContratti = useMemo(() => sessioneContratti ? creaLettoreContratti(supabase) : null, [sessioneContratti])
+const statiContratti = useSyncExternalStore(
+  lettoreContratti?.iscriviti ?? nessunaIscrizioneContratti,
+  lettoreContratti?.snapshot ?? nessunoStatoContratti,
+  nessunoStatoContratti,
+)
+useEffect(() => {
+  lettoreContratti?.sincronizza([...contrattiBase].map(([cantiereId, base]) => ({ cantiereId, preventivoId: base.preventivoId })))
+}, [lettoreContratti, contrattiBase])
+useEffect(() => () => { lettoreContratti?.sincronizza([]) }, [lettoreContratti])
+const contrattoBaseEconomia = contrattiBase.get(cantiereSelezionatoDaId?.id ?? '') ?? null
+const letturaContrattoEconomia = contrattoBaseEconomia && cantiereSelezionatoDaId?.id
+  ? statiContratti.get(chiaveContratto({ cantiereId: cantiereSelezionatoDaId.id, preventivoId: contrattoBaseEconomia.preventivoId }))
   : undefined
-const importoContrattualeEconomia: unknown = preventivoContrattualeEconomia?.importo_totale
-const contrattoBaseEconomia = preventivoContrattualeIdEconomia &&
-  (typeof importoContrattualeEconomia === 'number' ||
-    (typeof importoContrattualeEconomia === 'string' && importoContrattualeEconomia.trim() !== '')) &&
-  Number.isFinite(Number(importoContrattualeEconomia))
-  ? { preventivoId: preventivoContrattualeIdEconomia, importo: Number(importoContrattualeEconomia) }
-  : null
+const calcolaContratto = (id?: string) => {
+  const base = contrattiBase.get(id ?? '') ?? null
+  return contrattoAggiornato(base, base && id ? statiContratti.get(chiaveContratto({ cantiereId: id, preventivoId: base.preventivoId })) : undefined)
+}
+const contrattoEconomia = calcolaContratto(cantiereSelezionatoDaId?.id)
+const invalidaContrattoEconomia = () => {
+  if (cantiereSelezionatoDaId?.id) lettoreContratti?.invalida(cantiereSelezionatoDaId.id)
+}
+const occorrenzeNomi = useMemo(() => {
+  const conteggi = new Map<string, number>()
+  for (const c of cantieri) conteggi.set(c.nome, (conteggi.get(c.nome) ?? 0) + 1)
+  return conteggi
+}, [cantieri])
+const esitoCosto = (riga: { cantiere: string; cantiere_id?: string | null }, c: Cantiere) =>
+  attribuzioneCosto(riga, c, occorrenzeNomi.get(c.nome) === 1)
+const inclusoCostoEconomia = (riga: { cantiere: string; cantiere_id?: string | null }) =>
+  cantiereSelezionatoDaId ? esitoCosto(riga, cantiereSelezionatoDaId) === 'inclusa' : riga.cantiere === cantiereScheda
+const costiEconomiaAttribuibili = costiRegistratiDisponibili && (!cantiereSelezionatoDaId ||
+  ![...materialiCantiere, ...attrezziCantiere, ...rapportini, ...timbrature].some(r => esitoCosto(r, cantiereSelezionatoDaId) === 'ambigua'))
 
 const residuoDaIncassare =
   Number(preventivoCantiere || 0) - totaleAccontiCantiere
   const totaleMaterialiEconomia = materialiCantiere
   .filter((m) => {
-    if (m.cantiere !== cantiereScheda) return false
+    if (!inclusoCostoEconomia(m)) return false
 
     if (
       economiaDataDa &&
@@ -10219,7 +10214,7 @@ const residuoDaIncassare =
 
 
   const totaleAttrezziEconomia = attrezziCantiere
-    .filter((a) => a.cantiere === cantiereScheda)
+    .filter(inclusoCostoEconomia)
     .reduce((tot, a) => tot + Number(a.totale || 0), 0)
 const totaleVociAnalizzate = vociAnalizzate.reduce((tot, voce) => {
   if (voce.quantita !== undefined && voce.prezzo !== undefined) {
@@ -10228,10 +10223,10 @@ const totaleVociAnalizzate = vociAnalizzate.reduce((tot, voce) => {
   return tot
 }, 0)
 
-const calcolaTotaleManodoperaCantiere = (nomeCantiere: string) => {
+const calcolaTotaleManodoperaCantiere = (nomeCantiere: string, selezionato = false) => {
  const timbratureContabili = timbrature
   .filter((t) => {
-    if (t.cantiere !== nomeCantiere) return false
+    if (!(selezionato ? inclusoCostoEconomia(t) : t.cantiere === nomeCantiere)) return false
 
     if (economiaDataDa && String(t.data || '') < economiaDataDa) {
       return false
@@ -10246,7 +10241,7 @@ const calcolaTotaleManodoperaCantiere = (nomeCantiere: string) => {
 
 const rapportiniContabili = rapportini
   .filter((r) => {
-    if (r.cantiere !== nomeCantiere) return false
+    if (!(selezionato ? inclusoCostoEconomia(r) : r.cantiere === nomeCantiere)) return false
 
     if (economiaDataDa && String(r.data || '') < economiaDataDa) {
       return false
@@ -10267,7 +10262,7 @@ return contabilizzaManodopera({
 
 }
 
-const totaleManodoperaCantiere = calcolaTotaleManodoperaCantiere(cantiereScheda)
+const totaleManodoperaCantiere = calcolaTotaleManodoperaCantiere(cantiereScheda, true)
 
 const totaleCostiCantiere =
   totaleManodoperaCantiere +
@@ -10277,50 +10272,34 @@ const totaleCostiCantiere =
 
 const utileCantiere = preventivoCantiere - totaleCostiCantiere
 
-const dashboardCantieri = cantieri.map((c) => {
-  const totalePreventiviCaricati = preventivi
-    .filter((p) => p.cantiere === c.nome && p.natura !== 'integrativo')
-    .reduce((tot, p) => {
-      const valoreDaUsare =
-        (p as any).importo_corretto &&
-        String((p as any).importo_corretto).trim() !== ''
-          ? (p as any).importo_corretto
-          : p.importo_totale
-
-      return tot + parseImporto(valoreDaUsare)
-    }, 0)
-
-  const preventivo =
-    totalePreventiviCaricati > 0
-      ? totalePreventiviCaricati
-      : parseImporto(c.preventivo)
-
-  const materiali = materialiCantiere
-    .filter((m) => m.cantiere === c.nome)
-    .reduce((tot, m) => tot + Number(m.totale || 0), 0)
-
-  const attrezzi = attrezziCantiere
-    .filter((a) => a.cantiere === c.nome)
-    .reduce((tot, a) => tot + Number(a.totale || 0), 0)
-
-  const manodopera = contabilizzaManodopera({
-    rapportini: rapportini.filter(r => r.cantiere === c.nome),
-    timbrature: timbrature.filter(t => t.cantiere === c.nome),
+const dashboardCantieri = cantieri.map(c => {
+  let attribuibili = costiRegistratiDisponibili
+  function pertinenti<T extends { cantiere: string; cantiere_id?: string | null }>(righe: T[]) {
+    return righe.filter(r => {
+      const esito = esitoCosto(r, c)
+      if (esito === 'ambigua') attribuibili = false
+      return esito === 'inclusa'
+    })
+  }
+  const materiali = pertinenti(materialiCantiere)
+  const costoMateriali = materiali.reduce((tot, m) => tot + Number(m.totale || 0), 0)
+  const costoAttrezzi = pertinenti(attrezziCantiere).reduce((tot, a) => tot + Number(a.totale || 0), 0)
+  const costoManodopera = contabilizzaManodopera({
+    rapportini: pertinenti(rapportini),
+    timbrature: pertinenti(timbrature),
     calcolaCostoOperativoTimbratura: calcolaCostoTimbratura,
   }).costoTotaleManodoperaContabile
-
-  const costi = materiali + attrezzi + manodopera
-  const utile = preventivo - costi
-  const margine = preventivo > 0 ? (utile / preventivo) * 100 : 0
-
-  return {
-    nome: c.nome,
-    preventivo,
-    costi,
-    utile,
-    margine,
-  }
+  const costoTotale = attribuibili ? costoMateriali + costoAttrezzi + costoManodopera : null
+  const contratto = calcolaContratto(c.id)
+  return { ...c, id: c.id ?? '', contratto, costoTotale, costoManodopera, costoMateriali, costoAttrezzi,
+    materialiBaseIds: materiali.map(m => m.id).filter((id): id is string => typeof id === 'string'),
+    ...calcolaGestione(contratto.aggiornato, costoTotale) }
 })
+const gestioneSchedaEconomia = calcolaGestione(contrattoEconomia.aggiornato, costiEconomiaAttribuibili ? totaleCostiCantiere : null)
+const accontiGestionali = cantiereSelezionatoDaId && accontiCaricati(statoAcconti)
+  ? selezionaAcconti(accontiCantiere, cantiereSelezionatoDaId.nome, cantiereSelezionatoDaId.id)
+    .reduce((tot, a) => tot + Number(a.importo || 0), 0) : null
+const statoCantiere = dashboardCantieri.find(c => !!c.id && c.id === cantiereSelezionatoDaId?.id)
 
 const calcolaOreTimbratura = (entrata?: string, uscita?: string) => {
   if (!entrata || !uscita) return '-'
@@ -10373,18 +10352,19 @@ const totaleOreOperaio = (operaio: string) => {
 
 
 
-const totalePreventiviImpresa = dashboardCantieri.reduce((tot, c) => tot + c.preventivo, 0)
-const totaleCostiImpresa = dashboardCantieri.reduce((tot, c) => tot + c.costi, 0)
-const utileTotaleImpresa = totalePreventiviImpresa - totaleCostiImpresa
-const margineMedioImpresa =
-  totalePreventiviImpresa > 0 ? (utileTotaleImpresa / totalePreventiviImpresa) * 100 : 0
-
-
-
-const classificaCantieri = dashboardCantieri
-  .filter((c) => !cantieri.find((x) => x.nome === c.nome)?.lavori_conclusi)
-  .sort((a, b) => b.utile - a.utile)
-
+const totalePreventiviImpresa = statoCantieri === 'pronto' ? totaleContratti(dashboardCantieri) : null
+const totaleCostiImpresa = dashboardCantieri.some(c => c.costoTotale === null)
+  ? null : dashboardCantieri.reduce((tot, c) => tot + (c.costoTotale ?? 0), 0)
+const statoContrattiImpresa = statoCantieri === 'caricamento' || dashboardCantieri.some(c => c.contratto.stato === 'caricamento')
+  ? 'Caricamento contratti…' : statoCantieri === 'errore' || dashboardCantieri.some(c => c.contratto.stato === 'errore')
+    ? 'Lettura dei contratti non disponibile' : 'Totale contratti non determinabile'
+const materialiBaseImpresa = dashboardCantieri.flatMap(c => c.materialiBaseIds)
+const riepilogoHomeEconomia = <HomeEconomiaGeneraleCard
+  client={supabase} materialiBaseIds={materialiBaseImpresa} cardStyle={cardStyle}
+  totalePreventiviImpresa={totalePreventiviImpresa} totaleCostiImpresa={totaleCostiImpresa}
+  statoContratti={statoContrattiImpresa} formatMoney={formatMoney} />
+const classificaCantieri = dashboardCantieri.filter(c => !c.lavori_conclusi)
+  .sort((a, b) => (b.utile ?? -Infinity) - (a.utile ?? -Infinity))
 
 const storicoUtileCantieri = cantieri.map((c) => {
   const preventivo = Number(c.preventivo || 0)
@@ -12317,7 +12297,6 @@ WebkitOverflowScrolling: 'touch',
         <p>Cantieri: {totaleCantieri}</p>
         <p>Operai: {totaleOperai}</p>
         <p>Rapportini: {totaleRapportini}</p>
-        <p><strong>Utile:</strong> {formatMoney(utileTotaleImpresa)}</p>
       </div>
     )}
 
@@ -12325,13 +12304,13 @@ WebkitOverflowScrolling: 'touch',
       <div style={{ ...cardStyle, minWidth: 420, maxWidth: 480 }}>
         <h3>📁 Fascicolo cantiere</h3>
         <p>Cantiere: {cantiereSchedaDerivato || 'nessuno'}</p>
-        <p>Preventivo: {formatMoney(preventivoCantiere)}</p>
+        <p>Contratto aggiornato: {contrattoEconomia.aggiornato === null ? contrattoEconomia.messaggio : formatMoney(contrattoEconomia.aggiornato)}</p>
         <p>Manodopera: {formatMoney(totaleManodoperaCantiere)}</p>
         <p>Materiali: {formatMoney(totaleMaterialiEconomia)}</p>
         <p>Attrezzi: {formatMoney(totaleAttrezziEconomia)}</p>
         <p>
-          <strong style={{ color: utileCantiere >= 0 ? 'green' : 'red' }}>
-            Utile: {formatMoney(utileCantiere)}
+          <strong>
+            Utile gestionale: {gestioneSchedaEconomia.utile === null ? 'Non disponibile' : formatMoney(gestioneSchedaEconomia.utile)}
           </strong>
         </p>
       </div>
@@ -12369,16 +12348,7 @@ WebkitOverflowScrolling: 'touch',
     )}
 
    {pagineAperte.includes('economia') && (
-  <HomeEconomiaGeneraleCard
-    client={supabase}
-    materialiBaseIds={materialiCantiere.flatMap(m => cantieri.filter(c => c.nome === m.cantiere).map(() => m.id)).filter((id): id is string => typeof id === 'string')}
-    cardStyle={cardStyle}
-    totalePreventiviImpresa={totalePreventiviImpresa}
-    totaleCostiImpresa={totaleCostiImpresa}
-    utileTotaleImpresa={utileTotaleImpresa}
-    margineMedioImpresa={margineMedioImpresa}
-    formatMoney={formatMoney}
-  />
+  riepilogoHomeEconomia
 )}
 
     {pagineAperte.includes('attivita') && (
@@ -12389,17 +12359,6 @@ WebkitOverflowScrolling: 'touch',
     )}
   </div>
 )}
-    {pagineAperte.includes('cantieri-economia') && (
-      <div style={cardStyle}>
-        <h3>📁 Fascicolo cantiere</h3>
-        <p>Cantiere: {cantiereSchedaDerivato || 'nessuno'}</p>
-        <p>Preventivo: {formatMoney(preventivoCantiere)}</p>
-        <p>Manodopera: {formatMoney(totaleManodoperaCantiere)}</p>
-        <p>Materiali: {formatMoney(totaleMaterialiEconomia)}</p>
-        <p>Attrezzi: {formatMoney(totaleAttrezziEconomia)}</p>
-        <p>Utile: {formatMoney(utileCantiere)}</p>
-      </div>
-    )}
 
    {pagineAperte.includes('operai-anagrafica') && (
   <HomeAnagraficaOperaiCard
@@ -12427,16 +12386,6 @@ WebkitOverflowScrolling: 'touch',
   />
 )}
 
-    {pagineAperte.includes('economia') && (
-      <div style={cardStyle}>
-        <h3>💶 Economia generale</h3>
-        <p>Totale preventivi: {formatMoney(totalePreventiviImpresa)}</p>
-        <p>Totale costi: {formatMoney(totaleCostiImpresa)}</p>
-        <p>Utile totale: {formatMoney(utileTotaleImpresa)}</p>
-        <p>Margine medio: {margineMedioImpresa.toFixed(1)}%</p>
-      </div>
-    )}
-
     {pagineAperte.includes('attivita') && (
       <div style={cardStyle}>
         <h3>📅 Attività</h3>
@@ -12460,8 +12409,8 @@ WebkitOverflowScrolling: 'touch',
     formatMoney={formatMoney}
     mostraCantieriConclusi={mostraCantieriConclusi}
     setMostraCantieriConclusi={setMostraCantieriConclusi}
-    cantieri={cantieri}
-    calcoloEconomiaCantiere={calcoloEconomiaCantiere}
+    cantieriConclusi={dashboardCantieri.filter(c => c.lavori_conclusi)}
+    riepilogo={modalitaMulti && pagineAperte.includes('economia') ? undefined : riepilogoHomeEconomia}
   />
 )}
 
@@ -12543,6 +12492,9 @@ WebkitOverflowScrolling: 'touch',
   fascicoloPanelProps={{ foto: fotoCantiere, rapportini, preventivi, sal: salLavorazioni }}
   economiaPanelProps={{
     contrattoBase: contrattoBaseEconomia,
+    letturaCondivisa: { stato: letturaContrattoEconomia, invalida: invalidaContrattoEconomia },
+    costiAttribuibili: costiEconomiaAttribuibili,
+    materialiBaseIds: materialiCantiere.filter(inclusoCostoEconomia).map(m => m.id),
     riepilogo: {
       preventivoCantiere,
       totaleManodoperaCantiere,
@@ -12829,7 +12781,8 @@ strutturaPreventivoEsistente,
   setRicercaCantiereEconomia={setRicercaCantiereEconomia}
   mostraConclusiEconomia={mostraConclusiEconomia}
   setMostraConclusiEconomia={setMostraConclusiEconomia}
-  calcoloEconomiaCantiere={calcoloEconomiaCantiere}
+  statoCantiere={statoCantiere}
+  onCambioStatoVariante={invalidaContrattoEconomia}
   formatMoney={formatMoney}
   parseImporto={parseImporto}
   inputStyle={inputStyle}
@@ -12965,6 +12918,12 @@ onDocumentAction={gestisciAzioneDocumento}
  {/* ================= CANTIERI - ECONOMIA CANTIERE ================= */}
 {vistaCantieriAttiva === 'economia' && (
 <CantieriEconomiaPanel
+  contrattoAggiornato={contrattoEconomia}
+  costiAttribuibili={costiEconomiaAttribuibili}
+  utileGestionale={gestioneSchedaEconomia.utile}
+  margineGestionale={gestioneSchedaEconomia.margine}
+  accontiGestionali={accontiGestionali}
+  residuoGestionale={contrattoEconomia.aggiornato === null || accontiGestionali === null ? null : contrattoEconomia.aggiornato - accontiGestionali}
   progressoAnalisiDocumento={progressoAnalisiDocumento}
   cantiereNomeVisualizzato={cantiereSchedaDerivato}
   setCantiereIdScheda={setCantiereIdScheda}
@@ -13523,11 +13482,9 @@ onDocumentAction: gestisciAzioneDocumento,
     cardStyle={cardStyle}
     fattureEmesse={fattureEmesse}
     fattureFornitori={fattureFornitori}
-    totalePreventiviImpresa={totalePreventiviImpresa}
     accontiCantiere={accontiCantiere}
     cantieri={cantieri}
     speseImpresa={speseImpresa}
-    calcoloEconomiaCantiere={calcoloEconomiaCantiere}
     formatMoney={formatMoney}
     filtroSpeseImpresa={filtroSpeseImpresa}
     setFiltroSpeseImpresa={setFiltroSpeseImpresa}

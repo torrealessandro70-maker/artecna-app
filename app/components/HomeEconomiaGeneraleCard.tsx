@@ -3,15 +3,15 @@
 import type { CSSProperties } from 'react'
 import { useCostiFornitori } from './CostiFornitoriRettificati'
 import { deltaRettifiche, rettificheCompatibiliConBase, type ClientNoteCredito } from '../engines/fatture/note-credito'
+import { calcolaGestione } from '../engines/economia/contrattiAggiornati'
 
 type Props = {
   materialiBaseIds: string[]
   client: ClientNoteCredito
   cardStyle: CSSProperties
-  totalePreventiviImpresa: number
-  totaleCostiImpresa: number
-  utileTotaleImpresa: number
-  margineMedioImpresa: number
+  totalePreventiviImpresa: number | null
+  totaleCostiImpresa: number | null
+  statoContratti: string
   formatMoney: (value: number) => string
 }
 
@@ -21,8 +21,7 @@ export default function HomeEconomiaGeneraleCard({
   cardStyle,
   totalePreventiviImpresa,
   totaleCostiImpresa,
-  utileTotaleImpresa,
-  margineMedioImpresa,
+  statoContratti,
   formatMoney,
 }: Props) {
   const rettifiche = useCostiFornitori(client)
@@ -30,13 +29,12 @@ export default function HomeEconomiaGeneraleCard({
   // né i costi Impresa: rettificare solo la medesima base, senza doppie sottrazioni.
   const baseCoerente = rettifiche.dati ? rettificheCompatibiliConBase(rettifiche.dati, materialiBaseIds) : false
   const delta = rettifiche.dati && baseCoerente ? deltaRettifiche(rettifiche.dati, 'materiali_cantiere') : null
-  const costi = delta === null ? null : totaleCostiImpresa + delta
-  const utile = delta === null ? null : utileTotaleImpresa - delta
-  const margine = utile === null ? null : totalePreventiviImpresa > 0 ? utile / totalePreventiviImpresa * 100 : margineMedioImpresa
+  const costi = delta === null || totaleCostiImpresa === null ? null : totaleCostiImpresa + delta
+  const { utile, margine } = calcolaGestione(totalePreventiviImpresa, costi)
   return (
     <div style={{ ...cardStyle, minWidth: 420, maxWidth: 480 }}>
       <h3>💶 Economia generale</h3>
-      <p>Totale preventivi: {formatMoney(totalePreventiviImpresa)}</p>
+      <p>Totale contratti aggiornati: {totalePreventiviImpresa === null ? statoContratti : formatMoney(totalePreventiviImpresa)}</p>
       <p>Totale costi cantieri: {costi === null ? 'Non disponibile' : formatMoney(costi)}</p>
       <p>
         <strong style={{ color: utile !== null && utile >= 0 ? 'green' : 'red' }}>

@@ -4,7 +4,8 @@ const compile=file=>ts.transpileModule(fs.readFileSync(path.join(root,file),'utf
 const jsx=(type,props)=>({type,props});
 function load(file,react={},extra={}){const module={exports:{}};vm.runInNewContext(compile(file),{module,exports:module.exports,require:n=>n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:extra[n]||{default:n},console,Promise,Set,Number,Error});return module.exports;}
 const engine=load('app/engines/economia/accontiCantiere.ts');
-const dependencies={'../engines/economia/accontiCantiere':engine,'./IncassiLordiPanel':{default:'IncassiLordiPanel'}};
+const contratti=load('app/engines/economia/contrattiAggiornati.ts');
+const dependencies={'../engines/economia/contrattiAggiornati':contratti,'../engines/economia/accontiCantiere':engine,'./IncassiLordiPanel':{default:'IncassiLordiPanel'}};
 const Card=load('app/components/AccontiSalPanel.tsx',{},dependencies).default;
 const Table=load('app/components/AccontiTable.tsx',{},dependencies).default;
 const Panel=load('app/components/AccontiEconomiaPanel.tsx',{}, {...dependencies,'./AccontiSalPanel':{default:Card},'./AccontiTable':{default:Table}}).default;

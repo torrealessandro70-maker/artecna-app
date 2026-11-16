@@ -176,6 +176,7 @@ export type RichiestaPrestazioniRapportino = Readonly<{
 
 export type Timbratura = {
   id?: string
+  cantiere_id?: string | null
   operaio_nome: string
   cantiere: string
   data: string
@@ -187,6 +188,7 @@ export type Timbratura = {
 }
 
 export type PreventivoCantiere = {
+  cantiere_id?: string | null
   natura?: 'contrattuale' | 'integrativo' | null
   variante_id?: string | null
   preventivo_contrattuale_id?: string | null

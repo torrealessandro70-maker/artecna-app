@@ -161,6 +161,8 @@ test('unrelated economic calculators/readers/writers/schema remain unchanged; co
   validators.add('supabase/validators/cantiere-prerequisiti/browser/contratto-sdi-entry.mjs')
   // Il lettore Varianti e i controlli diagnostici sono parte del nuovo perimetro.
   const diagnosticaVarianti = new Set([
+    'app/engines/economia/contrattiAggiornati.ts',
+    'app/engines/economia/contrattiAggiornati.test.mjs',
     'app/engines/economia/riepilogoEconomico.ts',
     'app/engines/economia/riepilogoEconomico.test.mjs',
     'supabase/diagnostics/.gitattributes',
@@ -172,6 +174,7 @@ test('unrelated economic calculators/readers/writers/schema remain unchanged; co
     'supabase/diagnostics/RUN-materiali-dedup-readonly.ps1',
     'supabase/validators/cantiere-prerequisiti/economia-varianti-browser.test.cjs',
     'supabase/validators/cantiere-prerequisiti/browser/economia-varianti-entry.mjs',
+    'supabase/validators/cantiere-prerequisiti/browser/contratti-dashboard-entry.mjs',
   ])
   assert.equal(fs.readFileSync(path.join(root, 'supabase/diagnostics/.gitattributes'), 'utf8')
     .split(/\r?\n/).filter(line => line && !line.startsWith('#')).join('\n'),

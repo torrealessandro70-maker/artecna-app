@@ -1,6 +1,33 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Chrome fixture on loopback. */
 const { test } = require('node:test')
 const browser = require('./browser/attesi-page-browser.cjs')
+const assert = require('node:assert/strict')
+
+test('Chrome: Home, Panoramica ed Economia riusano il contratto e rispettano il proprio perimetro di costo', async () => {
+  let letture = 0
+  const v = (id, importo, stato = 'approvata') => ({
+    id, cantiere_id: 'C', preventivo_contrattuale_id: 'P', stato, importo_delta_approvato: importo,
+  })
+  const approvate = [1200, 2000, 550, 1000, 3000, 101.99].map((importo, i) => v('V' + i, importo))
+  await browser(async chiave => {
+    if (chiave === 'rettifiche') return {
+      quote: [], rettifiche: [{ id: 'N', materiale_cantiere_id: 'M', importo_costo: -100 }], perimetro: 'Fixture TD04',
+    }
+    if (chiave === 'varianti') return [...approvate, v('Bozza', 227.46, ++letture === 1 ? 'bozza' : 'approvata')]
+    return []
+  }, 'C', {
+    entry: 'contratti-dashboard-entry.mjs', owner: 'U', modes: ['contratti'],
+    commands: {
+      leggi_varianti_cantiere: ['varianti', 'p_cantiere_id'],
+      leggi_sorgenti_variante: ['sorgenti', 'p_variante_id'],
+      leggi_costi_fornitori_rettificati: ['rettifiche', 'p_cantiere_id'],
+      leggi_raccolte_economia: ['raccolte', 'p_cantiere_id'],
+    },
+  })
+  // Le due letture del contratto sono prima e dopo invalidazione. Gli eventuali
+  // controlli successivi sono del dettaglio operativo, indipendente dal contratto.
+  assert.ok(letture >= 2)
+})
 
 test('Chrome carica il pannello Economia con sei varianti e una registrazione a zero esclusa', async () => {
   const cantiere = 'C'

@@ -223,6 +223,7 @@ export default function CantieriSchedaPanel(props: any) {
       {p.cantiereSelezionatoDaId && paginaAttiva === 'varianti' && (
         <VariantiCantierePanel key={'varianti:' + p.cantiereSelezionatoDaId.id}
           cantiereId={p.cantiereSelezionatoDaId.id}
+          onCambioStato={p.onCambioStatoVariante}
           onDocumentoConfermato={() => void p.documentiPanelProps.caricaEconomia()}
           stampaContesto={{ nome: p.cantiereSelezionatoDaId.nome, contrattoBase: p.economiaPanelProps.contrattoBase?.importo ?? null, preventivoId: p.economiaPanelProps.contrattoBase?.preventivoId ?? null }} />
       )}
@@ -351,12 +352,11 @@ export default function CantieriSchedaPanel(props: any) {
         <p>Seleziona un cantiere per vedere i dettagli.</p>
       ) : (
         (() => {
-          const dati = p.calcoloEconomiaCantiere(p.cantiereScheda)
-
-          const margine =
-            dati.preventivo > 0
-              ? ((dati.utileReale / dati.preventivo) * 100).toFixed(1)
-              : 0
+          const dati = p.statoCantiere
+          const contratto = dati?.contratto
+          const euro = (valore: number | null | undefined) => valore == null ? 'Non disponibile' : p.formatMoney(valore)
+          const utile = dati?.utile ?? null
+          const margine = dati?.margine ?? null
 
           return (
             <div>
@@ -371,45 +371,18 @@ export default function CantieriSchedaPanel(props: any) {
               >
                 <h3 style={{ marginTop: 0 }}>Stato cantiere</h3>
 
-                <p>Preventivo: {p.formatMoney(dati.preventivo)}</p>
-                <p>Manodopera: {p.formatMoney(dati.costoManodopera)}</p>
-                <p>Fornitori: {p.formatMoney(dati.costoFornitori)}</p>
-
-                <p>
-                  <strong>
-                    Costo totale: {p.formatMoney(dati.costoTotale)}
-                  </strong>
-                </p>
-
-                <p>
-                  <strong
-                    style={{
-                      color: dati.utileReale >= 0 ? 'green' : 'red',
-                    }}
-                  >
-                    Utile: {p.formatMoney(dati.utileReale)}
-                  </strong>
-                </p>
-
-                <p>
-                  <strong>Margine: {margine}%</strong>
-                </p>
-              </div>
-
-              <div style={{ marginTop: 15 }}>
-                {dati.utileReale < 0 ? (
-                  <strong style={{ color: 'red' }}>
-                    🚨 Cantiere in perdita
-                  </strong>
-                ) : Number(margine) < 10 ? (
-                  <strong style={{ color: '#f59e0b' }}>
-                    ⚠️ Margine basso
-                  </strong>
-                ) : (
-                  <strong style={{ color: 'green' }}>
-                    ✅ Cantiere in utile
-                  </strong>
-                )}
+                <p>Contratto base: {euro(contratto?.base)}</p>
+                <p>Varianti approvate: {contratto?.delta == null ? contratto?.messaggio : (contratto.delta > 0 ? '+' : '') + euro(contratto.delta)}</p>
+                <p><strong>Contratto aggiornato: {contratto?.aggiornato == null ? (contratto?.messaggio ?? 'Non disponibile') : euro(contratto.aggiornato)}</strong></p>
+                <p>Manodopera: {dati?.costoTotale == null ? 'Non disponibile' : euro(dati.costoManodopera)}</p>
+                <p>Materiali e fornitori: {dati?.costoTotale == null ? 'Non disponibile' : euro(dati.costoMateriali)}</p>
+                <p>Attrezzature: {dati?.costoTotale == null ? 'Non disponibile' : euro(dati.costoAttrezzi)}</p>
+                <p><strong>Costi totali: {euro(dati?.costoTotale)}</strong></p>
+                <p><strong style={{ color: utile === null ? undefined : utile >= 0 ? 'green' : 'red' }}>
+                  Utile gestionale: {euro(utile)}
+                </strong></p>
+                <p><strong>Margine gestionale: {margine === null ? 'Non disponibile' : margine.toFixed(1) + '%'}</strong></p>
+                <small>Calcolati sui costi registrati del cantiere.</small>
               </div>
 
               </div>

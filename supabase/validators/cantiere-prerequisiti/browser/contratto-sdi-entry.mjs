@@ -53,7 +53,7 @@ async function run(){
   if(modo==='incassi-elimina'){
     ;(await wait(()=>document.querySelector('details > summary'))).click()
     const totale=importo=>[...document.querySelectorAll('p')].some(p=>p.textContent.startsWith('Incasso lordo confermato: '+importo))
-    const evita=()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Elimina'&&b.previousElementSibling?.textContent.endsWith(': cro'))
+    const evita=()=>[...document.querySelectorAll('button')].find(b=>!b.disabled&&b.textContent==='Elimina'&&b.previousElementSibling?.textContent.endsWith(': cro'))
     await wait(()=>totale('20.000,00'))
     ;(await wait(evita)).click()
     ;(await wait(()=>pulsante('Annulla'))).click()
@@ -81,11 +81,17 @@ async function run(){
     form.querySelector('input[type=checkbox]').checked=true
     form.requestSubmit()
     await wait(()=>document.body.textContent.includes('Riferimento bancario aggiornato. Pagamento e importo invariati.'), 'Esito rettifica non disponibile')
-    const storico=await wait(()=>[...document.querySelectorAll('details')].find(e=>
-      e.firstElementChild?.textContent==='Storico rettifiche'&&e.textContent.includes('synthetic-cro-chrome')),
-    'Rettifica assente nello storico')
-    if(!storico.open)storico.firstElementChild.click()
-    await wait(()=>storico.open&&storico.textContent.includes('synthetic-cro-01'), 'Riferimento precedente assente')
+    const aperti=new WeakSet()
+    await wait(()=>{
+      const storico=[...document.querySelectorAll('details')].find(e=>
+        e.firstElementChild?.textContent==='Storico rettifiche'&&e.textContent.includes('synthetic-cro-chrome'))
+      if(!storico) return false
+      if(!storico.open&&!aperti.has(storico)){
+        aperti.add(storico)
+        storico.firstElementChild.click()
+      }
+      return storico.open&&storico.textContent.includes('synthetic-cro-01')
+    }, 'Riferimento precedente assente nello storico della rettifica')
     await report('pass',modo)
     return
   }
