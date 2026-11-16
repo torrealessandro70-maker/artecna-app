@@ -532,6 +532,29 @@ test('Contratto fiscale su PostgreSQL 17.6', { timeout: 180000 }, () => withNati
   await assert.rejects(as(titolare,registraDuplicato,datiDuplicato),{code:'23505'})
   await assert.rejects(as(titolare,elimina,[...richiestaElimina.slice(0,5),'Altro motivo']),{code:'23505'})
 
+  const primaClassificazione = await scrittureProtette()
+  const identitaHardDelete = await value("SELECT pg_get_functiondef('public.elimina_cantiere_definitivamente(uuid,text)'::regprocedure) v")
+  await q(load('20261116000100_classificazione_cantieri.sql'))
+  assert.equal(await value('SELECT signature=artecna_distruzione.hard_delete_catalog() v FROM artecna_distruzione.hard_delete_catalog_expected'), true)
+  assert.equal(await value("SELECT pg_get_functiondef('public.elimina_cantiere_definitivamente(uuid,text)'::regprocedure) v"), identitaHardDelete)
+  const classifica = 'SELECT public.salva_classificazione_cantiere($1,$2,$3,$4,$5,$6,$7) v'
+  const concluso = await value('SELECT lavori_conclusi v FROM public.cantieri WHERE id=$1',[fixture.a])
+  const sceltaClassificazione = [fixture.a,null,null,concluso,'cantiere_lavori','in_corso',true]
+  await assert.rejects(as(esterno,classifica,sceltaClassificazione),{code:'42501'})
+  const tentativiClassificazione=await Promise.allSettled([
+    as(titolare,classifica,sceltaClassificazione),
+    as(titolare,classifica,sceltaClassificazione,client2),
+  ])
+  const salvataggi=tentativiClassificazione.filter(r=>r.status==='fulfilled')
+  const conflitti=tentativiClassificazione.filter(r=>r.status==='rejected')
+  assert.equal(salvataggi.length,1)
+  assert.equal(salvataggi[0].value[0].v.fase_lavori,'in_corso')
+  assert.deepEqual(conflitti.map(r=>r.reason.code),['40001'])
+  await assert.rejects(as(titolare,classifica,sceltaClassificazione),{code:'40001'})
+  assert.deepEqual(await scrittureProtette(),primaClassificazione)
+  assert.deepEqual((await statoDuplicato()).map(i=>i.id),[bonifico])
+  console.log('CLASSIFICAZIONE_CATALOGO_V3_INCASSI_GREEN')
+
   const duplicatoChrome=randomUUID()
   await as(titolare,registraDuplicato,[duplicatoChrome,...datiDuplicato.slice(1)])
   await browser(actor,fixture.a,{...browserContext,draft:contoDuplicato,modes:['incassi-elimina'],commands:rpcLordi})

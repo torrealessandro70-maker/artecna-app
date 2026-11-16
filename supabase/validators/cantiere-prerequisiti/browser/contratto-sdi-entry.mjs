@@ -104,7 +104,10 @@ async function run(){
   }
   if(modo==='incassi-conferma'||modo==='incassi-attribuzione'){
     ;(await wait(()=>document.querySelector('details > summary'))).click()
-    const modale=()=>document.querySelector('form input[name=importo]')?.form
+    const modale=()=>{
+      const input=document.querySelector('form input[name=importo]')
+      return input && !input.matches(':disabled') ? input.form : null
+    }
     const form=await wait(modale)
     const invia=(form,valori)=>{
       for(const [nome,valore] of Object.entries(valori))form.elements.namedItem(nome).value=valore

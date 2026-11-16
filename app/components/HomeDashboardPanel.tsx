@@ -20,6 +20,8 @@ type Props = {
   setMostraCantieriConclusi: (v: boolean) => void
 
   cantieriConclusi: CantiereDashboard[]
+  gruppi?: { gruppo: string; titolo: string; cantieri: CantiereDashboard[] }[]
+  apriCantiere?: (id: string) => void
   riepilogo?: ReactNode
 }
 
@@ -35,6 +37,8 @@ export default function HomeDashboardPanel({
   mostraCantieriConclusi,
   setMostraCantieriConclusi,
   cantieriConclusi,
+  gruppi,
+  apriCantiere,
   riepilogo,
 }: Props) {
   return (
@@ -88,6 +92,21 @@ export default function HomeDashboardPanel({
       </div>
 
       {riepilogo}
+      {gruppi && (
+        <section aria-label="Stato e destinazione dei cantieri" style={{ marginTop: 20 }}>
+          {gruppi.map(({ gruppo, titolo, cantieri }) => (
+            <details key={gruppo}>
+              <summary>{titolo} ({cantieri.length})</summary>
+              {cantieri.length > 0 && <ul>
+                {cantieri.map((c, i) => <li key={c.id || i}>
+                  {apriCantiere && c.id ? <button type="button" onClick={() => apriCantiere(c.id)}>{c.nome}</button> : c.nome}
+                  {gruppo === 'concluso' && c.contratto.aggiornato === null && ' · Base contrattuale da verificare'}
+                </li>)}
+              </ul>}
+            </details>
+          ))}
+        </section>
+      )}
       <h3 style={{ marginTop: 25 }}>Classifica cantieri</h3>
 
       {classificaCantieri.length === 0 ? (

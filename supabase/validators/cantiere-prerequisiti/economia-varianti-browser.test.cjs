@@ -88,3 +88,8 @@ test('Chrome carica il pannello Economia con sei varianti e una registrazione a 
     return risultato
   }, cantiere, { ...contesto, modes: ['economia-errore'] })
 })
+
+
+test('Chrome: classifica per UUID solo dopo conferma e aggiorna i gruppi Home', async () => {
+  await browser(async () => [], 'C', { entry: 'classificazione-cantieri-entry.mjs', owner: 'U', modes: ['classificazione'] })
+})

@@ -7,6 +7,10 @@ import { calcolaGestione } from '../engines/economia/contrattiAggiornati'
 
 type Props = {
   materialiBaseIds: string[]
+  cantieriCommerciali?: readonly string[]
+  parziale?: number | null
+  nonDeterminabili?: number | null
+  daClassificare?: number | null
   client: ClientNoteCredito
   cardStyle: CSSProperties
   totalePreventiviImpresa: number | null
@@ -18,6 +22,10 @@ type Props = {
 export default function HomeEconomiaGeneraleCard({
   client,
   materialiBaseIds,
+  cantieriCommerciali,
+  parziale,
+  nonDeterminabili,
+  daClassificare,
   cardStyle,
   totalePreventiviImpresa,
   totaleCostiImpresa,
@@ -27,14 +35,22 @@ export default function HomeEconomiaGeneraleCard({
   const rettifiche = useCostiFornitori(client)
   // Questa scheda legacy comprende i materiali Cantiere, non le quote Economia
   // né i costi Impresa: rettificare solo la medesima base, senza doppie sottrazioni.
-  const baseCoerente = rettifiche.dati ? rettificheCompatibiliConBase(rettifiche.dati, materialiBaseIds) : false
-  const delta = rettifiche.dati && baseCoerente ? deltaRettifiche(rettifiche.dati, 'materiali_cantiere') : null
+  const commerciali = cantieriCommerciali && new Set(cantieriCommerciali)
+  const dati = rettifiche.dati && commerciali ? {
+    ...rettifiche.dati,
+    rettifiche: rettifiche.dati.rettifiche.filter(r => r.cantiere_id == null || commerciali.has(r.cantiere_id)),
+  } : rettifiche.dati
+  const baseCoerente = dati ? rettificheCompatibiliConBase(dati, materialiBaseIds) : false
+  const delta = dati && baseCoerente ? deltaRettifiche(dati, 'materiali_cantiere') : null
   const costi = delta === null || totaleCostiImpresa === null ? null : totaleCostiImpresa + delta
   const { utile, margine } = calcolaGestione(totalePreventiviImpresa, costi)
   return (
     <div style={{ ...cardStyle, minWidth: 420, maxWidth: 480 }}>
       <h3>💶 Economia generale</h3>
       <p>Totale contratti aggiornati: {totalePreventiviImpresa === null ? statoContratti : formatMoney(totalePreventiviImpresa)}</p>
+      {parziale !== undefined && <p>Totale parziale dei contratti verificati: {parziale === null ? 'Non disponibile' : formatMoney(parziale)}</p>}
+      {nonDeterminabili != null && <p>Cantieri lavori con contratto non determinabile: {nonDeterminabili}</p>}
+      {daClassificare != null && <p>Perimetro da classificare: {daClassificare}</p>}
       <p>Totale costi cantieri: {costi === null ? 'Non disponibile' : formatMoney(costi)}</p>
       <p>
         <strong style={{ color: utile !== null && utile >= 0 ? 'green' : 'red' }}>

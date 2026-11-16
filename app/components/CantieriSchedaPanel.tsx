@@ -25,6 +25,7 @@ import FotoCantiereCategoriaModal from './FotoCantiereCategoriaModal'
 
 export default function CantieriSchedaPanel(props: any) {
   const p = props
+  const archivioPersonale = p.cantiereSelezionatoDaId?.destinazione_amministrativa === 'archivio_acquisti_personali'
   const [filtroOperaio, setFiltroOperaio] = useState('')
   const elencoOperaiId = useId()
   const ricercaOperaio = filtroOperaio.toLocaleLowerCase('it-IT')
@@ -90,7 +91,7 @@ export default function CantieriSchedaPanel(props: any) {
           <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>
             Scheda cantiere
           </p>
-          {typeof p.cantiereSelezionatoDaId?.lavori_conclusi === 'boolean' && (
+          {!archivioPersonale && typeof p.cantiereSelezionatoDaId?.lavori_conclusi === 'boolean' && (
             <span style={{
               display: 'inline-block', padding: '4px 10px', borderRadius: 20,
               background: '#f1f5f9', color: '#475569', fontSize: 12,
@@ -370,19 +371,24 @@ export default function CantieriSchedaPanel(props: any) {
                 }}
               >
                 <h3 style={{ marginTop: 0 }}>Stato cantiere</h3>
+                {p.classificazioneCantiere}
 
+                {archivioPersonale ? <p>Contratto e stato lavori: non applicabili.</p> : <>
                 <p>Contratto base: {euro(contratto?.base)}</p>
                 <p>Varianti approvate: {contratto?.delta == null ? contratto?.messaggio : (contratto.delta > 0 ? '+' : '') + euro(contratto.delta)}</p>
                 <p><strong>Contratto aggiornato: {contratto?.aggiornato == null ? (contratto?.messaggio ?? 'Non disponibile') : euro(contratto.aggiornato)}</strong></p>
+                </>}
                 <p>Manodopera: {dati?.costoTotale == null ? 'Non disponibile' : euro(dati.costoManodopera)}</p>
                 <p>Materiali e fornitori: {dati?.costoTotale == null ? 'Non disponibile' : euro(dati.costoMateriali)}</p>
                 <p>Attrezzature: {dati?.costoTotale == null ? 'Non disponibile' : euro(dati.costoAttrezzi)}</p>
                 <p><strong>Costi totali: {euro(dati?.costoTotale)}</strong></p>
+                {!archivioPersonale && <>
                 <p><strong style={{ color: utile === null ? undefined : utile >= 0 ? 'green' : 'red' }}>
                   Utile gestionale: {euro(utile)}
                 </strong></p>
                 <p><strong>Margine gestionale: {margine === null ? 'Non disponibile' : margine.toFixed(1) + '%'}</strong></p>
                 <small>Calcolati sui costi registrati del cantiere.</small>
+                </>}
               </div>
 
               </div>

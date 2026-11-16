@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import VistaOperativa from './VistaOperativa'
 
 type Props = {
   soloAzioni?: boolean
+  classificazione?: ReactNode
   cantieri: any[]
   registroCerca: string
   formatMoney: (v: any) => string
@@ -51,6 +52,7 @@ type Props = {
 export default function RegistroCantieriPanel({
   cantieri,
   soloAzioni = false,
+  classificazione,
   registroCerca,
   formatMoney,
   ordinaRegistro,
@@ -248,6 +250,7 @@ export default function RegistroCantieriPanel({
                     <table className="registro-cantieri-tabella" style={{ ...excelTable, width: '100%' }}><thead><tr>
                       {['Nome', 'Preventivo', 'Inizio', 'Fine', 'Concluso', 'Azioni'].map(t => <th key={t} style={excelTh}>{t}</th>)}
                     </tr></thead><tbody>{riga}</tbody></table>
+                    {classificazione}
                   </div>
 
                 </VistaOperativa>

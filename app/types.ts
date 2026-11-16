@@ -1,13 +1,14 @@
 // app/types.ts
 
-export type Cantiere = {
+import type { ClassificazioneCantiere } from './engines/economia/classificazioneCantieri'
+
+export type Cantiere = ClassificazioneCantiere & {
   preventivo_contrattuale_id?: string | null
   id?: string
   nome: string
   preventivo?: number
   data_inizio_lavori?: string | null
   data_fine_lavori?: string | null
-  lavori_conclusi?: boolean | null
 }
 
 export type Rapportino = {

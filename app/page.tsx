@@ -20,7 +20,7 @@ import { eliminaPreventivoConFile, eliminaFilePreventivi, messaggioEliminazione 
 import { parsePreventivoItems, type VoceAnalizzata } from './engines/document-intelligence/preventivo-items'
 import { creaVoceAnalizzataExcel, totaleVoceAnalizzata } from './engines/document-parser/voci-analizzate'
 
-import { attribuzioneCosto, baseContrattuale, calcolaGestione, chiaveContratto, contrattoAggiornato, creaLettoreContratti, totaleContratti, type StatoVarianti } from './engines/economia/contrattiAggiornati'
+import { attribuzioneCosto, baseContrattuale, calcolaGestione, chiaveContratto, contrattoAggiornato, creaLettoreContratti, type StatoVarianti } from './engines/economia/contrattiAggiornati'
 import { accontiCaricati, selezionaAcconti } from './engines/economia/accontiCantiere'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ChangeEvent } from 'react'
 import type { RigaMaterialeFatturaStorico } from './utils/suggerimentiMateriali'
@@ -112,6 +112,8 @@ import RegistroTimbraturePanel from './components/RegistroTimbraturePanel'
 import RegistroPagamentiOperaiPanel from './components/RegistroPagamentiOperaiPanel'
 import RegistroRapportiniPanel from './components/RegistroRapportiniPanel'
 import RegistroCantieriPanel from './components/RegistroCantieriPanel'
+import ClassificazioneCantiereForm, { type SalvaClassificazione } from './components/ClassificazioneCantiereForm'
+import { gruppoHome, gruppiHome, riepilogoContrattiHome } from './engines/economia/classificazioneCantieri'
 import RegistroPreventiviPanel from './components/RegistroPreventiviPanel'
 import RevisionePreventivoAiPanel from './components/RevisionePreventivoAiPanel'
 import FattureEmessePanel from './components/FattureEmessePanel'
@@ -7032,6 +7034,33 @@ const modificaNomeCantiereScheda = async () => {
   await caricaCantieri()
 }
 
+const salvaClassificazione: SalvaClassificazione = async (id, prima, destinazione, stato, conferma) => {
+  const { data, error } = await supabase.rpc('salva_classificazione_cantiere', {
+    p_id: id, p_attesa_destinazione: prima.destinazione_amministrativa ?? null,
+    p_attesa_fase: prima.fase_lavori ?? null, p_attesa_concluso: prima.lavori_conclusi ?? null,
+    p_destinazione: destinazione, p_stato: stato, p_conferma_destinazione: conferma,
+  })
+  if (error?.code === '40001') {
+    throw Error('Classificazione modificata in un’altra sessione. Ricarica il cantiere prima di riprovare.')
+  }
+  if (error || data?.id !== id) throw Error('Classificazione non salvata. Verifica i permessi.')
+  const classificazione = {
+    destinazione_amministrativa: data.destinazione_amministrativa,
+    fase_lavori: data.fase_lavori,
+    lavori_conclusi: data.lavori_conclusi,
+  }
+  setCantieri(correnti => correnti.map(c => c.id === id ? { ...c, ...classificazione } : c))
+  if (cantiereRegistroEdit === id && Boolean(prima.lavori_conclusi) !== Boolean(classificazione.lavori_conclusi)) {
+    setCantiereRegistroConcluso(Boolean(classificazione.lavori_conclusi))
+  }
+}
+
+const renderClassificazione = (c?: Cantiere | null) => c?.id && (
+  <ClassificazioneCantiereForm
+    key={JSON.stringify([c.id, c.destinazione_amministrativa, c.fase_lavori, c.lavori_conclusi])}
+    id={c.id} corrente={c} salva={salvaClassificazione} />
+)
+
 const preparaModificaRegistroCantiere = (c: Cantiere) => {
   setCantiereRegistroEdit(c.id || null)
   setCantiereRegistroNome(c.nome || '')
@@ -10150,7 +10179,8 @@ const contrattiBase = useMemo(() => {
   const perId = new Map(preventivi.map(p => [p.id, p]))
   return new Map(cantieri.flatMap(c => {
     const base = baseContrattuale(c, perId.get(c.preventivo_contrattuale_id ?? undefined))
-    return c.id && base ? [[c.id, base] as const] : []
+    return c.id && base && c.destinazione_amministrativa !== 'archivio_acquisti_personali'
+      ? [[c.id, base] as const] : []
   }))
 }, [cantieri, preventivi])
 const sessioneContratti = utente?.id
@@ -10352,18 +10382,24 @@ const totaleOreOperaio = (operaio: string) => {
 
 
 
-const totalePreventiviImpresa = statoCantieri === 'pronto' ? totaleContratti(dashboardCantieri) : null
-const totaleCostiImpresa = dashboardCantieri.some(c => c.costoTotale === null)
-  ? null : dashboardCantieri.reduce((tot, c) => tot + (c.costoTotale ?? 0), 0)
-const statoContrattiImpresa = statoCantieri === 'caricamento' || dashboardCantieri.some(c => c.contratto.stato === 'caricamento')
-  ? 'Caricamento contratti…' : statoCantieri === 'errore' || dashboardCantieri.some(c => c.contratto.stato === 'errore')
+const riepilogoContratti = riepilogoContrattiHome(dashboardCantieri, statoCantieri === 'pronto')
+const commercialiHome = riepilogoContratti.commerciali
+const totaleCostiImpresa = statoCantieri !== 'pronto' || commercialiHome.some(c => c.costoTotale === null)
+  ? null : commercialiHome.reduce((tot, c) => tot + (c.costoTotale ?? 0), 0)
+const statoContrattiImpresa = statoCantieri === 'caricamento' || commercialiHome.some(c => c.contratto.stato === 'caricamento')
+  ? 'Caricamento contratti…' : statoCantieri === 'errore' || commercialiHome.some(c => c.contratto.stato === 'errore')
     ? 'Lettura dei contratti non disponibile' : 'Totale contratti non determinabile'
-const materialiBaseImpresa = dashboardCantieri.flatMap(c => c.materialiBaseIds)
+const gruppiDashboard = Object.entries(gruppiHome).map(([gruppo, titolo]) => ({
+  gruppo, titolo, cantieri: dashboardCantieri.filter(c => gruppoHome(c) === gruppo),
+}))
 const riepilogoHomeEconomia = <HomeEconomiaGeneraleCard
-  client={supabase} materialiBaseIds={materialiBaseImpresa} cardStyle={cardStyle}
-  totalePreventiviImpresa={totalePreventiviImpresa} totaleCostiImpresa={totaleCostiImpresa}
+  client={supabase} materialiBaseIds={commercialiHome.flatMap(c => c.materialiBaseIds)} cardStyle={cardStyle}
+  cantieriCommerciali={commercialiHome.map(c => c.id)}
+  totalePreventiviImpresa={riepilogoContratti.complessivo} totaleCostiImpresa={totaleCostiImpresa}
+  parziale={riepilogoContratti.parziale} nonDeterminabili={statoCantieri === 'pronto' ? riepilogoContratti.nonDeterminabili : null}
+  daClassificare={statoCantieri === 'pronto' ? riepilogoContratti.daClassificare : null}
   statoContratti={statoContrattiImpresa} formatMoney={formatMoney} />
-const classificaCantieri = dashboardCantieri.filter(c => !c.lavori_conclusi)
+const classificaCantieri = commercialiHome.filter(c => gruppoHome(c) === 'in_corso')
   .sort((a, b) => (b.utile ?? -Infinity) - (a.utile ?? -Infinity))
 
 const storicoUtileCantieri = cantieri.map((c) => {
@@ -12409,7 +12445,16 @@ WebkitOverflowScrolling: 'touch',
     formatMoney={formatMoney}
     mostraCantieriConclusi={mostraCantieriConclusi}
     setMostraCantieriConclusi={setMostraCantieriConclusi}
-    cantieriConclusi={dashboardCantieri.filter(c => c.lavori_conclusi)}
+    cantieriConclusi={commercialiHome.filter(c => c.lavori_conclusi)}
+    gruppi={statoCantieri === 'pronto' ? gruppiDashboard : undefined}
+    apriCantiere={id => {
+      const cantiere = cantieri.find(c => c.id === id)
+      if (!cantiere) return
+      setCantiereIdScheda(id)
+      setCantiereScheda(cantiere.nome)
+      setSottoSezioneCantieri('scheda')
+      setSezioneAttiva('cantieri')
+    }}
     riepilogo={modalitaMulti && pagineAperte.includes('economia') ? undefined : riepilogoHomeEconomia}
   />
 )}
@@ -12422,6 +12467,7 @@ WebkitOverflowScrolling: 'touch',
 {vistaCantieriAttiva === 'elenco' && (
   <CantieriElencoPanel
     renderModificaCantiere={c => (  <RegistroCantieriPanel soloAzioni
+    classificazione={renderClassificazione(c)}
     cantieri={[c]}
     registroCerca=""
     formatMoney={formatMoney}
@@ -12484,6 +12530,7 @@ WebkitOverflowScrolling: 'touch',
 {vistaCantieriAttiva === 'scheda' && (
 <>
 <CantieriSchedaPanel
+  classificazioneCantiere={renderClassificazione(cantiereSelezionatoDaId)}
   controlloRapportini={cantiereSelezionatoDaId?.id && <ControlloRapportini key={cantiereSelezionatoDaId.id}
     client={supabase} cantiere={cantiereSelezionatoDaId.id} chiuso={Boolean(cantiereSelezionatoDaId.lavori_conclusi)} />}
   progressoAnalisiDocumento={progressoAnalisiDocumento}

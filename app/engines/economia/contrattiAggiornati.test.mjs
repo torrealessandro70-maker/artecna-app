@@ -96,3 +96,115 @@ test('Lettura certificata condivisa, approvazione, errori e cambio di cantiere',
   assert.equal(leggi(0), undefined)
   assert.equal(leggi(1).scomposizione.totale, 0)
 })
+
+test('Specifica perimetro contrattuale per destinazione esplicita, a parita di documenti', () => {
+  const clienteId = 'adf89015-801a-4983-ba8f-3de82821359b'
+  const archivioId = '7e567564-ac67-48f5-ae0e-21aba07dfbaa'
+  const storicoId = '5b1fc4ec-6ce3-4d75-b3a1-2a8cced86686'
+  const daClassificareId = 'e359fca2-6e28-4a14-a4a7-a0dc0827d793'
+  const destinazioni = new Map([
+    [clienteId, 'lavori_contrattuali'],
+    [archivioId, 'archivio_personale'],
+    [storicoId, 'lavori_contrattuali'],
+    [daClassificareId, 'da_classificare'],
+  ])
+  const base = { preventivoId: 'contratto-cliente', importo: 31438.4 }
+  const contratto = contrattoAggiornato(base, { stato: 'verificato', scomposizione: { totale: 8079.45 } })
+  const senzaBase = contrattoAggiornato(null)
+  const cantieri = [
+    { id: clienteId, nome: 'Omonimo', contratto },
+    { id: archivioId, nome: 'Omonimo', contratto: senzaBase },
+    { id: storicoId, nome: 'Storico', contratto: senzaBase },
+    { id: daClassificareId, nome: 'Da classificare', contratto: senzaBase },
+  ]
+  const registro = [
+    { id: 'fattura-cliente', cantiereId: clienteId, costo: 6590.36, totale: 10000, iva: 909.09 },
+    { id: 'fattura-archivio', cantiereId: archivioId, costo: 100, totale: 122, iva: 22 },
+  ]
+  const prima = structuredClone(registro)
+  const commerciali = cantieri.filter(c => destinazioni.get(c.id) === 'lavori_contrattuali')
+  const verificati = commerciali.filter(c => c.contratto.stato === 'verificato')
+  const archivi = cantieri.filter(c => destinazioni.get(c.id) === 'archivio_personale')
+  const daClassificare = cantieri.filter(c => destinazioni.get(c.id) === 'da_classificare')
+  const costiGestionali = registro.filter(r => verificati.some(c => c.id === r.cantiereId))
+    .reduce((totale, r) => totale + r.costo, 0)
+  const parziale = totaleContratti(verificati)
+  const completo = totaleContratti([...commerciali, ...daClassificare])
+  assert.equal(parziale, 39517.85)
+  assert.equal(completo, null)
+  assert.equal(commerciali.length - verificati.length, 1)
+  assert.equal(daClassificare.length, 1)
+  assert.deepEqual(archivi.map(c => c.id), [archivioId])
+  assert.equal(totaleContratti(cantieri.filter(c => c.id === clienteId)), 39517.85)
+  const gestione = calcolaGestione(parziale, costiGestionali)
+  assert.equal(euro(gestione.utile), 32927.49)
+  assert.equal(gestione.margine.toFixed(1), '83.3')
+  assert.deepEqual(registro, prima)
+  assert.equal(registro.reduce((totale, r) => totale + r.costo, 0), 6690.36)
+})
+
+test('La designazione esplicita verifica UUID e SAL prima di modificare il riferimento', async () => {
+  const { impostaPreventivoContrattuale } = importa('../../utils/preventivoContrattuale.ts')
+  const changes = []
+  function fakeDb({ hidden = false, foreignSal = false } = {}) {
+    return {
+      from(table) {
+        const filters = {}
+        let change
+        const query = {
+          select: () => query,
+          eq: (key, value) => { filters[key] = value; return query },
+          or: () => query,
+          order: () => query,
+          range: () => ({
+            data: foreignSal ? [{ cantiere_id: 'C', source_lavorazione_id: 1 }] : [],
+            count: foreignSal ? 1 : 0,
+          }),
+          maybeSingle: () => ({ data: { id: 1, cantiere_id: 'C', preventivo_id: 'ALTRO' } }),
+          update: value => { change = value; return query },
+          single: () => {
+            if (table === 'preventivi_cantiere') {
+              assert.deepEqual(filters, { id: 'P', cantiere_id: 'C' })
+              return { data: hidden ? null : { id: 'P', cantiere_id: 'C' } }
+            }
+            assert.equal(table, 'cantieri')
+            changes.push([filters, change])
+            return { data: { id: 'C', ...change } }
+          },
+        }
+        return query
+      },
+    }
+  }
+  await assert.rejects(impostaPreventivoContrattuale(fakeDb({ hidden: true }), 'C', 'P'), /non è disponibile/)
+  await assert.rejects(impostaPreventivoContrattuale(fakeDb({ foreignSal: true }), 'C', 'P'), /SAL collegati/)
+  assert.deepEqual(changes, [])
+  await impostaPreventivoContrattuale(fakeDb(), 'C', 'P')
+  assert.deepEqual(changes, [[{ id: 'C' }, { preventivo_contrattuale_id: 'P' }]])
+})
+
+test('Classificazione definitiva separa destinazione, conclusione e contratto', () => {
+  const { statoLavori, gruppoHome, riepilogoContrattiHome } =
+    importa('./classificazioneCantieri.ts', { './contrattiAggiornati': { totaleContratti } })
+  const contratto = contrattoAggiornato({ preventivoId: 'P', importo: 31438.4 },
+    { stato: 'verificato', scomposizione: { totale: 8079.45 } })
+  const sconosciuto = contrattoAggiornato(null)
+  const reali = [
+    { id: 'a', nome: 'Omonimo', destinazione_amministrativa: 'cantiere_lavori', fase_lavori: 'in_corso', contratto },
+    { id: 'b', nome: 'Omonimo', destinazione_amministrativa: 'archivio_acquisti_personali', lavori_conclusi: true, contratto },
+    { id: 'c', destinazione_amministrativa: 'cantiere_lavori', fase_lavori: 'in_programma', preventivo: 950, contratto: sconosciuto },
+    { id: 'd', destinazione_amministrativa: 'cantiere_lavori', fase_lavori: 'in_corso', lavori_conclusi: true, preventivo: 1200, contratto: sconosciuto },
+    { id: 'e', lavori_conclusi: false, contratto: sconosciuto },
+  ]
+  assert.deepEqual(reali.map(gruppoHome), ['in_corso', 'archivio', 'in_programma', 'concluso', 'da_classificare'])
+  assert.equal(statoLavori(reali[4]), 'da_precisare')
+  assert.equal(statoLavori({ ...reali[3], lavori_conclusi: false }), 'in_corso')
+  const riepilogo = riepilogoContrattiHome(reali, true)
+  assert.equal(riepilogo.parziale, 39517.85)
+  assert.equal(riepilogo.complessivo, null)
+  assert.equal(riepilogo.nonDeterminabili, 2)
+  assert.equal(riepilogo.daClassificare, 1)
+  assert.equal(riepilogoContrattiHome(reali.slice(0, 2), true).complessivo, 39517.85)
+  assert.equal(riepilogoContrattiHome([reali[0], reali[0]], true).parziale, null)
+  assert.equal(riepilogoContrattiHome(reali, false).parziale, null)
+})

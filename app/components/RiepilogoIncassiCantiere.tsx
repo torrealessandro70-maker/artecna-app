@@ -51,6 +51,8 @@ export default function RiepilogoIncassiCantiere({ cantiere, contratto, sal, var
     </section>
     <section aria-labelledby="finanza-lorda-cantiere">
       <h4 id="finanza-lorda-cantiere">Situazione finanziaria · IVA inclusa</h4>
+      {dati && (dati.residuo == null || dati.fatture_da_verificare > 0 || dati.non_attribuiti > 0 || contratto == null) &&
+        <p>Situazione economica da verificare</p>}
       <dl>
         <dt>Totale fatture emesse</dt><dd>{denaro(dati?.fatture)}</dd>
         <dt>Pagamenti lordi confermati</dt><dd>{denaro(dati?.pagamenti)}</dd>
