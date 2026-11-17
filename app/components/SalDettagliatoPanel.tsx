@@ -2,6 +2,7 @@ import { leggiOriginiExport, riconciliaOriginiEconomia, type IdentitaEconomia } 
 import { preparaAggiornamentiContrattuali, documentoAggiornamentiContrattuali, excelAggiornamentiContrattuali, nomeFileAggiornamenti } from '../utils/exportAggiornamentiContrattuali'
 import ImportaPreventivoSalPanel from './ImportaPreventivoSalPanel'
 import ScomposizioneContrattuale from './ScomposizioneContrattuale'
+import { importoContrattoPreventivo } from '../engines/economia/accordiContrattuali'
 import type { ScomposizioneVarianti } from '../engines/economia/riepilogoEconomico'
 
 import { eliminaPreventivoConFile, messaggioEliminazione } from '../utils/eliminazionePreventivo'
@@ -1083,9 +1084,9 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
                   const dati: DatiStampaSal = {
                     cantiere: salCantiere,
                     committente: typeof base.cliente_ai === 'string' ? base.cliente_ai : undefined,
-                    preventivoContrattuale: { nome: base.nome_file || 'Preventivo contrattuale del cantiere', importo: numero(base.importo_totale) },
+                    preventivoContrattuale: { nome: base.nome_file || 'Preventivo contrattuale del cantiere', importo: numero(importoContrattoPreventivo(base)) },
                     righe: lavorazioniCantiere.map(s => ({ descrizione: String(s.descrizione || ''),
-                      importoContrattuale: numero(s.importo_previsto), percentuale: numero(s.percentuale), importoMaturato: numero(s.importo_maturato) })),
+                      importoContrattuale: numero(s.importo_previsto), percentuale: numero(s.percentuale), importoMaturato: numero(s.importo_maturato), accordo: s.accordo_riga })),
                     accontiRicevuti: accontiCantiere.filter(a => a.cantiere === salCantiere)
                       .reduce((totale, a) => totale + numero(a.importo), 0),
                     contratto: { incrementi: rettificheSal.incrementi, riduzioni: rettificheSal.riduzioni,
@@ -1150,7 +1151,7 @@ boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
  <section aria-label="Riferimenti contrattuali SAL">
    {(() => {
      const basi = preventivi.filter(p => p.id === contrattoSalId && p.cantiere_id === cantiereSalId)
-     const base = basi.length === 1 && basi[0].importo_totale != null && String(basi[0].importo_totale).trim() !== '' && Number.isFinite(Number(basi[0].importo_totale)) ? Number(basi[0].importo_totale) : null
+     const base = basi.length === 1 ? importoContrattoPreventivo(basi[0]) : null
      let totali: ReturnType<typeof totaliContrattualiSal> | null = null
      if (base !== null && letturaRettificheValida) {
        try { totali = totaliContrattualiSal(base, rettificheSal!.incrementi, rettificheSal!.riduzioni, totaleMaturatoSal) } catch { /* Nessun valore presunto. */ }

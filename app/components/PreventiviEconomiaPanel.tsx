@@ -1,6 +1,7 @@
 'use client'
 
 import { eliminaPreventivoConFile } from '../utils/eliminazionePreventivo'
+import { importoContrattoPreventivo } from '../engines/economia/accordiContrattuali'
 
 import { useRef, useState } from 'react'
 
@@ -72,7 +73,9 @@ export default function PreventiviEconomiaPanel({
       </strong>
       {preventivoContrattuale && <div style={{ marginTop: 6 }}>
         <strong>Preventivo contrattuale:</strong>{' '}
-        {formatMoney(importoUsato(preventivoContrattuale))}
+        {preventivoContrattuale.accordo_contrattuale
+          ? importoContrattoPreventivo(preventivoContrattuale) === null ? 'Non verificabile' : formatMoney(importoContrattoPreventivo(preventivoContrattuale)!)
+          : formatMoney(importoUsato(preventivoContrattuale))}
       </div>}
       {contratto && !preventivoContrattuale && <p style={{ margin: '6px 0', color: '#475569' }}>
         {contratto.preventivoId ? 'Preventivo contrattuale non disponibile.' : 'Nessun preventivo contrattuale impostato.'}
@@ -158,6 +161,7 @@ export default function PreventiviEconomiaPanel({
                     <strong>Correggi importo:</strong>
 
                     <input
+                      disabled={!!p.accordo_contrattuale}
                       value={String((p as any).importo_corretto ?? '')}
                       onChange={(e) => {
                         const valore = e.target.value
@@ -182,6 +186,7 @@ export default function PreventiviEconomiaPanel({
                   </label>
 
                   <button
+                    disabled={!!p.accordo_contrattuale}
                     onClick={async () => {
                       if (!p.id) return alert('ID preventivo mancante')
 

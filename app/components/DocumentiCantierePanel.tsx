@@ -5,6 +5,7 @@ import PreventiviEconomiaPanel from './PreventiviEconomiaPanel'
 import DocumentIntelligencePanel from './DocumentIntelligencePanel'
 import AnalisiDocumentoFocus from './AnalisiDocumentoFocus'
 import ProgressoOperazione from './ProgressoOperazione'
+import AccordoContrattualePanel from './AccordoContrattualePanel'
 
 export type EsitoArchiviazionePreventivo = {
   id: string
@@ -14,6 +15,7 @@ export type EsitoArchiviazionePreventivo = {
 }
 
 export type DocumentiPanelProps = {
+  ricaricaContratto?: () => Promise<void>
   selezionaPreventivoContrattuale: (cantiereId: string, preventivoId: string) => Promise<void>
   preventivi: Omit<ComponentProps<typeof PreventiviEconomiaPanel>, 'cantiereScheda'>
   analisi: ComponentProps<typeof DocumentIntelligencePanel>
@@ -273,6 +275,10 @@ else
         </AnalisiDocumentoFocus>
         <section aria-label="Preventivi del cantiere" style={{ minWidth: 0, overflowX: 'auto' }}>
           <h4 style={{ margin: '0 0 12px', fontSize: 18 }}>Documenti / Preventivi del cantiere</h4>
+          <AccordoContrattualePanel key={cantiere.id} cantiereId={cantiere.id} onSalvato={async () => {
+            await p.preventivi.caricaEconomia()
+            await p.ricaricaContratto?.()
+          }} />
           <PreventiviEconomiaPanel {...p.preventivi} cantiereScheda={cantiere.nome}
             contratto={{ cantiereId: cantiere.id, preventivoId: cantiere.preventivo_contrattuale_id,
               seleziona: p.selezionaPreventivoContrattuale }}

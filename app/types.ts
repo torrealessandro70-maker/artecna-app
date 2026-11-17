@@ -189,6 +189,7 @@ export type Timbratura = {
 }
 
 export type PreventivoCantiere = {
+    accordo_contrattuale?: import('./engines/economia/accordiContrattuali').AccordoContrattuale | null
   cantiere_id?: string | null
   natura?: 'contrattuale' | 'integrativo' | null
   variante_id?: string | null

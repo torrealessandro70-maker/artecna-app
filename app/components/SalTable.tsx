@@ -354,6 +354,8 @@ export default function SalTable({
                 </td>
 
                 <td style={excelTd}>
+                  {s.accordo_riga && <p>Originale {formatMoney(Number(s.accordo_riga.importo_previsto))} · Ribasso {s.accordo_riga.ribasso_percentuale}% · Contrattuale {formatMoney(Number(s.importo_previsto))} · Conguaglio {formatMoney(Number(s.accordo_riga.conguaglio))}</p>}
+                  {s.accordo_riga && <p>Quantità {s.accordo_riga.quantita} {s.accordo_riga.unita_misura} · Unitario originale {Number(s.accordo_riga.prezzo_unitario).toLocaleString('it-IT', { maximumFractionDigits: 6 })} € · Unitario contrattuale {Number(s.accordo_riga.prezzo_unitario_contrattuale).toLocaleString('it-IT', { maximumFractionDigits: 12 })} €</p>}
                   {rettificaVisibile && !rettificaVisibile.verificabile ? <p role={rettificheInVerifica ? "status" : "alert"}>{rettificheInVerifica ? "Verifica rettifiche in corso…" : "Rettifiche non verificabili"}</p> : rettificaVisibile?.rettificata ? <div>
                     <div>Importo originario: {formatMoney(Number(s.importo_previsto))}</div>
                     <div>Rettifiche approvate: {formatMoney(-rettificaVisibile.riduzione!)}</div>
@@ -366,6 +368,7 @@ export default function SalTable({
                   <input
                     disabled={temporanea && !solaBozza}
                     {...propsEditor(s, 'importo_previsto')}
+                    readOnly={!!s.accordo_riga}
                     style={{
                       width: 110,
                       padding: 6,

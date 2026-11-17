@@ -1,4 +1,5 @@
 import { ErroreLetturaVarianti, leggiScomposizioneVarianti, type ScomposizioneVarianti } from './riepilogoEconomico'
+import { importoContrattoPreventivo } from './accordiContrattuali'
 
 export type ContrattoBase = { preventivoId: string; importo: number }
 export type StatoVarianti = { stato: 'caricamento' } | { stato: 'errore'; motivo: string } |
@@ -11,12 +12,11 @@ type Richiesta = { cantiereId: string; preventivoId: string }
 type RigaCosto = { cantiere: string; cantiere_id?: string | null }
 
 export function baseContrattuale(c: { id?: string; preventivo_contrattuale_id?: string | null } | null | undefined,
-  preventivo: { id?: string; cantiere_id?: string | null; natura?: string | null; importo_totale?: unknown } | undefined): ContrattoBase | null {
+  preventivo: { id?: string; cantiere_id?: string | null; natura?: string | null; importo_totale?: unknown; accordo_contrattuale?: unknown } | undefined): ContrattoBase | null {
   if (!c?.id || !c.preventivo_contrattuale_id || !preventivo || preventivo.id !== c.preventivo_contrattuale_id ||
       preventivo.cantiere_id !== c.id || preventivo.natura === 'integrativo') return null
-  const valore = preventivo.importo_totale
-  if (!(typeof valore === 'number' || typeof valore === 'string' && valore.trim())) return null
-  const importo = Number(valore)
+  const importo = importoContrattoPreventivo(preventivo)
+  if (importo === null) return null
   return Number.isSafeInteger(Math.round(importo * 100)) ? { preventivoId: preventivo.id, importo } : null
 }
 

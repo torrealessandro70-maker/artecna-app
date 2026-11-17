@@ -10170,7 +10170,9 @@ const totalePreventiviCaricati = preventivi
 
     return tot + parseImporto(valoreDaUsare)
   }, 0)
-const preventivoCantiere =
+const documentoAccordato = preventivi.find(p => p.id === cantiereSelezionatoDaId?.preventivo_contrattuale_id && p.accordo_contrattuale)
+const baseAccordataScheda = documentoAccordato ? baseContrattuale(cantiereSelezionatoDaId, documentoAccordato) : null
+const preventivoCantiere = documentoAccordato ? baseAccordataScheda?.importo ?? Number.NaN :
   totalePreventiviCaricati > 0
     ? totalePreventiviCaricati
     : Number(cantiereSelezionato?.preventivo || 0)
@@ -12701,6 +12703,7 @@ WebkitOverflowScrolling: 'touch',
   }}
   documentiPanelProps={{
     selezionaPreventivoContrattuale,
+    ricaricaContratto: caricaCantieri,
     caricaFilePreventivo,
     archiviaPreventivoAnalizzato,
 strutturaPreventivoEsistente,

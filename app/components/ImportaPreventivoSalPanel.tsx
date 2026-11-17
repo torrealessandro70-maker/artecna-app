@@ -118,7 +118,7 @@ export default function ImportaPreventivoSalPanel({ cantiere, supabase, caricaSa
             const checked = e.target.checked
             setSelezione((previous) => { const next = new Set(previous); if (checked) next.add(String(r.id)); else next.delete(String(r.id)); return next })
           }} />
-          <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{index + 1}. {r.descrizione}<br />{r.unita_misura || '—'} × {r.quantita ?? '—'} — {formatMoney(Number(r.importo_previsto || 0))}{presente && <strong> — Già nel SAL</strong>}</span>
+          <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{index + 1}. {r.descrizione}<br />{r.unita_misura || '—'} × {r.quantita ?? '—'} — {formatMoney(Number(r.importo_previsto || 0))}{r.importo_originale !== undefined && <> · Originale {formatMoney(r.importo_originale)} · Ribasso {r.ribasso_percentuale}%</>}{presente && <strong> — Già nel SAL</strong>}</span>
         </label> })}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>

@@ -3,6 +3,7 @@ export type RigaStampaSal = {
   importoContrattuale: number
   percentuale: number
   importoMaturato: number
+  accordo?: { importo_previsto: number; prezzo_unitario: number; prezzo_unitario_contrattuale: number; quantita: number; unita_misura: string; ribasso_percentuale: number; conguaglio: number } | null
 }
 
 export type DatiStampaSal = {
@@ -42,6 +43,13 @@ export function calcolaStampaSal(dati: DatiStampaSal, opzioni: OpzioniStampaSal)
     return Number(value)
   }
   const detrazionePercentuale = percentuale(opzioni?.detrazioneAccontoPercentuale)
+  for (const riga of dati.righe) {
+    const a = riga.accordo
+    if (a && ([a.importo_previsto, a.prezzo_unitario, a.prezzo_unitario_contrattuale, a.quantita, a.ribasso_percentuale, a.conguaglio].some(n => !Number.isFinite(n)) ||
+      a.quantita <= 0 || a.importo_previsto < riga.importoContrattuale || a.ribasso_percentuale < 0 || a.ribasso_percentuale > 100)) {
+      throw Error('Snapshot dei prezzi contrattuali non verificabile per la stampa.')
+    }
+  }
   const ivaPercentuale = percentuale(opzioni?.ivaPercentuale)
   if (!dati.contratto) throw new Error('Contesto contrattuale non verificabile per la stampa.')
   const numeri = [dati.preventivoContrattuale.importo, dati.accontiRicevuti, dati.contratto.incrementi, dati.contratto.riduzioni,
@@ -82,6 +90,7 @@ export function calcolaStampaSal(dati: DatiStampaSal, opzioni: OpzioniStampaSal)
 }
 
 export function documentoSalCliente(dati: DatiStampaSal, opzioni: OpzioniStampaSal, dataStampa = new Date()): string {
+  const prezzo = (valore: number) => valore.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 12 })
   const { contrattoOriginario, incrementi, riduzioni, contrattoAggiornato, totaleRighe, totaleMaturato, residuo, detrazionePercentuale, detrazioneAcconto, imponibile, ivaPercentuale, iva, daRichiedere } = calcolaStampaSal(dati, opzioni)
   const data = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleDateString('it-IT') : 'Non disponibile'
   if (!Number.isFinite(dataStampa.getTime())) throw new Error('Data stampa non verificabile.')
@@ -90,7 +99,7 @@ export function documentoSalCliente(dati: DatiStampaSal, opzioni: OpzioniStampaS
 <h1>ARTECNA</h1><h2>SAL — Stato Avanzamento Lavori</h2>
 <p>Cantiere: ${html(dati.cantiere)}${dati.committente?.trim() ? '<br>Committente: ' + html(dati.committente.trim()) : ''}<br>Preventivo contrattuale: ${html(dati.preventivoContrattuale.nome)}<br>Data stampa: ${dataStampa.toLocaleDateString('it-IT')}</p>
 <p>Il presente documento rappresenta lo stato cumulativo aggiornato delle lavorazioni.</p>
-<table><thead><tr><th>Descrizione</th><th>Importo contrattuale</th><th>% avanzamento</th><th>Importo maturato</th></tr></thead><tbody>${dati.righe.map(riga => `<tr><td class="descrizione">${html(riga.descrizione)}</td><td>${euro(riga.importoContrattuale)}</td><td>${riga.percentuale.toLocaleString('it-IT')}%</td><td>${euro(riga.importoMaturato)}</td></tr>`).join('')}</tbody></table>
+<table><thead><tr><th>Descrizione</th><th>Importo contrattuale</th><th>% avanzamento</th><th>Importo maturato</th></tr></thead><tbody>${dati.righe.map(riga => `<tr><td class="descrizione">${html(riga.descrizione)}${riga.accordo ? '<br><small>Originale '+euro(riga.accordo.importo_previsto)+' · Ribasso '+html(String(riga.accordo.ribasso_percentuale))+'% · Quantità '+html(String(riga.accordo.quantita))+' '+html(riga.accordo.unita_misura)+' · Unitario originale '+prezzo(riga.accordo.prezzo_unitario)+' · Unitario contrattuale '+prezzo(riga.accordo.prezzo_unitario_contrattuale)+' · Conguaglio '+euro(riga.accordo.conguaglio)+'</small>' : ''}</td><td>${euro(riga.importoContrattuale)}</td><td>${riga.percentuale.toLocaleString('it-IT')}%</td><td>${euro(riga.importoMaturato)}</td></tr>`).join('')}</tbody></table>
 <h3>Aggiornamenti contrattuali</h3>
 ${dati.contratto.aggiornamenti.length ? '<table><thead><tr><th>N.</th><th>Data</th><th>Variante</th><th>Lavorazione</th><th>Tipo</th><th>Importo</th></tr></thead><tbody>' + dati.contratto.aggiornamenti.map((r,i) => '<tr><td>'+(i+1)+'</td><td>'+html(data(r.data))+(r.approvataIl ? '<br><small>Approvata: '+html(data(r.approvataIl))+'</small>' : '')+'</td><td>'+html(r.variante)+'</td><td class="descrizione">'+html(r.descrizione)+'</td><td>'+html(r.tipo)+'</td><td>'+(r.importo >= 0 ? '+' : '-')+euro(Math.abs(r.importo))+'</td></tr>').join('')+'</tbody></table>' : '<p>Nessun aggiornamento contrattuale approvato.</p>'}
 <section class="riepilogo"><p>Contratto originario: <strong>${euro(contrattoOriginario)}</strong></p><p>Incrementi approvati: <strong>${euro(incrementi)}</strong></p><p>Riduzioni approvate: <strong>${euro(riduzioni)}</strong></p><p>Contratto aggiornato: <strong>${euro(contrattoAggiornato)}</strong></p><p>Maturato SAL: <strong>${euro(totaleMaturato)}</strong></p><p>Residuo contrattuale aggiornato: <strong>${euro(residuo)}</strong></p></section>

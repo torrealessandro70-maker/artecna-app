@@ -13,7 +13,7 @@ function importa(file, dipendenze = {}) {
 }
 const riepilogo = importa('./riepilogoEconomico.ts')
 const { attribuzioneCosto, baseContrattuale, calcolaGestione, chiaveContratto, contrattoAggiornato, creaLettoreContratti, totaleContratti } =
-  importa('./contrattiAggiornati.ts', { './riepilogoEconomico': riepilogo })
+  importa('./contrattiAggiornati.ts', { './riepilogoEconomico': riepilogo, './accordiContrattuali': importa('./accordiContrattuali.ts') })
 const tick = () => new Promise(setImmediate)
 const euro = n => Math.round(n * 100) / 100
 
