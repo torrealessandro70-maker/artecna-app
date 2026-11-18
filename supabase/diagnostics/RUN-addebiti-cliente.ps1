@@ -58,7 +58,8 @@ if (!$PrecheckOnly -and !$ApplyOnce -and !$PostcheckOnly) {
  return
 }
 if ($Candidate -cnotmatch '^[0-9a-f]{40}$' -or (git -C $root rev-parse HEAD) -cne $Candidate -or $LASTEXITCODE -ne 0) { throw 'HEAD divergente' }
-if ((git -C $root rev-parse 'HEAD^') -cne 'f84d687f61a7e3a4e5592aaa6d9d6a31e333e1bc' -or $LASTEXITCODE -ne 0) { throw 'Parent divergente' }
+if ((git -C $root rev-parse 'HEAD^') -cne '8a3c7d9ac372f3ec9ee02ce27c2711ec3c72c876' -or $LASTEXITCODE -ne 0) { throw 'Parent divergente' }
+if ((git -C $root rev-parse '8a3c7d9ac372f3ec9ee02ce27c2711ec3c72c876^') -cne 'f84d687f61a7e3a4e5592aaa6d9d6a31e333e1bc' -or $LASTEXITCODE -ne 0) { throw 'Base Production divergente' }
 if ((git -C $root status --porcelain --untracked-files=all) -or $LASTEXITCODE -ne 0) { throw 'Worktree non pulito' }
 $client=(Resolve-Path -LiteralPath $Psql).Path
 if ((Split-Path $client -Leaf) -ine 'psql.exe') { throw 'psql.exe richiesto' }

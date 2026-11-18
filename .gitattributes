@@ -17,3 +17,4 @@ supabase/diagnostics/accordi_contrattuali_*readonly.sql text eol=lf
 supabase/diagnostics/ribasso_contrattuale_readonly.sql text eol=lf
 supabase/migrations/20261118000100_addebiti_materiali_cliente.sql text eol=lf
 supabase/diagnostics/addebiti_cliente_*readonly.sql text eol=lf
+supabase/diagnostics/addebiti_origini_readonly.sql text eol=lf

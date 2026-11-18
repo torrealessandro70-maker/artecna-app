@@ -40,7 +40,7 @@ module.exports=async function({q,value,as,load,admin,titolare,esterno,client2,ra
  const accordo=(await as(titolare,'SELECT public.anteprima_accordo_contrattuale($1,$2,$3::jsonb,$4,$5,$6,$7,$8) v',accordoArgs))[0].v
  await as(titolare,'SELECT public.conferma_accordo_contrattuale($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11)',[randomUUID(),...accordoArgs,accordo.token,'CONFERMA CONTRATTO'])
  const fid=await value("INSERT INTO public.fatture_fornitori(fornitore,numero_fattura) VALUES('Fornitore sintetico','EXTRA-62') RETURNING id v")
- const rid=await value("INSERT INTO public.fatture_fornitori_righe(fattura_id,descrizione,quantita,prezzo_unitario,totale_riga,unita_misura,categoria_economica) VALUES($1,'Materiale doccia',2,25,50,'PZ','materiale_cantiere') RETURNING id v",[fid])
+ const rid=await value("INSERT INTO public.fatture_fornitori_righe(fattura_id,descrizione,quantita,prezzo_unitario,totale_riga,unita_misura,categoria_economica) VALUES($1,'Materiale doccia',2,31,62,'PZ','materiale_cantiere') RETURNING id v",[fid])
  await as(titolare,'SELECT public.assegna_materiale_fattura_cantiere($1,$2,$3,$4)',[rid,cid,2,'PZ'])
  const mid=await value('SELECT id v FROM public.materiali_cantiere WHERE fattura_riga_id=$1',[rid])
  const costBefore=await value('SELECT to_jsonb(m) v FROM public.materiali_cantiere m WHERE id=$1',[mid])
@@ -51,7 +51,7 @@ module.exports=async function({q,value,as,load,admin,titolare,esterno,client2,ra
  const args=[mid,2,62,false,22,'Extra materiali doccia','Extra concordato','Accordo fixture']
  const preview=async(a=args,user=titolare)=>(await as(user,previewSql,a))[0].v
  await assert.rejects(preview(args,esterno),{code:'42501'})
- const p=await preview();assert.equal(p.netto,62);assert.equal(p.contratto_attuale,1300);assert.equal(p.contratto_dopo_approvazione,1362);assert.equal(p.costo_originale_quota,50)
+ const p=await preview();assert.equal(p.netto,62);assert.equal(p.contratto_attuale,1300);assert.equal(p.contratto_dopo_approvazione,1362);assert.equal(p.costo_originale_quota,62)
  for(const bad of [[mid,0,62,false,22,...args.slice(5)],[mid,2,62.001,false,22,...args.slice(5)],[mid,3,62,false,22,...args.slice(5)]])await assert.rejects(preview(bad))
  await q("UPDATE public.fatture_fornitori_righe SET descrizione='Revisione sorgente' WHERE id=$1",[rid])
  await assert.rejects(as(titolare,createSql,[randomUUID(),...args,p.token]),{code:'40001'})
@@ -108,5 +108,6 @@ module.exports=async function({q,value,as,load,admin,titolare,esterno,client2,ra
   anteprima_addebito_cliente:[previewSql,'p_materiale','p_quantita','p_importo','p_iva_inclusa','p_aliquota','p_descrizione','p_motivo','p_riferimento'],
   crea_addebito_cliente:[createSql,'p_richiesta','p_materiale','p_quantita','p_importo','p_iva_inclusa','p_aliquota','p_descrizione','p_motivo','p_riferimento','p_token'],
  }})
- console.log('ADDEBITO_FIXTURE_GREEN base=1300 bozza=1300 approvato=1362 costo=50 singolo nessun_incasso')
+ await require('./addebitiOriginiFixture.cjs')({q,value,as,titolare,esterno,client2,randomUUID,assert,admin})
+ console.log('ADDEBITO_FIXTURE_GREEN base=1300 bozza=1300 approvato=1362 costo=62 singolo nessun_incasso')
 }
