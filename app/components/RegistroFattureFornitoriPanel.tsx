@@ -7,6 +7,7 @@ import { tipoFiscaleDocumento } from '../engines/fatture/documento-fiscale'
 import JSZip from 'jszip'
 import ImportaFattureDocumenti from './ImportaFattureDocumenti'
 import InviaMaterialiFatturaEconomia from './InviaMaterialiFatturaEconomia'
+import AddebitoClienteFattura from './AddebitoClienteFattura'
 import { etichettaStatoFattura } from '../engines/economia/fattureMateriali'
 import { leggiFattureTabellari } from '../engines/fatture/tabellare'
 import { importaArchivioBluenext } from '../engines/fatture/import-zip'
@@ -613,6 +614,7 @@ const input = e.currentTarget
     onSalva: salvaModificheFatturaAperta,
   }} />
 {!notaAperta && <>
+<AddebitoClienteFattura key={`addebito-${fatturaApertaId}`} fatturaId={fatturaApertaId} />
 <p role="note" style={{ fontSize: 12, color: '#64748b' }}>Salva classificazione registra i campi documentali e gli eventuali costi Spesa generale. Assegna selezionate registra quantità tramite i writer esistenti. Gli storici incompatibili richiedono riconciliazione.</p>
 <div
   style={{
