@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabaseClient'
 import VistaOperativa from './VistaOperativa'
+import AddebitiMaterialiGruppo from './AddebitiMaterialiGruppo'
 import { anteprimaAddebito, creaAddebito, quoteAddebito, type AnteprimaAddebito, type DatiAddebito, type QuotaAddebito } from '../engines/economia/addebitiCliente'
 
 const euro = (v: number) => v.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 type Client = Pick<SupabaseClient, 'rpc'>
 export default function AddebitoClienteFattura({ fatturaId, client = supabase }: { fatturaId: string; client?: Client }) {
+  const [gruppo, setGruppo] = useState(false)
   const [quote, setQuote] = useState<QuotaAddebito[] | null>(null), [errore, setErrore] = useState('')
   const [dati, setDati] = useState<DatiAddebito | null>(null), [anteprima, setAnteprima] = useState<AnteprimaAddebito | null>(null)
   const [busy, setBusy] = useState(false), [esito, setEsito] = useState(''), [incerto, setIncerto] = useState(false)
@@ -55,6 +57,8 @@ export default function AddebitoClienteFattura({ fatturaId, client = supabase }:
   const quota = dati && quote?.find(q => q.materiale_id === dati.materiale)
   return <section aria-label="Addebiti aggiuntivi al cliente">
     <h4>Addebiti aggiuntivi al cliente</h4>
+    <button type="button" disabled={busy} onClick={() => setGruppo(true)}>Addebiti multipli — una sola proposta</button>
+    {gruppo && <AddebitiMaterialiGruppo key={fatturaId} fatturaId={fatturaId} chiudi={() => setGruppo(false)} />}
     <p>Utilizza una quota già assegnata come costo al cantiere. Nessuna seconda assegnazione, fattura emessa o incasso. Le quote Economia seguono la propria raccolta e Variante.</p>
     {quote === null && !errore && <p role="status">Verifica quote fattura…</p>}
     {quote?.length === 0 && <p>Nessuna quota costo con collegamento UUID disponibile. I costi storici senza collegamento richiedono riconciliazione; non riassegnare il materiale.</p>}

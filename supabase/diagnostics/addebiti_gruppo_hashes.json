@@ -1,0 +1,5 @@
+{
+  "supabase/migrations/20261119000100_addebiti_materiali_gruppo.sql": "be0266ea39c057e8d5fd72749b0ef651e6110b3b0a9ffba6b089feec5189fdaa",
+  "supabase/diagnostics/addebiti_gruppo_precheck_readonly.sql": "2400d83ed6625a1c6334e0e95690eeb75a8984efd80f969e89375da353e742e4",
+  "supabase/diagnostics/addebiti_gruppo_postcheck_readonly.sql": "1ce8f7dbcebc4898cf5e8e1db637ea3512edc4aaa00dd6a32ca13a69e91fe84c"
+}

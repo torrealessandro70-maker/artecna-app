@@ -12,6 +12,8 @@ supabase/migrations/20261107000500_contabilita_guardie.sql -text !eol
 supabase/validators/cantiere-prerequisiti/baseline.sql -text whitespace=-trailing-space
 supabase/validators/cantiere-prerequisiti/production-precheck-readonly.sql text eol=lf
 # SQL certificates use the same bytes after checkout on Windows and Linux.
+supabase/migrations/20261119000100_addebiti_materiali_gruppo.sql text eol=lf
+supabase/diagnostics/addebiti_gruppo_*readonly.sql text eol=lf
 supabase/migrations/20261117000100_accordi_contrattuali.sql text eol=lf
 supabase/diagnostics/accordi_contrattuali_*readonly.sql text eol=lf
 supabase/diagnostics/ribasso_contrattuale_readonly.sql text eol=lf
