@@ -1,8 +1,27 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Local PostgreSQL fixture. */
 const fs=require('node:fs'),path=require('node:path'),Module=require('node:module'),assert=require('node:assert/strict');
+const cp=require('node:child_process');
 const root=path.resolve(__dirname,'../..'),file=path.join(root,'supabase/validators/cantiere-prerequisiti/contratto-acconti-sdi.test.cjs');
-async function verifica({q,value,as,load,titolare,esterno,client2,randomUUID}){
- const migration=load('20261121000100_acconti_compilazione_unica.sql');await q(migration);
+async function verifica({q,value,as,load,admin,titolare,esterno,client2,randomUUID}){
+ // Complete the accounting baseline through Production main e4ee9bbd,
+ // including grouped material charges, but deliberately never install mixed charges.
+ await q(load('20261116000100_classificazione_cantieri.sql'));
+ await admin.query('GRANT artecna_sal_rpc TO postgres WITH ADMIN TRUE, INHERIT FALSE, SET FALSE');
+ for(const name of ['20261117000100_accordi_contrattuali.sql','20261118000100_addebiti_materiali_cliente.sql','20261119000100_addebiti_materiali_gruppo.sql'])await q(load(name));
+ assert.equal(await value("SELECT to_regprocedure('public.crea_addebiti_gruppo(uuid,uuid,jsonb,text)') IS NOT NULL v"),true);
+ const mixedAbsent=()=>value("SELECT to_regclass('artecna_addebiti.voci_manuali') IS NULL AND to_regprocedure('public.anteprima_addebiti_misti(uuid,jsonb,jsonb,boolean)') IS NULL AND to_regprocedure('public.crea_addebiti_misti(uuid,uuid,jsonb,jsonb,boolean,text)') IS NULL v");
+ assert.equal(await mixedAbsent(),true);
+ // Reproduce the known Cron privilege boundary in this local cluster only.
+ assert.equal(await value("SELECT to_regclass('cron.job') IS NULL v"),true);
+ await admin.query("CREATE SCHEMA cron; CREATE TABLE cron.job(jobid bigint PRIMARY KEY,command text); INSERT INTO cron.job VALUES(1,'SELECT 1'); GRANT USAGE ON SCHEMA cron TO postgres; GRANT SELECT ON cron.job TO postgres");
+ assert.equal(await value("SELECT has_table_privilege(current_user,'cron.job','MAINTAIN,UPDATE,DELETE,TRUNCATE') v"),false);
+ const cronBefore=await value('SELECT md5(jsonb_agg(to_jsonb(t) ORDER BY jobid)::text) v FROM cron.job t');
+ const precheck=path.join(root,'supabase/diagnostics/acconti_compilazione_precheck_readonly.sql');
+ const runPrecheck=()=>cp.spawnSync(path.join(root,'.run/cantiere-prereq-runtime/minimal/pgsql/bin/psql.exe'),['-X','-w','-h','127.0.0.1','-p',String(admin.connectionParameters.port),'-U','postgres','-d','postgres','-f',precheck],{encoding:'utf8',windowsHide:true});
+ const pre=runPrecheck();assert.equal(pre.status,0,pre.stdout+pre.stderr);assert.match(pre.stdout,/ARTECNA_ACCONTI_COMPILAZIONE_PRECHECK_READONLY_GREEN/);assert(!/^COMMIT\r?$/m.test(pre.stdout));assert.equal((pre.stdout.match(/^ROLLBACK\r?$/gm)||[]).length,1);
+ fs.mkdirSync(path.join(root,'.run/acconti-rilascio-indipendente'),{recursive:true});fs.writeFileSync(path.join(root,'.run/acconti-rilascio-indipendente/precheck-local.log'),pre.stdout+pre.stderr);
+ const migration=load('20261121000100_acconti_compilazione_unica.sql');await q(migration);assert.equal(await mixedAbsent(),true);
+ assert.equal(runPrecheck().status,3,'Installed/partial states must stop');
  const cid=await value("INSERT INTO public.cantieri(nome) VALUES('ACCONTI SINTETICI') RETURNING id v");
  await q("INSERT INTO public.utenti_cantiere(cantiere_id,user_id,ruolo) VALUES($1,$2,'owner')",[cid,titolare]);
  const call=(request,id,original,patch,proposal=null,user=titolare)=>as(user,'SELECT public.salva_acconto_compilazione($1,$2,$3,$4,$5,$6) v',[request,id,cid,JSON.stringify(original),JSON.stringify(patch),proposal===null?null:JSON.stringify(proposal)]);
@@ -33,6 +52,16 @@ async function verifica({q,value,as,load,titolare,esterno,client2,randomUUID}){
  const protectedBefore=await protectedState();
  await as(titolare,'SELECT public.salva_acconto_compilazione($1,$2,$3,$4,$5,NULL)',[randomUUID(),linked.id,linked.cantiere_id,JSON.stringify(original(linked)),JSON.stringify({nota:'Nota descrittiva sintetica, collegamenti invariati'})]);
  assert.deepEqual(await protectedState(),protectedBefore);
+ const fourSite=await value("INSERT INTO public.cantieri(nome) VALUES('QUATTRO ACCONTI SOLO FIXTURE') RETURNING id v");
+ await q("INSERT INTO public.utenti_cantiere(cantiere_id,user_id,ruolo) VALUES($1,$2,'owner')",[fourSite,titolare]);
+ const fourth=randomUUID();
+ for(let n=1;n<=4;n++)await q('INSERT INTO public.acconti_cantiere(id,cantiere_id,importo,metodo,data_incasso,descrizione) VALUES($1,$2,$3,\'bonifico\',\'2026-01-01\',$4)',[n===4?fourth:randomUUID(),fourSite,n===4?4545.45:100*n,'Acconto sintetico '+n]);
+ await as(titolare,"SELECT public.conferma_incasso_lordo_cliente($1,$2,5000,'2026-01-01','bonifico',$3,'Fonte sintetica quarto acconto')",[randomUUID(),fourth,randomUUID()]);
+ const fourthBefore=await read(fourth);
+ const returned=await as(titolare,'SELECT public.salva_acconto_compilazione($1,$2,$3,$4,$5,NULL) v',[randomUUID(),fourth,fourSite,JSON.stringify(original(fourthBefore)),JSON.stringify({nota:'Sola modifica descrittiva del quarto acconto'})]);
+ assert.equal(returned[0].v.id,fourth);assert.equal(returned[0].v.importo,4545.45);
+ assert.equal(await value('SELECT count(*)::int v FROM public.acconti_cantiere WHERE cantiere_id=$1',[fourSite]),4);
+ assert.equal(await value('SELECT sum(importo) v FROM artecna_contabilita.incassi_lordi_clienti WHERE acconto_id=$1',[fourth]),'5000.00');
  for(const changes of [{importo:101},{data_incasso:'2026-01-03'},{metodo:'bonifico'}])await assert.rejects(call(randomUUID(),id,original(await read(id)),changes),{code:'23514'});
  await assert.rejects(q('UPDATE public.acconti_cantiere SET importo=101 WHERE id=$1',[id]),{code:'23514'});
  await assert.rejects(call(randomUUID(),id,original(await read(id)),{},{lordo:110,aliquota:10}),{code:'23514'});
@@ -65,6 +94,9 @@ async function verifica({q,value,as,load,titolare,esterno,client2,randomUUID}){
  const rollback=randomUUID();await q('BEGIN');await q('SELECT set_config(\'request.jwt.claim.sub\',$1,true)',[titolare]);await q('SELECT public.salva_acconto_compilazione($1,$2,$3,NULL,$4,NULL)',[randomUUID(),rollback,cid,JSON.stringify(patch)]);await q('ROLLBACK');
  assert.equal(await value('SELECT count(*)::int v FROM public.acconti_cantiere WHERE id=$1',[rollback]),0);
  assert.equal(await value('SELECT signature=artecna_distruzione.hard_delete_catalog() v FROM artecna_distruzione.hard_delete_catalog_expected'),true);
+ assert.equal(await value('SELECT md5(jsonb_agg(to_jsonb(t) ORDER BY jobid)::text) v FROM cron.job t'),cronBefore);
+ assert.equal(await value("SELECT has_table_privilege(current_user,'cron.job','MAINTAIN,UPDATE,DELETE,TRUNCATE') v"),false);
+ fs.writeFileSync(path.join(root,'.run/acconti-rilascio-indipendente/postgresql-result.json'),JSON.stringify({mixed_objects_absent:true,cron_share_privileges:false,cron_fingerprint_unchanged:true,fourth_advance_uuid_preserved:true,four_advance_count:4,fourth_advance_gross:5000,linked_invoices_gross_allocations_notifications_unchanged:true,hard_delete_seal:true}));
  assert.equal(await value("SELECT has_function_privilege('authenticated','public.salva_acconto_compilazione(uuid,uuid,uuid,jsonb,jsonb,jsonb)','EXECUTE') AND NOT has_function_privilege('anon','public.salva_acconto_compilazione(uuid,uuid,uuid,jsonb,jsonb,jsonb)','EXECUTE') AND NOT has_function_privilege('service_role','public.salva_acconto_compilazione(uuid,uuid,uuid,jsonb,jsonb,jsonb)','EXECUTE') v"),true);
  await q('BEGIN ISOLATION LEVEL REPEATABLE READ');await q("SELECT set_config('request.jwt.claim.sub',$1,true)",[titolare]);
  await assert.rejects(q('SELECT public.salva_acconto_compilazione($1,$2,$3,NULL,$4,NULL)',[randomUUID(),randomUUID(),cid,JSON.stringify(patch)]),{code:'22023'});await q('ROLLBACK');

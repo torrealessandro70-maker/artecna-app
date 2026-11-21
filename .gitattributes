@@ -20,3 +20,7 @@ supabase/diagnostics/ribasso_contrattuale_readonly.sql text eol=lf
 supabase/migrations/20261118000100_addebiti_materiali_cliente.sql text eol=lf
 supabase/diagnostics/addebiti_cliente_*readonly.sql text eol=lf
 supabase/diagnostics/addebiti_origini_readonly.sql text eol=lf
+
+# Acconti: sealed local release inputs, same bytes on Windows and Linux.
+supabase/migrations/20261121000100_acconti_compilazione_unica.sql text eol=lf
+supabase/diagnostics/acconti_compilazione_precheck_readonly.sql text eol=lf
