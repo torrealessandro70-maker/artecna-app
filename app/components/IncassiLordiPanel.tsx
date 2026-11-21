@@ -2,6 +2,7 @@
 
 import { useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
+import { metodoAcconto, propostaAcconto, type AccontoPersistito } from '../engines/economia/compilazioneAcconto'
 
 type Incasso = { id: string; importo: number; ricevuto_il: string; riferimento: string; metodo: string; disponibile: number }
 type Quota = { id: string; numero_fattura: string | null; importo: number; revocato_at: string | null }
@@ -15,14 +16,17 @@ const rpcElimina = 'elimina_incasso_lordo_cliente'
 type Operazione = { rpc: string; args: Record<string, string> }
 const euro = (n: number | null) => n === null ? 'Da verificare' : n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 
-export default function IncassiLordiPanel({ id, contesto, netto, solaLettura = false }: {
-  id: string; contesto: 'acconto' | 'fattura'; netto?: number | string | null; solaLettura?: boolean
+export default function IncassiLordiPanel({ id, contesto, netto, solaLettura = false, accontoPersistito }: {
+  id: string; contesto: 'acconto' | 'fattura'; netto?: number | string | null; solaLettura?: boolean; accontoPersistito?: AccontoPersistito
 }) {
   const [dati, setDati] = useState<Lettura | null>(null)
   const [rettifiche, setRettifiche] = useState<Rettifica[]>([])
   const [rettificheDisponibili, setRettificheDisponibili] = useState(false)
   const [messaggio, setMessaggio] = useState('')
   const [attesa, setAttesa] = useState(false)
+  const [aggiungi, setAggiungi] = useState(false)
+  const [contrattoVerificato, setContrattoVerificato] = useState(false)
+  const [accontoCorrente, setAccontoCorrente] = useState(accontoPersistito)
   const [daEliminare, setDaEliminare] = useState<Incasso | null>(null)
   const blocco = useRef(false)
   const chiave = 'artecna-incasso-lordo:' + contesto + ':' + id
@@ -62,6 +66,14 @@ export default function IncassiLordiPanel({ id, contesto, netto, solaLettura = f
       } else {
         setDati(data as Lettura)
         if (!fattura) {
+          const a = await supabase.from('acconti_cantiere').select('*').eq('id', id).single()
+          if (a.error || !a.data) { setMessaggio('Acconto persistito non disponibile.'); setDati(null); return }
+          setAccontoCorrente(a.data as AccontoPersistito)
+          const c = await supabase.from('cantieri').select('id,preventivo_contrattuale_id,destinazione_amministrativa').eq('id', a.data.cantiere_id).single()
+          if (!c.error && c.data?.preventivo_contrattuale_id && c.data.destinazione_amministrativa !== 'archivio_acquisti_personali') {
+            const p = await supabase.from('preventivi_cantiere').select('id,cantiere_id,natura').eq('id', c.data.preventivo_contrattuale_id).eq('cantiere_id', c.data.id).single()
+            setContrattoVerificato(!p.error && !!p.data && p.data.natura !== 'integrativo')
+          } else setContrattoVerificato(false)
           const storico = await supabase.rpc('leggi_rettifiche_incasso_lordo_cliente', { p_acconto: id })
           setRettificheDisponibili(!storico.error && Array.isArray(storico.data))
           setRettifiche(Array.isArray(storico.data) ? storico.data as Rettifica[] : [])
@@ -124,10 +136,10 @@ export default function IncassiLordiPanel({ id, contesto, netto, solaLettura = f
             p_motivo: String(campi.get("motivo") ?? "") } })
         }}>
           <fieldset disabled={attesa || !!pendente}>
-            <label>Imputazione <select name="destinazione" defaultValue="da_verificare">
+            <label>Imputazione <select key={`${dati.imputazioni?.[0]?.revisione ?? 0}:${contrattoVerificato}`} name="destinazione" defaultValue={dati.imputazioni?.length ? dati.imputazione_effettiva ?? 'da_verificare' : contrattoVerificato ? 'contratto' : 'da_verificare'}>
               {Object.entries(destinazioni).map(([valore, nome]) => <option key={valore} value={valore}>{nome}</option>)}
             </select></label>
-            <label>Motivo della scelta <input name="motivo" required maxLength={500} /></label>
+            <label>Motivo della scelta <input name="motivo" required maxLength={500} defaultValue={accontoCorrente?.descrizione?.slice(0, 500) ?? ''} /></label>
             <button type="submit">Registra imputazione</button>
           </fieldset>
         </form>
@@ -184,15 +196,17 @@ export default function IncassiLordiPanel({ id, contesto, netto, solaLettura = f
           onClick={() => { if (window.confirm('Revocare la quota finanziaria?')) void esegui({
             rpc: 'revoca_quota_lorda_cliente', args: { p_id: crypto.randomUUID(), p_quota: q.id },
           }) }}>Revoca quota</button>}</p>)}
-      {!solaLettura && (!fattura || !interamenteIncassata && dati.totale !== null && dati.incassi.some(i => i.disponibile > 0)) && <form onSubmit={salva}>
+      {!fattura && !!dati.incassi.length && !aggiungi && <button type="button" onClick={() => setAggiungi(true)}>Registra un pagamento distinto</button>}
+      {!solaLettura && ((!fattura && (!dati.incassi.length || aggiungi)) || fattura && !interamenteIncassata && dati.totale !== null && dati.incassi.some(i => i.disponibile > 0)) && <form key={accontoCorrente?.compilazione_unica?.richiesta ?? id} onSubmit={salva}>
         <fieldset disabled={attesa || !!pendente}>
-          <label>Importo lordo <input name="importo" required inputMode="decimal" /></label>
+          <label>Importo lordo <input name="importo" required inputMode="decimal" defaultValue={!fattura && !dati.incassi.length && accontoCorrente ? propostaAcconto(accontoCorrente)?.lordo ?? '' : ''} /></label>
+          {!fattura && <p>Importo proposto, da verificare sul pagamento. Nessun incasso è confermato automaticamente.</p>}
           {fattura ? <label>Pagamento <select name="incasso" required><option value="">Seleziona</option>
             {dati.incassi.filter(i => i.disponibile > 0).map(i => <option value={i.id} key={i.id}>
               {i.ricevuto_il} · {i.riferimento} · {euro(i.disponibile)}
             </option>)}</select></label> : <>
-            <label>Data effettiva <input name="data" type="date" required /></label>
-            <label>Metodo <select name="metodo"><option value="bonifico">Bonifico</option><option value="contanti">Contanti</option><option value="altro">Altro</option></select></label>
+            <label>Data effettiva <input name="data" type="date" required defaultValue={!dati.incassi.length ? accontoCorrente?.data_incasso ?? '' : ''} /></label>
+            <label>Metodo <select name="metodo" required defaultValue={!dati.incassi.length ? metodoAcconto(accontoCorrente?.metodo) : ''}><option value="">Da verificare</option><option value="bonifico">Bonifico</option><option value="contanti">Contanti</option><option value="altro">Altro</option></select></label>
             <label>Riferimento univoco <input name="riferimento" required maxLength={200} /></label>
             <label>Fonte della verifica <input name="fonte" required maxLength={200} /></label>
           </>}

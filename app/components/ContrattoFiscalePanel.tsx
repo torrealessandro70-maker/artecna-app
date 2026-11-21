@@ -2,11 +2,13 @@
 
 import { useState, type FormEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
+import type { PropostaAcconto } from '../engines/economia/compilazioneAcconto'
 
 type Quota = { attribuzione_id: string; quota: number | string }
 type Lettura = {
   revisione: number
   stato?: string
+  regime?: string
   termine?: string
   giorni_residui?: number
   data_fiscale?: string
@@ -27,8 +29,8 @@ function LocaleData(value: string | undefined) {
   return local.toISOString().slice(0, 16)
 }
 
-export default function ContrattoFiscalePanel({ id, acconto = false, dataIncasso }: {
-  id: string; acconto?: boolean; dataIncasso?: string | null
+export default function ContrattoFiscalePanel({ id, acconto = false, dataIncasso, descrizione, proposta }: {
+  id: string; acconto?: boolean; dataIncasso?: string | null; descrizione?: string | null; proposta?: PropostaAcconto | null
 }) {
   const [dati, setDati] = useState<Lettura>()
   const [errore, setErrore] = useState('')
@@ -44,6 +46,10 @@ export default function ContrattoFiscalePanel({ id, acconto = false, dataIncasso
       return
     }
     const lettura = data as Lettura
+    if (acconto) {
+      const contesto = await supabase.rpc('leggi_acconto_compilazione', { p_id: id })
+      if (!contesto.error && contesto.data?.coerente && ['ordinario','da_verificare'].includes(contesto.data.regime)) lettura.regime = contesto.data.regime
+    }
     setDati(lettura)
     setQuote(lettura.quote ?? [])
     setTipo(lettura.tipo ?? 'TD01')
@@ -89,15 +95,17 @@ export default function ContrattoFiscalePanel({ id, acconto = false, dataIncasso
       <form key={dati.revisione} onSubmit={salva}>
         <fieldset disabled={occupato}>
           {acconto ? <>
-            <label>Incasso <select name="stato" defaultValue="da_verificare">
+            <label>Incasso <select name="stato" required defaultValue={dati.revisione ? '' : 'da_verificare'}>
+              <option value="" disabled>Seleziona una nuova conferma</option>
               <option value="da_verificare">Da verificare</option>
               <option value="previsto">Previsto</option>
               <option value="incassato">Confermo l’incasso</option>
               <option value="stornato">Stornato</option>
             </select></label>
             <label>Data fiscale <input type="date" name="data" defaultValue={dati.data_fiscale ?? dataIncasso ?? ''} /></label>
-            <label>Fatturazione <select name="regime"><option value="da_verificare">Da verificare</option><option value="ordinario">Immediata ordinaria</option></select></label>
-            <label>Motivo <input name="motivo" required maxLength={500} /></label>
+            <label>Fatturazione <select name="regime" defaultValue={dati.regime ?? (!dati.revisione && proposta && proposta.aliquota > 0 ? 'ordinario' : 'da_verificare')}><option value="da_verificare">Da verificare</option><option value="ordinario">Immediata ordinaria</option></select></label>
+            <label>Motivo <input name="motivo" required maxLength={500} defaultValue={descrizione?.slice(0, 500) ?? ''} /></label>
+            <label><input type="checkbox" required /> Confermo lo stato fiscale e il regime selezionati.</label>
           </> : <>
             <label>Tipo fiscale <select value={tipo} disabled={!!dati.tipo} onChange={e => setTipo(e.target.value)}>
               <option>TD01</option><option>TD02</option><option>TD04</option>

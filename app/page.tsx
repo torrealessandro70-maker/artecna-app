@@ -1,5 +1,6 @@
 'use client'
 
+import AccontoCompilazioneVista from './components/AccontoCompilazioneVista'
 import RapportinoDesktopDialogV1 from './components/RapportinoDesktopDialogV1'
 import PreflightEliminazioneDialog from './components/PreflightEliminazioneDialog'
 import { richiediPreflight, eliminazioneConsentita, type EsitoPreflight } from './utils/preflightEliminazione'
@@ -1018,15 +1019,10 @@ const [nuovaFatturaEmessa, setNuovaFatturaEmessa] = useState<any>({
 
 const [mostraValutazioneFondi, setMostraValutazioneFondi] = useState(false)
 
+const [accontoOperazione, setAccontoOperazione] = useState<{ id?: string; cantiereId?: string; cantiere?: string; utenteId: string } | null>(null)
 const salvaAcconto = async () => {
+  if (!utente?.id) return alert('Sessione non disponibile')
   if (!cantiereScheda) return alert('Seleziona un cantiere')
-
-  const importo = parseFloat(String(importoAcconto).replace(',', '.'))
-
-  if (!importo || importo <= 0) {
-    return alert('Importo non valido')
-  }
-
   const contestoScheda = modalitaMulti
     ? pagineAperte.includes('cantieri-scheda') && !pagineAperte.includes('cantieri-economia')
     : sezioneAttiva === 'cantieri' && sottoSezioneCantieri === 'scheda'
@@ -1039,35 +1035,8 @@ const salvaAcconto = async () => {
     return alert('Impossibile identificare un cantiere univoco per questo acconto. Seleziona nuovamente il cantiere.')
   }
 
-  const { error } = await supabase.from('acconti_cantiere').insert([
-    {
-      cantiere_id: cantiereAcconto.id,
-      cantiere: cantiereAcconto.nome,
-      descrizione: descrizioneAcconto || 'Acconto',
-      importo,
-      data_incasso: dataAcconto || null,
-      metodo: metodoAcconto,
-      nota: notaAcconto,
-    },
-  ])
-
-  if (error) {
-    alert('Errore salvataggio acconto: ' + error.message)
-    return
-  }
-
-  // reset campi
-  setDescrizioneAcconto('')
-  setImportoAcconto('')
-  setDataAcconto('')
-  setMetodoAcconto('')
-  setNotaAcconto('')
-
-  await caricaAcconti()
-
-  alert('Acconto salvato')
+  setAccontoOperazione({ cantiereId: cantiereAcconto.id, cantiere: cantiereAcconto.nome, utenteId: utente.id })
 }
-
 
 
 const rilevaGeolocalizzazioneSopralluogo = async () => {
@@ -11404,44 +11373,8 @@ const eliminaAttrezzatura = async (a: any) => {
   await caricaEconomia()
 }
 
-const modificaAcconto = async (a: any) => {
-  const nuovoImporto = prompt(
-    'Modifica importo acconto',
-    String(a.importo || '')
-  )
-
-  if (nuovoImporto === null) return
-
-  const importo = parseImporto(nuovoImporto)
-
-  if (!importo || importo <= 0) {
-    alert('Importo non valido')
-    return
-  }
-
-  const nuovaDescrizione = prompt(
-    'Modifica descrizione',
-    a.descrizione || 'Acconto'
-  )
-
-  if (nuovaDescrizione === null) return
-
-  const { error } = await supabase
-    .from('acconti_cantiere')
-    .update({
-      importo,
-      descrizione: nuovaDescrizione,
-    })
-    .eq('id', a.id)
-
-  if (error) {
-    alert('Errore modifica acconto: ' + error.message)
-    return
-  }
-
-  await caricaAcconti()
-
-  alert('Acconto modificato')
+const modificaAcconto = async (a: { id?: string }) => {
+  if (a.id && utente?.id) setAccontoOperazione({ id: a.id, utenteId: utente.id })
 }
 
 const eliminaAcconto = async (a: any) => {
@@ -12253,6 +12186,7 @@ textarea:not(.impostazioni-input) {
 
 
 
+{accontoOperazione && authAccontiDisponibile && accontoOperazione.utenteId === utente?.id && <AccontoCompilazioneVista key={accontoOperazione.id ?? accontoOperazione.cantiereId} {...accontoOperazione} onChiudi={() => setAccontoOperazione(null)} onPersistito={caricaAcconti} />}
 {editorRapportinoDesktop && <RapportinoDesktopDialogV1
   key={editorRapportinoDesktop.rapportinoId ?? 'nuovo'} {...editorRapportinoDesktop}
   cantieri={cantieri} operai={operaiAnagrafica.flatMap(o => o.id ? [{ id: o.id, nome: o.nome }] : [])}

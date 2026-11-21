@@ -2,6 +2,7 @@
 import IncassiLordiPanel from './IncassiLordiPanel'
 import ContrattoFiscalePanel from './ContrattoFiscalePanel'
 import type { CSSProperties } from 'react'
+import { propostaAcconto, type AccontoPersistito } from '../engines/economia/compilazioneAcconto'
 import { selezionaAcconti, type RigaAcconto } from '../engines/economia/accontiCantiere'
 
 type AccontiTableProps = {
@@ -77,8 +78,8 @@ export default function AccontiTable({
               </td>
 
               <td style={excelTd}>
-                {a.id && <ContrattoFiscalePanel id={a.id} acconto dataIncasso={a.data_incasso} />}
-                {a.id && a.cantiere_id && <IncassiLordiPanel id={a.id} contesto="acconto" netto={a.importo} />}
+                {a.id && <ContrattoFiscalePanel key={`${a.id}:${(a as AccontoPersistito).compilazione_unica?.richiesta ?? ''}`} id={a.id} acconto dataIncasso={a.data_incasso} descrizione={a.descrizione} proposta={propostaAcconto(a as AccontoPersistito)} />}
+                {a.id && a.cantiere_id && <IncassiLordiPanel key={`${a.id}:${(a as AccontoPersistito).compilazione_unica?.richiesta ?? ''}`} id={a.id} contesto="acconto" netto={a.importo} accontoPersistito={a as AccontoPersistito} />}
                 <button
                   onClick={() => onModifica(a)}
                   style={buttonSecondary}
