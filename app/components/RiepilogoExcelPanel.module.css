@@ -1,0 +1,11 @@
+.panel{border:1px solid #cbd5e1;border-radius:12px;padding:16px;margin:16px 0;background:#fff;color:#0f172a;min-width:0;overflow-wrap:anywhere}
+.carica,.filtri{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:16px 0}
+.panel label{display:flex;flex-direction:column;gap:6px;min-width:0}
+.panel input,.panel select,.panel button{min-height:44px;padding:8px;border:1px solid #94a3b8;border-radius:6px;max-width:100%;box-sizing:border-box;background:#fff;color:#0f172a}
+.panel button{cursor:pointer}.panel button:disabled{opacity:.5;cursor:default}
+.panel summary{cursor:pointer;padding:12px 0;font-weight:600}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.kpi>div{background:#f1f5f9;border-radius:8px;padding:12px}.kpi dd{font-size:1.2rem;font-weight:700;margin:8px 0 0}
+.scroll{overflow:auto;max-width:100%}.scroll table{border-collapse:collapse;width:100%;min-width:620px}.scroll th,.scroll td{text-align:left;padding:10px;border-bottom:1px solid #e2e8f0}
+.fonte{margin-top:16px;min-width:0}.pagine{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0}
+@media(max-width:600px){.panel{padding:12px}.carica>div,.filtri label{width:100%}.panel input[type=file]{width:100%}.kpi{grid-template-columns:1fr 1fr}.kpi dd{font-size:1.05rem}}

@@ -8,6 +8,7 @@ import { costruisciRiepilogo, fontiInCaricamento, periodoPreset, type Fonti, typ
 import { EVENTO_FATTURE_AGGIORNATE } from '../engines/contabilita-ditta/modificaFattura'
 import styles from './RiepilogoDittaPanel.module.css'
 import ProspettoIvaPanel from './ProspettoIvaPanel'
+import RiepilogoExcelPanel from './RiepilogoExcelPanel'
 import ContiDaVerificarePanel from './ContiDaVerificarePanel'
 import AccontoCompilazioneVista from './AccontoCompilazioneVista'
 import type { LetturaContiIncassi } from '../engines/contabilita-ditta/contiDaVerificare'
@@ -50,6 +51,7 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, onAp
       </>}
     </fieldset>
     <p className={styles.fotografia} aria-live="polite">Documenti e movimenti: {periodo.da || 'data mancante'} → {periodo.a || 'data mancante'}. Residui richiesti al {periodo.a || 'data mancante'}. Fotografia delle letture: {fotografia || 'in caricamento'}.</p>
+    <RiepilogoExcelPanel />
     <ProspettoIvaPanel fonti={fonti} periodo={periodo} onApriScadenziario={onApriScadenziario} onApri={onApri} />
     <ContiDaVerificarePanel fonti={fonti} periodo={periodo} incassi={contiIncassi ?? null} correzioneAperta={correzioneAperta} onVerificaAcconto={onVerificaAcconto} />
     <div className={styles.scorrimentoFonti} role="region" aria-label="Tabella riepilogo ditta" tabIndex={0}>
