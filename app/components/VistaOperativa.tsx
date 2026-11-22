@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 
 // Reuse the existing main workspace and portal pattern. The originating tree
 // stays mounted, so its selected site, tab and local work survive the return.
-export default function VistaOperativa({ titolo, contesto, attiva = true, visibile = true, etichettaRitorno = '← Torna al cantiere', onChiudi, occupata, ritornoFocusRef, children }: {
+export default function VistaOperativa({ titolo, contesto, attiva = true, visibile = true, etichettaRitorno = '← Torna al cantiere', onChiudi, occupata, ritornoFocusRef, scrollRef, children }: {
   titolo: string
   contesto?: string
   attiva?: boolean
@@ -14,6 +14,9 @@ export default function VistaOperativa({ titolo, contesto, attiva = true, visibi
   onChiudi: () => void
   occupata?: boolean
   ritornoFocusRef?: RefObject<HTMLElement | null>
+  // Posizione salvata dal chiamante prima di nascondere/smontare la vista:
+  // nel cleanup il layout potrebbe aver già ridotto scrollTop a zero.
+  scrollRef?: RefObject<number>
   children: ReactNode
 }) {
   const area = typeof document === 'undefined' ? null : document.getElementById('area-lavoro-principale')
@@ -26,12 +29,12 @@ export default function VistaOperativa({ titolo, contesto, attiva = true, visibi
     if (!attiva || !visibile || !area) return
     const scroll = scrollOrigine.current
     intestazione.current?.focus({ preventScroll: true })
-    area.scrollTo({ top: 0 })
+    area.scrollTo({ top: scrollRef?.current ?? 0 })
     return () => {
       area.scrollTo({ top: scroll })
       ripristinaFocus()
     }
-  }, [area, attiva, visibile, ripristinaFocus])
+  }, [area, attiva, visibile, ripristinaFocus, scrollRef])
 
   if (!attiva) return children
 

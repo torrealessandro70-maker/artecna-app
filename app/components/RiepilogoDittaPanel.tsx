@@ -8,6 +8,10 @@ import { costruisciRiepilogo, fontiInCaricamento, periodoPreset, type Fonti, typ
 import { EVENTO_FATTURE_AGGIORNATE } from '../engines/contabilita-ditta/modificaFattura'
 import styles from './RiepilogoDittaPanel.module.css'
 import ProspettoIvaPanel from './ProspettoIvaPanel'
+import ContiDaVerificarePanel from './ContiDaVerificarePanel'
+import AccontoCompilazioneVista from './AccontoCompilazioneVista'
+import type { LetturaContiIncassi } from '../engines/contabilita-ditta/contiDaVerificare'
+import type { ClientIncassi } from '../engines/contabilita-ditta/incassiFatturazione'
 
 const euro = (c: number) => (c / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 function oggiLocale() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
@@ -16,7 +20,7 @@ const colori = { Disponibile: '#166534', Limitato: '#92400e', 'Non calcolabile':
 import VistaOperativa from './VistaOperativa'
 
 export type DestinazioneEconomia = 'fatture-emesse' | 'fatture-fornitori' | 'pagamenti-operai'
-type NavigazioneEconomia = { onApri?: (destinazione: DestinazioneEconomia) => void; onApriScadenziario?: () => void; rigaCostiGenerali?: ReactNode }
+type NavigazioneEconomia = { contiIncassi?: LetturaContiIncassi | null; correzioneAperta?: boolean; onVerificaAcconto?: (id: string, autore: string) => void; onApri?: (destinazione: DestinazioneEconomia) => void; onApriScadenziario?: () => void; rigaCostiGenerali?: ReactNode }
 const destinazioni: Record<string, { destinazione: DestinazioneEconomia; etichetta: string }> = {
   emesse: { destinazione: 'fatture-emesse', etichetta: 'Apri fatture emesse' },
   ricevute: { destinazione: 'fatture-fornitori', etichetta: 'Apri fatture ricevute' },
@@ -26,7 +30,7 @@ const destinazioni: Record<string, { destinazione: DestinazioneEconomia; etichet
 const ambito = (i: { ambito: string }) => i.ambito === 'progressivo' ? 'Progressivo complessivo dichiarato oggi — non filtrato per periodo' : i.ambito === 'riferimento' ? 'Alla data di riferimento — storico richiesto' : 'Documenti / movimenti nel periodo'
 
 /** Vista pura rispetto al DB: periodo e dettagli cambiano soltanto stato React. */
-export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, onApriScadenziario, rigaCostiGenerali }: { fonti: Fonti; fotografia: string; onCollega?: (id: string) => void } & NavigazioneEconomia) {
+export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, onApriScadenziario, rigaCostiGenerali, contiIncassi, correzioneAperta, onVerificaAcconto }: { fonti: Fonti; fotografia: string; onCollega?: (id: string) => void } & NavigazioneEconomia) {
   const [tipo, setTipo] = useState<'mese' | 'trimestre' | 'anno' | 'personalizzato'>('trimestre')
   const [riferimento, setRiferimento] = useState(oggiLocale)
   const [manuale, setManuale] = useState<Periodo>(() => periodoPreset('trimestre', oggiLocale()))
@@ -47,6 +51,7 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, onAp
     </fieldset>
     <p className={styles.fotografia} aria-live="polite">Documenti e movimenti: {periodo.da || 'data mancante'} → {periodo.a || 'data mancante'}. Residui richiesti al {periodo.a || 'data mancante'}. Fotografia delle letture: {fotografia || 'in caricamento'}.</p>
     <ProspettoIvaPanel fonti={fonti} periodo={periodo} onApriScadenziario={onApriScadenziario} onApri={onApri} />
+    <ContiDaVerificarePanel fonti={fonti} periodo={periodo} incassi={contiIncassi ?? null} correzioneAperta={correzioneAperta} onVerificaAcconto={onVerificaAcconto} />
     <div className={styles.scorrimentoFonti} role="region" aria-label="Tabella riepilogo ditta" tabIndex={0}>
       <table className={styles.riepilogo}>
         <caption>Indicatori esistenti — valori e ambiti separati</caption>
@@ -96,7 +101,8 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, onAp
   </section>
 }
 
-export default function RiepilogoDittaPanel({ client, onApri, onApriScadenziario, rigaCostiGenerali }: { client: ClientLettura & ClientAttribuzioni } & NavigazioneEconomia) {
+export default function RiepilogoDittaPanel({ client, onApri, onApriScadenziario, rigaCostiGenerali, contiIncassi }: { client: ClientLettura & ClientAttribuzioni & Pick<ClientIncassi, 'auth'> } & NavigazioneEconomia) {
+  const [verificaAcconto, setVerificaAcconto] = useState<{ id: string; autore: string } | null>(null)
   const [collegaId, setCollegaId] = useState<string | null>(null)
   const [richiesta, setRichiesta] = useState(0)
   const [risultato, setRisultato] = useState<{ client: ClientLettura; richiesta: number; fonti: Fonti; fotografia: string } | null>(null)
@@ -106,10 +112,15 @@ export default function RiepilogoDittaPanel({ client, onApri, onApriScadenziario
     return () => { obsoleto = true }
   }, [client, richiesta])
   useEffect(() => { const aggiorna = () => setRichiesta(r => r + 1); window.addEventListener('artecna-clienti-incassi-aggiornati', aggiorna); window.addEventListener(EVENTO_FATTURE_AGGIORNATE, aggiorna); return () => { window.removeEventListener('artecna-clienti-incassi-aggiornati', aggiorna); window.removeEventListener(EVENTO_FATTURE_AGGIORNATE, aggiorna) } }, [])
+  useEffect(() => {
+    const auth = client.auth?.onAuthStateChange(() => { setRichiesta(r => r + 1); setCollegaId(null); setVerificaAcconto(null) })
+    return () => auth?.data.subscription.unsubscribe()
+  }, [client])
   const valido = risultato?.client === client && risultato.richiesta === richiesta
   return <>
     <button type="button" onClick={() => setRichiesta(r => r + 1)}>Aggiorna letture ditta</button>
-    <RiepilogoDittaVista onApri={onApri} onApriScadenziario={onApriScadenziario} rigaCostiGenerali={rigaCostiGenerali} onCollega={setCollegaId} fonti={valido ? risultato.fonti : fontiInCaricamento()} fotografia={valido ? risultato.fotografia : ''} />
+    <RiepilogoDittaVista contiIncassi={contiIncassi} correzioneAperta={!!verificaAcconto} onVerificaAcconto={(id, autore) => setVerificaAcconto({ id, autore })} onApri={onApri} onApriScadenziario={onApriScadenziario} rigaCostiGenerali={rigaCostiGenerali} onCollega={setCollegaId} fonti={valido ? risultato.fonti : fontiInCaricamento()} fotografia={valido ? risultato.fotografia : ''} />
+    {verificaAcconto && <AccontoCompilazioneVista key={verificaAcconto.id} id={verificaAcconto.id} utenteId={verificaAcconto.autore} onChiudi={() => { setVerificaAcconto(null); setRichiesta(r => r + 1); window.dispatchEvent(new Event('artecna-incassi-lordi-aggiornati')) }} onPersistito={async () => { setRichiesta(r => r + 1); window.dispatchEvent(new Event('artecna-incassi-lordi-aggiornati')) }} />}
     {collegaId && <CollegaIncassoPanel key={collegaId} client={client} fatturaId={collegaId} cantiereId={valido ? cantiereDocumento(risultato.fonti.fatture_emesse.righe, collegaId) : undefined} onChiudi={() => setCollegaId(null)} />}
   </>
 }

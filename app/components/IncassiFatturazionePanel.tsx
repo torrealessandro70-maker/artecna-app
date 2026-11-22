@@ -6,6 +6,7 @@ import AccontoCompilazioneVista from './AccontoCompilazioneVista'
 import { calcolaIncassi, leggiIncassiFatturazione, type ClientIncassi, type RiepilogoIncassi, type SnapshotIncassi } from '../engines/contabilita-ditta/incassiFatturazione'
 import { EVENTO_FATTURE_AGGIORNATE } from '../engines/contabilita-ditta/modificaFattura'
 import { centesimi } from '../engines/contabilita-ditta/riepilogo'
+import type { LetturaContiIncassi } from '../engines/contabilita-ditta/contiDaVerificare'
 
 const euro = (n: number) => (n / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 const oggi = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
@@ -16,7 +17,7 @@ function IndicatoriIncassi({ dati }: { dati: RiepilogoIncassi | null }) {
   </dl></div>
 }
 
-export default function IncassiFatturazionePanel({ client }: { client: ClientIncassi }) {
+export default function IncassiFatturazionePanel({ client, onConti }: { client: ClientIncassi; onConti?: (lettura: LetturaContiIncassi) => void }) {
   const [periodo, setPeriodo] = useState(() => ({ da: oggi().slice(0, 4) + '-01-01', a: oggi() }))
   const [richiesta, setRichiesta] = useState(0)
   const [lettura, setLettura] = useState<{ client: ClientIncassi; richiesta: number; da: string; a: string; snapshot?: SnapshotIncassi; errore?: string } | null>(null)
@@ -31,12 +32,12 @@ export default function IncassiFatturazionePanel({ client }: { client: ClientInc
     return () => { attivo = false }
   }, [client, periodo, richiesta])
   useEffect(() => {
-    const aggiorna = () => { setRichiesta(r => r + 1); setNotaId(null) }
+    const aggiorna = () => { onConti?.({ dati: null, da: '', a: '', errore: 'Rilettura delle fonti autorizzate in corso.', origine: client }); setRichiesta(r => r + 1); setNotaId(null) }
     const eventi = ['artecna-incassi-lordi-aggiornati', 'artecna-clienti-incassi-aggiornati', EVENTO_FATTURE_AGGIORNATE]
     eventi.forEach(e => window.addEventListener(e, aggiorna))
     const auth = client.auth?.onAuthStateChange(aggiorna)
     return () => { eventi.forEach(e => window.removeEventListener(e, aggiorna)); auth?.data.subscription.unsubscribe() }
-  }, [client])
+  }, [client, onConti])
   const valida = lettura?.client === client && lettura.richiesta === richiesta && lettura.da === periodo.da && lettura.a === periodo.a
   const snapshot = valida ? lettura.snapshot : undefined
   const calcolo = useMemo(() => {
@@ -44,6 +45,9 @@ export default function IncassiFatturazionePanel({ client }: { client: ClientInc
     try { return { dati: calcolaIncassi(snapshot), errore: '' } } catch { return { dati: null, errore: 'Quadratura o identità non verificabili. Nessun totale stimato.' } }
   }, [snapshot])
   const errore = calcolo.errore || (valida ? lettura.errore : '')
+  useEffect(() => {
+    onConti?.({ dati: calcolo.dati, da: periodo.da, a: periodo.a, errore: errore || '', autore: snapshot?.autore, origine: client })
+  }, [client, onConti, calcolo.dati, periodo.da, periodo.a, errore, snapshot?.autore])
   const righe = calcolo.dati?.righe ?? []
   const selezionate = righe.filter(r => (!cantiere || r.cantiere_id === cantiere) && (!cliente || r.cliente === cliente)
     && (!cerca || `${r.cliente} ${r.cantiere ?? ''} ${r.descrizione ?? ''} ${r.metodo}`.toLocaleLowerCase('it').includes(cerca.toLocaleLowerCase('it')))

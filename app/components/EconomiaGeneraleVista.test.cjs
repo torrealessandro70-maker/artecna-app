@@ -33,6 +33,7 @@ function loader(h, overrides = {}) {
       if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }
       if (id.endsWith('.module.css')) return { default: new Proxy({}, { get: (_, k) => String(k) }) }
       if (id === './VistaOperativa') return { default: 'VistaOperativa' }
+      if (id === './ContiDaVerificarePanel' || id === './AccontoCompilazioneVista') return { default: id.slice(2) }
       if (id === './CollegaIncassoPanel') return { default: 'CollegaPanel', CollegaIncassoAzione: 'CollegaAzione' }
       if (id.endsWith('/attribuzioni')) return { cantiereDocumento: () => 'cantiere-test' }
       if (id.endsWith('/lettura')) return { leggiFontiDitta() { throw Error('DB reads forbidden') } }
@@ -164,6 +165,8 @@ test('unrelated economic calculators/readers/writers/schema remain unchanged; co
   // Perimetro del prospetto IVA documentale; lettori, writer e schema invariati.
   validators.add('app/engines/contabilita-ditta/prospettoIva.ts')
   validators.add('app/engines/contabilita-ditta/prospettoIva.test.cjs')
+  validators.add('app/engines/contabilita-ditta/contiDaVerificare.ts')
+  validators.add('app/engines/contabilita-ditta/contiDaVerificare.test.cjs')
   validators.add('supabase/validators/cantiere-prerequisiti/contratto-acconti-sdi.test.cjs')
   validators.add('supabase/validators/cantiere-prerequisiti/browser/contratto-sdi-entry.mjs')
   // Il lettore Varianti e i controlli diagnostici sono parte del nuovo perimetro.
@@ -232,6 +235,12 @@ test('existing page writers/readers and period/source hooks are byte-equivalent 
   assert.equal(letturaFoto, letturaFotoPrecedente)
   assert.deepEqual(calls(letturaFotoPerId, x => /\.(from|select|eq)$/.test(x)), calls(oldFotoPerId, x => /\.(from|select|eq)$/.test(x)))
   function calls(s, match) { const result = [], ast = ts.createSourceFile('source.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); function visit(n) { if (ts.isCallExpression(n) && match(n.expression.getText(ast))) result.push(n.getText(ast)); ts.forEachChild(n, visit) } visit(ast); return result }
-  assert.deepEqual(calls(read('RiepilogoDittaPanel.tsx'), x => ['useEffect', 'useMemo'].includes(x)), calls(old('components/RiepilogoDittaPanel.tsx'), x => ['useEffect', 'useMemo'].includes(x)))
+  const currentHooks = calls(read('RiepilogoDittaPanel.tsx'), x => ['useEffect', 'useMemo'].includes(x))
+  const authorizationHooks = currentHooks.filter(x => x.includes('client.auth?.onAuthStateChange'))
+  assert.equal(authorizationHooks.length, 1)
+  assert.match(authorizationHooks[0], /setRichiesta/)
+  assert.match(authorizationHooks[0], /subscription.unsubscribe/)
+  assert.doesNotMatch(authorizationHooks[0], /\.(insert|update|delete|rpc)\s*\(/)
+  assert.deepEqual(currentHooks.filter(x => !authorizationHooks.includes(x)), calls(old('components/RiepilogoDittaPanel.tsx'), x => ['useEffect', 'useMemo'].includes(x)))
   assert.deepEqual(calls(read('TabellaSpeseImpresaPanel.tsx'), x => /\.(reduce|filter|sort)$/.test(x)), calls(old('components/TabellaSpeseImpresaPanel.tsx'), x => /\.(reduce|filter|sort)$/.test(x)))
 })

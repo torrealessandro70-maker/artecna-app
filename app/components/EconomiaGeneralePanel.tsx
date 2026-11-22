@@ -12,6 +12,7 @@ import EconomiaSpeseImpresaPanel from './EconomiaSpeseImpresaPanel'
 import ScadenziarioPersistentePanel from './ScadenziarioPersistentePanel'
 import type { ClientDocumentiFiscali } from '../engines/contabilita-ditta/documentiFiscali'
 import IncassiFatturazionePanel from './IncassiFatturazionePanel'
+import type { LetturaContiIncassi } from '../engines/contabilita-ditta/contiDaVerificare'
 
 type Props = {
   scadenzaDaNotifica?: string
@@ -66,13 +67,14 @@ export default function EconomiaGeneralePanel({
 }: Props) {
   const [costiAperti, setCostiAperti] = useState(false)
   const [scadenziarioAperto, setScadenziarioAperto] = useState(false)
+  const [contiIncassi, setContiIncassi] = useState<LetturaContiIncassi | null>(null)
   const ritornoCostiRef = useRef<HTMLButtonElement | null>(null)
   return (
     <div style={cardStyle}>
       <h2>Economia generale</h2>
-      <IncassiFatturazionePanel client={client} />
+      <IncassiFatturazionePanel client={client} onConti={setContiIncassi} />
 
-      <RiepilogoDittaPanel client={client} onApri={onApri} onApriScadenziario={() => setScadenziarioAperto(true)} rigaCostiGenerali={
+      <RiepilogoDittaPanel client={client} contiIncassi={contiIncassi?.origine === client ? contiIncassi : null} onApri={onApri} onApriScadenziario={() => setScadenziarioAperto(true)} rigaCostiGenerali={
         <CostiGeneraliImpresaSummary speseImpresa={speseImpresa} formatMoney={formatMoney} comeRiga
           onMostraDettaglio={event => { ritornoCostiRef.current = event.currentTarget; setCostiAperti(true) }} />
       } />

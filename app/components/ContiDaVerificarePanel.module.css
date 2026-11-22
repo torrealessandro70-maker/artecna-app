@@ -1,0 +1,15 @@
+.pannello { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-block: 16px; }
+.gruppi, .dati { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 12px; }
+.gruppi button { text-align: left; }
+.filtri, .azioni { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 12px; }
+.filtri label { display: grid; gap: 4px; flex: 1 1 230px; min-width: 0; }
+.filtri input, .filtri select { width: 100%; min-width: 0; box-sizing: border-box; }
+.pannello button, .filtri input, .filtri select, .scheda button { min-height: 44px; font: inherit; padding: 8px; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.elenco { padding: 0; list-style: none; display: grid; gap: 12px; }
+.voce { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; overflow-wrap: anywhere; }
+.voce h3 { margin-block: 0 8px; }
+.scheda { overflow-wrap: anywhere; }
+.dati { margin: 0; }
+.dati div { padding-block: 8px; }
+.dati dt { font-weight: 600; }
+.dati dd { margin: 4px 0; }
