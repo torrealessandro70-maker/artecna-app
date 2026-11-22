@@ -11,6 +11,7 @@ import type { ClientLettura } from '../engines/contabilita-ditta/lettura'
 import EconomiaSpeseImpresaPanel from './EconomiaSpeseImpresaPanel'
 import ScadenziarioPersistentePanel from './ScadenziarioPersistentePanel'
 import type { ClientDocumentiFiscali } from '../engines/contabilita-ditta/documentiFiscali'
+import IncassiFatturazionePanel from './IncassiFatturazionePanel'
 
 type Props = {
   scadenzaDaNotifica?: string
@@ -69,6 +70,7 @@ export default function EconomiaGeneralePanel({
   return (
     <div style={cardStyle}>
       <h2>Economia generale</h2>
+      <IncassiFatturazionePanel client={client} />
 
       <RiepilogoDittaPanel client={client} onApri={onApri} onApriScadenziario={() => setScadenziarioAperto(true)} rigaCostiGenerali={
         <CostiGeneraliImpresaSummary speseImpresa={speseImpresa} formatMoney={formatMoney} comeRiga

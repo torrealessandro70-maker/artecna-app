@@ -16,8 +16,8 @@ function recuperaPendente(key: string): Pendente | null {
   } catch { return null }
 }
 
-export default function AccontoCompilazioneVista({ id, cantiereId, cantiere, utenteId, onChiudi, onPersistito }: {
-  id?: string; cantiereId?: string; cantiere?: string; utenteId: string; onChiudi: () => void; onPersistito: () => Promise<unknown>
+export default function AccontoCompilazioneVista({ id, cantiereId, cantiere, utenteId, onChiudi, onPersistito, annotazioneGestionale = false }: {
+  id?: string; cantiereId?: string; cantiere?: string; utenteId: string; onChiudi: () => void; onPersistito: () => Promise<unknown>; annotazioneGestionale?: boolean
 }) {
   const chiavePendente = `artecna-acconto-compilazione:${utenteId}:${id ?? cantiereId}`
   const [pendente] = useState(() => recuperaPendente(chiavePendente))
@@ -131,7 +131,8 @@ export default function AccontoCompilazioneVista({ id, cantiereId, cantiere, ute
       {modo === 'netto' && <p>Lordo e IVA: Da verificare. Le proposte salvate sono disponibili nelle fasi successive.</p>}
       <label>Data <input type="date" value={campi.data_incasso} disabled={!!record && documentato} onChange={e => cambia('data_incasso', e.target.value)} /></label>
       <label>Metodo <input value={campi.metodo} maxLength={100} disabled={!!record && documentato} onChange={e => cambia('metodo', e.target.value)} /></label>
-      <label>Note <textarea value={campi.nota} maxLength={4000} onChange={e => cambia('nota', e.target.value)} /></label>
+      {annotazioneGestionale && <p>Puoi annotare nelle note una scelta gestionale, ad esempio «Fattura non prevista», con la motivazione. La nota non conferma un incasso, non regolarizza la posizione fiscale e non disattiva avvisi o scadenze.</p>}
+      <label>{annotazioneGestionale ? 'Note / scelta gestionale' : 'Note'} <textarea value={campi.nota} maxLength={4000} onChange={e => cambia('nota', e.target.value)} /></label>
       {record && documentato ? <p>Importo, data e metodo protetti. Usa le rettifiche fiscali e finanziarie esistenti.</p> : record && <label><input type="checkbox" checked={conferma} onChange={e => setConferma(e.target.checked)} /> Confermo la nuova verifica dei dati economici modificati.</label>}
       <button type="submit">{occupato ? 'Salvataggio…' : record ? 'Salva modifiche' : 'Registra acconto'}</button>
       <button type="button" onClick={chiudi}>Annulla</button>

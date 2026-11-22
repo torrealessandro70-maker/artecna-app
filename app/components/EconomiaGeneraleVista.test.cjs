@@ -118,7 +118,7 @@ function expand(x) {
   return { ...x, props: { ...x.props, children: expand(x.props?.children) } }
 }
 function costs() {
-  const h = hooks(), load = loader(h, { './RiepilogoDittaPanel': { default: 'Riepilogo' }, './CostiFornitoriRettificati': { default: 'CostiFornitori' } })
+  const h = hooks(), load = loader(h, { './RiepilogoDittaPanel': { default: 'Riepilogo' }, './CostiFornitoriRettificati': { default: 'CostiFornitori' }, './IncassiFatturazionePanel': { default: 'IncassiFatturazione' }, './ScadenziarioPersistentePanel': { default: 'Scadenziario' } })
   const component = load('EconomiaGeneralePanel.tsx').default
   const props = { client: {}, cardStyle: {}, speseImpresa: [{ categoria: 'attrezzo_ditta', importo: 10 }, { categoria: 'magazzino', importo: 20 }, { categoria: 'spesa_generale', importo: 30 }, { categoria: 'altra', importo: 7 }], formatMoney: n => n.toFixed(2), filtroSpeseImpresa: '', tabellaSpeseImpresaAperta: false, ordineSpeseCampo: 'categoria', ordineSpeseDirezione: 'asc', buttonSecondary: {}, inputStyle: {}, excelTable: {}, excelTh: {}, excelTd: {}, setFiltroSpeseImpresa() {}, setTabellaSpeseImpresaAperta() {}, ordinaSpeseImpresa() {} }
   return { props, render() { h.start(); return component(props) } }
@@ -157,6 +157,10 @@ test('unrelated economic calculators/readers/writers/schema remain unchanged; co
     .map(file => 'supabase/validators/scadenziario/' + file))
   migrations.add('supabase/migrations/20261115000400_incassi_lordi_clienti.sql')
   migrations.add('supabase/migrations/20261115000500_rettifica_riferimento_incasso.sql')
+  migrations.add('supabase/migrations/20261122000100_incassi_fatturazione_lettura.sql')
+  validators.add('supabase/diagnostics/test-incassi-fatturazione.cjs')
+  validators.add('app/engines/contabilita-ditta/incassiFatturazione.ts')
+  validators.add('app/engines/contabilita-ditta/incassiFatturazione.test.cjs')
   validators.add('supabase/validators/cantiere-prerequisiti/contratto-acconti-sdi.test.cjs')
   validators.add('supabase/validators/cantiere-prerequisiti/browser/contratto-sdi-entry.mjs')
   // Il lettore Varianti e i controlli diagnostici sono parte del nuovo perimetro.
@@ -207,7 +211,8 @@ test('unrelated economic calculators/readers/writers/schema remain unchanged; co
 
 test('existing page writers/readers and period/source hooks are byte-equivalent apart from native line endings', () => {
   const root = path.resolve(__dirname, '../..')
-  const old = file => cp.execFileSync('git', ['show', '44d95773f1076c84bc21a09504166dd88a584bec:app/' + file], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }).replace(/\r/g, '')
+  // Released Acconti baseline: preserve every current writer/reader, not an obsolete pre-Acconti snapshot.
+  const old = file => cp.execFileSync('git', ['show', '2a80aeb5fe2fff5b23fef7716fbae6b56dbec62b:app/' + file], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }).replace(/\r/g, '')
   function handlers(s) {
     const result = {}, ast = ts.createSourceFile('source.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
     function visit(n) { if (ts.isVariableDeclaration(n) && /^(salva|elimina|carica|calcola|prepara)/.test(n.name.getText(ast)) && n.initializer && (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer))) result[n.name.getText(ast)] = n.initializer.getText(ast); ts.forEachChild(n, visit) }
@@ -219,7 +224,10 @@ test('existing page writers/readers and period/source hooks are byte-equivalent 
   assert.deepEqual(correnti, precedenti)
   assert.match(letturaFoto, /caricaFotoSopralluoghiPerId\(id\)/)
   const letturaFotoPerId = page.slice(page.indexOf('const caricaFotoSopralluoghiPerId ='), page.indexOf('const caricaFotoSopralluoghi ='))
-  assert.deepEqual(calls(letturaFotoPerId, x => /\.(from|select|eq)$/.test(x)), calls(letturaFotoPrecedente, x => /\.(from|select|eq)$/.test(x)))
+  const oldPage = old('page.tsx')
+  const oldFotoPerId = oldPage.slice(oldPage.indexOf('const caricaFotoSopralluoghiPerId ='), oldPage.indexOf('const caricaFotoSopralluoghi ='))
+  assert.equal(letturaFoto, letturaFotoPrecedente)
+  assert.deepEqual(calls(letturaFotoPerId, x => /\.(from|select|eq)$/.test(x)), calls(oldFotoPerId, x => /\.(from|select|eq)$/.test(x)))
   function calls(s, match) { const result = [], ast = ts.createSourceFile('source.tsx', s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); function visit(n) { if (ts.isCallExpression(n) && match(n.expression.getText(ast))) result.push(n.getText(ast)); ts.forEachChild(n, visit) } visit(ast); return result }
   assert.deepEqual(calls(read('RiepilogoDittaPanel.tsx'), x => ['useEffect', 'useMemo'].includes(x)), calls(old('components/RiepilogoDittaPanel.tsx'), x => ['useEffect', 'useMemo'].includes(x)))
   assert.deepEqual(calls(read('TabellaSpeseImpresaPanel.tsx'), x => /\.(reduce|filter|sort)$/.test(x)), calls(old('components/TabellaSpeseImpresaPanel.tsx'), x => /\.(reduce|filter|sort)$/.test(x)))
