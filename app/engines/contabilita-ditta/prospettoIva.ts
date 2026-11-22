@@ -6,6 +6,23 @@ export type DocumentoIva = { fonte: FonteIva; id: string; numero: string; data: 
 export type ArchivioIva = { documenti: DocumentoIva[]; fonti: Pick<Fonti, FonteIva> }
 export type QuotaIva = { valore: number | null; inclusi: number; esclusi: number; nonDatati: number; stato: Stato }
 export type RigaIva = { periodo: Periodo; etichetta: string; tipo: 'mese' | 'trimestre' | 'totale'; emesse: QuotaIva; ricevute: QuotaIva; differenza: number | null; accumulata: number | null; stato: Stato }
+export function posizioneDocumentale(riga: RigaIva | null): string {
+  if (!riga || riga.stato !== 'Disponibile' || riga.differenza === null) return 'Non determinabile'
+  return riga.differenza > 0 ? 'A debito documentale' : riga.differenza < 0 ? 'A credito documentale' : 'In pareggio documentale'
+}
+
+// Le letture correnti non contengono una liquidazione verificata. Un PDF F24,
+// una scadenza manuale o l'imposta esposta non attestano questi valori.
+export const FONTI_LIQUIDAZIONE_MANCANTI = [
+  ['IVA esigibile', 'Registri IVA e periodo di esigibilità verificati, inclusi cassa, split payment e reverse charge'],
+  ['IVA detraibile', 'Registro acquisti e detraibilità verificata per documento, inclusi pro rata e regimi speciali'],
+  ['Rettifiche fiscali', 'Rettifiche validate e note di credito attribuite al periodo fiscale'],
+  ['Credito precedente', 'Liquidazione precedente e credito riportabile verificati'],
+  ['Versamenti e compensazioni', 'Quietanze F24 con codici tributo, periodo, importi ed esiti riconciliati'],
+  ['Interessi trimestrali', 'Regime, applicabilità, base e interessi verificati'],
+  ['Risultato della liquidazione', 'Liquidazione completa e validata con tutte le componenti precedenti'],
+  ['Credito residuo', 'Credito fiscale validato dopo utilizzi e compensazioni'],
+] as const
 const fonti: FonteIva[] = ['fatture_emesse', 'fatture_fornitori']
 const somma = (valori: number[]): number | null => {
   let totale = 0
@@ -108,6 +125,19 @@ export function preparaArchivioIva(letture: Pick<Fonti, FonteIva>): ArchivioIva 
     for (const mappa of [ids, identita]) for (const gruppo of mappa.values()) if (gruppo.length > 1) {
       for (const d of gruppo) { d.iva = null; d.motivo = 'Identità duplicata nella fonte: nessuna versione scelta automaticamente' }
     }
+  }
+  // Una registrazione manuale e un XML possono descrivere la stessa emessa
+  // con UUID diversi. Numero/data coincidenti non provano due documenti distinti.
+  const emesse = documenti.filter(d => d.fonte === 'fatture_emesse')
+  const manuali = new Set(emesse.filter(d => d.identita && JSON.parse(d.identita)[1] === 'manuale').map(d => JSON.stringify([d.numero, d.data])))
+  const conteggi = new Map<string, number>()
+  for (const d of emesse) if (d.identita) {
+    const chiave = JSON.stringify([d.numero, d.data])
+    conteggi.set(chiave, (conteggi.get(chiave) || 0) + 1)
+  }
+  const ambigue = new Set([...manuali].filter(chiave => (conteggi.get(chiave) || 0) > 1))
+  for (const d of emesse) if (ambigue.has(JSON.stringify([d.numero, d.data]))) {
+    d.iva = null; d.motivo = 'Possibile doppia registrazione manuale/XML: identità da riconciliare prima del conteggio'
   }
   return { documenti, fonti: letture }
 }

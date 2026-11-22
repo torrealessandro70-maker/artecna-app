@@ -46,6 +46,7 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, onAp
       </>}
     </fieldset>
     <p className={styles.fotografia} aria-live="polite">Documenti e movimenti: {periodo.da || 'data mancante'} → {periodo.a || 'data mancante'}. Residui richiesti al {periodo.a || 'data mancante'}. Fotografia delle letture: {fotografia || 'in caricamento'}.</p>
+    <ProspettoIvaPanel fonti={fonti} periodo={periodo} onApriScadenziario={onApriScadenziario} onApri={onApri} />
     <div className={styles.scorrimentoFonti} role="region" aria-label="Tabella riepilogo ditta" tabIndex={0}>
       <table className={styles.riepilogo}>
         <caption>Indicatori esistenti — valori e ambiti separati</caption>
@@ -61,7 +62,7 @@ export function RiepilogoDittaVista({ fonti, fotografia, onCollega, onApri, onAp
         </tr>)}{rigaCostiGenerali}</tbody>
       </table>
     </div>
-    <ProspettoIvaPanel fonti={fonti} periodo={periodo} onApriScadenziario={onApriScadenziario} />
+
     <details className={styles.qualita}><summary>Fonti, limiti e qualità dei dati</summary>
       <p>Contabilità ordinaria · IVA trimestrale. Il trimestre è un filtro di consultazione, non una liquidazione IVA.</p>
       <p>Disponibile significa calcolabile sulle fonti caricate, non che tutte le fatture esterne siano state importate. Nessun utile definitivo, reddito imponibile, IVA da versare o saldo banca.</p>

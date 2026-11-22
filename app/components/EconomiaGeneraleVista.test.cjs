@@ -161,6 +161,9 @@ test('unrelated economic calculators/readers/writers/schema remain unchanged; co
   validators.add('supabase/diagnostics/test-incassi-fatturazione.cjs')
   validators.add('app/engines/contabilita-ditta/incassiFatturazione.ts')
   validators.add('app/engines/contabilita-ditta/incassiFatturazione.test.cjs')
+  // Perimetro del prospetto IVA documentale; lettori, writer e schema invariati.
+  validators.add('app/engines/contabilita-ditta/prospettoIva.ts')
+  validators.add('app/engines/contabilita-ditta/prospettoIva.test.cjs')
   validators.add('supabase/validators/cantiere-prerequisiti/contratto-acconti-sdi.test.cjs')
   validators.add('supabase/validators/cantiere-prerequisiti/browser/contratto-sdi-entry.mjs')
   // Il lettore Varianti e i controlli diagnostici sono parte del nuovo perimetro.

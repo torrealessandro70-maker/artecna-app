@@ -106,3 +106,39 @@ test('invalid ranges and unsafe monetary precision are non determinable', () => 
 test('calculation leaves all source rows and reader snapshot unchanged', () => { const f = fonti([manuale()], [ricevuta()]); const before = JSON.stringify(f); calcola(f); assert.equal(JSON.stringify(f), before) })
 
 module.exports = { fonti, manuale, ricevuta, periodo }
+
+test('documentary debt, credit and balanced classifications require complete source coverage',()=>{
+  const {posizioneDocumentale}=require('./prospettoIva.ts')
+  const issued=ricevuta({id:'e1'})
+  assert.equal(posizioneDocumentale(calcola(fonti([issued],[])).totale),'A debito documentale')
+  assert.equal(posizioneDocumentale(calcola(fonti([],[ricevuta()])).totale),'A credito documentale')
+  assert.equal(posizioneDocumentale(calcola(fonti([issued],[ricevuta()])).totale),'In pareggio documentale')
+  assert.equal(posizioneDocumentale(calcola(fonti([manuale()],[])).totale),'Non determinabile')
+  assert.equal(posizioneDocumentale(null),'Non determinabile')
+  for(const stato of ['parziale','errore','caricamento']) {const f=fonti([issued]);f.fatture_emesse.stato=stato;assert.equal(posizioneDocumentale(calcola(f).totale),'Non determinabile')}
+})
+test('credit notes correct document VAT once and preserve signed cent arithmetic',()=>{
+  const ordinary=ricevuta({id:'e1'}),credit=ricevuta({id:'credit',numero_fattura:'NC1',xml_testo:xml({tipo:'TD04',numero:'NC1',gruppi:gruppo({base:'50',iva:'11'})})})
+  const p=calcola(fonti([ordinary,credit],[]));assert.equal(p.totale.emesse.valore,1100);assert.equal(p.totale.differenza,1100);assert.equal(p.totale.accumulata,1100)
+})
+test('special VAT remains documentary only and missing fiscal components are never default zero',()=>{
+  const {posizioneDocumentale,FONTI_LIQUIDAZIONE_MANCANTI}=require('./prospettoIva.ts')
+  for(const regime of ['S','D']) {const special=ricevuta({xml_testo:xml({gruppi:gruppo({extra:`<EsigibilitaIVA>${regime}</EsigibilitaIVA>`})})});assert.equal(posizioneDocumentale(calcola(fonti([special])).totale),'Non determinabile')}
+  assert.equal(FONTI_LIQUIDAZIONE_MANCANTI.length,8)
+})
+test('unknown fiscal document types and conflicting duplicates never yield a certain position',()=>{
+  const {posizioneDocumentale}=require('./prospettoIva.ts')
+  for(const tipo of ['TD16','TD17','TD18','TD19']) assert.equal(posizioneDocumentale(calcola(fonti([ricevuta({xml_testo:xml({tipo})})])).totale),'Non determinabile')
+  assert.equal(posizioneDocumentale(calcola(fonti([ricevuta(),ricevuta({id:'duplicate'})])).totale),'Non determinabile')
+})
+
+test('manual and XML issued copies with distinct UUIDs require reconciliation rather than double VAT',()=>{
+  const f=fonti([manuale(),ricevuta({id:'xml-copy'})]);const p=calcola(f)
+  assert.equal(p.totale.emesse.valore,null);assert.equal(p.totale.emesse.esclusi,2)
+  assert(preparaArchivioIva(f).documenti.every(d=>d.motivo.includes('manuale/XML')))
+})
+
+test('manual issued copies with changed customer labels cannot double-count the same number/date',()=>{
+  const f=fonti([manuale(),manuale({id:'second',cliente:'Cliente con denominazione differente'})]);const p=calcola(f)
+  assert.equal(p.totale.emesse.valore,null);assert.equal(p.totale.emesse.esclusi,2)
+})
