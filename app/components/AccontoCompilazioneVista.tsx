@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabaseClient'
 import VistaOperativa from './VistaOperativa'
 import ContrattoFiscalePanel from './ContrattoFiscalePanel'
 import IncassiLordiPanel from './IncassiLordiPanel'
+import { RiconciliazioneAzione } from './RiconciliazioneUnificata'
 import { campiAcconto, centesimi, modificheAcconto, originaleAcconto, propostaAcconto, scorporoAcconto,
   type AccontoPersistito, type CampiAcconto } from '../engines/economia/compilazioneAcconto'
 
@@ -138,6 +139,7 @@ export default function AccontoCompilazioneVista({ id, cantiereId, cantiere, ute
       <button type="button" onClick={chiudi}>Annulla</button>
     </fieldset></form>}
     {record && <div key={record.compilazione_unica?.richiesta ?? record.id}>
+      <RiconciliazioneAzione client={supabase} accontoId={record.id} etichetta="Associa fattura" onConfermato={async () => { await onPersistito() }} />
       <ContrattoFiscalePanel id={record.id} acconto dataIncasso={record.data_incasso} descrizione={record.descrizione} proposta={propostaAcconto(record)} />
       <IncassiLordiPanel id={record.id} contesto="acconto" netto={record.importo} accontoPersistito={record} />
     </div>}

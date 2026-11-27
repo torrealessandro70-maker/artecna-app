@@ -25,3 +25,5 @@ supabase/diagnostics/addebiti_origini_readonly.sql text eol=lf
 supabase/migrations/20261121000100_acconti_compilazione_unica.sql text eol=lf
 supabase/diagnostics/acconti_compilazione_precheck_readonly.sql text eol=lf
 supabase/migrations/20261122000100_incassi_fatturazione_lettura.sql text eol=lf
+supabase/migrations/20261127000100_riconciliazione_unificata.sql text eol=lf
+supabase/diagnostics/riconciliazione-unificata/*.sql text eol=lf

@@ -3,9 +3,6 @@ import { generaIntegrativo } from '../../engines/preventivo-generation/server'
 import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
 
 export async function POST(req: Request) {
   try {
@@ -34,6 +31,7 @@ export async function POST(req: Request) {
   foto,
   prezzi_riferimento,
 } = body
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     const response = await openai.responses.create(creaRichiestaPreventivoAi({ sopralluogo, foto, prezzi_riferimento }))
 
 

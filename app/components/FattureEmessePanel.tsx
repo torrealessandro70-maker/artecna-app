@@ -1,8 +1,9 @@
 'use client'
 import IncassiLordiPanel from './IncassiLordiPanel'
+import { RiconciliazioneAzione } from './RiconciliazioneUnificata'
 import ContrattoFiscalePanel from './ContrattoFiscalePanel'
 
-import { useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ChangeEvent } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import CollegaIncassoPanel, { CollegaIncassoAzione } from './CollegaIncassoPanel'
 import { numeroDichiarato } from '../engines/contabilita-ditta/modificaFattura'
@@ -22,20 +23,21 @@ type RichiestaStorica = { fattura: string; xml: string; impronte: string[] }
 const associabile = (esito: string) => esito === 'Verificabile' || esito === 'Conferma assistita'
 const discordante = (esito: string) => esito === 'Differenze effettive' || esito === 'XML discordanti'
 
+type RigaFatturaUI = Record<string, unknown> & { id: string; numero_fattura?: string | null; data_fattura?: string | null; cliente?: string | null; cantiere?: string | null; cantiere_id?: string | null; stato?: string | null; pdf_url?: string | null }
 type Props = {
-  fattureEmesseOrdinate: any[]
+  fattureEmesseOrdinate: RigaFatturaUI[]
   filtroFattureEmesse: string
   setFiltroFattureEmesse: (v: string) => void
 
-  setNuovaFatturaEmessa: (v: any) => void
+  setNuovaFatturaEmessa: (v: Record<string, unknown>) => void
   setPopupNuovaFatturaEmessa: (v: boolean) => void
-  setFatturaEmessaAperta: (v: any) => void
+  setFatturaEmessaAperta: (v: RigaFatturaUI) => void
 
   caricaFatturaEmessaPdf: (file: File) => void | Promise<void>
   caricaFattureEmesse: () => void | Promise<void>
 
   ordinaFattureEmesse: (campo: string) => void
-  formatMoney: (v: any) => string
+  formatMoney: (v: unknown) => string
 
   cardStyle: CSSProperties
   inputStyle: CSSProperties
@@ -65,6 +67,14 @@ export default function FattureEmessePanel({
   buttonPrimary,
   buttonSecondary,
 }: Props) {
+  const [nomiCantieri, setNomiCantieri] = useState<Record<string, string>>({})
+  useEffect(() => {
+    let attivo = true
+    void Promise.resolve(supabase.from('cantieri').select('id,nome')).then(r => {
+      if (attivo && !r.error) setNomiCantieri(Object.fromEntries((r.data ?? []).map(c => [c.id, c.nome])))
+    }).catch(() => { if (attivo) setNomiCantieri({}) })
+    return () => { attivo = false }
+  }, [])
   const [collegaId, setCollegaId] = useState<string | null>(null)
   const [anteprima, setAnteprima] = useState<VoceBluenext[]>([])
   const riepilogo = riepilogaBluenext(anteprima, fattureEmesseOrdinate)
@@ -557,7 +567,7 @@ export default function FattureEmessePanel({
                   <td style={excelTd}>{f.data_fattura}</td>
                   <td style={excelTd}>{f.numero_fattura}</td>
                   <td style={excelTd}>{f.cliente}</td>
-                  <td style={excelTd}>{f.cantiere}</td>
+                  <td style={excelTd}>{f.cantiere_id ? nomiCantieri[f.cantiere_id] ?? 'Nome cantiere non disponibile' : 'Non associata'}{f.cantiere && f.cantiere_id && nomiCantieri[f.cantiere_id] && f.cantiere !== nomiCantieri[f.cantiere_id] && <small role="status"> · Nome storico discordante</small>}{f.cantiere && !f.cantiere_id && <small> · Nome storico senza UUID: da verificare</small>}</td>
 
                   <td style={excelTd}>
                     {formatMoney(Number(f.totale || 0))}
@@ -568,7 +578,7 @@ export default function FattureEmessePanel({
                   </td>
 
                   <td style={excelTd}>{f.stato || 'Da verificare'}</td>
-                  <td style={excelTd} onClick={e => e.stopPropagation()}>{f.id && <ContrattoFiscalePanel id={f.id} />}{f.id && f.cantiere_id && <IncassiLordiPanel id={f.id} contesto="fattura" />}<CollegaIncassoAzione cantiereId={f.cantiere_id} onClick={e => { e.stopPropagation(); setCollegaId(f.id) }} /></td>
+                  <td style={excelTd} onClick={e => e.stopPropagation()}>{f.id && <ContrattoFiscalePanel id={f.id} />}{f.id && f.cantiere_id && <IncassiLordiPanel id={f.id} contesto="fattura" />}<RiconciliazioneAzione client={supabase} fatturaId={f.id} etichetta="Riconcilia acconto" onConfermato={caricaFattureEmesse} /><CollegaIncassoAzione cantiereId={f.cantiere_id} onClick={e => { e.stopPropagation(); setCollegaId(f.id) }} /></td>
 
                   <td style={excelTd}>
                     {f.pdf_url ? (

@@ -50,6 +50,9 @@ export default function VistaOperativa({ titolo, contesto, attiva = true, visibi
       #area-lavoro-principale:has(> [data-attivita-operativa]) > :not([data-attivita-operativa]) {
         display: none !important;
       }
+      #area-lavoro-principale > [data-attivita-operativa]:has(~ [data-attivita-operativa]) {
+        display: none !important;
+      }
     `}</style>
   </section>
   return area ? createPortal(contenuto, area) : contenuto

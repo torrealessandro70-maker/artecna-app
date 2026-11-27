@@ -1,4 +1,6 @@
 'use client'
+import RiconciliazioneUnificata, { RiconciliazioneAzione } from './RiconciliazioneUnificata'
+
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import VistaOperativa from './VistaOperativa'
@@ -58,6 +60,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   onApriDebito?: (id: string) => void
   onContatori: (value: Contatori) => void
 }) {
+  const [unificataId, setUnificataId] = useState<string | null>(null)
   const [fatturaDaCollegare, setFatturaDaCollegare] = useState<string | null>(null)
   const [riconciliazione, setRiconciliazione] = useState<PropostaFiscale | null>(null)
   const [acconto, setAcconto] = useState<string | null>(null)
@@ -151,6 +154,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
   }, [client, filtro, pagina, rilettura, soloFatture, vista])
 
   function cambiaVista(prossima: typeof vistaScelta) {
+    setUnificataId(null)
     setFatturaDaCollegare(null)
     setRiconciliazione(null)
     setDestinazioneGestita(destinazioneAssente)
@@ -175,15 +179,12 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
           setAvviso(nonDisponibile)
           return
         }
-        const proposta = tipo === 'riconcilia'
-          ? await rpc<PropostaFiscale | null>(client, 'proponi_riconciliazione_acconto', { p_id: id.record_id })
-          : null
-        if (tipo === 'riconcilia' && !proposta) { setAvviso(nonDisponibile); return }
         const url = new URL(window.location.href)
         url.searchParams.set('notifica', riga.id)
         window.history.replaceState(null, '', url)
+        if (tipo === 'riconcilia') { setUnificataId(id.record_id); return }
         cambiaVista(null)
-        setRiconciliazione(proposta)
+        setRiconciliazione(null)
         apriRecord(id)
         return
       }
@@ -256,6 +257,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
       {destinazioneFiscale?.id !== acconto ? <p role="status">Caricamento…</p>
         : destinazioneFiscale.dati ? <>
           <p>{destinazioneFiscale.dati.stato}</p>
+          <RiconciliazioneAzione client={client} accontoId={acconto} etichetta="Regolarizza" onConfermato={() => { ricarica() }} />
           {destinazioneFiscale.dati.data_fiscale && <p>Data fiscale {destinazioneFiscale.dati.data_fiscale}</p>}
           {destinazioneFiscale.dati.termine && <p>Termine ordinario {destinazioneFiscale.dati.termine} · Giorni residui {destinazioneFiscale.dati.giorni_residui}</p>}
           {riconciliazione && <section aria-label="Riconciliazione fatture">
@@ -270,7 +272,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
               IVA {f.iva == null ? 'non disponibile' : valutaEuro.format(f.iva)} · Totale {valutaEuro.format(f.totale)} ·
               Quota disponibile {valutaEuro.format(f.disponibile)} · Già collegato {valutaEuro.format(f.collegata)} ·
               {f.esito === 'da_verificare' ? 'Fattura presente — SdI da verificare' : f.esito.replaceAll('_', ' ')}
-              <button type="button" disabled={!f.disponibile} onClick={() => setFatturaDaCollegare(f.id)}>Seleziona fattura</button>
+              <RiconciliazioneAzione client={client} accontoId={acconto} fatturaId={f.id} etichetta="Regolarizza con questa fattura" />
             </li>)}</ul>
           </section>}
           <h3>Fatture collegate</h3>
@@ -315,7 +317,7 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
             <div className={styles.azioni}>
               <button type="button" disabled={occupata} onClick={() => void azione(riga, 'apri')}>Apri</button>
               {riga.attiva && riga.modulo === 'fatture_da_emettere' && <button type="button" disabled={occupata}
-                onClick={() => void azione(riga, 'riconcilia')}>Già fatturata</button>}
+                onClick={() => void azione(riga, 'riconcilia')}>Regolarizza</button>}
               {!riga.read_at && <button type="button" disabled={occupata} onClick={() => void azione(riga, 'leggi')}>Segna letta</button>}
               {riga.attiva && !['alta', 'urgente'].includes(riga.priorita) && <button type="button" disabled={occupata}
                 aria-expanded={rinvio === riga.id} onClick={() => { setRinvio(rinvio === riga.id ? null : riga.id); setGiornoRinvio('') }}>
@@ -372,5 +374,6 @@ export default function CentroNotifiche({ client, stile, menuImpostazioni, onApr
         </form> : !errore && <p role="status">Caricamento…</p>}
       </div>
     </VistaOperativa>}
+    {unificataId && <RiconciliazioneUnificata client={client} accontoId={unificataId} onChiudi={() => setUnificataId(null)} onConfermato={() => { ricarica() }} />}
   </>
 }

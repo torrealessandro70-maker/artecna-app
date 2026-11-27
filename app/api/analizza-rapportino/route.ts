@@ -2,12 +2,9 @@ import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-
 export async function POST(req: Request) {
   try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     const { testo, cantieri, operai, modello } = await req.json()
 
     const modelloUsato = modello || 'gpt-4.1-mini'
@@ -85,9 +82,9 @@ ${operai.join(', ')}
     const json = JSON.parse(contenuto)
 
     return NextResponse.json(json)
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error.message || 'Errore analisi rapportino' },
+      { error: error instanceof Error ? error.message : 'Errore analisi rapportino' },
       { status: 500 }
     )
   }
