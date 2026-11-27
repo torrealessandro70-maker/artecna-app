@@ -7,6 +7,7 @@ async function fixture(){
  const db=await start(),c=db.admin;
  try{
  await c.query(`ALTER TABLE public.fatture_emesse ADD COLUMN bluenext_tipo text,ADD COLUMN xml_testo text,ADD COLUMN tipo_documento text;
+ CREATE TABLE public.fatture_fornitori(id uuid,importo_totale numeric);CREATE TABLE public.fatture_fornitori_righe(id uuid,fattura_id uuid,totale_riga numeric);
  CREATE SCHEMA artecna_distruzione;CREATE SCHEMA artecna_rapportini;CREATE SCHEMA artecna_notifiche;
  CREATE TABLE public.economia_righe(id uuid,cantiere_id uuid);
  CREATE TABLE public.preventivi_cantiere(id uuid PRIMARY KEY,cantiere_id uuid,totale numeric);
@@ -40,10 +41,12 @@ async function fixture(){
  const post=evidence(await c.query(fs.readFileSync(path.resolve(__dirname,'../../diagnostics/riconciliazione-unificata/postcheck.sql'),'utf8')));
  require('node:assert/strict').deepEqual(post.fingerprints,pre.fingerprints);
  db.preservationRelations=Object.keys(pre.fingerprints).length;
+ db.verificaManuale=async()=>{await c.query("UPDATE public.fatture_emesse f SET fonte_iva_verificata=jsonb_build_object('semantica','aliquota','documento_verificato',true,'riferimento','Documento sintetico manuale verificato','fotografia',artecna_contabilita.fotografia_fonte_iva(to_jsonb(f)))")};
  db.reset=async()=>{
  await c.query(`TRUNCATE artecna_contabilita.quote_lorde_clienti,artecna_contabilita.incassi_lordi_clienti,artecna_contabilita.attribuzioni_clienti,artecna_contabilita.acconti_fiscali,artecna_contabilita.storni_acconti,artecna_contabilita.fatture_sdi,artecna_notifiche.notifica,artecna_notifiche.evento_notificabile;
  UPDATE public.acconti_cantiere SET importo=4545.45,data_incasso='2026-11-20',compilazione_unica=NULL,cantiere_id='${ids.c}';
  UPDATE public.fatture_emesse SET numero_fattura=CASE WHEN id='${ids.f}' THEN '17' ELSE '18' END,data_fattura='2026-11-27',cliente='CLIENTE FIXTURE',cantiere=NULL,imponibile=4545.45,iva=10,totale=5000,importo_incassato=0,stato='emessa',bluenext_tipo=NULL,tipo_documento=NULL,xml_testo=NULL,xml_url=NULL,pdf_url=NULL,cantiere_id='${ids.c}';`);
+ await db.verificaManuale();
  };
  await db.reset();return db;
  }catch(e){await db.close();throw e}

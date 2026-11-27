@@ -24,7 +24,8 @@ const periodo = { da: '2026-01-01', a: '2026-03-31' }
 const gruppo = ({ base = '100.00', iva = '22.00', rate = '22.00', extra = '' } = {}) => `<DatiRiepilogo><AliquotaIVA>${rate}</AliquotaIVA><ImponibileImporto>${base}</ImponibileImporto><Imposta>${iva}</Imposta>${extra}</DatiRiepilogo>`
 const xml = ({ tipo = 'TD01', valuta = 'EUR', numero = '1', data = '2026-01-12', gruppi = gruppo() } = {}) => `<p:FatturaElettronica xmlns:p="urn:fixture"><FatturaElettronicaHeader><CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>fixture</IdCodice></IdFiscaleIVA></DatiAnagrafici></CedentePrestatore></FatturaElettronicaHeader><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>${tipo}</TipoDocumento><Divisa>${valuta}</Divisa><Numero>${numero}</Numero><Data>${data}</Data></DatiGeneraliDocumento></DatiGenerali><DatiBeniServizi>${gruppi}</DatiBeniServizi></FatturaElettronicaBody></p:FatturaElettronica>`
 const ricevuta = (overrides = {}) => ({ id: 'r1', numero_fattura: '1', data_fattura: '2026-01-12', xml_testo: xml(), ...overrides })
-const manuale = (overrides = {}) => ({ id: 'e1', numero_fattura: '1', cliente: 'Cliente fixture', data_fattura: '2026-01-12', imponibile: '100.00', iva: '22', totale: '122.00', ...overrides })
+const {fotografiaFonteIva}=require('./fonteIva.ts')
+const manuale = (overrides = {}) => { const r = { id: 'e1', numero_fattura: '1', cliente: 'Cliente fixture', data_fattura: '2026-01-12', imponibile: '100.00', iva: '22', totale: '122.00', ...overrides };return {...r,fonte_iva_verificata:{semantica:'aliquota',documento_verificato:true,riferimento:'Documento sintetico verificato',fotografia:fotografiaFonteIva(r)}} }
 function fonti(emesse = [], ricevute = []) { return { ...fontiInCaricamento(), fatture_emesse: { stato: 'pronta', righe: emesse }, fatture_fornitori: { stato: 'pronta', righe: ricevute } } }
 const calcola = (f, p = periodo) => costruisciProspettoIva(preparaArchivioIva(f), p)
 const doc = (r, fonte = 'fatture_fornitori') => preparaArchivioIva(fonti(fonte === 'fatture_emesse' ? [r] : [], fonte === 'fatture_fornitori' ? [r] : [])).documenti[0]
@@ -38,8 +39,15 @@ test('manual rate is a percentage only with explicit coherent base and total; co
   assert.equal(p.totale.emesse.valore, 2200); assert.equal(p.totale.ricevute.valore, 2200)
   assert.equal(p.totale.differenza, 0); assert.equal(p.totale.stato, 'Limitato')
 })
+test('historical arithmetic alone cannot establish VAT semantics', () => {
+  const r=manuale();delete r.fonte_iva_verificata
+  assert.equal(doc(r,'fatture_emesse').iva,null)
+})
+test('persisted XML conflicting with original monetary fields is blocked', () => {
+  assert.equal(doc(manuale({xml_testo:xml(),iva:23}),'fatture_emesse').iva,null)
+})
 for (const overrides of [{ xml_url: 'https://example.invalid/xml' }, { note: 'Import XML Bluenext' }, { tipo_file: 'xml' }]) test('ambiguous issued XML field is excluded ' + JSON.stringify(overrides), () => {
-  const d = doc(manuale(overrides), 'fatture_emesse'); assert.equal(d.iva, null); assert.match(d.motivo, /ambiguo/)
+  const d = doc(manuale(overrides), 'fatture_emesse'); assert.equal(d.iva, null); assert.match(d.motivo, /Import XML|storico|verificare/i)
 })
 for (const overrides of [{ iva: null }, { iva: '' }, { imponibile: null }, { totale: '100' }, { iva: '22,00' }, { iva: '22.123' }, { imponibile: '-100', totale: '-122' }, { cliente: '' }]) test('unverifiable manual inputs never fabricate VAT ' + JSON.stringify(overrides), () => assert.equal(doc(manuale(overrides), 'fatture_emesse').iva, null))
 test('PDF/OCR and total-only supplier records are excluded, not divided by 1.22', () => {

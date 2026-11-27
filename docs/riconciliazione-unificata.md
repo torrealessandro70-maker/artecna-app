@@ -208,3 +208,69 @@ I rapporti del confronto lint e della riconferma TESTA rimangono esclusivamente
 negli artefatti `.run`, esclusi dal commit. I 25 lock e i 7 diagnostici censiti
 conservano i loro SHA256. Il gate consente un unico commit locale; installazione
 SQL e pubblicazione rimangono escluse e richiedono autorizzazione separata.
+
+## Revisione IVA: fonti e convenzioni storiche
+
+Il candidato b54 e il relativo bundle Production restano bloccati: non installarli.
+La nuova revisione non aggiorna importi o classificazioni delle fatture storiche.
+
+| Percorso esistente | Significato del campo `iva` | Fonte disponibile |
+| --- | --- | --- |
+| Inserimento manuale in `app/page.tsx` | Percentuale al momento del salvataggio | La convenzione non è attestata nella singola riga storica |
+| Import XML singolo legacy | Importo del primo riepilogo | URL XML e nota di import; possibili riepiloghi multipli omessi |
+| Archivio Bluenext strutturato | Somma degli importi IVA dei riepiloghi | Identità, impronta e tipo protetti; non conserva il dettaglio delle aliquote |
+| Associazione Bluenext a fattura storica | Non modifica i valori numerici | Metadati di associazione, non una nuova fonte monetaria |
+| Associazione PDF | Non modifica i valori numerici | Solo collegamento al file; nessuna inferenza OCR |
+| Modifica fattura autorizzata | Non modifica IVA/imponibile/totale | Whitelist di cantiere e stato/incasso |
+| Altri storici | Non determinabile dalla sola riga | Necessario confronto documentale |
+
+`fonteIva.ts` e il risolutore SQL privato implementano il contratto canonico versione 1,
+con parità verificata su fixture. Frontend e writer usano l'anteprima SQL autorizzata;
+il prospetto IVA usa lo stesso contratto TypeScript. Non esistono soglie di 100 euro
+per scegliere tra importo e percentuale. Il limite 100 riguarda esclusivamente una
+percentuale già dichiarata e documentata.
+
+L'XML persistito ha priorità e deve concordare con identità e importi. In sua assenza
+la procedura richiede confronto con il documento originale, dichiarazione esplicita
+della semantica e riferimento della verifica. Non inserire dati personali nel riferimento.
+Il risultato è un'attestazione documentale dell'operatore autorizzato, non una prova
+automatica dell'autenticità del documento o della trasmissione SdI.
+
+La nuova colonna nullable `fatture_emesse.fonte_iva_verificata` conserva la verifica,
+la fotografia dei dati originari e autore/data server. Nessun backfill. Il trigger
+impedisce modifiche dirette dai ruoli API; il writer la registra nella medesima
+transazione della riconciliazione. Fonte cambiata, concorrenza o errore causano STOP
+o rollback; la richiesta idempotente include la verifica documentale.
+
+Un importo IVA aggregato non determina un'aliquota unica. Senza i riepiloghi originali
+è ammessa soltanto l'intera disponibilità imponibile residua, usando l'imposta esatta
+residua. Quote parziali richiedono riepiloghi distinti documentati. IVA zero senza
+aliquota/natura non viene etichettata come esenzione. Rettifiche e note di credito
+rimangono nel percorso dedicato; bollo, altre componenti o arrotondamenti che impediscono
+la quadratura netta/imposta/lorda richiedono verifica, senza correzioni automatiche.
+
+Nella fixture storica anonimizzata: 4545,45 netti, campo IVA 454,55, totale 5000,
+nessun XML, un incasso lordo preesistente. La verifica esplicita dell'importo consente
+il riuso del pagamento e residuo zero. Senza evidenza SdI pendenza e notifica restano
+aperte; l'evidenza valida successiva permette il normale ciclo di chiusura.
+
+## Gate senza registro standard migrazioni
+
+L'assenza di `supabase_migrations.schema_migrations` non prova né esclude installazioni.
+Non viene creato o alterato alcun registro. `installed-objects.sql` restituisce in
+READ ONLY firme, corpi SHA256 LF, owner, volatilità, SECURITY DEFINER, search_path,
+ACL, colonne, trigger, indice e vincolo dei soli oggetti candidati.
+
+Procedura per un futuro gate separatamente autorizzato:
+1. Verificare i sigilli del nuovo bundle; non usare quello b54 bloccato.
+2. Precheck: nessun oggetto candidato già presente; una presenza parziale è STOP.
+3. Confrontare le dipendenze effettive e le 18 impronte storiche prima/dopo.
+4. In una futura applicazione, confrontare il manifesto degli oggetti con quello
+   generato dal cluster locale certificato, prima del COMMIT controllato.
+5. Postcheck indipendente e stesso confronto esatto; divergenze o COMMIT incerto:
+   STOP senza retry. Non dedurre la cronologia completa delle migrazioni dal manifesto.
+
+Il manifesto locale è evidenza di riferimento, non attestazione dello stato remoto.
+I file di verifica e i rapporti stanno negli artefatti locali esclusi da Git. Prima
+di un eventuale apply è necessario un nuovo precheck Production autorizzato e un
+bundle atomico sigillato aggiornato; nessuna vecchia autorizzazione viene riutilizzata.

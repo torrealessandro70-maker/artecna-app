@@ -16,10 +16,74 @@ ALTER TABLE artecna_contabilita.quote_lorde_clienti ADD COLUMN attribuzione_id u
 CREATE UNIQUE INDEX quota_lorda_attribuzione_univoca ON artecna_contabilita.quote_lorde_clienti(attribuzione_id)
  WHERE attribuzione_id IS NOT NULL;
 
-CREATE FUNCTION artecna_contabilita.documento_riconciliazione(p_fattura uuid) RETURNS jsonb
+
+-- Explicit document verification metadata, never a rewrite of historical amounts.
+ALTER TABLE public.fatture_emesse ADD COLUMN fonte_iva_verificata jsonb;
+CREATE FUNCTION artecna_contabilita.fotografia_fonte_iva(p jsonb) RETURNS jsonb
+LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,pg_temp AS $$
+ SELECT jsonb_build_array(coalesce(p->>'id',''),coalesce(p->>'numero_fattura',''),coalesce(p->>'data_fattura',''),coalesce(p->>'cliente',''),
+ round((p->>'imponibile')::numeric*100)::bigint,round((p->>'iva')::numeric*100)::bigint,round((p->>'totale')::numeric*100)::bigint,
+ p->'bluenext_identita',p->'bluenext_impronta',p->'bluenext_tipo',p->'xml_url',p->'pdf_url',p->'note',p->'tipo_documento',p->'tipo_file')
+$$;
+CREATE FUNCTION artecna_contabilita.risolvi_iva_persistita(p jsonb,p_verifica jsonb DEFAULT NULL) RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog,pg_temp AS $$
+DECLARE b numeric; field numeric; total numeric; tax numeric; proof jsonb; semantic text; blu boolean; groups jsonb; g jsonb; out_groups jsonb:='[]';
+ n numeric; v numeric; rate numeric; nature text; nb numeric:=0; nt numeric:=0; idx integer:=0; code text; explanation text;
+BEGIN
+ BEGIN b:=(p->>'imponibile')::numeric;field:=(p->>'iva')::numeric;total:=(p->>'totale')::numeric;
+ EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'DATI_INCOMPLETI' USING DETAIL='Identità e importi del documento da verificare.'; END;
+ IF coalesce(p->>'id','')='' OR btrim(coalesce(p->>'numero_fattura',''))='' OR coalesce(p->>'data_fattura','') !~ '^\d{4}-\d{2}-\d{2}$'
+ OR btrim(coalesce(p->>'cliente',''))='' OR b IS NULL OR field IS NULL OR total IS NULL OR NOT(b>0 AND b<1e12 AND field>=0 AND field<1e12 AND total>0 AND total<1e12)
+ OR b<>round(b,2) OR field<>round(field,2) OR total<>round(total,2) THEN RAISE EXCEPTION 'DATI_INCOMPLETI' USING DETAIL='Identità e importi del documento da verificare.'; END IF;
+ IF p->>'bluenext_tipo'='TD04' OR p->>'tipo_documento'='TD04' OR coalesce(p->>'tipo_documento','') NOT IN('','fattura','TD01','TD02') THEN RAISE EXCEPTION 'TIPO_NON_SUPPORTATO' USING DETAIL='Nota di credito o tipo speciale: usare il percorso fiscale dedicato.'; END IF;
+ blu:=coalesce(p->>'bluenext_identita','') ~ '^[a-f0-9]{64}$' AND coalesce(p->>'bluenext_impronta','') ~ '^[a-f0-9]{64}$' AND p->>'bluenext_tipo' IN('TD01','TD02');
+ proof:=coalesce(p_verifica,p->'fonte_iva_verificata','{}');
+ IF p_verifica IS NULL AND p->'fonte_iva_verificata' IS NOT NULL AND p->'fonte_iva_verificata'<>'null'::jsonb AND p->'fonte_iva_verificata'<>'{}'::jsonb
+ AND proof->'fotografia' IS DISTINCT FROM artecna_contabilita.fotografia_fonte_iva(p) THEN RAISE EXCEPTION 'FONTE_CAMBIATA' USING DETAIL='Dati modificati dopo la verifica documentale: ripetere il confronto con la fonte originale.'; END IF;
+ IF jsonb_typeof(proof)<>'object' OR EXISTS(SELECT FROM jsonb_object_keys(proof) k WHERE k NOT IN('semantica','riferimento','documento_verificato','gruppi','fotografia','autore','verificata_at'))
+ OR length(proof->>'riferimento')>500 OR length(proof::text)>50000
+ OR proof->'documento_verificato' IS DISTINCT FROM 'true'::jsonb OR coalesce(length(btrim(proof->>'riferimento')),0)<8 OR coalesce(proof->>'semantica','') NOT IN('importo','aliquota') THEN
+ semantic:=CASE WHEN blu THEN 'importo' END;
+ RAISE EXCEPTION 'VERIFICA_DOCUMENTALE_RICHIESTA' USING DETAIL=CASE WHEN blu THEN 'Bluenext conserva un importo IVA aggregato. Verificare il documento originale; nessuna aliquota unica è deducibile.' ELSE 'Convenzione IVA storica non documentata. Verificare se il campo indica imposta o aliquota e confrontare il documento originale.' END;
+ END IF;
+ semantic:=proof->>'semantica';
+ IF blu AND semantic<>'importo' THEN RAISE EXCEPTION 'PROVENIENZA_DISCORDANTE' USING DETAIL='La provenienza Bluenext documenta un importo IVA, non una percentuale.'; END IF;
+ IF semantic='aliquota' AND (coalesce(p->>'xml_url','')<>'' OR p->>'tipo_file'='xml' OR coalesce(p->>'note','') ~* 'import\s+xml') THEN RAISE EXCEPTION 'PROVENIENZA_DISCORDANTE' USING DETAIL='Import XML storico: il campo IVA non può essere trattato come aliquota manuale.'; END IF;
+ IF semantic='aliquota' AND field>100 THEN RAISE EXCEPTION 'ALIQUOTA_NON_VALIDA' USING DETAIL='Aliquota documentata fuori intervallo.'; END IF;
+ tax:=CASE WHEN semantic='importo' THEN field ELSE round(b*field/100,2) END;
+ IF b+tax<>total THEN RAISE EXCEPTION 'QUADRATURA_DISCORDANTE' USING DETAIL='Imponibile, imposta e lordo non quadrano al centesimo; verificare altre componenti o arrotondamenti documentali.'; END IF;
+ groups:=proof->'gruppi';
+ IF groups IS NULL OR groups='null'::jsonb THEN groups:=jsonb_build_array(jsonb_build_object('imponibile',b,'iva',tax,'aliquota',CASE WHEN semantic='aliquota' THEN field END,'natura',NULL)); END IF;
+ IF jsonb_typeof(groups)<>'array' OR jsonb_array_length(groups) NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'RIEPILOGHI_NON_VALIDI' USING DETAIL='Riepiloghi fiscali mancanti o non validi.'; END IF;
+ FOR g IN SELECT value FROM jsonb_array_elements(groups) LOOP
+  n:=(g->>'imponibile')::numeric;v:=(g->>'iva')::numeric;rate:=(g->>'aliquota')::numeric;nature:=nullif(g->>'natura','');
+  IF n IS NULL OR v IS NULL OR NOT(n>0 AND n<1e12 AND v>=0 AND v<1e12) OR n<>round(n,2) OR v<>round(v,2)
+  OR NOT(g ? 'aliquota') OR rate IS NOT NULL AND (rate<0 OR rate>100 OR rate<>round(rate,2) OR v<>round(n*rate/100,2))
+  OR rate IS NULL AND (jsonb_array_length(groups)<>1 OR nature IS NOT NULL)
+  OR rate=0 AND coalesce(nature,'') !~ '^N[1-7](\.[0-9]+)?$' OR rate>0 AND nature IS NOT NULL
+  THEN RAISE EXCEPTION 'RIEPILOGHI_NON_VALIDI' USING DETAIL='Riepiloghi, aliquote, natura e imposte non coerenti. Nessuna aliquota stimata.'; END IF;
+  out_groups:=out_groups||jsonb_build_array(jsonb_build_object('indice',idx,'imponibile',n,'iva',v,'aliquota',rate,'natura',nature));idx:=idx+1;nb:=nb+n;nt:=nt+v;
+ END LOOP;
+ IF nb<>b OR nt<>tax THEN RAISE EXCEPTION 'RIEPILOGHI_DISCORDANTI' USING DETAIL='I riepiloghi documentali non coincidono con gli importi persistiti.'; END IF;
+ RETURN jsonb_build_object('versione',1,'valida',true,'codice','DOCUMENTALE_ATTESTATA','motivo',CASE WHEN EXISTS(SELECT FROM jsonb_array_elements(out_groups) x WHERE x->>'aliquota' IS NULL) THEN 'Imposta aggregata verificata: aliquote non disponibili, consentita solo l’intera quota residua.' ELSE 'Riepiloghi verificati sul documento originale; trasmissione SdI e incasso restano indipendenti.' END,
+ 'fonte',CASE WHEN blu THEN 'Bluenext e verifica documentale' ELSE 'Verifica documentale esplicita' END,'livello','DOCUMENTALE_ATTESTATA','imponibile',b,'iva_importo',tax,'totale',total,'semantica',semantic,'gruppi',out_groups);
+EXCEPTION WHEN OTHERS THEN
+ GET STACKED DIAGNOSTICS code=MESSAGE_TEXT,explanation=PG_EXCEPTION_DETAIL;
+ IF code NOT IN('DATI_INCOMPLETI','TIPO_NON_SUPPORTATO','FONTE_CAMBIATA','VERIFICA_DOCUMENTALE_RICHIESTA','PROVENIENZA_DISCORDANTE','ALIQUOTA_NON_VALIDA','QUADRATURA_DISCORDANTE','RIEPILOGHI_NON_VALIDI','RIEPILOGHI_DISCORDANTI') THEN code:='RIEPILOGHI_NON_VALIDI';explanation:='Riepiloghi, aliquote, natura e imposte non coerenti. Nessuna aliquota stimata.'; END IF;
+ RETURN jsonb_build_object('versione',1,'valida',false,'codice',code,'motivo',explanation,'fonte','Da verificare','livello','NON_VERIFICABILE','imponibile',b,'iva_importo',NULL,'totale',total,'semantica',CASE WHEN code='VERIFICA_DOCUMENTALE_RICHIESTA' THEN semantic END,'gruppi','[]'::jsonb);
+END $$;
+CREATE FUNCTION artecna_contabilita.proteggi_fonte_iva() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+ IF current_user IN('anon','authenticated','service_role') AND ((TG_OP='INSERT' AND NEW.fonte_iva_verificata IS NOT NULL) OR (TG_OP='UPDATE' AND NEW.fonte_iva_verificata IS DISTINCT FROM OLD.fonte_iva_verificata)) THEN
+ RAISE EXCEPTION 'Verifica documentale riservata alla riconciliazione autorizzata' USING ERRCODE='42501'; END IF;RETURN NEW;
+END $$;
+CREATE TRIGGER fonte_iva_riservata BEFORE INSERT OR UPDATE ON public.fatture_emesse FOR EACH ROW EXECUTE FUNCTION artecna_contabilita.proteggi_fonte_iva();
+REVOKE ALL ON FUNCTION artecna_contabilita.fotografia_fonte_iva(jsonb),artecna_contabilita.risolvi_iva_persistita(jsonb,jsonb),artecna_contabilita.proteggi_fonte_iva() FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE FUNCTION artecna_contabilita.documento_riconciliazione(p_fattura uuid,p_verifica jsonb DEFAULT NULL) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
-DECLARE f public.fatture_emesse; raw text; x xml; g xml; gruppi jsonb:='[]'; n numeric; v numeric; rate numeric;
- numero text; giorno text; tipo text; natura text; idx integer:=0; totale numeric:=0;
+DECLARE f public.fatture_emesse; raw text; documento_xml xml; g xml; gruppi jsonb:='[]'; n numeric; v numeric; rate numeric;
+ numero text; giorno text; tipo text; natura text; idx integer:=0; totale numeric:=0; canon jsonb;
 BEGIN
  SELECT * INTO STRICT f FROM public.fatture_emesse WHERE id=p_fattura;
  IF artecna_contabilita.totale_fattura_finanziario(f) IS NULL OR coalesce(f.stato,'') NOT IN('emessa','parziale','incassata')
@@ -30,19 +94,19 @@ BEGIN
  raw:=to_jsonb(f)->>'xml_testo';
  IF coalesce(btrim(raw),'')<>'' THEN
   IF raw ~* '<!DOCTYPE|<!ENTITY' THEN RAISE EXCEPTION 'STOP_XML'; END IF;
-  x:=xmlparse(document raw);
-  IF cardinality(xpath('//*[local-name()="FatturaElettronicaBody"]',x))<>1
-  OR cardinality(xpath('//*[local-name()="DatiGeneraliDocumento"]',x))<>1 THEN RAISE EXCEPTION 'STOP_XML'; END IF;
-  numero:=(xpath('string(//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="Numero"])',x))[1]::text;
-  giorno:=(xpath('string(//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="Data"])',x))[1]::text;
-  tipo:=(xpath('string(//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="TipoDocumento"])',x))[1]::text;
+  documento_xml:=xmlparse(document raw);
+  IF cardinality(xpath('//*[local-name()="FatturaElettronicaBody"]',documento_xml))<>1
+  OR cardinality(xpath('//*[local-name()="DatiGeneraliDocumento"]',documento_xml))<>1 THEN RAISE EXCEPTION 'STOP_XML'; END IF;
+  numero:=(xpath('string(//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="Numero"])',documento_xml))[1]::text;
+  giorno:=(xpath('string(//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="Data"])',documento_xml))[1]::text;
+  tipo:=(xpath('string(//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="TipoDocumento"])',documento_xml))[1]::text;
   IF numero IS DISTINCT FROM f.numero_fattura OR giorno IS DISTINCT FROM f.data_fattura::text
   OR tipo NOT IN('TD01','TD02') THEN RAISE EXCEPTION 'STOP_IDENTITA_XML'; END IF;
-  IF cardinality(xpath('//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="Divisa"]',x))>1
-  OR cardinality(xpath('//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="Divisa"]',x))=1
-   AND (xpath('string(//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="Divisa"])',x))[1]::text<>'EUR'
+  IF cardinality(xpath('//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="Divisa"]',documento_xml))>1
+  OR cardinality(xpath('//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="Divisa"]',documento_xml))=1
+   AND (xpath('string(//*[local-name()="DatiGeneraliDocumento"]/*[local-name()="Divisa"])',documento_xml))[1]::text<>'EUR'
   THEN RAISE EXCEPTION 'STOP_VALUTA_DOCUMENTO'; END IF;
-  FOREACH g IN ARRAY xpath('//*[local-name()="DatiBeniServizi"]/*[local-name()="DatiRiepilogo"]',x) LOOP
+  FOREACH g IN ARRAY xpath('//*[local-name()="DatiBeniServizi"]/*[local-name()="DatiRiepilogo"]',documento_xml) LOOP
    IF cardinality(xpath('/*/*[local-name()="ImponibileImporto"]',g))<>1
    OR cardinality(xpath('/*/*[local-name()="Imposta"]',g))<>1
    OR cardinality(xpath('/*/*[local-name()="AliquotaIVA"]',g))<>1 THEN RAISE EXCEPTION 'STOP_RIEPILOGO'; END IF;
@@ -61,23 +125,20 @@ BEGIN
    idx:=idx+1;totale:=totale+n+v;
   END LOOP;
  ELSE
-  -- Same conservative manual-document boundary as the documentary VAT calculator.
-  IF f.xml_url IS NOT NULL OR coalesce(to_jsonb(f)->>'tipo_file','')='xml'
-  OR coalesce(f.note,'') ~* 'import\s+xml' OR coalesce(to_jsonb(f)->>'tipo_documento','fattura') NOT IN('fattura','TD01','TD02')
-  THEN RAISE EXCEPTION 'STOP_FONTE_XML_MANCANTE'; END IF;
-  n:=f.imponibile;rate:=f.iva;
-  IF NOT(n>0 AND n<1e12 AND rate>0 AND rate<=100) OR n<>round(n,2) THEN RAISE EXCEPTION 'STOP_FONTE_MANUALE'; END IF;
-  v:=round(n*rate/100,2);totale:=n+v;
-  gruppi:=jsonb_build_array(jsonb_build_object('indice',0,'imponibile',n,'iva',v,'aliquota',rate,'natura',null));idx:=1;
+  canon:=artecna_contabilita.risolvi_iva_persistita(to_jsonb(f),p_verifica);
+  IF (canon->>'valida')::boolean IS NOT TRUE THEN RETURN canon; END IF;
+  gruppi:=canon->'gruppi';totale:=(canon->>'totale')::numeric;idx:=jsonb_array_length(gruppi);
  END IF;
+ IF raw IS NOT NULL AND btrim(raw)<>'' AND (f.imponibile IS DISTINCT FROM (SELECT sum((x->>'imponibile')::numeric) FROM jsonb_array_elements(gruppi) x)
+ OR NOT(f.iva=(SELECT sum((x->>'iva')::numeric) FROM jsonb_array_elements(gruppi) x) OR jsonb_array_length(gruppi)=1 AND f.iva=(gruppi->0->>'aliquota')::numeric)) THEN RAISE EXCEPTION 'STOP_XML_PERSISTITI_DISCORDANTI'; END IF;
  IF idx=0 OR totale IS DISTINCT FROM f.totale THEN RAISE EXCEPTION 'STOP_QUADRATURA_DOCUMENTO'; END IF;
- RETURN jsonb_build_object('valida',true,'gruppi',gruppi,'totale',totale,'fonte',CASE WHEN raw IS NOT NULL AND btrim(raw)<>'' THEN 'XML persistito' ELSE 'Documento manuale coerente' END,
- 'impronta',encode(sha256(convert_to(jsonb_build_array(to_jsonb(f)-'created_at',gruppi)::text,'UTF8')),'hex'));
+ RETURN jsonb_build_object('valida',true,'gruppi',gruppi,'totale',totale,'fonte',CASE WHEN raw IS NOT NULL AND btrim(raw)<>'' THEN 'XML persistito' ELSE canon->>'fonte' END,'canonico',canon,
+ 'impronta',encode(sha256(convert_to(jsonb_build_array(to_jsonb(f)-'created_at'-'fonte_iva_verificata',gruppi)::text,'UTF8')),'hex'));
 EXCEPTION WHEN OTHERS THEN RETURN jsonb_build_object('valida',false,'motivo','Fonte fiscale incompleta, discordante o non supportata: nessuna IVA presunta');
 END $$;
-REVOKE ALL ON FUNCTION artecna_contabilita.documento_riconciliazione(uuid) FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION artecna_contabilita.documento_riconciliazione(uuid,jsonb) FROM PUBLIC,anon,authenticated,service_role;
 
-CREATE FUNCTION public.leggi_riconciliazione_unificata(p_fattura uuid DEFAULT NULL,p_acconto uuid DEFAULT NULL) RETURNS jsonb
+CREATE FUNCTION public.leggi_riconciliazione_unificata(p_fattura uuid DEFAULT NULL,p_acconto uuid DEFAULT NULL,p_verifica jsonb DEFAULT NULL) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE c uuid; ca uuid; u uuid;
 BEGIN
@@ -94,7 +155,7 @@ BEGIN
  'proposta',a.compilazione_unica,'attribuito',(SELECT coalesce(sum(l.importo),0) FROM artecna_contabilita.attribuzioni_clienti l WHERE l.acconto_id=a.id AND l.scollegato_at IS NULL),
  'fiscale',public.leggi_acconto_fiscale(a.id)) ORDER BY a.data_incasso,a.id) FROM public.acconti_cantiere a WHERE a.cantiere_id=c),'[]'),
  'fatture',coalesce((SELECT jsonb_agg(jsonb_build_object('id',f.id,'numero',f.numero_fattura,'data',f.data_fattura,'cliente',f.cliente,
- 'totale',f.totale,'documento',artecna_contabilita.documento_riconciliazione(f.id),'sdi',coalesce(public.leggi_fattura_sdi(f.id),'{}'::jsonb),
+ 'totale',f.totale,'documento',artecna_contabilita.documento_riconciliazione(f.id,CASE WHEN f.id=p_fattura THEN p_verifica END),'sdi',coalesce(public.leggi_fattura_sdi(f.id),'{}'::jsonb),
  'collegamenti_netto',coalesce((SELECT jsonb_agg(jsonb_build_object('id',z.id,'acconto_id',z.acconto_id,'importo',z.importo,'attiva',z.scollegato_at IS NULL,'unificata',z.riconciliazione IS NOT NULL)) FROM artecna_contabilita.attribuzioni_clienti z WHERE z.fattura_id=f.id),'[]'),
  'attribuito_netto',(SELECT coalesce(sum(l.importo),0) FROM artecna_contabilita.attribuzioni_clienti l WHERE l.fattura_id=f.id AND l.scollegato_at IS NULL),
  'quote',coalesce((SELECT jsonb_agg(jsonb_build_object('id',q.id,'attribuzione_id',q.attribuzione_id,'incasso_id',q.incasso_id,'importo',q.importo,'revocata',q.revocato_at IS NOT NULL,
@@ -103,7 +164,7 @@ BEGIN
 END $$;
 
 CREATE FUNCTION public.riconcilia_acconto_fattura(p_richiesta uuid,p_fattura uuid,p_acconto uuid,p_incasso uuid,
- p_nuovo jsonb,p_allocazioni jsonb,p_impronta text,p_fonte_base text,p_conferma_fiscale boolean DEFAULT false) RETURNS jsonb
+ p_nuovo jsonb,p_allocazioni jsonb,p_impronta text,p_fonte_base text,p_conferma_fiscale boolean DEFAULT false,p_verifica jsonb DEFAULT NULL) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE u uuid; a public.acconti_cantiere; f public.fatture_emesse; i artecna_contabilita.incassi_lordi_clienti;
  l artecna_contabilita.attribuzioni_clienti; q artecna_contabilita.quote_lorde_clienti; d jsonb; input jsonb;
@@ -112,7 +173,7 @@ BEGIN
  PERFORM pg_advisory_xact_lock(714028,1);
  IF current_setting('transaction_isolation')<>'read committed' THEN RAISE EXCEPTION 'Usare READ COMMITTED' USING ERRCODE='22023'; END IF;
  u:=artecna_contabilita.autorizza(p_fattura);PERFORM artecna_contabilita.autorizza_acconto_fiscale(p_acconto);
- input:=jsonb_build_array(p_fattura,p_acconto,p_incasso,p_nuovo,p_allocazioni,p_impronta,p_fonte_base,p_conferma_fiscale);
+ input:=jsonb_build_array(p_fattura,p_acconto,p_incasso,p_nuovo,p_allocazioni,p_impronta,p_fonte_base,p_conferma_fiscale,p_verifica);
  SELECT z.* INTO q FROM artecna_contabilita.quote_lorde_clienti z LEFT JOIN artecna_contabilita.attribuzioni_clienti x ON x.id=z.attribuzione_id
  WHERE z.id=p_richiesta OR x.riconciliazione->>'richiesta'=p_richiesta::text;
  IF FOUND THEN
@@ -128,10 +189,15 @@ BEGIN
  OR artecna_contabilita.totale_fattura_finanziario(f) IS NULL
  OR EXISTS(SELECT FROM artecna_contabilita.sdi_corrente WHERE rettifica_id=f.id OR fattura_id=f.id AND tipo='TD04')
  THEN RAISE EXCEPTION 'Contesto o base storica non documentati' USING ERRCODE='23514'; END IF;
- d:=artecna_contabilita.documento_riconciliazione(f.id);
+ d:=artecna_contabilita.documento_riconciliazione(f.id,p_verifica);
  IF (d->>'valida')::boolean IS NOT TRUE OR d->>'impronta' IS DISTINCT FROM p_impronta
  OR jsonb_typeof(p_allocazioni) IS DISTINCT FROM 'array' OR jsonb_array_length(p_allocazioni)=0
  THEN RAISE EXCEPTION 'Fonte cambiata o non verificabile' USING ERRCODE='40001'; END IF;
+ IF p_verifica IS NOT NULL THEN
+  IF coalesce(to_jsonb(f)->>'xml_testo','')<>'' OR jsonb_typeof(p_verifica)<>'object' THEN RAISE EXCEPTION 'Fonte XML prioritaria o verifica non valida' USING ERRCODE='22023'; END IF;
+  UPDATE public.fatture_emesse SET fonte_iva_verificata=p_verifica||jsonb_build_object('fotografia',artecna_contabilita.fotografia_fonte_iva(to_jsonb(f)),'autore',u,'verificata_at',now()) WHERE id=f.id;
+ END IF;
+ IF EXISTS(SELECT FROM artecna_contabilita.attribuzioni_clienti z WHERE z.fattura_id=f.id AND z.scollegato_at IS NULL AND z.riconciliazione IS NOT NULL AND z.riconciliazione->>'impronta' IS DISTINCT FROM d->>'impronta') THEN RAISE EXCEPTION 'Fonte diversa dalle quote attive: revocare e verificare prima di ripartire' USING ERRCODE='23514'; END IF;
  FOR parte IN SELECT value FROM jsonb_array_elements(p_allocazioni) LOOP
   idx:=(parte->>'indice')::integer;n:=(parte->>'imponibile')::numeric;
   IF idx=ANY(ids) OR idx<0 OR NOT(n>0 AND n<1e12) OR n<>round(n,2) THEN RAISE EXCEPTION 'Ripartizione non valida' USING ERRCODE='22023'; END IF;
@@ -141,8 +207,12 @@ BEGIN
   CROSS JOIN LATERAL jsonb_array_elements(z.riconciliazione->'allocazioni') x
   WHERE z.fattura_id=f.id AND z.scollegato_at IS NULL AND (x->>'indice')::integer=idx;
   IF prima+n>(gruppo->>'imponibile')::numeric THEN RAISE EXCEPTION 'Disponibilità imponibile esaurita' USING ERRCODE='23514'; END IF;
-  v:=round((prima+n)*(gruppo->>'aliquota')::numeric/100,2)
-      -round(prima*(gruppo->>'aliquota')::numeric/100,2);
+  IF gruppo->>'aliquota' IS NULL THEN
+   IF n<>(gruppo->>'imponibile')::numeric-prima THEN RAISE EXCEPTION 'Aliquote non disponibili: serve il riepilogo originale per una quota parziale' USING ERRCODE='23514'; END IF;
+   SELECT (gruppo->>'iva')::numeric-coalesce(sum((x->>'iva')::numeric),0) INTO v FROM artecna_contabilita.attribuzioni_clienti z CROSS JOIN LATERAL jsonb_array_elements(z.riconciliazione->'allocazioni') x WHERE z.fattura_id=f.id AND z.scollegato_at IS NULL AND (x->>'indice')::integer=idx;
+  ELSE
+   v:=round((prima+n)*(gruppo->>'aliquota')::numeric/100,2)-round(prima*(gruppo->>'aliquota')::numeric/100,2);
+  END IF;
   alloc:=alloc||jsonb_build_array(jsonb_build_object('indice',idx,'imponibile',n,'iva',v));netto:=netto+n;lordo:=lordo+n+v;
  END LOOP;
  -- Reuse a single exact legacy allocation; never infer ambiguous historical tax splits.
@@ -239,11 +309,11 @@ BEGIN
  PERFORM artecna_notifiche.riconcilia_acconto_fiscale(l.acconto_id,now());
  RETURN jsonb_build_object('confermato',true,'richiesta',p_richiesta,'revocata',true,'fiscale',public.leggi_acconto_fiscale(l.acconto_id));
 END $$;
-REVOKE ALL ON FUNCTION public.leggi_riconciliazione_unificata(uuid,uuid),
- public.riconcilia_acconto_fattura(uuid,uuid,uuid,uuid,jsonb,jsonb,text,text,boolean),
+REVOKE ALL ON FUNCTION public.leggi_riconciliazione_unificata(uuid,uuid,jsonb),
+ public.riconcilia_acconto_fattura(uuid,uuid,uuid,uuid,jsonb,jsonb,text,text,boolean,jsonb),
  public.revoca_riconciliazione_unificata(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
-GRANT EXECUTE ON FUNCTION public.leggi_riconciliazione_unificata(uuid,uuid),
- public.riconcilia_acconto_fattura(uuid,uuid,uuid,uuid,jsonb,jsonb,text,text,boolean),
+GRANT EXECUTE ON FUNCTION public.leggi_riconciliazione_unificata(uuid,uuid,jsonb),
+ public.riconcilia_acconto_fattura(uuid,uuid,uuid,uuid,jsonb,jsonb,text,text,boolean,jsonb),
  public.revoca_riconciliazione_unificata(uuid,uuid) TO authenticated;
 UPDATE artecna_distruzione.hard_delete_catalog_expected SET signature=artecna_distruzione.hard_delete_catalog();
 COMMIT;

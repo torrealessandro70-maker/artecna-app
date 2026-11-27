@@ -11,14 +11,14 @@ test('Ripartizioni, storici e rettifiche PostgreSQL',async t=>{
  const scenario=async(name,run)=>t.test(name,async()=>{await db.reset();await run()});
  const xml=groups=>`<FatturaElettronica><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>TD01</TipoDocumento><Data>2026-11-27</Data><Numero>17</Numero></DatiGeneraliDocumento></DatiGenerali><DatiBeniServizi>${groups.map(g=>`<DatiRiepilogo><AliquotaIVA>${g.rate}</AliquotaIVA>${g.natura?`<Natura>${g.natura}</Natura>`:''}<ImponibileImporto>${g.net}</ImponibileImporto><Imposta>${g.tax}</Imposta></DatiRiepilogo>`).join('')}</DatiBeniServizi></FatturaElettronicaBody></FatturaElettronica>`;
  try{
- await scenario('Migrazione conserva integralmente tredici relazioni storiche',async()=>{assert.equal(db.preservationRelations,13)});
+ await scenario('Migrazione conserva integralmente diciotto relazioni storiche',async()=>{assert.equal(db.preservationRelations,18)});
  await scenario('Autorizzazione impresa non sostituisce l’accesso al singolo cantiere',async()=>{
   await admin.query('UPDATE public.acconti_cantiere SET cantiere_id=$1 WHERE id=$2',[ids.c2,ids.a2]);
   await assert.rejects(c.query('SELECT public.leggi_riconciliazione_unificata(NULL,$1)',[ids.a2]),{code:'42501'});
   const d=await read();assert.equal(d.acconti.some(x=>x.id===ids.a2),false);await assert.rejects(send({ac:ids.a2}),{code:'42501'});assert.equal((await read()).incassi.length,0);
  });
  await scenario('Pagamenti distinti: nessuna nuova registrazione senza verifica esplicita',async()=>{
-  await admin.query('UPDATE public.acconti_cantiere SET importo=100 WHERE id=$1',[ids.a]);await admin.query('UPDATE public.fatture_emesse SET imponibile=100,iva=10,totale=110 WHERE id=$1',[ids.f]);
+  await admin.query('UPDATE public.acconti_cantiere SET importo=100 WHERE id=$1',[ids.a]);await admin.query('UPDATE public.fatture_emesse SET imponibile=100,iva=10,totale=110 WHERE id=$1',[ids.f]);await db.verificaManuale();
   await send();await assert.rejects(send(),{code:'23514'});assert.equal((await read()).incassi.length,1);await send({distinct:true});const d=await read();assert.equal(d.incassi.length,2);assert.equal(d.incassi.reduce((n,i)=>n+i.disponibile,0),0);
  });
  await scenario('Quota parziale non può confermare tutto l’acconto come incassato',async()=>{
@@ -29,7 +29,7 @@ test('Ripartizioni, storici e rettifiche PostgreSQL',async t=>{
   await admin.query('UPDATE public.fatture_emesse SET numero_fattura=18 WHERE id=$1',[ids.f2]);await admin.query('UPDATE public.fatture_emesse SET xml_testo=$1,totale=110 WHERE id=$2',[xml([{net:100,tax:10,rate:10}]).replace('</Imposta>','</Imposta><EsigibilitaIVA>S</EsigibilitaIVA>'),ids.f]);assert.equal((await read()).fatture.find(x=>x.id===ids.f).documento.valida,false);await assert.rejects(send(),{code:'40001'});assert.equal((await read()).incassi.length,0);
  });
  await scenario('Senza IVA: solo Natura documentata, nessuna esenzione presunta',async()=>{
-  await admin.query('UPDATE public.fatture_emesse SET xml_testo=$1,totale=100 WHERE id=$2',[xml([{net:100,tax:0,rate:0,natura:'N4'}]),ids.f]);
+  await admin.query('UPDATE public.fatture_emesse SET xml_testo=$1,imponibile=100,iva=0,totale=100 WHERE id=$2',[xml([{net:100,tax:0,rate:0,natura:'N4'}]),ids.f]);
   await admin.query('UPDATE public.acconti_cantiere SET importo=100 WHERE id=$1',[ids.a]);
   assert.equal((await read()).fatture.find(x=>x.id===ids.f).documento.valida,true);await send({n:100,total:100});assert.equal((await read()).incassi[0].disponibile,0);
  });
@@ -37,16 +37,16 @@ test('Ripartizioni, storici e rettifiche PostgreSQL',async t=>{
   await admin.query('UPDATE public.fatture_emesse SET xml_testo=$1,totale=110 WHERE id=$2',[xml([{net:100,tax:10,rate:10}]).replace('<TipoDocumento>','<Divisa>USD</Divisa><TipoDocumento>'),ids.f]);assert.equal((await read()).fatture.find(x=>x.id===ids.f).documento.valida,false);await assert.rejects(send(),{code:'40001'});assert.equal((await read()).incassi.length,0);
  });
  await scenario('Aliquote miste 10/22: conserva tutti i riepiloghi',async()=>{
-  await admin.query('UPDATE public.fatture_emesse SET xml_testo=$1,totale=116 WHERE id=$2',[xml([{net:50,tax:5,rate:10},{net:50,tax:11,rate:22}]),ids.f]);
+  await admin.query('UPDATE public.fatture_emesse SET xml_testo=$1,imponibile=100,iva=16,totale=116 WHERE id=$2',[xml([{net:50,tax:5,rate:10},{net:50,tax:11,rate:22}]),ids.f]);
   await admin.query('UPDATE public.acconti_cantiere SET importo=100 WHERE id=$1',[ids.a]);
   await send({alloc:[{indice:0,imponibile:50},{indice:1,imponibile:50}],total:116});const d=await read();assert.equal(d.incassi[0].disponibile,0);assert.equal(d.fatture.find(x=>x.id===ids.f).quote[0].importo,116);
  });
  await scenario('Due acconti su una fattura senza doppia IVA',async()=>{
-  await admin.query('UPDATE public.acconti_cantiere SET importo=50 WHERE id IN($1,$2)',[ids.a,ids.a2]);await admin.query('UPDATE public.fatture_emesse SET imponibile=100,iva=10,totale=110 WHERE id=$1',[ids.f]);
+  await admin.query('UPDATE public.acconti_cantiere SET importo=50 WHERE id IN($1,$2)',[ids.a,ids.a2]);await admin.query('UPDATE public.fatture_emesse SET imponibile=100,iva=10,totale=110 WHERE id=$1',[ids.f]);await db.verificaManuale();
   await send();await send({ac:ids.a2});const d=await read();assert.equal(d.fatture.find(x=>x.id===ids.f).attribuito_netto,100);assert.equal(d.incassi.reduce((n,i)=>n+i.importo,0),110);
  });
  await scenario('Un acconto su due fatture riusa lo stesso pagamento',async()=>{
-  await admin.query('UPDATE public.acconti_cantiere SET importo=100 WHERE id=$1',[ids.a]);await admin.query('UPDATE public.fatture_emesse SET imponibile=50,iva=10,totale=55 WHERE id IN($1,$2)',[ids.f,ids.f2]);
+  await admin.query('UPDATE public.acconti_cantiere SET importo=100 WHERE id=$1',[ids.a]);await admin.query('UPDATE public.fatture_emesse SET imponibile=50,iva=10,totale=55 WHERE id IN($1,$2)',[ids.f,ids.f2]);await db.verificaManuale();
   const pay=randomUUID();await c.query("SELECT public.conferma_incasso_lordo_cliente($1,$2,110,'2026-11-20','bonifico','SYN-ONE-PAY','Fonte sintetica')",[pay,ids.a]);await send({payment:pay});await send({payment:pay,f:ids.f2});assert.equal((await read()).incassi.length,1);assert.equal((await read()).incassi[0].disponibile,0);
  });
  await scenario('Attribuzione netta preesistente esatta adottata, senza duplicarla',async()=>{

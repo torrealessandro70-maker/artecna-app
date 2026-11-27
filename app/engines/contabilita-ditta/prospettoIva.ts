@@ -1,3 +1,4 @@
+import { risolviFonteIvaPersistita } from './fonteIva'
 import { centesimi, dataValida, testo, type Fonti, type Periodo, type Riga, type Stato } from './riepilogo'
 import { xmlFattura } from '../fatture/documento-fiscale'
 
@@ -76,11 +77,13 @@ function documento(r: Riga, fonte: FonteIva): DocumentoIva {
       const gruppi = elementi(beni[0], 'DatiRiepilogo')
       if (!gruppi.length) throw Error('DatiRiepilogo XML assenti: nessuna imposta ricostruita dalle righe')
       const segni = new Set<number>()
+      let baseXml = 0
       const imposte = gruppi.map(g => {
         const base = importo(campo(g, 'ImponibileImporto')), iva = importo(campo(g, 'Imposta')), rate = aliquota(campo(g, 'AliquotaIVA'))
         const natura = elementi(g, 'Natura')
         if ((rate === 0 && (iva !== 0 || natura.length !== 1 || !/^N[1-7](?:\.\d)?$/.test(campo(g, 'Natura')))) || (rate > 0 && natura.length)) throw Error('Natura, aliquota e imposta XML incoerenti')
         if (impostaDaBase(base, rate) !== iva) throw Error('Base e imposta XML non riconciliabili al centesimo')
+        baseXml += tipo === 'TD04' ? -Math.abs(base) : base
         for (const n of [base, iva]) if (n) segni.add(Math.sign(n))
         const esigibilita = elementi(g, 'EsigibilitaIVA')
         if (esigibilita.length > 1) throw Error('Esigibilità XML ambigua')
@@ -90,20 +93,20 @@ function documento(r: Riga, fonte: FonteIva): DocumentoIva {
       if (segni.size > 1 || (tipo !== 'TD04' && segni.has(-1))) throw Error('Segni fiscali misti o non supportati')
       d.iva = somma(imposte)
       if (d.iva === null) throw Error('Somma IVA oltre la precisione verificabile')
+      if (fonte === 'fatture_emesse') {
+        if (r.imponibile !== undefined && importo(r.imponibile) !== baseXml || r.totale !== undefined && (tipo === 'TD04' ? Math.abs(importo(r.totale)) !== Math.abs(baseXml + d.iva) : importo(r.totale) !== baseXml + d.iva)) throw Error('XML e importi persistiti discordanti')
+        const field = r.iva === undefined ? null : importo(r.iva)
+        if (field !== null && field !== Math.abs(d.iva) && !(gruppi.length === 1 && field === aliquota(campo(gruppi[0], 'AliquotaIVA')))) throw Error('XML e campo IVA persistito discordanti')
+      }
       d.motivo = tipo === 'TD04' ? 'XML: nota di credito sottratta una sola volta' : 'XML: somma delle imposte esposte in tutti i DatiRiepilogo'
       if (d.limitato) d.motivo += '; esigibilità speciale: solo imposta esposta, nessuna liquidazione'
     } else {
       if (fonte !== 'fatture_emesse') throw Error('XML fiscale non disponibile: nessuna IVA dedotta da PDF, OCR o totale')
-      if (r.xml_url || testo(r.tipo_file).toLowerCase() === 'xml' || /import\s+xml/i.test(testo(r.note))) throw Error('Import XML senza riepiloghi fiscali registrati: campo iva ambiguo')
-      if (r.tipo_documento && r.tipo_documento !== 'TD01' && r.tipo_documento !== 'fattura') throw Error('Tipo fiscale manuale non supportato')
-      const base = importo(r.imponibile), rate = aliquota(r.iva), totale = importo(r.totale)
-      if (base < 0 || totale < 0) throw Error('Segno manuale non verificabile')
-      const iva = impostaDaBase(base, rate)
-      if (somma([base, iva]) !== totale) throw Error('Base, aliquota e totale manuali non coerenti')
-      if (!testo(r.cliente)) throw Error('Identità cliente manuale mancante')
+      const canon = risolviFonteIvaPersistita(r)
+      if (!canon.valida) throw Error(canon.motivo)
       d.identita = JSON.stringify([testo(r.cliente), 'manuale', d.numero, d.data])
-      d.iva = iva; d.limitato = true
-      d.motivo = 'Base × aliquota manuale, riconciliata con il totale; natura fiscale ed esigibilità non certificate'
+      d.iva = importo(canon.iva_importo); d.limitato = true
+      d.motivo = canon.motivo
     }
   } catch (error) {
     d.iva = null; d.motivo = error instanceof Error ? error.message : 'Documento fiscale non verificabile'

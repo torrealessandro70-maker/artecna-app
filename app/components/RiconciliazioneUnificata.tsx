@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
+import VerificaFonteIva from './VerificaFonteIva'
+import type { VerificaIva } from '../engines/contabilita-ditta/fonteIva'
 import VistaOperativa from './VistaOperativa'
 import { uuid } from '../engines/contabilita-ditta/attribuzioni'
 import { centesimi } from '../engines/contabilita-ditta/riepilogo'
@@ -24,12 +26,14 @@ export default function RiconciliazioneUnificata({ client, fatturaId, accontoId,
   const [fonte, setFonte] = useState(''), [baseVerificata, setBaseVerificata] = useState(false), [fiscale, setFiscale] = useState(false)
   const [occupata, setOccupata] = useState(false), [esito, setEsito] = useState(''), [pendente, setPendente] = useState<Richiesta | null>(null)
   const blocco = useRef(false)
+  const originali = useRef<SnapshotRiconciliazione | null>(null)
+  const [verificaIva,setVerificaIva]=useState<{fattura:string;dati:VerificaIva}|null>(null)
   const [journal, setJournal] = useState('')
   const [journalCorrotto, setJournalCorrotto] = useState(false)
   useEffect(() => {
     let attiva = true
     void leggiRiconciliazione(client, fatturaId, accontoId).then(d => { if (attiva) {
-      setDati(d)
+      originali.current=d;setDati(d)
       const key = `artecna-riconciliazione-pendente:${d.autore}`
       setJournal(key)
       if (!accontoId) setAcconto(fatturaId ? propostaAccontoUnivoco(d, fatturaId) ?? '' : d.acconti.length === 1 ? d.acconti[0].id : '')
@@ -72,7 +76,7 @@ export default function RiconciliazioneUnificata({ client, fatturaId, accontoId,
       if (risultato?.confermato !== true || risultato?.richiesta !== richiesta.args.p_richiesta) throw Error('Risposta incerta: verifica la stessa richiesta, senza crearne un’altra.')
       confermata = true;sessionStorage.removeItem(journal);setPendente(null);setValori({});setBaseVerificata(false)
       setEsito(`Operazione confermata. Stato fiscale: ${risultato.fiscale?.stato ?? 'Da verificare'}${risultato.revocata ? ' · Collegamenti revocati.' : ''}`)
-      setDati(await leggiRiconciliazione(client, fatturaId, accontoId));setValori({});setBaseVerificata(false)
+      originali.current=await leggiRiconciliazione(client, fatturaId, accontoId);setDati(originali.current);setValori({});setBaseVerificata(false);setVerificaIva(null)
       await onConfermato?.()
       for (const evento of ['artecna-incassi-lordi-aggiornati','artecna-clienti-incassi-aggiornati','artecna-fatture-emesse-aggiornate']) window.dispatchEvent(new Event(evento))
     } catch (e) { if (confermata) { setDati(null);setErrore('Operazione confermata; rilettura non riuscita. Riapri senza ripetere la riconciliazione.') } else setErrore((e as Error).message) } finally { blocco.current = false;setOccupata(false) }
@@ -85,7 +89,7 @@ export default function RiconciliazioneUnificata({ client, fatturaId, accontoId,
       metodo: form.get('metodo'), riferimento: form.get('riferimento'), fonte: form.get('fonte_pagamento'), verificato: form.get('pagamento_verificato') === 'on', distinto: form.get('pagamento_distinto') === 'on' } : null
     void invia({ rpc: 'riconcilia_acconto_fattura', args: { p_richiesta: crypto.randomUUID(), p_fattura: f.id, p_acconto: a.id,
       p_incasso: nuovo ? null : incasso, p_nuovo: nuovo, p_allocazioni: calcolo.allocazioni, p_impronta: f.documento.impronta,
-      p_fonte_base: fonte, p_conferma_fiscale: fiscale && (calcolo.netto === disponibile || riusaStorico && a.importo === a.attribuito) } })
+      p_verifica: verificaIva?.fattura===f.id?verificaIva.dati:null, p_fonte_base: fonte, p_conferma_fiscale: fiscale && (calcolo.netto === disponibile || riusaStorico && a.importo === a.attribuito) } })
   }
   return <VistaOperativa titolo="Riconcilia acconto e fattura" etichettaRitorno="← Torna al riepilogo" onChiudi={onChiudi} occupata={occupata || !!pendente} ritornoFocusRef={ritornoFocusRef}>
     {errore && <p role="alert">{errore}</p>}{esito && <p role="status">{esito}</p>}
@@ -94,12 +98,12 @@ export default function RiconciliazioneUnificata({ client, fatturaId, accontoId,
     {!dati && !errore && <p role="status">Caricamento dati autorizzati…</p>}
     {dati && <form data-riconciliazione onSubmit={conferma}><fieldset disabled={occupata || !!pendente || journalCorrotto} style={{ display: 'grid', gap: 12, minWidth: 0, border: 0, padding: 0 }}>
       <p>Cantiere: <strong>{dati.cantiere}</strong></p>
-      <label>Acconto <select required value={acconto} onChange={e => { setAcconto(e.target.value);setIncasso('');setValori({});setBaseVerificata(false);if (!fatturaId) setFattura(propostaUnivoca(dati,e.target.value) ?? '') }}><option value="">Seleziona l’acconto</option>{dati.acconti.map(x => <option value={x.id} key={x.id}>{x.data} · {x.descrizione} · {euro(centesimi(x.importo))}</option>)}</select></label>
-      <label>Fattura emessa <select required value={fattura} onChange={e => { setFattura(e.target.value);setValori({});setBaseVerificata(false) }}><option value="">Abbinamento non univoco: seleziona la fattura</option>{dati.fatture.map(x => <option value={x.id} key={x.id}>{x.numero} · {x.data} · {x.cliente} · {euro(centesimi(x.totale))}</option>)}</select></label>
+      <label>Acconto <select required value={acconto} onChange={e => { setAcconto(e.target.value);setIncasso('');setValori({});setBaseVerificata(false);setVerificaIva(null);if(originali.current)setDati(originali.current);if (!fatturaId) setFattura(propostaUnivoca(dati,e.target.value) ?? '') }}><option value="">Seleziona l’acconto</option>{dati.acconti.map(x => <option value={x.id} key={x.id}>{x.data} · {x.descrizione} · {euro(centesimi(x.importo))}</option>)}</select></label>
+      <label>Fattura emessa <select required value={fattura} onChange={e => { setFattura(e.target.value);setValori({});setBaseVerificata(false);setVerificaIva(null);if(originali.current)setDati(originali.current) }}><option value="">Abbinamento non univoco: seleziona la fattura</option>{dati.fatture.map(x => <option value={x.id} key={x.id}>{x.numero} · {x.data} · {x.cliente} · {euro(centesimi(x.totale))}</option>)}</select></label>
       {a && <p>Imponibile contrattuale: {euro(centesimi(a.importo))} · Quote contrattuali attive: {euro(centesimi(a.attribuito))} · Disponibilità: {euro(disponibile)} · Stato fiscale: {a.fiscale.stato}</p>}
       {f && <><p>Lordo fattura: {euro(centesimi(f.totale))} · SdI: {f.sdi.esito ?? 'Da verificare'}</p>
-        {!f.documento.valida ? <p role="alert">{f.documento.motivo}</p> : <><p>Fonte: {f.documento.fonte}</p>
-          {f.documento.gruppi?.map(g => <label key={g.indice}>Quota imponibile — IVA {g.aliquota}%{g.natura ? ` · ${g.natura}` : ''} (documento: {euro(centesimi(g.imponibile))} + IVA {euro(centesimi(g.iva))})
+        {!f.documento.valida ? <><p role="alert">{f.documento.motivo}</p><VerificaFonteIva onVerifica={async v=>{setOccupata(true);setErrore('');try{const fresh=await leggiRiconciliazione(client,f.id,accontoId,v);const doc=fresh.fatture.find(x=>x.id===f.id)?.documento;if(!doc?.valida)throw Error(doc?.motivo??'Fonte non verificabile');setDati(fresh);setVerificaIva({fattura:f.id,dati:v});setValori({});setBaseVerificata(false)}catch(e){setErrore((e as Error).message)}finally{setOccupata(false)}}}/></> : <><p>Fonte: {f.documento.fonte}</p><p>{f.documento.canonico?.motivo}</p>
+          {f.documento.gruppi?.map(g => <label key={g.indice}>Quota imponibile — IVA {g.aliquota === null ? 'aggregata, aliquota non determinabile' : `${g.aliquota}%`}{g.natura ? ` · ${g.natura}` : ''} (documento: {euro(centesimi(g.imponibile))} + IVA {euro(centesimi(g.iva))})
             <input inputMode="decimal" value={valori[g.indice] ?? ''} onChange={e => setValori(v => ({ ...v, [g.indice]: e.target.value }))} /></label>)}
           <p>Quote proposte: imponibile {euro(calcolo?.netto ?? null)} · IVA documentale {euro(calcolo?.iva ?? null)} · Lordo {euro(calcolo?.lordo ?? null)}</p>
         </>}
