@@ -1,5 +1,6 @@
 'use client'
 
+import FileDropZone from './FileDropZone'
 import { useRef, useState, type CSSProperties } from 'react'
 import { formatiFatture, importaBatchDocumenti, type AnteprimaFattura, type FlussiDocumenti, type RiepilogoDocumenti } from '../engines/fatture/import-documenti'
 
@@ -8,12 +9,10 @@ type Props = {
   anteprimaAttiva: boolean; buttonStyle: CSSProperties
 }
 export default function ImportaFattureDocumenti({ flussi, onAnteprima, anteprimaAttiva, buttonStyle }: Props) {
-  const input = useRef<HTMLInputElement>(null)
   const inCorso = useRef(false)
   const coda = useRef<File[]>([])
   const sequenza = useRef(0)
   const [busy, setBusy] = useState(false)
-  const [drag, setDrag] = useState(false)
   const [errore, setErrore] = useState('')
   const [riepilogo, setRiepilogo] = useState<RiepilogoDocumenti | null>(null)
   const [anteprime, setAnteprime] = useState<{ id: number; dati: AnteprimaFattura }[]>([])
@@ -29,22 +28,10 @@ export default function ImportaFattureDocumenti({ flussi, onAnteprima, anteprima
     finally { inCorso.current = false; coda.current = []; setBusy(false) }
   }
   const problemi = !!errore || !!riepilogo?.falliti || !!riepilogo?.nonSupportati
-  return <section aria-label="Importa fatture e documenti" tabIndex={0}
-    onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true) } }}
-    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrag(false) }}
-    onDrop={e => { e.preventDefault(); setDrag(false); void importa(Array.from(e.dataTransfer.files)) }}
-    onPaste={e => { const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); void importa(files) } }}
-    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', overflowWrap: 'anywhere', padding: 18, borderRadius: 12,
-      border: `2px ${drag ? 'solid' : 'dashed'} ${problemi ? '#b45309' : drag ? '#2563eb' : '#cbd5e1'}`,
-      background: drag ? '#eff6ff' : busy ? '#f8fafc' : '#fff' }}>
-    <h3 style={{ marginTop: 0 }}>IMPORTA FATTURE / DOCUMENTI</h3>
+  return <FileDropZone title="Importa fatture e documenti" accept={formatiFatture} onFiles={files => void importa(files)} buttonStyle={buttonStyle}>
     <p>PDF · XML · XLS · XLSX · CSV · ZIP</p>
-    <p>Trascina qui i file, incollali con Ctrl+V oppure selezionali dal computer.</p>
-    <button type="button" style={buttonStyle} onClick={() => input.current?.click()}>Seleziona file</button>
-    <input ref={input} aria-label="Seleziona fatture o documenti" type="file" multiple accept={formatiFatture} style={{ display: 'none' }}
-      onChange={e => { const files = Array.from(e.currentTarget.files || []); e.currentTarget.value = ''; void importa(files) }} />
     <p>XML, PDF ed Excel/CSV restano in anteprima fino al salvataggio. Gli XML negli ZIP seguono l’importazione Bluenext esistente.</p>
-    {busy && <p role="status" aria-live="polite">{riepilogo?.elaborati || 0}/{coda.current.length} elaborati…</p>}
+    {busy && <p role="status" aria-live="polite">{riepilogo?.elaborati || 0}/{riepilogo?.totaleFile || 0} elaborati…</p>}
     {errore && <p role="alert">{errore}</p>}
     {riepilogo && <div role="status" aria-live="polite">
       <strong>{busy ? 'Elaborazione' : errore ? 'Interrotto' : problemi ? 'Completato con segnalazioni' : 'Completato'}</strong>
@@ -61,5 +48,5 @@ export default function ImportaFattureDocumenti({ flussi, onAnteprima, anteprima
         }}>Apri anteprima</button>
       </div>)}
     </div>}
-  </section>
+  </FileDropZone>
 }

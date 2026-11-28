@@ -8,8 +8,8 @@ import { uuid } from '../engines/contabilita-ditta/attribuzioni'
 import { centesimi } from '../engines/contabilita-ditta/riepilogo'
 import { leggiRiconciliazione, propostaUnivoca, propostaAccontoUnivoco, ripartisci, type SnapshotRiconciliazione, type ClientRiconciliazione } from '../engines/contabilita-ditta/riconciliazioneUnificata'
 
-type Props = { client: ClientRiconciliazione; fatturaId?: string; accontoId?: string; onChiudi: () => void; onConfermato?: () => void | Promise<void>; ritornoFocusRef?: RefObject<HTMLElement | null> }
-type Richiesta = { rpc: 'riconcilia_acconto_fattura' | 'revoca_riconciliazione_unificata'; args: Record<string, unknown> }
+type Props = { client: ClientRiconciliazione; fatturaId?: string; accontoId?: string; onChiudi: () => void; onConfermato?: () => void | Promise<void>; onPrepara?: (richiesta: Richiesta) => void | Promise<void>; ritornoFocusRef?: RefObject<HTMLElement | null> }
+export type Richiesta = { rpc: 'riconcilia_acconto_fattura' | 'revoca_riconciliazione_unificata'; args: Record<string, unknown> }
 const euro = (v: number | null) => v === null ? 'Non determinabile' : (v / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 
 export function RiconciliazioneAzione({ etichetta, ...props }: Omit<Props, 'onChiudi'> & { etichetta: string }) {
@@ -19,7 +19,7 @@ export function RiconciliazioneAzione({ etichetta, ...props }: Omit<Props, 'onCh
     {aperta && <RiconciliazioneUnificata {...props} ritornoFocusRef={ritorno} onChiudi={() => setAperta(false)} />}</>
 }
 
-export default function RiconciliazioneUnificata({ client, fatturaId, accontoId, onChiudi, onConfermato, ritornoFocusRef }: Props) {
+export default function RiconciliazioneUnificata({ client, fatturaId, accontoId, onChiudi, onConfermato, onPrepara, ritornoFocusRef }: Props) {
   const [dati, setDati] = useState<SnapshotRiconciliazione | null>(null), [errore, setErrore] = useState('')
   const [fattura, setFattura] = useState(fatturaId ?? ''), [acconto, setAcconto] = useState(accontoId ?? '')
   const [incasso, setIncasso] = useState(''), [valori, setValori] = useState<Record<number, string>>({})
@@ -65,6 +65,10 @@ export default function RiconciliazioneUnificata({ client, fatturaId, accontoId,
     blocco.current = true; setOccupata(true); setErrore('')
     let confermata = false
     try {
+      if (onPrepara) {
+        if (pendente || richiesta.rpc !== 'riconcilia_acconto_fattura') throw Error('Operazione precedente o revoca da verificare nel percorso dedicato.')
+        await onPrepara(richiesta);onChiudi();return
+      }
       if (!journal || journalCorrotto) throw Error('Identità utente o journal non verificabile: nessuna richiesta inviata.')
       sessionStorage.setItem(journal, JSON.stringify(richiesta));setPendente(richiesta)
       const r = await client.rpc(richiesta.rpc, richiesta.args)
@@ -94,6 +98,7 @@ export default function RiconciliazioneUnificata({ client, fatturaId, accontoId,
   return <VistaOperativa titolo="Riconcilia acconto e fattura" etichettaRitorno="← Torna al riepilogo" onChiudi={onChiudi} occupata={occupata || !!pendente} ritornoFocusRef={ritornoFocusRef}>
     {errore && <p role="alert">{errore}</p>}{esito && <p role="status">{esito}</p>}
     <p>Acconto contrattuale, pagamento lordo e copertura fiscale restano distinti. Nessuna fattura prova da sola l’incasso.</p>
+    {onPrepara && <p>Preparazione nel lotto Bluenext: nessuna scrittura fino alla conferma complessiva.</p>}
     {pendente && <p>Richiesta da verificare. <button disabled={occupata} onClick={() => void invia(pendente)}>Verifica stessa richiesta</button></p>}
     {!dati && !errore && <p role="status">Caricamento dati autorizzati…</p>}
     {dati && <form data-riconciliazione onSubmit={conferma}><fieldset disabled={occupata || !!pendente || journalCorrotto} style={{ display: 'grid', gap: 12, minWidth: 0, border: 0, padding: 0 }}>
@@ -122,7 +127,7 @@ export default function RiconciliazioneUnificata({ client, fatturaId, accontoId,
       <label>Fonte documentale della base contrattuale <input value={fonte} onChange={e => setFonte(e.target.value)} required minLength={8} maxLength={500} /></label>
       <label><input type="checkbox" checked={baseVerificata} onChange={e => setBaseVerificata(e.target.checked)} required />Ho verificato che la quota dell’acconto sia imponibile, non lordo. Nessuna riclassificazione automatica dello storico.</label>
       <label><input type="checkbox" checked={fiscale} disabled={!calcolo || !(calcolo.netto === disponibile || riusaStorico && a?.importo === a?.attribuito)} onChange={e => setFiscale(e.target.checked)} />Confermo anche incasso e regime fiscale ordinario sulla fonte verificata. Lo stato SdI non verrà modificato.</label>
-      <button type="submit" disabled={!calcolo || !baseVerificata || fonte.trim().length < 8 || !nettoCapiente || !lordoCapiente}>Conferma riconciliazione unica</button>
+      <button type="submit" disabled={!calcolo || !baseVerificata || fonte.trim().length < 8 || !nettoCapiente || !lordoCapiente}>{onPrepara ? 'Aggiungi proposta al lotto' : 'Conferma riconciliazione unica'}</button>
       <p>La regolarizzazione fiscale richiede evidenza SdI valida. In sua assenza restano visibili pendenza e avvisi.</p>
     </fieldset></form>}
     <style>{`[data-riconciliazione] label{display:grid;gap:6px;min-width:0}[data-riconciliazione] input:not([type=checkbox]),[data-riconciliazione] select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:44px}[data-riconciliazione] label:has(input[type=checkbox]){display:flex;align-items:flex-start}[data-riconciliazione] button{min-height:44px;white-space:normal}`}</style>
