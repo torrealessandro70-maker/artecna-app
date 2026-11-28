@@ -110,7 +110,6 @@ export default function AccontoCompilazioneVista({ id, cantiereId, cantiere, ute
     onChiudi={chiudi} occupata={occupato} ritornoFocusRef={focusOrigine} etichettaRitorno="← Torna agli acconti">
     <span data-acconto-compilazione="true" />
     <style>{`
-      #area-lavoro-principale:has(> [data-attivita-operativa] [data-acconto-compilazione]) > [data-attivita-operativa]:not(:has([data-acconto-compilazione])) { display: none !important; }
       .acconto-compilazione-form { display: grid; gap: 12px; max-width: 760px; }
       .acconto-compilazione-form label { display: grid; gap: 4px; }
       .acconto-compilazione-form input, .acconto-compilazione-form select, .acconto-compilazione-form textarea { max-width: 100%; min-width: 0; box-sizing: border-box; }
