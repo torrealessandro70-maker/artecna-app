@@ -41,7 +41,7 @@ DECLARE value text; n integer; BEGIN
  IF n>1 THEN RAISE EXCEPTION 'Originali XML discordanti' USING ERRCODE='23514'; END IF;RETURN value;
 END $$;
 -- Preserve the fiscal validator; extend only the private source lookup.
-DO $gate$ BEGIN IF replace((SELECT prosrc FROM pg_proc WHERE oid='artecna_contabilita.documento_riconciliazione(uuid,jsonb)'::regprocedure),E'\r\n',E'\n') IS DISTINCT FROM $expected$
+DO $gate$ BEGIN IF replace((SELECT prosrc FROM pg_proc WHERE oid='artecna_contabilita.documento_riconciliazione(uuid,jsonb)'::regprocedure),E'\r\n',E'\n') IS DISTINCT FROM replace($expected$
 DECLARE f public.fatture_emesse; raw text; documento_xml xml; g xml; gruppi jsonb:='[]'; n numeric; v numeric; rate numeric;
  numero text; giorno text; tipo text; natura text; idx integer:=0; totale numeric:=0; canon jsonb;
 BEGIN
@@ -95,7 +95,7 @@ BEGIN
  RETURN jsonb_build_object('valida',true,'gruppi',gruppi,'totale',totale,'fonte',CASE WHEN raw IS NOT NULL AND btrim(raw)<>'' THEN 'XML persistito' ELSE canon->>'fonte' END,'canonico',canon,
  'impronta',encode(sha256(convert_to(jsonb_build_array(to_jsonb(f)-'created_at'-'fonte_iva_verificata',gruppi)::text,'UTF8')),'hex'));
 EXCEPTION WHEN OTHERS THEN RETURN jsonb_build_object('valida',false,'motivo','Fonte fiscale incompleta, discordante o non supportata: nessuna IVA presunta');
-END $expected$ THEN RAISE EXCEPTION 'STOP_VALIDATORE_FISCALE_DIVERGENTE'; END IF; END $gate$;
+END $expected$,E'\r\n',E'\n') THEN RAISE EXCEPTION 'STOP_VALIDATORE_FISCALE_DIVERGENTE'; END IF; END $gate$;
 CREATE OR REPLACE FUNCTION artecna_contabilita.documento_riconciliazione(p_fattura uuid,p_verifica jsonb DEFAULT NULL) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE f public.fatture_emesse; raw text; documento_xml xml; g xml; gruppi jsonb:='[]'; n numeric; v numeric; rate numeric;

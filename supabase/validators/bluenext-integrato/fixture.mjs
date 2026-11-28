@@ -10,7 +10,7 @@ export const syntheticXml = (numero = '17', descrizione = '3° acconto lavori co
 function body(sql, name) { const a = sql.indexOf('CREATE FUNCTION ' + name + '('), b = sql.indexOf('END $$;', a); assert(a >= 0 && b > a); return sql.slice(a, b + 7) }
 export const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 export const syntheticReceipt = (id='18746061890',file='fattura.xml') => `<NotificaMancataConsegna><IdentificativoSdI>${id}</IdentificativoSdI><NomeFile>${file}</NomeFile><DataOraRicezione>2026-11-27T10:00:00Z</DataOraRicezione><DataOraMessaADisposizione>2026-11-27T10:01:00Z</DataOraMessaADisposizione></NotificaMancataConsegna>`
-export async function openFixture() {
+export async function openFixture(transport = sql => sql) {
  const db=await fixture(),admin=db.admin;try{
     // Reuse the installed dependency definitions, not alternative financial writers.
     await admin.query(`ALTER TABLE public.fatture_emesse ADD COLUMN bluenext_identita text,ADD COLUMN bluenext_impronta text,ADD COLUMN bluenext_associazione jsonb;ALTER TABLE public.fatture_emesse ALTER COLUMN id SET DEFAULT gen_random_uuid();CREATE SCHEMA IF NOT EXISTS auth;CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT artecna_guardie.utente_jwt_corrente() $$`)
@@ -27,11 +27,11 @@ export async function openFixture() {
     const evidence=results=>(Array.isArray(results)?results:[results]).flatMap(r=>r.rows).find(r=>r.evidence)?.evidence
     const precheck=evidence(await admin.query(fs.readFileSync('supabase/diagnostics/bluenext-integrato/precheck.sql','utf8')))
     const beforeMigration=await fingerprints(),validatorBefore=(await admin.query("SELECT prosrc,proacl::text AS acl,proconfig,prosecdef,provolatile,proowner FROM pg_proc WHERE oid='artecna_contabilita.documento_riconciliazione(uuid,jsonb)'::regprocedure")).rows[0]
-    await admin.query(migration)
+    await admin.query(transport(migration))
     const afterMigration=await fingerprints(),validatorAfter=(await admin.query("SELECT prosrc,proacl::text AS acl,proconfig,prosecdef,provolatile,proowner FROM pg_proc WHERE oid='artecna_contabilita.documento_riconciliazione(uuid,jsonb)'::regprocedure")).rows[0]
     assert.deepEqual(afterMigration,beforeMigration)
     const src=validatorBefore.prosrc.replace("raw:=to_jsonb(f)->>'xml_testo';","raw:=coalesce(nullif(to_jsonb(f)->>'xml_testo',''),artecna_contabilita.xml_originale_bluenext(f.id));")
-    assert.equal(validatorAfter.prosrc,src)
+    assert.equal(validatorAfter.prosrc.replaceAll('\r\n','\n'),src.replaceAll('\r\n','\n'))
     assert.deepEqual({...validatorAfter,prosrc:null},{...validatorBefore,prosrc:null})
     const postcheck=evidence(await admin.query(fs.readFileSync('supabase/diagnostics/bluenext-integrato/postcheck.sql','utf8')))
     assert.equal(precheck.readonly,'on');assert.equal(postcheck.readonly,'on');assert.deepEqual(postcheck.fingerprints,precheck.fingerprints)
